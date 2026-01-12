@@ -57,3 +57,12 @@ Thumbs.db
 *_SUMMARY.md
 HANDOFF.md
 diagnostics/
+
+# Training outputs
+ccb_training_*.json
+
+# Internal tracking (not for repo)
+CURR_WORK.md
+memory.md
+ALL_WORK.md
+MISTAKES.md
