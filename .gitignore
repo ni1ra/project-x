@@ -60,6 +60,11 @@ diagnostics/
 
 # Training outputs
 ccb_training_*.json
+checkpoint_*.pt
+emergence_analysis_*.json
+benchmark_scores_*.json
+training_*.log
+results/
 
 # Internal tracking (not for repo)
 CURR_WORK.md

@@ -167,6 +167,11 @@ class RPJRolloutBuffer:
         # Compute allocation (for collapse detection)
         self.c_ts = torch.zeros((buffer_size, 1), device=device)
 
+        # Stored compute decisions (for proper PPO importance sampling)
+        # CRITICAL: These are the actual sampled decisions, not recomputed
+        self.k_rs = torch.zeros(buffer_size, dtype=torch.long, device=device)
+        self.n_ts = torch.zeros(buffer_size, dtype=torch.long, device=device)
+
         # Computed after rollout
         self.advantages = torch.zeros(buffer_size, device=device)
         self.returns = torch.zeros(buffer_size, device=device)
@@ -194,6 +199,8 @@ class RPJRolloutBuffer:
         sigma: torch.Tensor,
         g_t: torch.Tensor,
         c_t: torch.Tensor,
+        k_r: int,
+        n_t: int,
     ):
         """Add a transition to the buffer."""
         self.observations[self.pos] = obs.flatten()
@@ -214,6 +221,9 @@ class RPJRolloutBuffer:
         self.sigmas[self.pos] = sigma.flatten()
         self.g_ts[self.pos] = g_t.flatten()
         self.c_ts[self.pos] = c_t.flatten()
+        # Store compute decisions for proper PPO importance sampling
+        self.k_rs[self.pos] = k_r
+        self.n_ts[self.pos] = n_t
 
         self.pos += 1
         if self.pos >= self.buffer_size:
@@ -259,6 +269,9 @@ class RPJRolloutBuffer:
                 'hidden_states': self.hidden_states[batch_indices],
                 'latents': self.latents[batch_indices],
                 'g_ts': self.g_ts[batch_indices],
+                # Stored compute decisions for proper importance sampling
+                'k_rs': self.k_rs[batch_indices],
+                'n_ts': self.n_ts[batch_indices],
             }
 
     def get_vae_batches(self, batch_size: int):
@@ -388,14 +401,38 @@ class RPJTrainer:
 
         prev_value = None
 
+        # Emergence metrics tracking (verbose but not spammy)
+        all_cbr = []      # Compute burst ratio
+        all_k_r = []      # Routed block counts
+        all_n_t = []      # Rollout step counts
+        all_g_t = []      # Global scalars (for K_eff)
+
         for step in range(num_steps):
             # Brain forward pass
             with torch.no_grad():
                 output = self.brain(obs, h, g, a_prev, training=True)
 
-            # Track energy for this step
+            # Track energy for this step - SCALED BY COMPUTE ALLOCATION
+            # Per BLUEPRINT: Energy must depend on c_t/k_r for λ_E to create emergence pressure
+            # k_r = number of routed blocks (1 to k_r_max=4)
+            # Energy scales linearly with k_r: more blocks = more compute = more energy
+            k_r = output.k_r.item() if output.k_r.numel() == 1 else output.k_r[0].item()
+            k_r_max = 4  # From BLUEPRINT K_R_MAX
+            num_blocks = 64  # From BLUEPRINT B=64
+
+            # Base energy: fixed costs (embedding, LayerNorm, etc.)
             self.energy_tracker.record_linear(self.brain.config.obs_dim, self.brain.config.hidden_dim, 1)
-            self.energy_tracker.record_gru_step(self.brain.config.hidden_dim, self.brain.config.hidden_dim, 1)
+
+            # Scaled energy: GRU blocks - only k_r out of num_blocks are active
+            # Full GRU would be hidden_dim → hidden_dim, but sparse routing means
+            # only (k_r / num_blocks) fraction of hidden units are updated
+            active_fraction = k_r / num_blocks
+            effective_hidden = int(self.brain.config.hidden_dim * active_fraction)
+            self.energy_tracker.record_gru_step(
+                self.brain.config.hidden_dim,
+                max(effective_hidden, 1),  # At least 1 unit active
+                1
+            )
             energy_t = self.energy_tracker.step_energy
 
             # Commit step energy (may raise if budget exceeded)
@@ -416,17 +453,30 @@ class RPJTrainer:
                 phi_obs, output.mu, output.sigma
             ).item()
 
-            # Compute full RPJ reward
+            # Compute full RPJ reward (includes g_t sparsity penalty for K_eff)
             rpj_reward = self.brain.compute_reward_per_joule(
                 torch.tensor([extrinsic_reward], device=self.device),
                 torch.tensor([intrinsic_reward], device=self.device),
                 torch.tensor([energy_t], device=self.device),
                 output.code_len,
-                self.config.e_cap_step,
+                g_t=output.g_t,  # K_eff fix: pass g_t for sparsity penalty
+                e_cap_step=self.config.e_cap_step,
             ).item()
 
             # Store in buffer
+            # CRITICAL: Store h_next, NOT h. Actions/values are computed from h_next
+            # (see rpj_brain.py lines 326-333: action_decoder uses substrate_out.h_next)
             next_obs_tensor = torch.tensor(next_obs, dtype=torch.long, device=self.device).unsqueeze(0)
+            # Extract k_r and n_t as scalars for storage
+            k_r_val = output.k_r.item() if output.k_r.numel() == 1 else output.k_r[0].item()
+            n_t_val = output.n_t.item() if output.n_t.numel() == 1 else output.n_t[0].item()
+
+            # Track emergence metrics (verbose logging)
+            all_cbr.append(output.cbr_t.item() if output.cbr_t.numel() == 1 else output.cbr_t[0].item())
+            all_k_r.append(k_r_val)
+            all_n_t.append(n_t_val)
+            all_g_t.append(output.g_t.squeeze(0).cpu().numpy())
+
             self.buffer.add(
                 obs=obs.squeeze(0),
                 next_obs=next_obs_tensor.squeeze(0),
@@ -440,12 +490,14 @@ class RPJTrainer:
                 done=done,
                 energy=energy_t,
                 code_len=output.code_len.item(),
-                hidden=h.squeeze(0),
+                hidden=output.h_next.squeeze(0),  # FIX: Use h_next, not h
                 z_t=output.z_t.squeeze(0),
                 mu=output.mu.squeeze(0),
                 sigma=output.sigma.squeeze(0),
                 g_t=output.g_t.squeeze(0),
                 c_t=output.c_t.squeeze(0),
+                k_r=int(k_r_val),  # Store actual sampled k_r
+                n_t=int(n_t_val),  # Store actual sampled n_t
             )
 
             # Add to replay buffer for sleep
@@ -525,6 +577,34 @@ class RPJTrainer:
         # Check for collapse
         collapse_metric = self.buffer.compute_collapse_metric()
 
+        # Compute emergence metrics (verbose logging)
+        cbr_array = np.array(all_cbr) if all_cbr else np.array([1.0])
+        k_r_array = np.array(all_k_r) if all_k_r else np.array([1])
+        n_t_array = np.array(all_n_t) if all_n_t else np.array([0])
+        g_t_array = np.array(all_g_t) if all_g_t else np.zeros((1, 16))
+
+        # CBR bimodality: Ashman's D coefficient
+        # D > 2 indicates bimodal, D < 2 indicates unimodal
+        # Using simplified version: check for two distinct clusters
+        cbr_sorted = np.sort(cbr_array)
+        mid = len(cbr_sorted) // 2
+        if mid > 0:
+            cbr_low_mean = cbr_sorted[:mid].mean()
+            cbr_high_mean = cbr_sorted[mid:].mean()
+            cbr_low_std = cbr_sorted[:mid].std() + 1e-8
+            cbr_high_std = cbr_sorted[mid:].std() + 1e-8
+            # Bimodality index (higher = more bimodal)
+            cbr_bimodality = abs(cbr_high_mean - cbr_low_mean) / (cbr_low_std + cbr_high_std)
+        else:
+            cbr_bimodality = 0.0
+
+        # K_eff: Participation ratio over global scalar variances
+        # K_eff = (Σ Var(g_k))² / Σ Var(g_k)²
+        g_t_var = g_t_array.var(axis=0)  # Variance of each scalar across time
+        var_sum = g_t_var.sum()
+        var_sq_sum = (g_t_var ** 2).sum() + 1e-8
+        k_eff = (var_sum ** 2) / var_sq_sum if var_sum > 0 else 0.0
+
         return {
             "mean_extrinsic_reward": np.mean(episode_rewards) if episode_rewards else 0.0,
             "mean_rpj_reward": np.mean(episode_rpj_rewards) if episode_rpj_rewards else 0.0,
@@ -532,6 +612,14 @@ class RPJTrainer:
             "num_episodes": len(episode_rewards),
             "energy_J": self.energy_tracker.total_energy,
             "collapse_entropy": collapse_metric,
+            # Emergence metrics
+            "cbr_mean": float(cbr_array.mean()),
+            "cbr_std": float(cbr_array.std()),
+            "cbr_max": float(cbr_array.max()),
+            "cbr_bimodality": float(cbr_bimodality),
+            "k_r_mean": float(k_r_array.mean()),
+            "n_t_mean": float(n_t_array.mean()),
+            "K_eff": float(k_eff),
         }
 
     def update_policy(self) -> Dict[str, float]:
@@ -555,6 +643,9 @@ class RPJTrainer:
                 advantages = batch['advantages']
                 hidden = batch['hidden_states']
                 g_t = batch['g_ts']
+                # CRITICAL FIX (Caveat 1): Use stored compute decisions
+                stored_k_r = batch['k_rs']
+                stored_n_t = batch['n_ts']
 
                 # Normalize advantages
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
@@ -565,17 +656,18 @@ class RPJTrainer:
                 # Get current log probs and values
                 phi_obs = phi(obs)
 
-                # Get log probs for given actions
-                action_log_probs = self.brain.get_action_log_prob(hidden, actions)
-                entropy = self.brain.get_action_entropy(hidden)
+                # Get log probs for given actions (K_eff fix: pass g_t)
+                action_log_probs = self.brain.get_action_log_prob(hidden, actions, g_t)
+                entropy = self.brain.get_action_entropy(hidden, g_t)
 
-                # Get current values
-                values = self.brain.substrate.get_value(hidden)
+                # Get current values (K_eff fix: pass g_t)
+                values = self.brain.substrate.get_value(hidden, g_t)
 
-                # Re-compute compute decision log probs
-                # CRITICAL: (k_r, N) decisions must be in PPO objective (BLUEPRINT Sec 2.2)
-                _, _, _, new_compute_log_probs = self.brain.substrate.compute_allocator(
-                    hidden, training=True
+                # CRITICAL FIX (Caveat 1): Compute log_prob of STORED (k_r, n_t) decisions
+                # under current params, WITHOUT resampling new decisions.
+                # This ensures proper importance sampling for compute allocation learning.
+                new_compute_log_probs = self.brain.substrate.compute_allocator.get_log_prob(
+                    hidden, stored_k_r, stored_n_t
                 )
 
                 # Total log prob = action log prob + compute decision log prob
@@ -764,13 +856,19 @@ class RPJTrainer:
                 callback(stats)
 
             if (update + 1) % log_interval == 0:
-                print(f"Update {update + 1}/{num_updates}")
-                print(f"  Extrinsic Reward: {stats.get('mean_extrinsic_reward', 0):.3f}")
-                print(f"  RPJ Reward: {stats.get('mean_rpj_reward', 0):.3f}")
-                print(f"  Policy Loss: {stats.get('policy_loss', 0):.4f}")
-                print(f"  VAE Loss: {stats.get('vae_loss', 0):.4f}")
-                print(f"  Energy: {stats.get('energy_J', 0):.4f} J")
-                print(f"  Collapse H: {stats.get('collapse_entropy', 0):.4f}")
+                print(f"Update {update + 1}/{num_updates} | t={stats['timesteps']}")
+                print(f"  Reward: ext={stats.get('mean_extrinsic_reward', 0):.3f}, rpj={stats.get('mean_rpj_reward', 0):.3f}")
+                print(f"  Loss: policy={stats.get('policy_loss', 0):.4f}, vae={stats.get('vae_loss', 0):.4f}")
+                print(f"  Energy: {stats.get('energy_J', 0):.4f} J | Collapse H: {stats.get('collapse_entropy', 0):.4f}")
+                # Emergence metrics (verbose but informative)
+                cbr_b = stats.get('cbr_bimodality', 0)
+                k_eff = stats.get('K_eff', 0)
+                k_r = stats.get('k_r_mean', 0)
+                n_t = stats.get('n_t_mean', 0)
+                cbr_status = "BIMODAL" if cbr_b > 0.555 else "unimodal"
+                k_status = "TARGET" if 2 <= k_eff <= 6 else "not compressed"
+                print(f"  Emergence: CBR_B={cbr_b:.3f} ({cbr_status}), K_eff={k_eff:.2f} ({k_status})")
+                print(f"  Compute: k_r={k_r:.2f}, n_t={n_t:.2f}")
 
         return all_stats
 

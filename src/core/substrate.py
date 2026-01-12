@@ -44,6 +44,7 @@ class SubstrateOutput(NamedTuple):
     g_t: torch.Tensor             # Global scalars [batch, K_max]
     c_t: torch.Tensor             # Compute allocation [batch, 1]
     k_r: torch.Tensor             # Routed blocks count [batch]
+    n_t: torch.Tensor             # Rollout step count [batch] - for PPO stored decisions
     routing_mask: torch.Tensor    # Block routing mask [batch, B]
     cbr_t: torch.Tensor           # Compute burst ratio [batch]
     bi_t: torch.Tensor            # Broadcast index [batch]
@@ -325,6 +326,49 @@ class ComputeAllocator(nn.Module):
 
         return c_t, k_r, n_t, log_prob
 
+    def get_log_prob(
+        self,
+        h_t: torch.Tensor,
+        k_r: torch.Tensor,
+        n_t: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute log probability of given (k_r, n_t) decisions.
+
+        Used by PPO to compute importance ratio without resampling.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            k_r: Stored routed block count [batch]
+            n_t: Stored rollout step count [batch]
+
+        Returns:
+            log_prob: Log probability of (k_r, n_t) [batch]
+        """
+        # Compute c_t from current params
+        c_t = torch.sigmoid(self.w_c(h_t))  # [batch, 1]
+        c_t_squeezed = c_t.squeeze(-1).clamp(1e-6, 1 - 1e-6)  # [batch]
+
+        # k_r was stored as 1 + sample, so k_r_sample = k_r - 1
+        k_r_sample = (k_r - 1).float().clamp(0, self.k_r_max - 1)
+
+        # Create distributions with current c_t
+        k_r_dist = Binomial(
+            total_count=self.k_r_max - 1,
+            probs=c_t_squeezed
+        )
+        n_dist = Binomial(
+            total_count=self.n_max,
+            probs=c_t_squeezed
+        )
+
+        # Compute log probs of the stored values
+        log_prob_k = k_r_dist.log_prob(k_r_sample)
+        log_prob_n = n_dist.log_prob(n_t.float().clamp(0, self.n_max))
+        log_prob = log_prob_k + log_prob_n
+
+        return log_prob
+
 
 class GlobalScalarBroadcast(nn.Module):
     """
@@ -448,8 +492,8 @@ class RPJSubstrate(nn.Module):
         # Global scalar broadcast
         self.global_broadcast = GlobalScalarBroadcast(hidden_dim, k_max)
 
-        # Value head: V(h_t) = w_V^T h_t + b_V (linear)
-        self.value_head = nn.Linear(hidden_dim, 1)
+        # Value head: V([h_t || g_t]) - conditions on g_t for K_eff gradient flow
+        self.value_head = nn.Linear(hidden_dim + k_max, 1)
 
         # Running statistics for CBR computation
         self.register_buffer('c_running_mean', torch.tensor(0.5))
@@ -536,15 +580,19 @@ class RPJSubstrate(nn.Module):
             g_t=g_t,
             c_t=c_t,
             k_r=k_r,
+            n_t=n_t,
             routing_mask=hard_mask,
             cbr_t=cbr_t,
             bi_t=bi_t,
             compute_log_prob=compute_log_prob,
         )
 
-    def get_value(self, h_t: torch.Tensor) -> torch.Tensor:
-        """Get value estimate from hidden state."""
-        return self.value_head(h_t).squeeze(-1)
+    def get_value(self, h_t: torch.Tensor, g_t: torch.Tensor = None) -> torch.Tensor:
+        """Get value estimate from [h_t || g_t] for K_eff gradient flow."""
+        if g_t is None:
+            g_t = torch.zeros(h_t.size(0), self.k_max, device=h_t.device)
+        context = torch.cat([h_t, g_t], dim=-1)
+        return self.value_head(context).squeeze(-1)
 
     def count_parameters(self) -> int:
         """Count total trainable parameters."""
@@ -594,6 +642,6 @@ if __name__ == "__main__":
     print(f"Routed blocks: {output.k_r.tolist()}")
     print(f"CBR: {output.cbr_t.tolist()}")
     print(f"BI: {output.bi_t.tolist()}")
-    print(f"Value: {substrate.get_value(output.h_next).tolist()}")
+    print(f"Value: {substrate.get_value(output.h_next, output.g_t).tolist()}")
 
     print("\n✓ Substrate forward pass works!")

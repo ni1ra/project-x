@@ -45,6 +45,7 @@ class RPJConfig:
     lambda_rnd: float = 0.1     # RND intrinsic (warmup)
     lambda_int: float = 0.1     # Info gain intrinsic (post-warmup)
     lambda_dyn: float = 1.0     # Dynamics model loss
+    lambda_g: float = 0.1       # Global scalar sparsity penalty (for K_eff compression)
 
     # Warmup
     T_warm: int = 50_000        # RND warmup steps
@@ -88,6 +89,8 @@ class RPJBrainOutput(NamedTuple):
 
     # Emergence metrics
     c_t: torch.Tensor              # Compute allocation [batch, 1]
+    k_r: torch.Tensor              # Routed blocks count [batch] - for energy scaling
+    n_t: torch.Tensor              # Rollout step count [batch] - for PPO stored decisions
     cbr_t: torch.Tensor            # Compute burst ratio [batch]
     bi_t: torch.Tensor             # Broadcast index [batch]
 
@@ -188,10 +191,11 @@ class RPJBrain(nn.Module):
             latent_dim=config.latent_dim,
         )
 
-        # Action decoder
+        # Action decoder (with g_t conditioning for K_eff gradient flow)
         self.action_decoder = AutoregressiveActionDecoder(
             hidden_dim=config.hidden_dim,
             num_action_bytes=config.action_bytes,
+            k_max=config.k_max,
         )
 
         # RND for exploration warmup
@@ -322,12 +326,13 @@ class RPJBrain(nn.Module):
             training=training,
         )
 
-        # Get value estimate
-        value = self.substrate.get_value(substrate_out.h_next)
+        # Get value estimate (conditions on g_t for K_eff gradient flow)
+        value = self.substrate.get_value(substrate_out.h_next, substrate_out.g_t)
 
-        # Generate action
+        # Generate action (conditions on g_t for K_eff gradient flow)
         action, action_log_prob = self.action_decoder(
             substrate_out.h_next,
+            g_t=substrate_out.g_t,
             num_bytes=self.config.action_bytes,
             greedy=not training,
         )
@@ -364,6 +369,8 @@ class RPJBrain(nn.Module):
             value=value,
             code_len=code_len,
             c_t=substrate_out.c_t,
+            k_r=substrate_out.k_r,
+            n_t=substrate_out.n_t,
             cbr_t=substrate_out.cbr_t,
             bi_t=substrate_out.bi_t,
             compute_log_prob=compute_log_prob,
@@ -417,6 +424,7 @@ class RPJBrain(nn.Module):
         intrinsic_reward: torch.Tensor,
         energy_t: torch.Tensor,
         code_len_t: torch.Tensor,
+        g_t: torch.Tensor = None,
         e_cap_step: float = 0.1,  # From BLUEPRINT: 200J / 2000 steps
     ) -> torch.Tensor:
         """
@@ -424,13 +432,17 @@ class RPJBrain(nn.Module):
 
         From BLUEPRINT Section 2.7:
         r̃_t = r_t + λ_int * r^int_t
-        J = Σ γ^t (r̃_t - λ_E * Ê_t - λ_mdl * Ĉ_t)
+        J = Σ γ^t (r̃_t - λ_E * Ê_t - λ_mdl * Ĉ_t - λ_g * ||g_t||_1)
+
+        K_eff Fix: Added λ_g sparsity penalty on g_t to encourage compression.
+        This creates gradient pressure to push unused scalars toward 0.
 
         Args:
             extrinsic_reward: Environment reward [batch]
             intrinsic_reward: RND or info gain reward [batch]
             energy_t: Energy used this step [batch]
             code_len_t: Codelength this step [batch]
+            g_t: Global scalars [batch, k_max] (for sparsity penalty)
             e_cap_step: Per-step energy cap (for normalization)
 
         Returns:
@@ -446,8 +458,18 @@ class RPJBrain(nn.Module):
         # CodeLen_t is in nats, normalize by raw observation bits (8 * obs_dim)
         C_hat = code_len_t / (8 * self.config.obs_dim)
 
-        # Full objective
-        rpj_reward = r_tilde - self.config.lambda_E * E_hat - self.config.lambda_mdl * C_hat
+        # G_t sparsity penalty (L1 norm normalized by k_max)
+        # This encourages unused scalars to go to 0, compressing K_eff
+        if g_t is not None:
+            G_hat = g_t.abs().mean(dim=-1)  # Mean L1 per sample, range [0, 1]
+        else:
+            G_hat = torch.zeros_like(extrinsic_reward)
+
+        # Full objective with sparsity penalty
+        rpj_reward = (r_tilde
+                      - self.config.lambda_E * E_hat
+                      - self.config.lambda_mdl * C_hat
+                      - self.config.lambda_g * G_hat)
 
         return rpj_reward
 
@@ -455,13 +477,14 @@ class RPJBrain(nn.Module):
         self,
         h_t: torch.Tensor,
         actions: torch.Tensor,
+        g_t: torch.Tensor = None,
     ) -> torch.Tensor:
         """Get log probability of given actions (for PPO)."""
-        return self.action_decoder.get_log_prob(h_t, actions)
+        return self.action_decoder.get_log_prob(h_t, actions, g_t)
 
-    def get_action_entropy(self, h_t: torch.Tensor) -> torch.Tensor:
+    def get_action_entropy(self, h_t: torch.Tensor, g_t: torch.Tensor = None) -> torch.Tensor:
         """Get action distribution entropy (for PPO entropy bonus)."""
-        return self.action_decoder.get_entropy(h_t, self.config.action_bytes)
+        return self.action_decoder.get_entropy(h_t, self.config.action_bytes, g_t)
 
     def update_vae_target(self):
         """Update VAE target encoder via Polyak averaging."""
@@ -707,8 +730,16 @@ if __name__ == "__main__":
         print(f"\nFast param budget: {fast:,} / {budget:,} ({'OK' if fast <= budget else 'EXCEEDED!'})")
 
     # Gradient test
-    loss = output.value.sum() + output.code_len.mean()
+    loss = output.value.sum() + output.code_len.mean() + output.action_log_prob.sum()
     loss.backward()
     print(f"\n✓ Backward pass OK")
+
+    # K_eff fix verification: Check that W_g receives gradient
+    W_g_param = brain.substrate.global_broadcast.W_g.weight
+    if W_g_param.grad is not None:
+        grad_norm = W_g_param.grad.norm().item()
+        print(f"✓ K_eff Fix: W_g.grad.norm = {grad_norm:.6f} (gradient flows to g_t!)")
+    else:
+        print("✗ K_eff Fix FAILED: W_g.grad is None!")
 
     print("\n✓ RPJ Brain v2 works!")
