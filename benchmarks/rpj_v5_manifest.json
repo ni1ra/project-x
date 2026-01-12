@@ -1,0 +1,104 @@
+{
+  "version": "v5",
+  "name": "RPJ Brain Manifest",
+  "created": "2026-01-12",
+  "frozen": false,
+  "note": "FREEZE THIS FILE BEFORE ANY TRAINING RUN - Rule 4.1.A",
+
+  "energy_constants": {
+    "kappa_F": 1e-9,
+    "kappa_F_unit": "J/FLOP",
+    "kappa_M": 5e-11,
+    "kappa_M_unit": "J/Byte",
+    "calibration_status": "UNCALIBRATED"
+  },
+
+  "budgets": {
+    "B_max_ep": 200,
+    "B_max_ep_unit": "J",
+    "B_max_day": 72000,
+    "B_max_day_unit": "J",
+    "B_sleep": 100,
+    "B_sleep_unit": "J",
+    "B_sleep_1": 100,
+    "B_sleep_1_unit": "J"
+  },
+
+  "architecture": {
+    "d": 512,
+    "K_max": 16,
+    "dim_z": 64,
+    "k_r_max": 4,
+    "N_max": 5,
+    "adapter_rank": 64,
+    "B_blocks": 64,
+    "gumbel_tau": 1.0
+  },
+
+  "training": {
+    "gamma": 0.999,
+    "T_min": 2000,
+    "T_max": 5000,
+    "T_warm": 50000,
+    "lambda_E": 1.0,
+    "lambda_mdl": 1.0,
+    "lambda_rnd": 0.1,
+    "lambda_int": 0.1,
+    "lambda_dyn": 1.0,
+    "ppo_clip": 0.2,
+    "ppo_lr": 3e-4,
+    "ppo_entropy": 0.01,
+    "grad_clip_norm": 1.0,
+    "polyak_tau": 1e-3
+  },
+
+  "replay_buffer": {
+    "capacity": 100000,
+    "priority_alpha": 0.6,
+    "priority_beta_start": 0.4,
+    "priority_epsilon": 1e-3
+  },
+
+  "plasticity": {
+    "rho": 1.0,
+    "P_fast_max_abs": 500000,
+    "P_fast_max_ratio": 0.05
+  },
+
+  "thresholds": {
+    "OD_NDT_SR_novel_min": 0.60,
+    "OD_NDT_T_min": 0.80,
+    "CCB_DoErr_max": 0.05,
+    "CCB_discrimination_min": 0.90,
+    "K_eff_min": 2,
+    "K_eff_max": 6,
+    "collapse_entropy_threshold": 0.05,
+    "sleep_retention_improvement_min": 0.05,
+    "sleep_transfer_improvement_min": 0.05
+  },
+
+  "seeds": {
+    "development": [42, 123, 456, 789, 1337],
+    "held_out_eval": [2026, 2027, 2028, 2029, 2030],
+    "note": "DO NOT MODIFY AFTER TRAINING STARTS"
+  },
+
+  "domains": {
+    "training": [
+      "navigation_family",
+      "tool_use_family",
+      "grid_dynamics_family",
+      "symbolic_transduction_family",
+      "multi_agent_confounding_family"
+    ],
+    "held_out": [
+      "instruction_following_family",
+      "noisy_control_family"
+    ],
+    "benchmark": [
+      "CCB",
+      "CCB_NL",
+      "OD_NDT"
+    ]
+  }
+}
