@@ -159,8 +159,10 @@ class ODNDTHarness:
         obs, info = env.reset(task_id=demo_task_id)
         obs = obs.to(self.device)
 
-        # Initialize hidden state
+        # Initialize hidden state, global scalars, and previous action
         h = torch.zeros(1, self.brain.substrate.hidden_dim, device=self.device)
+        g_prev = torch.zeros(1, self.brain.config.k_max, device=self.device)
+        a_prev = torch.zeros(1, dtype=torch.long, device=self.device)
 
         for step in range(self.config.max_demo_steps):
             # Get oracle action
@@ -171,6 +173,7 @@ class ODNDTHarness:
                 'obs': obs.clone(),
                 'action': oracle_action.clone(),
                 'hidden': h.clone(),
+                'g_prev': g_prev.clone(),
             })
 
             # Step environment
@@ -179,8 +182,10 @@ class ODNDTHarness:
 
             # Update hidden state (observe the demo)
             with torch.no_grad():
-                output = self.brain.forward(obs.unsqueeze(0), h, training=False)
+                output = self.brain.forward(obs.unsqueeze(0), h, g_prev, a_prev, training=False)
                 h = output.h_next
+                g_prev = output.g_t
+                a_prev = output.action.squeeze(-1) if output.action.dim() > 1 else output.action
 
             obs = next_obs
 
@@ -219,16 +224,21 @@ class ODNDTHarness:
             # Compute latent for storage
             with torch.no_grad():
                 phi_obs = self.brain.byte_interface.encode_observation(obs.unsqueeze(0))
-                vae_out = self.brain.vae.forward(hidden, phi_obs.squeeze(0))
+                # VAE forward needs (h_t, phi_obs, obs_bytes)
+                vae_out = self.brain.vae.forward(hidden, phi_obs, obs.unsqueeze(0))
                 z_t = vae_out.z_t
 
             # Store in replay buffer with high priority (demo is important)
+            # Get next obs (or use current obs for last step)
+            next_obs = demo_data[i + 1]['obs'] if i < len(demo_data) - 1 else obs
             self.brain.sleep.add_experience(
                 obs=obs,
                 action=action,
                 reward=1.0,  # Demo is successful
+                next_obs=next_obs,
                 done=(i == len(demo_data) - 1),
-                hidden=hidden.squeeze(0),
+                energy=0.01,  # Minimal energy for demo
+                code_len=0.0,  # No codelength for demo
                 z_t=z_t.squeeze(0),
                 td_error=1.0,  # High priority
             )
@@ -244,11 +254,12 @@ class ODNDTHarness:
             # Sample from replay and update dynamics
             if self.brain.sleep.replay_buffer.size >= 8:  # Minimum batch
                 batch_size = min(8, self.brain.sleep.replay_buffer.size)
-                batch, indices, weights = self.brain.sleep.replay_buffer.sample(batch_size)
+                # Use sample_replay which returns batched dict, not raw transitions
+                batch, weights, indices = self.brain.sleep.sample_replay(batch_size)
 
                 # Compute dynamics loss (imagination)
                 z_batch = batch['z_t'].to(self.device)
-                action_batch = batch['action'].to(self.device)
+                action_batch = batch['actions'].to(self.device)
 
                 # One-step dynamics
                 z_next = batch['z_t'][1:].to(self.device) if len(batch['z_t']) > 1 else z_batch
@@ -322,8 +333,10 @@ class ODNDTHarness:
         obs, info = env.reset(task_id=task_id)
         obs = obs.to(self.device)
 
-        # Initialize hidden state
+        # Initialize hidden state, global scalars, and previous action
         h = torch.zeros(1, self.brain.substrate.hidden_dim, device=self.device)
+        g_prev = torch.zeros(1, self.brain.config.k_max, device=self.device)
+        a_prev = torch.zeros(1, dtype=torch.long, device=self.device)
 
         # Freeze slow weights
         for param in self.brain.parameters():
@@ -333,10 +346,12 @@ class ODNDTHarness:
             for step in range(self.config.max_test_steps):
                 # Forward pass (no training)
                 with torch.no_grad():
-                    output = self.brain.forward(obs.unsqueeze(0), h, training=False)
+                    output = self.brain.forward(obs.unsqueeze(0), h, g_prev, a_prev, training=False)
 
                 action = output.action
                 h = output.h_next
+                g_prev = output.g_t
+                a_prev = action.squeeze(-1) if action.dim() > 1 else action
 
                 # Fast weight update (local plasticity still active within episode)
                 if self.brain.plasticity is not None and hasattr(output, 'g_t'):

@@ -25,7 +25,7 @@ import torch.nn.functional as F
 
 from src.core.substrate import RPJSubstrate, SubstrateOutput, HIDDEN_DIM, LATENT_DIM, K_MAX
 from src.core.vae import BitsBackVAE, VAEOutput
-from src.core.byte_interface import phi, AutoregressiveActionDecoder
+from src.core.byte_interface import phi, AutoregressiveActionDecoder, ByteInterface
 from src.core.plasticity import LocalPlasticity, PlasticityConfig
 from src.core.sleep import SleepModule, SleepConfig
 
@@ -226,6 +226,12 @@ class RPJBrain(nn.Module):
         else:
             self.sleep = None
 
+        # Byte interface for OD-NDT harness compatibility
+        self.byte_interface = ByteInterface(
+            hidden_dim=config.hidden_dim,
+            num_action_bytes=config.action_bytes,
+        )
+
         # Step counter for warmup
         self.register_buffer('step_count', torch.tensor(0))
 
@@ -326,10 +332,8 @@ class RPJBrain(nn.Module):
             greedy=not training,
         )
 
-        # Compute log prob of compute decisions (k_r, N)
-        _, k_r, n_t, compute_log_prob = self.substrate.compute_allocator(
-            h_t, training
-        )
+        # Use compute_log_prob from substrate (NOT recomputed - same sample)
+        compute_log_prob = substrate_out.compute_log_prob
 
         # Sleep probability
         if self.sleep is not None:

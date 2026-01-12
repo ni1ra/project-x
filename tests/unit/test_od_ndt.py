@@ -107,6 +107,7 @@ class MockSleep(nn.Module):
     def __init__(self):
         super().__init__()
         self.experiences = []
+        self.beta = 0.4  # For sample_replay
 
     def add_experience(self, **kwargs):
         self.experiences.append(kwargs)
@@ -120,12 +121,16 @@ class MockSleep(nn.Module):
         return len(self.experiences)
 
     def sample(self, batch_size):
-        # Return mock batch
+        # Return mock transitions (list format for raw sample)
+        return [], torch.ones(batch_size), list(range(batch_size))
+
+    def sample_replay(self, batch_size):
+        # Return mock batch dict (for OD-NDT harness)
         return {
             'obs': torch.randn(batch_size, 8),
-            'action': torch.randint(0, 256, (batch_size,)),
+            'actions': torch.randint(0, 256, (batch_size,)),
             'z_t': torch.randn(batch_size, 64),
-        }, list(range(batch_size)), torch.ones(batch_size)
+        }, torch.ones(batch_size), list(range(batch_size))
 
     def synaptic_renormalization(self, plasticity):
         pass
@@ -146,7 +151,7 @@ class MockVAE(nn.Module):
         super().__init__()
         self.fc = nn.Linear(512, 64)
 
-    def forward(self, h, phi_obs):
+    def forward(self, h, phi_obs, obs_bytes=None):
         from collections import namedtuple
         Output = namedtuple('Output', ['z_t', 'mu', 'sigma'])
         return Output(
@@ -162,7 +167,12 @@ class MockBrainOutput:
     def __init__(self, action, h_next, g_t=None):
         self.action = action
         self.h_next = h_next
-        self.g_t = g_t
+        self.g_t = g_t if g_t is not None else torch.rand(1, 16)
+
+
+class MockConfig:
+    """Mock config for brain."""
+    k_max: int = 16
 
 
 class MockBrain(nn.Module):
@@ -175,13 +185,16 @@ class MockBrain(nn.Module):
         self.sleep = MockSleep()
         self.byte_interface = MockByteInterface()
         self.vae = MockVAE()
+        self.config = MockConfig()
 
         self.fc = nn.Linear(obs_dim, 1)
 
-    def forward(self, obs, h, training=False):
+    def forward(self, obs, h, g_prev=None, a_prev=None, training=False):
+        """Forward with full signature matching real RPJBrain."""
         action = torch.randint(0, 256, (1, 1))
         h_next = h.clone()
-        return MockBrainOutput(action, h_next, torch.rand(1, 16))
+        g_t = torch.rand(1, self.config.k_max)
+        return MockBrainOutput(action, h_next, g_t)
 
 
 # =============================================================================

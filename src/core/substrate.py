@@ -47,6 +47,7 @@ class SubstrateOutput(NamedTuple):
     routing_mask: torch.Tensor    # Block routing mask [batch, B]
     cbr_t: torch.Tensor           # Compute burst ratio [batch]
     bi_t: torch.Tensor            # Broadcast index [batch]
+    compute_log_prob: torch.Tensor  # Log prob of (k_r, N) decisions [batch]
 
 
 class LNGRUCell(nn.Module):
@@ -537,7 +538,8 @@ class RPJSubstrate(nn.Module):
             k_r=k_r,
             routing_mask=hard_mask,
             cbr_t=cbr_t,
-            bi_t=bi_t
+            bi_t=bi_t,
+            compute_log_prob=compute_log_prob,
         )
 
     def get_value(self, h_t: torch.Tensor) -> torch.Tensor:
