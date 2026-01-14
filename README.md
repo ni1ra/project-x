@@ -4,7 +4,7 @@ A 1.5M parameter neural agent demonstrating **emergent brain-like architecture**
 
 ## Results
 
-Source of truth: run the reproducibility gate `./reproduce.sh` (tests + fixed-checkpoint evals).
+Source of truth: run the reproducibility gate `bash reproduce.sh` (tests + fixed-checkpoint evals).
 
 Historical headline numbers (from a prior passing run):
 
