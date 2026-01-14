@@ -126,6 +126,29 @@ class TestSparseRouter:
             assert num_ones == k_r[i].item(), \
                 f"Sample {i}: expected {k_r[i].item()} active blocks, got {num_ones}"
 
+    def test_invalid_mask_does_not_corrupt_block0(self, router):
+        """
+        Regression test for CRITICAL bug:
+        invalid TopK positions must not zero out block 0 when k_r < k_max_batch.
+        """
+        batch_size = 2
+        h = torch.zeros(batch_size, HIDDEN_DIM)
+        k_r = torch.tensor([1, K_R_MAX])  # k_max_batch=4, sample 0 has invalid positions
+
+        # Force deterministic TopK indices [0, 1, 2, 3, ...] via router bias.
+        with torch.no_grad():
+            router.router.weight.zero_()
+            router.router.bias.copy_(torch.arange(NUM_BLOCKS, 0, -1, dtype=torch.float32))
+
+        _, hard = router(h, k_r, training=False)
+
+        # Sample 0 should keep block 0 active (not corrupted) and have exactly 1 routed block.
+        assert hard[0, 0].item() == 1.0
+        assert hard[0].sum().item() == 1.0
+
+        # Sample 1 should have exactly K_R_MAX routed blocks.
+        assert hard[1].sum().item() == float(K_R_MAX)
+
     def test_soft_weights_sum_to_one(self, router):
         """Soft weights should sum to 1 (softmax/Gumbel-softmax)."""
         batch_size = 4

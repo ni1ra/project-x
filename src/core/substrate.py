@@ -190,14 +190,39 @@ class SparseRouter(nn.Module):
             soft_weights = F.softmax(scores, dim=-1)
 
         # Hard TopK mask (straight-through)
-        # Handle variable k_r per sample
-        hard_mask = torch.zeros_like(soft_weights)
+        # JARVIS 420 FIX: Vectorized TopK - no Python loop, no .item() calls
+        # This enables torch.compile and removes CPU-GPU sync bottleneck
 
-        for i in range(batch_size):
-            k = int(k_r[i].item())
-            if k > 0:
-                _, topk_indices = torch.topk(scores[i], k)
-                hard_mask[i, topk_indices] = 1.0
+        # Use max k_r across batch for consistent TopK, then mask by actual k_r
+        k_max_batch = k_r.max().clamp(min=1, max=self.num_blocks).int()
+
+        # Get top-k indices for all samples at once
+        _, topk_indices = torch.topk(scores, k_max_batch, dim=-1)  # [B, k_max]
+
+        # Create hard mask using scatter
+        hard_mask = torch.zeros_like(soft_weights)
+        hard_mask.scatter_(1, topk_indices, 1.0)
+
+        # Mask out indices beyond each sample's k_r
+        # Create range tensor [0, 1, 2, ..., k_max-1] and compare with k_r
+        k_range = torch.arange(k_max_batch, device=k_r.device).unsqueeze(0)  # [1, k_max]
+        k_r_expanded = k_r.unsqueeze(1)  # [B, 1]
+        valid_mask = k_range < k_r_expanded  # [B, k_max] (bool)
+
+        # IMPORTANT: Do not scatter zeros for invalid positions.
+        # Invalid positions previously mapped to index 0, corrupting block 0.
+        # Route invalid positions into a sentinel column, then drop it.
+        sentinel = self.num_blocks  # one past the last valid block index
+        indices_for_scatter = topk_indices.clone()
+        indices_for_scatter[~valid_mask] = sentinel
+        hard_mask_ext = torch.zeros(
+            batch_size,
+            self.num_blocks + 1,
+            device=soft_weights.device,
+            dtype=soft_weights.dtype,
+        )
+        hard_mask_ext.scatter_(1, indices_for_scatter, 1.0)
+        hard_mask = hard_mask_ext[:, :self.num_blocks]
 
         # Straight-through: hard forward, soft backward
         if training:
@@ -392,6 +417,13 @@ class GlobalScalarBroadcast(nn.Module):
 
         self.W_g = nn.Linear(hidden_dim, k_max)
 
+        # K_eff COMPRESSION FIX: Bias Staggering
+        # Force ordered recruitment: Unit 0 is 'cheapest' to activate, Unit K is hardest
+        # Biases range from -1.0 (sigmoid~0.27) to -4.0 (sigmoid~0.02)
+        # This ensures first ~4-6 scalars can be used, rest are expensive
+        with torch.no_grad():
+            self.W_g.bias.data = torch.linspace(-1.0, -4.0, k_max)
+
     def forward(self, h_t: torch.Tensor) -> torch.Tensor:
         """
         Compute global scalar broadcast.
@@ -561,12 +593,16 @@ class RPJSubstrate(nn.Module):
         cbr_t = c_t.squeeze(-1) / (self.c_running_mean + 1e-8)
 
         # Update running mean of c_t
+        # JARVIS 420 FIX: Clone tensors to avoid CUDAGraphs overwrite error
+        # In-place buffer updates break torch.compile graph capture
         if training:
             with torch.no_grad():
-                batch_mean = c_t.mean()
-                self.c_running_count += batch_size
-                alpha = min(0.01, batch_size / self.c_running_count)
-                self.c_running_mean = (1 - alpha) * self.c_running_mean + alpha * batch_mean
+                batch_mean = c_t.mean().clone()
+                new_count = self.c_running_count + batch_size
+                alpha = min(0.01, batch_size / (new_count + 1e-8))
+                new_mean = (1 - alpha) * self.c_running_mean.clone() + alpha * batch_mean
+                self.c_running_count.copy_(new_count)
+                self.c_running_mean.copy_(new_mean)
 
         # BI_t (Broadcast Index) - participation ratio over unit activations
         # BI_t = (Σ|u_i|)² / (d * Σu_i² + ε)
@@ -575,16 +611,17 @@ class RPJSubstrate(nn.Module):
         sum_sq = (u_t ** 2).sum(dim=-1)   # [batch]
         bi_t = (sum_abs ** 2) / (self.hidden_dim * sum_sq + 1e-8)
 
+        # Clone all tensors to avoid CUDAGraphs tensor overwrite error with torch.compile
         return SubstrateOutput(
-            h_next=h_next,
-            g_t=g_t,
-            c_t=c_t,
-            k_r=k_r,
-            n_t=n_t,
-            routing_mask=hard_mask,
-            cbr_t=cbr_t,
-            bi_t=bi_t,
-            compute_log_prob=compute_log_prob,
+            h_next=h_next.clone(),
+            g_t=g_t.clone(),
+            c_t=c_t.clone(),
+            k_r=k_r.clone(),
+            n_t=n_t.clone(),
+            routing_mask=hard_mask.clone(),
+            cbr_t=cbr_t.clone(),
+            bi_t=bi_t.clone(),
+            compute_log_prob=compute_log_prob.clone() if compute_log_prob is not None else None,
         )
 
     def get_value(self, h_t: torch.Tensor, g_t: torch.Tensor = None) -> torch.Tensor:
@@ -592,7 +629,8 @@ class RPJSubstrate(nn.Module):
         if g_t is None:
             g_t = torch.zeros(h_t.size(0), self.k_max, device=h_t.device)
         context = torch.cat([h_t, g_t], dim=-1)
-        return self.value_head(context).squeeze(-1)
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        return self.value_head(context).squeeze(-1).clone()
 
     def count_parameters(self) -> int:
         """Count total trainable parameters."""

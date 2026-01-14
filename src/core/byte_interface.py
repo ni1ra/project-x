@@ -58,6 +58,244 @@ def phi_inverse(normalized: torch.Tensor) -> torch.Tensor:
     return bytes_clamped.to(torch.uint8)
 
 
+class GaussianActionHead(nn.Module):
+    """
+    Gaussian Action Head for ordinal byte outputs.
+
+    JARVIS 420 FIX: The standard 256-way categorical head lacks ordinal topology -
+    class 16 and class 17 are as distinct as class 16 and class 200. This creates
+    a jagged optimization surface where the agent falls into 'safe' local clusters
+    that minimize average error but lack gradient slope to slide to exact values.
+
+    This architecture forces the network to predict continuous mu and sigma, then
+    projects that distribution onto the 256 discrete bins. This restores gradient
+    flow between adjacent integers - if target is 48 and output is 22, the gradient
+    on mu will smoothly push probability mass from 22 → 48.
+
+    The logits are computed as: -0.5 * ((bin - mu) / sigma)^2
+    This is equivalent to a discretized Gaussian distribution.
+
+    CRITICAL FIX: Also accepts phi_obs (normalized observation) as direct input.
+    For simple tasks like CCB (identity mapping), this provides a direct path
+    from input byte to output mu, bypassing the complex substrate→h_t path.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        decoder_hidden: int = 128,
+        num_bins: int = 256,
+        k_max: int = 16,
+        obs_dim: int = 2,  # Direct observation input dimension
+    ):
+        super().__init__()
+        self.num_bins = num_bins
+        self.decoder_hidden = decoder_hidden
+        self.k_max = k_max
+        self.obs_dim = obs_dim
+
+        # Project [h_t || g_t || phi_obs] to decoder hidden
+        # Adding phi_obs provides direct gradient path from input to output
+        self.h_proj = nn.Linear(hidden_dim + k_max + obs_dim, decoder_hidden)
+
+        # Predict mu (0-255) and log_sigma from decoder hidden
+        # Two separate heads for cleaner gradient flow
+        self.mu_head = nn.Sequential(
+            nn.Linear(decoder_hidden, decoder_hidden),
+            nn.ReLU(),
+            nn.Linear(decoder_hidden, 1),
+        )
+        self.sigma_head = nn.Sequential(
+            nn.Linear(decoder_hidden, decoder_hidden),
+            nn.ReLU(),
+            nn.Linear(decoder_hidden, 1),
+        )
+
+        # JARVIS 420 FIX #3: Contextual Reflex Path
+        # Previous obs_skip only saw phi_obs -> learned AVERAGE function across tasks
+        # DoErr plateaued at 0.12 because reflex couldn't specialize to task
+        # FIX: Feed [phi_obs || g_t] to obs_skip for task-specific precision
+        # This creates a Context-Aware Reflex that is both stable (no dropout) and task-specific
+        self.obs_skip = nn.Sequential(
+            nn.Linear(obs_dim + k_max, 64),  # CHANGED: Added k_max for context
+            nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+        # Initialize last layer to small values
+        # Action space now aligns with target range, no bias needed
+        with torch.no_grad():
+            self.obs_skip[-1].weight.data.fill_(0.0)
+            self.obs_skip[-1].bias.data.fill_(0.0)
+
+        # Fixed grid [0, 1, ..., 255] for computing Gaussian logits
+        self.register_buffer('grid', torch.arange(num_bins).float())
+
+        # JARVIS 420 FIX: Information Bottleneck
+        # Apply dropout to h_t (local state) while leaving g_t (global broadcast) clean
+        # This forces the network to use neuromodulators for precision
+        self.h_dropout = nn.Dropout(p=0.5)
+
+    def forward(
+        self,
+        h_t: torch.Tensor,
+        g_t: torch.Tensor = None,
+        phi_obs: torch.Tensor = None,
+    ) -> torch.Tensor:
+        """
+        Compute Gaussian logits over byte values.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            g_t: Global scalars [batch, k_max]
+            phi_obs: Normalized observation [batch, obs_dim] - CRITICAL for direct gradient path
+
+        Returns:
+            logits: Gaussian logits over [0, 255], shape [batch, 256]
+        """
+        batch_size = h_t.size(0)
+
+        # JARVIS 420 FIX: Information Bottleneck
+        # Apply dropout to h_t during training to degrade local path
+        # Forces network to rely on g_t (neuromodulators) for stable prediction
+        h_t_dropped = self.h_dropout(h_t)
+
+        # Concatenate [h_t_dropped || g_t || phi_obs] for direct gradient flow
+        # Note: g_t is NOT dropped - it's the "conscious" channel
+        if g_t is None:
+            g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
+        if phi_obs is None:
+            phi_obs = torch.zeros(batch_size, self.obs_dim, device=h_t.device)
+
+        context = torch.cat([h_t_dropped, g_t, phi_obs], dim=-1)
+
+        # Project to decoder hidden
+        decoder_h = self.h_proj(context)  # [batch, decoder_hidden]
+
+        # Predict mu in [0, 255]
+        mu_raw = self.mu_head(decoder_h).squeeze(-1)  # [batch]
+        # JARVIS 420 FIX #3: Contextual Reflex
+        # Feed [phi_obs || g_t] for task-specific precision (no dropout on this path)
+        reflex_input = torch.cat([phi_obs, g_t], dim=-1)  # [batch, obs_dim + k_max]
+        obs_skip_out = self.obs_skip(reflex_input).squeeze(-1)  # [batch]
+        mu_combined = mu_raw + obs_skip_out * 2.0
+        mu = torch.sigmoid(mu_combined) * (self.num_bins - 1)  # [0, 255]
+
+        # Predict sigma with floor AND cap
+        # JARVIS 420 FIX: Old sigma=20 floor prevented precise actions
+        # JARVIS 420 FIX #2: Must CAP sigma to prevent "Sigma Trap"
+        # JARVIS 420 FIX #3: Lower sigma floor from 3.0→0.5 to reduce noise floor
+        # At sigma=3.0 bins, MAE floor ≈ 0.037 (too high for DoErr≤0.05)
+        # At sigma=0.5 bins, MAE floor ≈ 0.006 (allows DoErr≤0.05)
+        # Supervised loss on mu makes low sigma safe (no entropy collapse)
+        sigma_raw = self.sigma_head(decoder_h).squeeze(-1)  # [batch]
+        sigma_unbounded = F.softplus(sigma_raw) + 0.5  # [0.5, inf)
+        sigma = torch.clamp(sigma_unbounded, min=0.5, max=8.0)  # [0.5, 8] - JARVIS 420
+
+        # Compute Gaussian logits: -0.5 * ((x - mu) / sigma)^2
+        # This gives unnormalized log-probabilities of a Gaussian
+        # Shape: [batch, 256]
+        dist = (self.grid.unsqueeze(0) - mu.unsqueeze(1)) / sigma.unsqueeze(1)
+        logits = -0.5 * dist.pow(2)
+
+        return logits, mu, sigma
+
+    def sample(
+        self,
+        h_t: torch.Tensor,
+        g_t: torch.Tensor = None,
+        phi_obs: torch.Tensor = None,
+        greedy: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Sample action bytes from Gaussian distribution.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            g_t: Global scalars [batch, k_max]
+            phi_obs: Normalized observation [batch, obs_dim]
+            greedy: If True, return argmax (mode)
+
+        Returns:
+            action: Sampled byte [batch]
+            log_prob: Log probability [batch]
+            mu: Continuous action prediction [batch] - DIFFERENTIABLE for supervised learning
+        """
+        logits, mu, sigma = self.forward(h_t, g_t, phi_obs)
+
+        probs = F.softmax(logits, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+
+        if greedy:
+            # Return the mode (rounded mu)
+            action = torch.round(mu).long().clamp(0, self.num_bins - 1)
+        else:
+            action = torch.multinomial(probs, 1).squeeze(-1)
+
+        action_log_prob = log_probs.gather(1, action.unsqueeze(-1)).squeeze(-1)
+
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        # Return mu for supervised learning (differentiable path)
+        return action.clone(), action_log_prob.clone(), mu
+
+    def get_log_prob(
+        self,
+        h_t: torch.Tensor,
+        actions: torch.Tensor,
+        g_t: torch.Tensor = None,
+        phi_obs: torch.Tensor = None,
+    ) -> torch.Tensor:
+        """
+        Compute log probability of given actions.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            actions: Action bytes [batch] or [batch, 1]
+            g_t: Global scalars [batch, k_max]
+            phi_obs: Normalized observation [batch, obs_dim]
+
+        Returns:
+            log_prob: Log probability [batch]
+        """
+        logits, _, _ = self.forward(h_t, g_t, phi_obs)
+        log_probs = F.log_softmax(logits, dim=-1)
+
+        if actions.dim() == 2:
+            actions = actions[:, 0]
+
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        return log_probs.gather(1, actions.unsqueeze(-1)).squeeze(-1).clone()
+
+    def get_entropy(
+        self,
+        h_t: torch.Tensor,
+        g_t: torch.Tensor = None,
+        phi_obs: torch.Tensor = None,
+    ) -> torch.Tensor:
+        """
+        Compute entropy of action distribution.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            g_t: Global scalars [batch, k_max]
+            phi_obs: Normalized observation [batch, obs_dim]
+
+        Returns:
+            entropy: Entropy [batch]
+        """
+        logits, _, _ = self.forward(h_t, g_t, phi_obs)
+        probs = F.softmax(logits, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+
+        # Entropy: -sum(p * log(p))
+        entropy = -(probs * log_probs).sum(dim=-1)
+
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        return entropy.clone()
+
+
 class AutoregressiveActionDecoder(nn.Module):
     """
     Autoregressive action decoder using GRU(128).
@@ -70,9 +308,12 @@ class AutoregressiveActionDecoder(nn.Module):
     Architecture from BLUEPRINT.md Section 2.7:
     - GRU(128) decoder
     - 16-d byte embeddings
-    - 256-way categorical per byte
+    - 256-way categorical per byte (or Gaussian head)
 
     K_eff Fix: Policy conditions on [h_t || g_t] so RL gradients flow to W_g.
+
+    JARVIS 420 FIX (DoErr): When use_gaussian=True, replaces the flat categorical
+    head with a Gaussian head that provides ordinal gradient flow.
     """
 
     def __init__(
@@ -82,6 +323,8 @@ class AutoregressiveActionDecoder(nn.Module):
         byte_embed_dim: int = 16,  # Byte embedding dimension
         num_action_bytes: int = 1,  # Default action length
         k_max: int = 16,  # Global scalar dimension (for g_t conditioning)
+        use_gaussian: bool = True,  # JARVIS 420 FIX: Use Gaussian head for ordinal outputs
+        obs_dim: int = 2,  # Observation dimension for direct input path
     ):
         super().__init__()
 
@@ -90,26 +333,48 @@ class AutoregressiveActionDecoder(nn.Module):
         self.byte_embed_dim = byte_embed_dim
         self.num_action_bytes = num_action_bytes
         self.k_max = k_max
+        self.use_gaussian = use_gaussian
+        self.obs_dim = obs_dim
 
-        # Byte embeddings for conditioning on previous bytes
-        self.byte_embedding = nn.Embedding(256, byte_embed_dim)
+        # JARVIS 420 FIX: Use Gaussian head for single-byte ordinal outputs (like CCB)
+        # This provides smooth gradients between adjacent byte values
+        if use_gaussian and num_action_bytes == 1:
+            self.gaussian_head = GaussianActionHead(
+                hidden_dim=hidden_dim,
+                decoder_hidden=decoder_hidden,
+                num_bins=256,
+                k_max=k_max,
+                obs_dim=obs_dim,  # Pass observation for direct gradient path
+            )
+            # Dummy params for compatibility
+            self.byte_embedding = None
+            self.h_proj = None
+            self.gru = None
+            self.output_head = None
+            self.start_embed = None
+        else:
+            # Original categorical decoder for multi-byte actions
+            self.gaussian_head = None
 
-        # Project [h_t || g_t] to decoder initial state (K_eff fix)
-        self.h_proj = nn.Linear(hidden_dim + k_max, decoder_hidden)
+            # Byte embeddings for conditioning on previous bytes
+            self.byte_embedding = nn.Embedding(256, byte_embed_dim)
 
-        # GRU decoder
-        self.gru = nn.GRU(
-            input_size=byte_embed_dim,
-            hidden_size=decoder_hidden,
-            num_layers=1,
-            batch_first=True,
-        )
+            # Project [h_t || g_t] to decoder initial state (K_eff fix)
+            self.h_proj = nn.Linear(hidden_dim + k_max, decoder_hidden)
 
-        # Output head: decoder hidden → 256-way categorical
-        self.output_head = nn.Linear(decoder_hidden, 256)
+            # GRU decoder
+            self.gru = nn.GRU(
+                input_size=byte_embed_dim,
+                hidden_size=decoder_hidden,
+                num_layers=1,
+                batch_first=True,
+            )
 
-        # Start token embedding (for first byte)
-        self.start_embed = nn.Parameter(torch.randn(byte_embed_dim))
+            # Output head: decoder hidden → 256-way categorical
+            self.output_head = nn.Linear(decoder_hidden, 256)
+
+            # Start token embedding (for first byte)
+            self.start_embed = nn.Parameter(torch.randn(byte_embed_dim))
 
     def forward(
         self,
@@ -118,7 +383,8 @@ class AutoregressiveActionDecoder(nn.Module):
         num_bytes: Optional[int] = None,
         temperature: float = 1.0,
         greedy: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        phi_obs: Optional[torch.Tensor] = None,  # Direct observation input
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Generate action bytes autoregressively.
 
@@ -128,11 +394,21 @@ class AutoregressiveActionDecoder(nn.Module):
             num_bytes: Number of bytes to generate (default: self.num_action_bytes)
             temperature: Sampling temperature (1.0 = normal, <1 = sharper)
             greedy: If True, use argmax instead of sampling
+            phi_obs: Normalized observation, shape [batch, obs_dim] (for direct gradient path)
 
         Returns:
             actions: Generated bytes, shape [batch, num_bytes], dtype=long
             log_probs: Log probabilities, shape [batch, num_bytes]
+            action_mu: Continuous prediction [batch] (only for Gaussian head, None otherwise)
         """
+        # JARVIS 420 FIX: Use Gaussian head for single-byte outputs
+        if self.gaussian_head is not None:
+            action, log_prob, action_mu = self.gaussian_head.sample(h_t, g_t, phi_obs, greedy=greedy)
+            # Return in expected shape [batch, 1]
+            # Clone to avoid CUDAGraphs tensor overwrite error with torch.compile
+            return action.unsqueeze(1).clone(), log_prob.unsqueeze(1).clone(), action_mu
+
+        # Original categorical decoder for multi-byte actions
         batch_size = h_t.size(0)
         num_bytes = num_bytes or self.num_action_bytes
 
@@ -183,13 +459,16 @@ class AutoregressiveActionDecoder(nn.Module):
         actions = torch.stack(actions, dim=1)  # [batch, num_bytes]
         log_probs = torch.stack(log_probs, dim=1)  # [batch, num_bytes]
 
-        return actions, log_probs
+        # Clone to avoid CUDAGraphs tensor overwrite error with torch.compile
+        # Return None for action_mu (categorical decoder doesn't have differentiable mu)
+        return actions.clone(), log_probs.clone(), None
 
     def get_log_prob(
         self,
         h_t: torch.Tensor,
         actions: torch.Tensor,
         g_t: Optional[torch.Tensor] = None,
+        phi_obs: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Compute log probabilities for given actions (for PPO).
@@ -198,10 +477,19 @@ class AutoregressiveActionDecoder(nn.Module):
             h_t: Substrate hidden state, shape [batch, hidden_dim]
             actions: Action bytes, shape [batch, num_bytes]
             g_t: Global scalars, shape [batch, k_max] (for K_eff gradient flow)
+            phi_obs: Normalized observation, shape [batch, obs_dim] (for direct gradient path)
 
         Returns:
             log_probs: Log probabilities, shape [batch, num_bytes]
         """
+        # JARVIS 420 FIX: Use Gaussian head for single-byte outputs
+        if self.gaussian_head is not None:
+            log_prob = self.gaussian_head.get_log_prob(h_t, actions, g_t, phi_obs)
+            # Return in expected shape [batch, 1]
+            # Clone to avoid CUDAGraphs tensor overwrite error
+            return log_prob.unsqueeze(1).clone()
+
+        # Original categorical decoder for multi-byte actions
         batch_size = h_t.size(0)
         num_bytes = actions.size(1)
 
@@ -235,13 +523,15 @@ class AutoregressiveActionDecoder(nn.Module):
             # Embed actual action for next step (teacher forcing)
             current_embed = self.byte_embedding(action)
 
-        return torch.stack(log_probs, dim=1)
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        return torch.stack(log_probs, dim=1).clone()
 
     def get_entropy(
         self,
         h_t: torch.Tensor,
         num_bytes: Optional[int] = None,
         g_t: Optional[torch.Tensor] = None,
+        phi_obs: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Compute entropy of action distribution (for PPO entropy bonus).
@@ -250,10 +540,17 @@ class AutoregressiveActionDecoder(nn.Module):
             h_t: Substrate hidden state, shape [batch, hidden_dim]
             num_bytes: Number of bytes
             g_t: Global scalars, shape [batch, k_max] (for K_eff gradient flow)
+            phi_obs: Normalized observation, shape [batch, obs_dim] (for direct gradient path)
 
         Returns:
             entropy: Mean entropy, shape [batch]
         """
+        # JARVIS 420 FIX: Use Gaussian head for single-byte outputs
+        if self.gaussian_head is not None:
+            # Clone to avoid CUDAGraphs tensor overwrite error
+            return self.gaussian_head.get_entropy(h_t, g_t, phi_obs).clone()
+
+        # Original categorical decoder for multi-byte actions
         batch_size = h_t.size(0)
         num_bytes = num_bytes or self.num_action_bytes
 
@@ -284,7 +581,8 @@ class AutoregressiveActionDecoder(nn.Module):
             action = torch.multinomial(probs, 1).squeeze(-1)
             current_embed = self.byte_embedding(action)
 
-        return torch.stack(entropies, dim=1).mean(dim=1)
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        return torch.stack(entropies, dim=1).mean(dim=1).clone()
 
 
 class ByteInterface(nn.Module):
@@ -323,7 +621,13 @@ class ByteInterface(nn.Module):
         greedy: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Generate action bytes from hidden state."""
-        return self.action_decoder(h_t, num_bytes, temperature, greedy)
+        actions, log_probs, _ = self.action_decoder(
+            h_t,
+            num_bytes=num_bytes,
+            temperature=temperature,
+            greedy=greedy,
+        )
+        return actions, log_probs
 
     def get_action_log_prob(
         self,

@@ -109,7 +109,7 @@ class MF1Agent(nn.Module):
         self,
         obs: torch.Tensor,  # [batch, obs_bytes] uint8
         hidden: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass: observation → (action, log_prob, value, hidden).
 
@@ -146,7 +146,7 @@ class MF1Agent(nn.Module):
         value = self.value_head(h).squeeze(-1)  # [batch]
 
         # Action sampling
-        action, log_prob = self.action_decoder(h)
+        action, log_prob, _ = self.action_decoder(h)
 
         return action, log_prob, value, hidden
 

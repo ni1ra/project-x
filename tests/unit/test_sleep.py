@@ -151,6 +151,7 @@ class TestPrioritizedReplayBuffer:
             energy=0.05,
             code_len=1.0,
             z_t=torch.randn(latent_dim),
+            h_t=torch.randn(HIDDEN_DIM),
         )
 
     def test_add_and_size(self, buffer):

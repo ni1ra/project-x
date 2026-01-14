@@ -1,5 +1,5 @@
 """
-PPO Trainer for RPJ Brain v2.
+PPO Trainer for RPJ Brain v5.
 
 This integrates:
 1. PPO for policy/value learning on the RPJ objective J
@@ -48,7 +48,7 @@ class PPOConfig:
 
     # Training schedule
     num_steps_per_update: int = 256
-    num_epochs: int = 4
+    num_epochs: int = 8  # More epochs for finer optimization
     minibatch_size: int = 64
 
     # VAE training
@@ -61,7 +61,7 @@ class PPOConfig:
     sleep_dyn_lr: float = 1e-3
 
     # Target network update
-    polyak_tau: float = 0.005
+    polyak_tau: float = 1e-3
 
     # Collapse detection (BLUEPRINT: H(c_t) < 0.05 = invalid)
     collapse_entropy_threshold: float = 0.05
@@ -156,6 +156,13 @@ class RPJRolloutBuffer:
         # Hidden states (for recurrent PPO)
         self.hidden_states = torch.zeros((buffer_size, hidden_dim), device=device)
 
+        # TRUNCATED BPTT(1): Store PREVIOUS states to enable gradient flow to substrate
+        # These are the inputs to brain.forward(), allowing us to re-run the forward pass
+        # with gradients during PPO update (JARVIS 420 fix for broken gradient chain)
+        self.prev_hidden = torch.zeros((buffer_size, hidden_dim), device=device)
+        self.prev_g = torch.zeros((buffer_size, k_max), device=device)
+        self.prev_actions = torch.zeros((buffer_size, action_bytes), dtype=torch.long, device=device)
+
         # Latents (for VAE loss)
         self.latents = torch.zeros((buffer_size, latent_dim), device=device)
         self.mus = torch.zeros((buffer_size, latent_dim), device=device)
@@ -201,6 +208,10 @@ class RPJRolloutBuffer:
         c_t: torch.Tensor,
         k_r: int,
         n_t: int,
+        # TRUNCATED BPTT(1): Previous states for gradient flow
+        prev_h: torch.Tensor,
+        prev_g: torch.Tensor,
+        prev_a: torch.Tensor,
     ):
         """Add a transition to the buffer."""
         self.observations[self.pos] = obs.flatten()
@@ -224,6 +235,10 @@ class RPJRolloutBuffer:
         # Store compute decisions for proper PPO importance sampling
         self.k_rs[self.pos] = k_r
         self.n_ts[self.pos] = n_t
+        # TRUNCATED BPTT(1): Store previous states for re-running forward pass with gradients
+        self.prev_hidden[self.pos] = prev_h.flatten()
+        self.prev_g[self.pos] = prev_g.flatten()
+        self.prev_actions[self.pos] = prev_a.flatten()
 
         self.pos += 1
         if self.pos >= self.buffer_size:
@@ -272,6 +287,10 @@ class RPJRolloutBuffer:
                 # Stored compute decisions for proper importance sampling
                 'k_rs': self.k_rs[batch_indices],
                 'n_ts': self.n_ts[batch_indices],
+                # TRUNCATED BPTT(1): Previous states for re-running forward pass
+                'prev_hidden': self.prev_hidden[batch_indices],
+                'prev_g': self.prev_g[batch_indices],
+                'prev_actions': self.prev_actions[batch_indices],
             }
 
     def get_vae_batches(self, batch_size: int):
@@ -308,7 +327,7 @@ class RPJRolloutBuffer:
 
 class RPJTrainer:
     """
-    PPO Trainer for RPJ Brain v2.
+    PPO Trainer for RPJ Brain v5.
 
     Implements the complete training loop from BLUEPRINT Section 2.8.
     """
@@ -460,6 +479,7 @@ class RPJTrainer:
                 torch.tensor([energy_t], device=self.device),
                 output.code_len,
                 g_t=output.g_t,  # K_eff fix: pass g_t for sparsity penalty
+                omega_t=output.omega_t,  # Sleep energy: wire ω_t into energy penalty
                 e_cap_step=self.config.e_cap_step,
             ).item()
 
@@ -498,6 +518,11 @@ class RPJTrainer:
                 c_t=output.c_t.squeeze(0),
                 k_r=int(k_r_val),  # Store actual sampled k_r
                 n_t=int(n_t_val),  # Store actual sampled n_t
+                # TRUNCATED BPTT(1): Store PREVIOUS states (inputs to forward pass)
+                # These enable re-running forward pass with gradients during PPO update
+                prev_h=h.squeeze(0),   # Hidden state BEFORE forward pass
+                prev_g=g.squeeze(0),   # Global scalars BEFORE forward pass
+                prev_a=a_prev.unsqueeze(0) if a_prev.dim() == 0 else a_prev,  # Previous action
             )
 
             # Add to replay buffer for sleep
@@ -514,6 +539,7 @@ class RPJTrainer:
                     energy=energy_t,
                     code_len=output.code_len.item(),
                     z_t=output.z_t.squeeze(0),
+                    h_t=output.h_next.squeeze(0),  # Needed for stable next_obs encoding during sleep
                     td_error=td_error,
                 )
 
@@ -641,11 +667,14 @@ class RPJTrainer:
                 old_compute_log_probs = batch['compute_log_probs']
                 returns = batch['returns']
                 advantages = batch['advantages']
-                hidden = batch['hidden_states']
-                g_t = batch['g_ts']
                 # CRITICAL FIX (Caveat 1): Use stored compute decisions
                 stored_k_r = batch['k_rs']
                 stored_n_t = batch['n_ts']
+                # TRUNCATED BPTT(1): Get PREVIOUS states for re-running forward pass
+                prev_h = batch['prev_hidden']
+                prev_g = batch['prev_g']
+                prev_a = batch['prev_actions']
+                stored_z = batch['latents']  # JARVIS 420 FIX: Use stored latents
 
                 # Normalize advantages
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
@@ -653,21 +682,26 @@ class RPJTrainer:
                 # Normalize returns with PopArt
                 normalized_returns = self.popart.normalize(returns)
 
-                # Get current log probs and values
-                phi_obs = phi(obs)
-
-                # Get log probs for given actions (K_eff fix: pass g_t)
-                action_log_probs = self.brain.get_action_log_prob(hidden, actions, g_t)
-                entropy = self.brain.get_action_entropy(hidden, g_t)
-
-                # Get current values (K_eff fix: pass g_t)
-                values = self.brain.substrate.get_value(hidden, g_t)
+                # TRUNCATED BPTT(1) FIX (JARVIS 420):
+                # Re-run forward pass WITH GRADIENTS to restore obs→substrate→action chain.
+                # The original code used detached hidden states, breaking gradient flow.
+                # Without this, the substrate never learns and outputs random noise.
+                # JARVIS 420 FIX #2: Pass stored_z to ensure substrate sees SAME context
+                action_log_probs, entropy, values, g_t, h_next, _ = self.brain.evaluate_actions(
+                    obs_bytes=obs,
+                    prev_h=prev_h,
+                    prev_g=prev_g,
+                    prev_a=prev_a,
+                    actions=actions,
+                    z_t=stored_z,  # Prevents re-sampling noise from washing out signal
+                )
 
                 # CRITICAL FIX (Caveat 1): Compute log_prob of STORED (k_r, n_t) decisions
                 # under current params, WITHOUT resampling new decisions.
                 # This ensures proper importance sampling for compute allocation learning.
+                # NOTE: We use h_next (from fresh forward pass) for consistency
                 new_compute_log_probs = self.brain.substrate.compute_allocator.get_log_prob(
-                    hidden, stored_k_r, stored_n_t
+                    h_next, stored_k_r, stored_n_t
                 )
 
                 # Total log prob = action log prob + compute decision log prob
@@ -887,15 +921,19 @@ def create_trainer(
 
 if __name__ == "__main__":
     # Quick sanity check
-    print("Testing PPO Trainer for RPJ Brain v2...")
+    print("Testing PPO Trainer for RPJ Brain v5...")
 
     from src.benchmarks.ccb import CCBEnvironment
 
-    # Create simple CCB environment (8-byte observations)
+    # Create simple CCB environment (byte observations)
     env = CCBEnvironment()
 
-    # Create trainer with matching obs_dim=8 for CCB
-    brain, trainer = create_trainer(obs_dim=8, action_bytes=1, device="cpu")
+    # Create trainer with matching observation/action sizes
+    brain, trainer = create_trainer(
+        obs_dim=env.observation_space_bytes,
+        action_bytes=env.action_space_bytes,
+        device="cpu",
+    )
 
     print(f"\n=== Brain Parameters ===")
     params = brain.count_parameters()

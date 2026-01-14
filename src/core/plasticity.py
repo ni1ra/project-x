@@ -38,14 +38,16 @@ class PlasticityConfig:
     obs_dim: int = 64
     k_max: int = K_MAX
     adapter_rank: int = ADAPTER_RANK
+    num_envs: int = 1  # BATCHED: Number of parallel environments
 
     # Learning rule parameters (slow, learned by RL)
-    eta_init: float = 0.01      # Base learning rate for fast weights
+    # JARVIS 410: Increased eta_init from 0.01 to 0.05 for stronger early-episode imprinting
+    eta_init: float = 0.05      # Base learning rate for fast weights
     lambda_decay: float = 0.01  # Weight decay for fast weights
 
     # Bounds
     eta_min: float = 1e-4
-    eta_max: float = 0.1
+    eta_max: float = 0.2  # JARVIS 410: Increased from 0.1 to allow stronger plasticity
 
 
 class NextObsPredictor(nn.Module):
@@ -132,33 +134,71 @@ class LowRankAdapter(nn.Module):
     Low-rank fast weight adapter: W_eff = W_slow + A_t @ B_t^T
 
     A_t, B_t are fast weights updated within episodes.
+
+    BATCHED VERSION (JARVIS 360→420 FIX):
+    Now supports per-environment fast weights for vectorized training.
+    Shape: [num_envs, out_dim, rank] and [num_envs, in_dim, rank]
+    This enables proper per-episode learning and reset.
     """
 
-    def __init__(self, in_dim: int, out_dim: int, rank: int = ADAPTER_RANK):
+    def __init__(self, in_dim: int, out_dim: int, rank: int = ADAPTER_RANK, num_envs: int = 1):
         super().__init__()
 
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.rank = rank
+        self.num_envs = num_envs
 
-        # These are the FAST weights - not nn.Parameters!
+        # BATCHED: These are the FAST weights - [num_envs, dim, rank]
         # They're buffers that get reset each episode
-        self.register_buffer('A', torch.zeros(out_dim, rank))
-        self.register_buffer('B', torch.zeros(in_dim, rank))
+        # DTYPE FIX: Explicitly use float32 to match model dtype
+        if num_envs > 1:
+            self.register_buffer('A', torch.zeros(num_envs, out_dim, rank, dtype=torch.float32))
+            self.register_buffer('B', torch.zeros(num_envs, in_dim, rank, dtype=torch.float32))
+        else:
+            # Backward compatible non-batched mode
+            self.register_buffer('A', torch.zeros(out_dim, rank, dtype=torch.float32))
+            self.register_buffer('B', torch.zeros(in_dim, rank, dtype=torch.float32))
 
     def reset(self):
-        """Reset fast weights to zero at episode start."""
+        """Reset ALL fast weights to zero."""
         self.A.zero_()
         self.B.zero_()
 
-    def get_adaptation(self) -> torch.Tensor:
+    def reset_envs(self, env_indices: torch.Tensor):
+        """
+        Reset fast weights for specific environments.
+
+        Args:
+            env_indices: Boolean or long tensor of environment indices to reset
+        """
+        if self.num_envs > 1:
+            self.A[env_indices] = 0
+            self.B[env_indices] = 0
+        else:
+            # Non-batched mode - reset all
+            self.reset()
+
+    def get_adaptation(self, env_idx: int = None) -> torch.Tensor:
         """
         Compute the fast weight delta: A @ B^T
 
+        Args:
+            env_idx: If batched, return adaptation for specific env. If None, return all.
+
         Returns:
-            delta_W: Fast weight contribution [out_dim, in_dim]
+            delta_W: Fast weight contribution
+                     [out_dim, in_dim] if non-batched or env_idx specified
+                     [num_envs, out_dim, in_dim] if batched and env_idx is None
         """
-        return self.A @ self.B.T
+        if self.num_envs > 1:
+            if env_idx is not None:
+                return self.A[env_idx] @ self.B[env_idx].T
+            else:
+                # Batched matmul: [N, out, rank] @ [N, rank, in] -> [N, out, in]
+                return torch.bmm(self.A, self.B.transpose(1, 2))
+        else:
+            return self.A @ self.B.T
 
     def update(
         self,
@@ -173,52 +213,87 @@ class LowRankAdapter(nn.Module):
         A_{t+1} = (1 - ηλ)A_t + ηP_t e_t (x_t^T B_t)
         B_{t+1} = (1 - ηλ)B_t + ηP_t x_t (e_t^T A_t)
 
-        Note: When A=0 and B=0 (start of episode), the standard update gives
-        zero deltas. We handle this by using a modified initialization-aware
-        update that projects e_t and x_t directly to low-rank space first.
+        BATCHED VERSION: Applies per-environment updates instead of averaging.
 
         Args:
-            e_t: Error signal [batch, out_dim] - averaged to single update
-            x_t: Pre-activation [batch, in_dim] - averaged to single update
-            P_t: Plasticity gate [batch] or scalar
+            e_t: Error signal [batch/num_envs, out_dim]
+            x_t: Pre-activation [batch/num_envs, in_dim]
+            P_t: Plasticity gate [batch/num_envs]
             eta: Learning rate (slow parameter)
             lambda_decay: Weight decay (slow parameter)
         """
-        # Average over batch for single update direction
-        e_mean = e_t.mean(dim=0)  # [out_dim]
-        x_mean = x_t.mean(dim=0)  # [in_dim]
-        P_mean = P_t.mean().item() if P_t.dim() > 0 else P_t.item()
-
         decay = 1.0 - eta * lambda_decay
 
-        # Check if this is the first update (A=0, B=0)
-        # In this case, we need to bootstrap the low-rank structure
-        if self.A.norm() < 1e-8 and self.B.norm() < 1e-8:
-            # Initialize A and B to capture the outer product e @ x^T
-            # Truncated SVD initialization: use random projection
-            # A gets scaled e, B gets scaled x (so A @ B^T ≈ e @ x^T)
-            e_norm = e_mean.norm() + 1e-8
-            x_norm = x_mean.norm() + 1e-8
+        if self.num_envs > 1:
+            # BATCHED UPDATE: Per-environment plasticity
+            # e_t: [N, out_dim], x_t: [N, in_dim], P_t: [N]
 
-            # Scale to have A @ B^T have appropriate magnitude
-            scale = (eta * P_mean) ** 0.5
+            # Check for first update (per-env): where A[i] and B[i] are zero
+            A_norms = self.A.norm(dim=(1, 2))  # [N]
+            B_norms = self.B.norm(dim=(1, 2))  # [N]
+            first_update_mask = (A_norms < 1e-8) & (B_norms < 1e-8)  # [N]
 
-            # Project to rank-1 initially (will grow with more updates)
-            self.A.data[:, 0] = scale * e_mean / e_norm
-            self.B.data[:, 0] = scale * x_mean / x_norm
+            # Bootstrap initialization for first-update envs
+            if first_update_mask.any():
+                e_norms = e_t[first_update_mask].norm(dim=1, keepdim=True) + 1e-8  # [M, 1]
+                x_norms = x_t[first_update_mask].norm(dim=1, keepdim=True) + 1e-8  # [M, 1]
+                P_vals = P_t[first_update_mask].unsqueeze(-1)  # [M, 1]
+                scale = (eta * P_vals) ** 0.5  # [M, 1]
+
+                # Initialize first column of A and B
+                e_normalized = e_t[first_update_mask] / e_norms * scale  # [M, out_dim]
+                x_normalized = x_t[first_update_mask] / x_norms * scale  # [M, in_dim]
+
+                self.A.data[first_update_mask, :, 0] = e_normalized
+                self.B.data[first_update_mask, :, 0] = x_normalized
+
+            # Standard on-manifold update for non-first envs
+            if (~first_update_mask).any():
+                non_first = ~first_update_mask
+
+                # Ensure dtype consistency
+                B_f = self.B.float()
+                A_f = self.A.float()
+
+                # x^T B: [N, 1, in_dim] @ [N, in_dim, rank] -> [N, 1, rank] -> [N, rank]
+                x_B = torch.bmm(x_t[non_first].unsqueeze(1), B_f[non_first]).squeeze(1)  # [M, rank]
+
+                # e (x^T B): [M, out_dim, 1] @ [M, 1, rank] -> [M, out_dim, rank]
+                P_vals = P_t[non_first].view(-1, 1, 1)  # [M, 1, 1]
+                delta_A = eta * P_vals * torch.bmm(e_t[non_first].unsqueeze(2), x_B.unsqueeze(1))
+                self.A.data[non_first] = decay * A_f[non_first] + delta_A
+
+                # e^T A: [N, 1, out_dim] @ [N, out_dim, rank] -> [N, 1, rank] -> [N, rank]
+                e_A = torch.bmm(e_t[non_first].unsqueeze(1), self.A[non_first].float()).squeeze(1)  # [M, rank]
+
+                # x (e^T A): [M, in_dim, 1] @ [M, 1, rank] -> [M, in_dim, rank]
+                delta_B = eta * P_vals * torch.bmm(x_t[non_first].unsqueeze(2), e_A.unsqueeze(1))
+                self.B.data[non_first] = decay * B_f[non_first] + delta_B
         else:
-            # Standard on-manifold update
-            # Update A: (1-ηλ)A + ηP e (x^T B)
-            # x^T B is [rank], outer with e gives [out_dim, rank]
-            x_B = x_mean @ self.B  # [rank]
-            delta_A = eta * P_mean * torch.outer(e_mean, x_B)  # [out_dim, rank]
-            self.A.data = decay * self.A + delta_A
+            # LEGACY NON-BATCHED UPDATE (backward compatible)
+            e_mean = e_t.mean(dim=0).float()  # [out_dim], ensure float32
+            x_mean = x_t.mean(dim=0).float()  # [in_dim], ensure float32
+            P_mean = P_t.mean().item() if P_t.dim() > 0 else P_t.item()
 
-            # Update B: (1-ηλ)B + ηP x (e^T A)
-            # e^T A is [rank], outer with x gives [in_dim, rank]
-            e_A = e_mean @ self.A  # [rank]
-            delta_B = eta * P_mean * torch.outer(x_mean, e_A)  # [in_dim, rank]
-            self.B.data = decay * self.B + delta_B
+            # Ensure buffers are float32
+            A_f = self.A.float()
+            B_f = self.B.float()
+
+            # Check if this is the first update (A=0, B=0)
+            if A_f.norm() < 1e-8 and B_f.norm() < 1e-8:
+                e_norm = e_mean.norm() + 1e-8
+                x_norm = x_mean.norm() + 1e-8
+                scale = (eta * P_mean) ** 0.5
+                self.A.data[:, 0] = (scale * e_mean / e_norm).to(self.A.dtype)
+                self.B.data[:, 0] = (scale * x_mean / x_norm).to(self.B.dtype)
+            else:
+                x_B = x_mean @ B_f  # [rank]
+                delta_A = eta * P_mean * torch.outer(e_mean, x_B)  # [out_dim, rank]
+                self.A.data = (decay * A_f + delta_A).to(self.A.dtype)
+
+                e_A = e_mean @ self.A.float()  # [rank]
+                delta_B = eta * P_mean * torch.outer(x_mean, e_A)  # [in_dim, rank]
+                self.B.data = (decay * B_f + delta_B).to(self.B.dtype)
 
 
 class LocalPlasticity(nn.Module):
@@ -247,12 +322,13 @@ class LocalPlasticity(nn.Module):
         # Plasticity gate
         self.plasticity_gate = PlasticityGate(config.k_max)
 
-        # Low-rank adapters
+        # Low-rank adapters (BATCHED for per-env plasticity)
         # Recurrent adapter: modifies W_rec in GRU (d -> 3d for gates)
         self.recurrent_adapter = LowRankAdapter(
             in_dim=config.hidden_dim,
             out_dim=config.hidden_dim * 3,  # GRU has 3 gates
             rank=config.adapter_rank,
+            num_envs=config.num_envs,
         )
 
         # Action head adapter: modifies final layer of action decoder
@@ -261,6 +337,7 @@ class LocalPlasticity(nn.Module):
             in_dim=config.hidden_dim,
             out_dim=256,
             rank=config.adapter_rank,
+            num_envs=config.num_envs,
         )
 
         # Learnable learning rate and decay (slow parameters)
@@ -287,6 +364,11 @@ class LocalPlasticity(nn.Module):
         self.recurrent_adapter.reset()
         self.action_adapter.reset()
 
+    def reset_envs(self, env_indices: torch.Tensor):
+        """Reset fast weights for specific environments (BATCHED mode)."""
+        self.recurrent_adapter.reset_envs(env_indices)
+        self.action_adapter.reset_envs(env_indices)
+
     def compute_local_error(
         self,
         h_t: torch.Tensor,
@@ -311,16 +393,17 @@ class LocalPlasticity(nn.Module):
             e_t: Total local error [batch, hidden_dim]
         """
         # Prediction error component via autograd
-        h_t_grad = h_t.detach().requires_grad_(True)
-        pred_loss = self.obs_predictor.prediction_loss(h_t_grad, phi_o_next)
-
-        # e^pred is gradient w.r.t. hidden activations
-        # This is ∂ℓ_pred/∂h_t since h_t contains the unit activations
-        e_pred = torch.autograd.grad(
-            pred_loss.sum(),
-            h_t_grad,
-            create_graph=False,
-        )[0]  # [batch, hidden_dim]
+        # PLASTICITY FIX: Use torch.enable_grad() to compute gradients even in no_grad context
+        h_t_grad = h_t.detach().clone().requires_grad_(True)
+        with torch.enable_grad():
+            pred_loss = self.obs_predictor.prediction_loss(h_t_grad, phi_o_next)
+            # e^pred is gradient w.r.t. hidden activations
+            # This is ∂ℓ_pred/∂h_t since h_t contains the unit activations
+            e_pred = torch.autograd.grad(
+                pred_loss.sum(),
+                h_t_grad,
+                create_graph=False,
+            )[0]  # [batch, hidden_dim]
 
         # TD error broadcast component
         # e^delta_j = w^delta_j * delta_t

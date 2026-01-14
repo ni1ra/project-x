@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Tuple, NamedTuple, Optional, Dict, Any, List
 from dataclasses import dataclass
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,7 +46,7 @@ class RPJConfig:
     lambda_rnd: float = 0.1     # RND intrinsic (warmup)
     lambda_int: float = 0.1     # Info gain intrinsic (post-warmup)
     lambda_dyn: float = 1.0     # Dynamics model loss
-    lambda_g: float = 0.1       # Global scalar sparsity penalty (for K_eff compression)
+    lambda_g: float = 0.01      # Global scalar sparsity penalty - further reduced for K_eff in [2-6]
 
     # Warmup
     T_warm: int = 50_000        # RND warmup steps
@@ -57,6 +58,7 @@ class RPJConfig:
     # Plasticity
     enable_plasticity: bool = True
     adapter_rank: int = 16      # Fast weight adapter rank
+    num_envs: int = 1           # BATCHED: Number of parallel environments for per-env plasticity
 
     # Sleep
     enable_sleep: bool = True
@@ -73,6 +75,7 @@ class RPJBrainOutput(NamedTuple):
     # Actions
     action: torch.Tensor           # Action bytes [batch, action_bytes]
     action_log_prob: torch.Tensor  # Log prob [batch, action_bytes]
+    action_mu: torch.Tensor        # Continuous action prediction [batch] - DIFFERENTIABLE for supervised learning
 
     # States for next step
     h_next: torch.Tensor           # Hidden state [batch, hidden_dim]
@@ -192,10 +195,12 @@ class RPJBrain(nn.Module):
         )
 
         # Action decoder (with g_t conditioning for K_eff gradient flow)
+        # JARVIS 420 FIX: Pass obs_dim for direct observation input path
         self.action_decoder = AutoregressiveActionDecoder(
             hidden_dim=config.hidden_dim,
             num_action_bytes=config.action_bytes,
             k_max=config.k_max,
+            obs_dim=config.obs_dim,  # Enable direct gradient path from input to output
         )
 
         # RND for exploration warmup
@@ -205,13 +210,14 @@ class RPJBrain(nn.Module):
             output_dim=config.rnd_output,
         )
 
-        # Local plasticity (fast weights)
+        # Local plasticity (fast weights) - BATCHED for per-env learning
         if config.enable_plasticity:
             self.plasticity = LocalPlasticity(PlasticityConfig(
                 hidden_dim=config.hidden_dim,
                 obs_dim=config.obs_dim,
                 k_max=config.k_max,
                 adapter_rank=config.adapter_rank,
+                num_envs=config.num_envs,  # JARVIS 360→420: Per-env plasticity
             ))
         else:
             self.plasticity = None
@@ -330,11 +336,13 @@ class RPJBrain(nn.Module):
         value = self.substrate.get_value(substrate_out.h_next, substrate_out.g_t)
 
         # Generate action (conditions on g_t for K_eff gradient flow)
-        action, action_log_prob = self.action_decoder(
+        # JARVIS 420 FIX: Pass phi_obs for direct observation→action gradient path
+        action, action_log_prob, action_mu = self.action_decoder(
             substrate_out.h_next,
             g_t=substrate_out.g_t,
             num_bytes=self.config.action_bytes,
             greedy=not training,
+            phi_obs=phi_obs,  # Direct input for identity tasks
         )
 
         # Use compute_log_prob from substrate (NOT recomputed - same sample)
@@ -361,6 +369,7 @@ class RPJBrain(nn.Module):
         return RPJBrainOutput(
             action=action,
             action_log_prob=action_log_prob,
+            action_mu=action_mu,  # DIFFERENTIABLE for supervised learning
             h_next=substrate_out.h_next,
             g_t=substrate_out.g_t,
             z_t=z_t,
@@ -425,6 +434,7 @@ class RPJBrain(nn.Module):
         energy_t: torch.Tensor,
         code_len_t: torch.Tensor,
         g_t: torch.Tensor = None,
+        omega_t: Optional[torch.Tensor] = None,
         e_cap_step: float = 0.1,  # From BLUEPRINT: 200J / 2000 steps
     ) -> torch.Tensor:
         """
@@ -451,12 +461,16 @@ class RPJBrain(nn.Module):
         # Combined extrinsic + intrinsic
         r_tilde = extrinsic_reward + intrinsic_reward
 
-        # Normalized energy penalty
-        E_hat = energy_t / e_cap_step
+        # Normalized energy penalty (includes sleep allocation if provided)
+        sleep_energy_t = torch.zeros_like(energy_t)
+        if omega_t is not None and self.sleep is not None:
+            sleep_energy_t = self.sleep.compute_sleep_energy(omega_t)
+        E_hat = (energy_t + sleep_energy_t) / e_cap_step
 
         # Normalized codelength penalty
-        # CodeLen_t is in nats, normalize by raw observation bits (8 * obs_dim)
-        C_hat = code_len_t / (8 * self.config.obs_dim)
+        # CodeLen_t is in nats; convert to bits by dividing by ln(2),
+        # then normalize by raw observation bits (8 * obs_dim).
+        C_hat = code_len_t / (8 * self.config.obs_dim * math.log(2))
 
         # G_t sparsity penalty (L1 norm normalized by k_max)
         # This encourages unused scalars to go to 0, compressing K_eff
@@ -485,6 +499,97 @@ class RPJBrain(nn.Module):
     def get_action_entropy(self, h_t: torch.Tensor, g_t: torch.Tensor = None) -> torch.Tensor:
         """Get action distribution entropy (for PPO entropy bonus)."""
         return self.action_decoder.get_entropy(h_t, self.config.action_bytes, g_t)
+
+    def evaluate_actions(
+        self,
+        obs_bytes: torch.Tensor,
+        prev_h: torch.Tensor,
+        prev_g: torch.Tensor,
+        prev_a: torch.Tensor,
+        actions: torch.Tensor,
+        z_t: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Evaluate actions by re-running forward pass with gradients.
+
+        TRUNCATED BPTT(1): This is the critical method that restores gradient flow
+        from observations through substrate to actions. Without this, the substrate
+        never learns and outputs random noise, causing policy collapse.
+
+        JARVIS 420 FIX #1: The original implementation used detached hidden states
+        during PPO update, breaking the obs→substrate→action gradient chain.
+
+        JARVIS 420 FIX #2: Accept pre-computed z_t from rollout buffer to ensure
+        the substrate sees the SAME context during update as during execution.
+        Re-sampling z_t injects massive noise that washes out the input signal.
+
+        Args:
+            obs_bytes: Observation bytes [batch, obs_dim]
+            prev_h: Hidden state before forward pass [batch, hidden_dim]
+            prev_g: Global scalars before forward pass [batch, k_max]
+            prev_a: Previous action [batch] or [batch, action_bytes]
+            actions: Actions taken (to evaluate log_prob) [batch, action_bytes]
+            z_t: Optional pre-computed latent from rollout [batch, latent_dim]
+
+        Returns:
+            action_log_probs: Log prob of actions [batch, action_bytes]
+            entropy: Action distribution entropy [batch]
+            values: Value estimates [batch]
+            g_t: Global scalars (for compute allocation importance sampling) [batch, k_max]
+            h_next: New hidden state [batch, hidden_dim]
+            action_mu: Continuous action prediction [batch] - DIFFERENTIABLE for supervised learning
+        """
+        # Normalize observation
+        phi_obs = phi(obs_bytes)
+
+        # JARVIS 420 FIX: Use stored z_t if provided to ensure consistent state
+        # Re-sampling z_t introduces noise that washes out the obs→action signal
+        if z_t is None:
+            vae_output = self.vae(prev_h, phi_obs, obs_bytes)
+            z_t = vae_output.z_t
+
+        # Flatten prev_a if needed
+        if prev_a.dim() == 2:
+            prev_a_flat = prev_a[:, 0]
+        else:
+            prev_a_flat = prev_a
+
+        # Substrate forward pass WITH GRADIENTS
+        # This is the key: we re-run the forward pass so gradients can flow
+        # from policy loss back through substrate to learn input→output mapping
+        substrate_out = self.substrate(
+            phi_obs=phi_obs,
+            z_t=z_t,
+            a_prev=prev_a_flat,
+            h_t=prev_h,
+            g_prev=prev_g,
+            training=True,  # Always training mode for PPO update
+        )
+
+        # Get value estimate (conditioned on g_t for K_eff)
+        values = self.substrate.get_value(substrate_out.h_next, substrate_out.g_t)
+
+        # Get log probs for the actions taken (conditioned on g_t)
+        # JARVIS 420 FIX: Pass phi_obs for direct observation→action gradient path
+        action_log_probs = self.action_decoder.get_log_prob(
+            substrate_out.h_next, actions, substrate_out.g_t, phi_obs
+        )
+
+        # Get entropy (conditioned on g_t)
+        # JARVIS 420 FIX: Pass phi_obs for direct observation→action gradient path
+        entropy = self.action_decoder.get_entropy(
+            substrate_out.h_next, self.config.action_bytes, substrate_out.g_t, phi_obs
+        )
+
+        # Get action_mu for supervised auxiliary loss
+        # HYBRID TRAINING FIX: Return differentiable action_mu for supervised DoErr loss
+        action_mu = None
+        if self.action_decoder.gaussian_head is not None:
+            _, action_mu, _ = self.action_decoder.gaussian_head.forward(
+                substrate_out.h_next, substrate_out.g_t, phi_obs
+            )
+
+        return action_log_probs, entropy, values, substrate_out.g_t, substrate_out.h_next, action_mu
 
     def update_vae_target(self):
         """Update VAE target encoder via Polyak averaging."""
@@ -566,6 +671,7 @@ class RPJBrain(nn.Module):
         energy: float,
         code_len: float,
         z_t: torch.Tensor,
+        h_t: Optional[torch.Tensor] = None,
         td_error: Optional[float] = None,
     ):
         """Add experience to sleep replay buffer."""
@@ -579,6 +685,7 @@ class RPJBrain(nn.Module):
                 energy=energy,
                 code_len=code_len,
                 z_t=z_t,
+                h_t=h_t,
                 td_error=td_error,
             )
 
@@ -597,35 +704,57 @@ class RPJBrain(nn.Module):
         Returns:
             dynamics_loss: Loss from imagination (if any)
         """
-        if self.sleep is None or len(self.sleep.replay_buffer) < batch_size:
+        if self.sleep is None or len(self.sleep.replay_buffer) < 1:
             return None
 
-        # Sample from replay
-        batch, weights, indices = self.sleep.sample_replay(batch_size)
         device = next(self.parameters()).device
 
-        # Move to device
-        z_t = batch['z_t'].to(device)
-        actions = batch['actions'].to(device)
-        next_obs = batch['next_obs'].to(device)
+        # Multi-step dynamics training (uses real transition sequences when available).
+        # Try the longest horizon first, fall back to shorter sequences.
+        max_n_steps = min(self.sleep.config.n_max, len(self.sleep.replay_buffer))
+        sequences = []
+        weights = None
+        n_steps = 0
+        for candidate_n in range(max_n_steps, 0, -1):
+            sequences, weights, _ = self.sleep.replay_buffer.sample_sequences(
+                sequence_length=candidate_n,
+                batch_size=batch_size,
+                beta=self.sleep.beta,
+            )
+            if sequences:
+                n_steps = candidate_n
+                break
 
-        # Re-encode next_obs to get z_next target
-        # Use target encoder to prevent drift (BLUEPRINT Section 2.6)
-        phi_o_next = phi(next_obs)
+        if not sequences or weights is None or n_steps <= 0:
+            return None
 
-        # Need h_t to encode - use zeros for now (could improve with stored h_t)
-        h_dummy = torch.zeros(batch_size, self.config.hidden_dim, device=device)
+        batch_size_eff = len(sequences)
 
-        # Encode using target encoder for stable targets
-        z_next_target, _, _ = self.vae.encode(h_dummy, phi_o_next, use_target=True)
+        # z_t start state (from first transition in each sequence)
+        z_t = torch.stack([seq[0].z_t for seq in sequences]).to(device)
 
-        # Compute 1-step dynamics loss
-        dyn_loss = self.sleep.compute_dynamics_loss(z_t, actions, z_next_target)
+        # Actions over the sequence: [B, n_steps, action_dim]
+        actions_steps = [torch.stack([seq[i].action for seq in sequences]) for i in range(n_steps)]
+        actions = torch.stack(actions_steps, dim=1).to(device)
 
-        # Weight by importance sampling weights
-        # Note: dynamics loss is already reduced to scalar by MSE, so we just multiply
+        # Targets: encode each step's next_obs using the corresponding stored hidden state.
+        # Each seq[i] provides (a_{t+i}, o_{t+i+1}, h_{t+i+1}).
+        z_targets = []
+        for i in range(n_steps):
+            next_obs_i = torch.stack([seq[i].next_obs for seq in sequences]).to(device)
+            h_i = torch.stack([seq[i].h_t for seq in sequences]).to(device)
+            phi_o_next_i = phi(next_obs_i)
+            z_next_target_i, _, _ = self.vae.encode(h_i, phi_o_next_i, use_target=True)
+            z_targets.append(z_next_target_i)
+
+        dyn_loss = self.sleep.compute_multistep_dynamics_loss(
+            z_t=z_t,
+            actions=actions,
+            z_targets=z_targets,
+            n_steps=n_steps,
+        )
+
         weighted_loss = dyn_loss * weights.mean().to(device)
-
         return weighted_loss
 
     def apply_synaptic_renormalization(self):
@@ -643,7 +772,7 @@ def create_brain(obs_dim: int, action_bytes: int = 1, **kwargs) -> RPJBrain:
 
 if __name__ == "__main__":
     # Quick sanity check
-    print("Testing RPJ Brain v2 (with Plasticity + Sleep)...")
+    print("Testing RPJ Brain v5 (with Plasticity + Sleep)...")
 
     obs_dim = 64
     batch_size = 4
@@ -742,4 +871,4 @@ if __name__ == "__main__":
     else:
         print("✗ K_eff Fix FAILED: W_g.grad is None!")
 
-    print("\n✓ RPJ Brain v2 works!")
+    print("\n✓ RPJ Brain v5 works!")
