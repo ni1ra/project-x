@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Emergence Analysis Script for RPJ Brain v2.
+Emergence Analysis Script for RPJ Brain v5.
 
 Analyzes a trained checkpoint to verify emergence criteria from BLUEPRINT.md:
 1. CBR_t (Compute Burst Ratio) - should be bimodal
@@ -304,7 +304,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("RPJ Brain v2 - Emergence Analysis")
+    print("RPJ Brain v5 - Emergence Analysis")
     print("=" * 60)
 
     # Run analysis

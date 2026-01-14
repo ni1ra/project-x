@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPJ Brain - Causal Inference Demo</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --accent: #00ff88;
+            --accent-dim: #00aa55;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --danger: #ff4444;
+            --warning: #ffaa00;
+            --success: #00ff88;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--accent-dim);
+        }
+
+        header h1 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .honesty-box {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            border-radius: 4px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .honesty-box h3 {
+            color: var(--danger);
+            margin-bottom: 0.5rem;
+        }
+
+        .honesty-box ul {
+            margin-left: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 2rem;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+        }
+
+        .status-dot.online {
+            background: var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .interaction-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .input-section {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--bg-tertiary);
+        }
+
+        .input-section h2 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .slider-group {
+            margin-bottom: 1rem;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+            font-size: 0.85rem;
+        }
+
+        .slider-label .name {
+            color: var(--text-secondary);
+        }
+
+        .slider-label .value {
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        button {
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 4px;
+            padding: 0.75rem 1.5rem;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #00ffaa;
+            transform: translateY(-2px);
+        }
+
+        button.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--accent-dim);
+        }
+
+        button.secondary:hover {
+            background: var(--accent-dim);
+            color: var(--bg-primary);
+        }
+
+        .prediction-panel {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--bg-tertiary);
+        }
+
+        .prediction-panel h2 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .prediction-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+
+        .prediction-row:last-child {
+            border-bottom: none;
+        }
+
+        .prediction-row .label {
+            color: var(--text-secondary);
+        }
+
+        .prediction-row .value {
+            font-weight: bold;
+        }
+
+        .value.good {
+            color: var(--success);
+        }
+
+        .value.bad {
+            color: var(--danger);
+        }
+
+        .value.warning {
+            color: var(--warning);
+        }
+
+        .error-bar {
+            height: 20px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .error-fill {
+            height: 100%;
+            background: var(--danger);
+            transition: width 0.3s;
+        }
+
+        .output-section {
+            flex: 1;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--bg-tertiary);
+            overflow-y: auto;
+            max-height: 300px;
+        }
+
+        .output-section h2 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .log-entry {
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            font-size: 0.8rem;
+        }
+
+        .log-entry .step {
+            color: var(--accent);
+            font-size: 0.75rem;
+        }
+
+        .log-entry .data {
+            color: var(--text-primary);
+            margin-top: 0.25rem;
+        }
+
+        .metrics-panel {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--bg-tertiary);
+        }
+
+        .metrics-panel h2 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .metric-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-group h3 {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .metric-value {
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        .metric-value.warning {
+            color: var(--warning);
+        }
+
+        .metric-value.danger {
+            color: var(--danger);
+        }
+
+        .neuromodulator-viz {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .nm-bar {
+            height: 24px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .nm-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        .nm-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.65rem;
+            color: var(--text-primary);
+            z-index: 1;
+        }
+
+        .task-config {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--bg-tertiary);
+            margin-top: 1rem;
+        }
+
+        .task-config h3 {
+            color: var(--accent);
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+        }
+
+        footer {
+            background: var(--bg-secondary);
+            padding: 0.75rem 2rem;
+            border-top: 1px solid var(--bg-tertiary);
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .blindfold-badge {
+            display: inline-block;
+            background: var(--success);
+            color: var(--bg-primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-left: 0.5rem;
+        }
+
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-panel {
+                order: -1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>RPJ Brain - Causal Inference Demo
+            <span class="blindfold-badge">BLINDFOLD TEST</span>
+        </h1>
+        <p>Predicting E[Y | do(X=x)] from confounded data - the true test of causal understanding</p>
+
+        <div class="honesty-box">
+            <h3>HONESTY NOTICE</h3>
+            <ul>
+                <li><strong>This brain was trained on CCB (Confounded Causal Bandits)</strong></li>
+                <li>It predicts causal effects from numeric inputs (Z, X), NOT text</li>
+                <li>It cannot "chat" or understand language - it's a causal inference system</li>
+                <li>The BLINDFOLD TEST ensures it didn't cheat by seeing the answer</li>
+            </ul>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+            <div class="status-item">
+                <span>Device: <span id="device-info">-</span></span>
+            </div>
+            <div class="status-item">
+                <span>Params: <span id="params-info">-</span></span>
+            </div>
+            <div class="status-item">
+                <span>Step: <span id="step-info">0</span></span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="interaction-panel">
+            <div class="input-section">
+                <h2>CCB Trial Input</h2>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                    Z = confounding observation (what we see)<br>
+                    X = intervention target (what we do)
+                </p>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span class="name">Z (Confound)</span>
+                        <span class="value" id="z-value">0.00</span>
+                    </div>
+                    <input type="range" id="z-slider" min="-2" max="2" step="0.01" value="0">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span class="name">X (Intervention)</span>
+                        <span class="value" id="x-value">0.00</span>
+                    </div>
+                    <input type="range" id="x-slider" min="-2" max="2" step="0.01" value="0">
+                </div>
+
+                <div class="button-row">
+                    <button id="predict-btn">PREDICT</button>
+                    <button id="random-btn" class="secondary">RANDOM</button>
+                    <button id="sweep-btn" class="secondary">SWEEP X</button>
+                    <button id="reset-btn" class="secondary">RESET</button>
+                </div>
+            </div>
+
+            <div class="prediction-panel">
+                <h2>Causal Prediction</h2>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                    Target: E[Y | do(X=x)] where Y = ReLU(b_X * X² + b_U * U), U ~ N(0,1)
+                </p>
+
+                <div class="prediction-row">
+                    <span class="label">Brain Prediction</span>
+                    <span class="value" id="predicted-y">-</span>
+                </div>
+                <div class="prediction-row">
+                    <span class="label">True E[Y|do(X)]</span>
+                    <span class="value" id="true-y">-</span>
+                </div>
+                <div class="prediction-row">
+                    <span class="label">Absolute Error</span>
+                    <span class="value" id="error-value">-</span>
+                </div>
+
+                <div class="error-bar">
+                    <div class="error-fill" id="error-fill" style="width: 0%"></div>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; text-align: center;">
+                    Error (0 = perfect, max shown = 1.0)
+                </p>
+            </div>
+
+            <div class="task-config">
+                <h3>Task Parameters</h3>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span class="name">b_X (causal coefficient)</span>
+                        <span class="value" id="bx-value">0.50</span>
+                    </div>
+                    <input type="range" id="bx-slider" min="0.2" max="0.8" step="0.01" value="0.5">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span class="name">b_U (confounding coefficient)</span>
+                        <span class="value" id="bu-value">0.30</span>
+                    </div>
+                    <input type="range" id="bu-slider" min="0.1" max="0.5" step="0.01" value="0.3">
+                </div>
+                <button id="apply-task-btn" class="secondary" style="width: 100%;">Apply Task Config</button>
+            </div>
+
+            <div class="chat-section" style="background: var(--bg-secondary); border-radius: 8px; padding: 1rem; border: 1px solid var(--bg-tertiary);">
+                <h2 style="color: var(--accent); font-size: 1rem; margin-bottom: 0.75rem;">
+                    Chat with Brain
+                    <span style="font-size: 0.7rem; color: var(--warning); margin-left: 0.5rem;">(Causal queries only)</span>
+                </h2>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                    Ask about causal effects. Example: "If Z=0.5 and X=1.2, what is Y?"
+                </p>
+
+                <div id="chat-messages" style="height: 150px; overflow-y: auto; background: var(--bg-tertiary); border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; font-size: 0.8rem;">
+                    <div class="chat-msg system">Brain ready for causal queries...</div>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="chat-input" placeholder="Ask a causal question..."
+                        style="flex: 1; background: var(--bg-tertiary); border: 1px solid var(--accent-dim); border-radius: 4px; padding: 0.5rem; color: var(--text-primary); font-family: inherit;">
+                    <button id="chat-send-btn">SEND</button>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h2>Trial Log</h2>
+                <div id="output-log">
+                    <div class="log-entry">
+                        <div class="step">System</div>
+                        <div class="data">Awaiting brain connection...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="metrics-panel">
+            <h2>Emergence Metrics</h2>
+
+            <div class="metric-group">
+                <h3>Neuromodulators (g_t)</h3>
+                <div class="metric">
+                    <span class="metric-label">K_eff</span>
+                    <span class="metric-value" id="k-eff">-</span>
+                </div>
+                <div class="neuromodulator-viz" id="nm-viz">
+                    <!-- Generated dynamically -->
+                </div>
+            </div>
+
+            <div class="metric-group">
+                <h3>Compute Allocation</h3>
+                <div class="metric">
+                    <span class="metric-label">c_t (allocation)</span>
+                    <span class="metric-value" id="c-t">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">CBR (burst ratio)</span>
+                    <span class="metric-value" id="cbr">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">BI (broadcast index)</span>
+                    <span class="metric-value" id="bi">-</span>
+                </div>
+            </div>
+
+            <div class="metric-group">
+                <h3>Plasticity</h3>
+                <div class="metric">
+                    <span class="metric-label">P_t (gate)</span>
+                    <span class="metric-value" id="p-t">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">||h|| (state norm)</span>
+                    <span class="metric-value" id="h-norm">-</span>
+                </div>
+            </div>
+
+            <div class="metric-group">
+                <h3>Byte Interface</h3>
+                <div class="metric">
+                    <span class="metric-label">Z byte</span>
+                    <span class="metric-value" id="z-byte">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">X byte</span>
+                    <span class="metric-value" id="x-byte">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Output byte</span>
+                    <span class="metric-value" id="output-byte">-</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            WIRED-BRAIN | 1.5M parameters | Zero LLM dependencies |
+            <a href="https://github.com/ni1ra/WIRED-BRAIN" target="_blank">GitHub</a>
+        </p>
+        <p style="margin-top: 0.25rem;">
+            "The Blindfold Test: Learning causal structure without seeing the answer."
+        </p>
+    </footer>
+
+    <script>
+        // --- State ---
+        let currentZ = 0;
+        let currentX = 0;
+        let currentBX = 0.5;
+        let currentBU = 0.3;
+        let sweepInterval = null;
+
+        // --- DOM Elements ---
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const deviceInfo = document.getElementById('device-info');
+        const paramsInfo = document.getElementById('params-info');
+        const stepInfo = document.getElementById('step-info');
+        const zSlider = document.getElementById('z-slider');
+        const xSlider = document.getElementById('x-slider');
+        const zValue = document.getElementById('z-value');
+        const xValue = document.getElementById('x-value');
+        const bxSlider = document.getElementById('bx-slider');
+        const buSlider = document.getElementById('bu-slider');
+        const bxValue = document.getElementById('bx-value');
+        const buValue = document.getElementById('bu-value');
+        const outputLog = document.getElementById('output-log');
+        const nmViz = document.getElementById('nm-viz');
+
+        // --- Prediction Elements ---
+        const predictedYEl = document.getElementById('predicted-y');
+        const trueYEl = document.getElementById('true-y');
+        const errorValueEl = document.getElementById('error-value');
+        const errorFillEl = document.getElementById('error-fill');
+
+        // --- Metrics Elements ---
+        const kEffEl = document.getElementById('k-eff');
+        const cTEl = document.getElementById('c-t');
+        const cbrEl = document.getElementById('cbr');
+        const biEl = document.getElementById('bi');
+        const pTEl = document.getElementById('p-t');
+        const hNormEl = document.getElementById('h-norm');
+        const zByteEl = document.getElementById('z-byte');
+        const xByteEl = document.getElementById('x-byte');
+        const outputByteEl = document.getElementById('output-byte');
+
+        // --- Initialize ---
+        async function init() {
+            try {
+                const response = await fetch('/status');
+                const status = await response.json();
+
+                if (status.loaded) {
+                    deviceInfo.textContent = status.device;
+                    paramsInfo.textContent = status.parameters.toLocaleString();
+                    stepInfo.textContent = status.step_count;
+                    statusDot.classList.add('online');
+                    statusText.textContent = status.blindfold_mode ? 'Brain loaded (Blindfold)' : 'Brain loaded';
+
+                    currentBX = status.current_b_X;
+                    currentBU = status.current_b_U;
+                    bxSlider.value = currentBX;
+                    buSlider.value = currentBU;
+                    bxValue.textContent = currentBX.toFixed(2);
+                    buValue.textContent = currentBU.toFixed(2);
+
+                    addLog('System', `Brain loaded: ${status.parameters.toLocaleString()} params on ${status.device}`);
+                    if (status.blindfold_mode) {
+                        addLog('System', 'BLINDFOLD MODE: Brain trained without seeing answers');
+                    }
+                } else {
+                    statusText.textContent = 'Brain not loaded';
+                    addLog('System', 'Warning: Brain checkpoint not found');
+                }
+            } catch (e) {
+                statusText.textContent = 'Server offline';
+                addLog('System', 'Error: Could not connect to server');
+            }
+
+            // Initialize neuromodulator visualization (16 slots)
+            for (let i = 0; i < 16; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'nm-bar';
+                bar.innerHTML = `
+                    <div class="nm-fill" id="nm-fill-${i}" style="width: 0%"></div>
+                    <span class="nm-label">g${i}</span>
+                `;
+                nmViz.appendChild(bar);
+            }
+        }
+
+        // --- Slider Updates ---
+        zSlider.addEventListener('input', () => {
+            currentZ = parseFloat(zSlider.value);
+            zValue.textContent = currentZ.toFixed(2);
+        });
+
+        xSlider.addEventListener('input', () => {
+            currentX = parseFloat(xSlider.value);
+            xValue.textContent = currentX.toFixed(2);
+        });
+
+        bxSlider.addEventListener('input', () => {
+            currentBX = parseFloat(bxSlider.value);
+            bxValue.textContent = currentBX.toFixed(2);
+        });
+
+        buSlider.addEventListener('input', () => {
+            currentBU = parseFloat(buSlider.value);
+            buValue.textContent = currentBU.toFixed(2);
+        });
+
+        // --- Add Log Entry ---
+        function addLog(step, message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <div class="step">${step}</div>
+                <div class="data">${message}</div>
+            `;
+            outputLog.insertBefore(entry, outputLog.firstChild);
+
+            while (outputLog.children.length > 30) {
+                outputLog.removeChild(outputLog.lastChild);
+            }
+        }
+
+        // --- Update Metrics ---
+        function updateMetrics(data) {
+            stepInfo.textContent = data.step;
+
+            // Prediction
+            predictedYEl.textContent = data.predicted_Y.toFixed(3);
+            trueYEl.textContent = data.true_Y.toFixed(3);
+
+            const error = data.error;
+            errorValueEl.textContent = error.toFixed(4);
+
+            // Color code error
+            if (error < 0.05) {
+                errorValueEl.className = 'value good';
+            } else if (error < 0.2) {
+                errorValueEl.className = 'value warning';
+            } else {
+                errorValueEl.className = 'value bad';
+            }
+
+            // Error bar (capped at 1.0 for display)
+            const errorPercent = Math.min(error / 1.0, 1.0) * 100;
+            errorFillEl.style.width = `${errorPercent}%`;
+
+            // K_eff
+            const kEff = data.k_eff;
+            kEffEl.textContent = kEff.toFixed(2);
+            if (kEff >= 2 && kEff <= 6) {
+                kEffEl.className = 'metric-value';
+            } else if (kEff < 2) {
+                kEffEl.className = 'metric-value warning';
+            } else {
+                kEffEl.className = 'metric-value danger';
+            }
+
+            // Other metrics
+            cTEl.textContent = data.c_t.toFixed(3);
+            cbrEl.textContent = data.cbr.toFixed(3);
+            biEl.textContent = data.bi.toFixed(3);
+            pTEl.textContent = data.P_t.toFixed(3);
+            hNormEl.textContent = data.h_norm.toFixed(2);
+            zByteEl.textContent = data.z_byte;
+            xByteEl.textContent = data.x_byte;
+            outputByteEl.textContent = data.prediction_byte;
+
+            // Update neuromodulator visualization
+            if (data.g_values) {
+                data.g_values.forEach((g, i) => {
+                    const fill = document.getElementById(`nm-fill-${i}`);
+                    if (fill) {
+                        fill.style.width = `${Math.abs(g) * 100}%`;
+                        fill.style.background = g > 0.5 ? 'var(--accent)' : 'var(--accent-dim)';
+                    }
+                });
+            }
+        }
+
+        // --- Run CCB Prediction ---
+        async function runPrediction(reset = false) {
+            try {
+                const response = await fetch('/ccb', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        z_value: currentZ,
+                        x_value: currentX,
+                        reset_state: reset
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                updateMetrics(data);
+
+                addLog(
+                    `Step ${data.step}`,
+                    `Z=${data.z_value.toFixed(2)}, X=${data.x_value.toFixed(2)} → Pred=${data.predicted_Y.toFixed(3)}, True=${data.true_Y.toFixed(3)}, Err=${data.error.toFixed(4)}`
+                );
+
+            } catch (e) {
+                addLog('Error', `Prediction failed: ${e.message}`);
+            }
+        }
+
+        // --- Random Trial ---
+        async function randomTrial() {
+            try {
+                const response = await fetch('/random_trial');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+
+                // Update sliders to match
+                currentZ = data.z_value;
+                currentX = data.x_value;
+                zSlider.value = currentZ;
+                xSlider.value = currentX;
+                zValue.textContent = currentZ.toFixed(2);
+                xValue.textContent = currentX.toFixed(2);
+
+                updateMetrics(data);
+
+                addLog(
+                    `Step ${data.step} (Random)`,
+                    `Z=${data.z_value.toFixed(2)}, X=${data.x_value.toFixed(2)} → Pred=${data.predicted_Y.toFixed(3)}, True=${data.true_Y.toFixed(3)}, Err=${data.error.toFixed(4)}`
+                );
+
+            } catch (e) {
+                addLog('Error', `Random trial failed: ${e.message}`);
+            }
+        }
+
+        // --- Sweep X ---
+        function toggleSweep() {
+            const sweepBtn = document.getElementById('sweep-btn');
+
+            if (sweepInterval) {
+                clearInterval(sweepInterval);
+                sweepInterval = null;
+                sweepBtn.textContent = 'SWEEP X';
+                sweepBtn.classList.remove('active');
+            } else {
+                sweepBtn.textContent = 'STOP';
+                sweepBtn.style.background = 'var(--warning)';
+
+                let x = -2;
+                sweepInterval = setInterval(async () => {
+                    currentX = x;
+                    xSlider.value = x;
+                    xValue.textContent = x.toFixed(2);
+
+                    await runPrediction();
+
+                    x += 0.1;
+                    if (x > 2) {
+                        clearInterval(sweepInterval);
+                        sweepInterval = null;
+                        sweepBtn.textContent = 'SWEEP X';
+                        sweepBtn.style.background = '';
+                    }
+                }, 200);
+            }
+        }
+
+        // --- Reset Brain ---
+        async function resetBrain() {
+            try {
+                const response = await fetch('/reset', { method: 'POST' });
+                const data = await response.json();
+
+                stepInfo.textContent = data.step;
+                addLog('System', 'Brain state reset');
+
+                // Reset visualization
+                for (let i = 0; i < 16; i++) {
+                    const fill = document.getElementById(`nm-fill-${i}`);
+                    if (fill) fill.style.width = '0%';
+                }
+
+                // Reset prediction display
+                predictedYEl.textContent = '-';
+                trueYEl.textContent = '-';
+                errorValueEl.textContent = '-';
+                errorFillEl.style.width = '0%';
+
+            } catch (e) {
+                addLog('Error', `Reset failed: ${e.message}`);
+            }
+        }
+
+        // --- Apply Task Config ---
+        async function applyTaskConfig() {
+            try {
+                const response = await fetch('/set_task', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        b_X: currentBX,
+                        b_U: currentBU
+                    })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                addLog('System', `Task configured: b_X=${data.b_X.toFixed(2)}, b_U=${data.b_U.toFixed(2)}`);
+
+            } catch (e) {
+                addLog('Error', `Task config failed: ${e.message}`);
+            }
+        }
+
+        // --- Chat Functionality ---
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+
+        function addChatMessage(text, type) {
+            const msg = document.createElement('div');
+            msg.className = `chat-msg ${type}`;
+            msg.style.marginBottom = '0.5rem';
+            msg.style.padding = '0.5rem';
+            msg.style.borderRadius = '4px';
+
+            if (type === 'user') {
+                msg.style.background = 'var(--accent-dim)';
+                msg.style.color = 'var(--bg-primary)';
+                msg.style.marginLeft = '20%';
+            } else if (type === 'brain') {
+                msg.style.background = 'var(--bg-secondary)';
+                msg.style.border = '1px solid var(--accent)';
+                msg.style.marginRight = '10%';
+                msg.style.whiteSpace = 'pre-wrap';
+            } else {
+                msg.style.color = 'var(--text-secondary)';
+                msg.style.fontStyle = 'italic';
+            }
+
+            msg.innerHTML = text;
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            addChatMessage(message, 'user');
+            chatInput.value = '';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                addChatMessage(data.brain_response, 'brain');
+
+                // Update metrics if available
+                if (data.reasoning && data.reasoning.k_eff) {
+                    kEffEl.textContent = data.reasoning.k_eff.toFixed(2);
+                    stepInfo.textContent = data.reasoning.step;
+                }
+
+            } catch (e) {
+                addChatMessage(`Error: ${e.message}`, 'system');
+            }
+        }
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+        document.getElementById('chat-send-btn').addEventListener('click', sendChatMessage);
+
+        // --- Event Listeners ---
+        document.getElementById('predict-btn').addEventListener('click', () => runPrediction());
+        document.getElementById('random-btn').addEventListener('click', randomTrial);
+        document.getElementById('sweep-btn').addEventListener('click', toggleSweep);
+        document.getElementById('reset-btn').addEventListener('click', resetBrain);
+        document.getElementById('apply-task-btn').addEventListener('click', applyTaskConfig);
+
+        // --- Start ---
+        init();
+    </script>
+</body>
+</html>

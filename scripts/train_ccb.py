@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CCB Training Script for RPJ Brain v2.
+CCB Training Script for RPJ Brain v5.
 
 Runs the full training pipeline on the Confounded Causal Bandits environment.
 
@@ -30,17 +30,19 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("RPJ Brain v2 - CCB Training")
+    print("RPJ Brain v5 - CCB Training")
     print("=" * 60)
 
     # Create environment
     print("\n[1/3] Creating CCB environment...")
     env = CCBEnvironment()
-    print(f"  Observation: 8 bytes (Z + target_X)")
-    print(f"  Action: 1 byte (predicted Y)")
+    obs_dim = env.observation_space_bytes
+    action_bytes = env.action_space_bytes
+    print(f"  Observation: {obs_dim} bytes")
+    print(f"  Action: {action_bytes} byte (predicted Y)")
 
     # Create brain and trainer
-    print("\n[2/3] Creating RPJ Brain v2...")
+    print("\n[2/3] Creating RPJ Brain v5...")
     config = PPOConfig(
         num_steps_per_update=256,
         num_epochs=4,
@@ -48,8 +50,8 @@ def main():
         sleep_train_freq=20,  # Sleep every 20 updates
     )
     brain, trainer = create_trainer(
-        obs_dim=8,
-        action_bytes=1,
+        obs_dim=obs_dim,
+        action_bytes=action_bytes,
         device=args.device,
     )
     trainer.config = config
@@ -94,8 +96,8 @@ def main():
                 'trainer_update_count': trainer.update_count,
                 'timesteps': stats['timesteps'],
                 'config': {
-                    'obs_dim': 8,
-                    'action_bytes': 1,
+                    'obs_dim': obs_dim,
+                    'action_bytes': action_bytes,
                 },
             }, ckpt_filename)
             print(f"  [CHECKPOINT] Saved {ckpt_filename}")
@@ -148,8 +150,8 @@ def main():
             'trainer_update_count': trainer.update_count,
             'timesteps': final['timesteps'],
             'config': {
-                'obs_dim': 8,
-                'action_bytes': 1,
+                'obs_dim': obs_dim,
+                'action_bytes': action_bytes,
             },
         }, final_ckpt)
         print(f"\nFinal checkpoint saved to: {final_ckpt}")

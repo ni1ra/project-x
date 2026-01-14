@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Benchmark Scoring Script for RPJ Brain v2.
+Benchmark Scoring Script for RPJ Brain v5.
 
 Evaluates a trained checkpoint on BLUEPRINT.md benchmarks:
 1. CCB/CCB-NL: DoErr <= 0.05, discrimination >= 0.90
@@ -315,7 +315,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("RPJ Brain v2 - Benchmark Scoring")
+    print("RPJ Brain v5 - Benchmark Scoring")
     print("=" * 60)
 
     # Load checkpoint

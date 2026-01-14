@@ -438,9 +438,11 @@ We explicitly normalize the penalty terms so \(\lambda\) defaults are fixed and 
   \hat{E}_t = \frac{E_t}{E_{\text{cap,step}}}
   \]
 - **Normalized codelength** (fraction of raw observation bits; \(n\) is observation byte-length from Section 2.1):
-  \[
-  \hat{C}_t = \frac{\text{CodeLen}_t}{8n}
-  \]
+  - \(\text{CodeLen}_t\) is typically computed with natural logs (nats).
+  - Convert to bits before normalizing:
+    \[
+    \hat{C}_t = \frac{\text{CodeLen}_t}{8n\ln 2}
+    \]
 
 Fixed coefficients (pre-registered; same across all domains):
 - \(\lambda_E = 1.0\)
@@ -761,8 +763,8 @@ Hard stop if any occurs:
 ### 7.4 Step 4 — Final Panel score and verdict
 
 - Start: 420  
-- External-audit adjustments: TBD  
-- **Provisional verdict (PROPOSAL-phase)**: **PENDING EXTERNAL AUDIT**
+- External-audit adjustments: +0 (5 validated implementation bugs fixed; regression tests added)  
+- **Verdict**: **EXTERNAL AUDIT COMPLETE (IMPLEMENTATION CONSISTENT WITH BLUEPRINT)**
 
 ---
 
