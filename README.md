@@ -4,7 +4,9 @@ A 1.5M parameter neural agent demonstrating **emergent brain-like architecture**
 
 ## Results
 
-After 50M timesteps of multi-task training:
+Source of truth: run the reproducibility gate `./reproduce.sh` (tests + fixed-checkpoint evals).
+
+Historical headline numbers (from a prior passing run):
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
@@ -55,10 +57,10 @@ pip install -e ".[web]"
 
 ```bash
 # Start the server
-PYTHONPATH=. python scripts/run_server.py
+PYTHONPATH=. ./.venv/bin/python scripts/run_server.py
 
 # Or directly with uvicorn
-PYTHONPATH=. python -m uvicorn web.server:app --host 0.0.0.0 --port 8420
+PYTHONPATH=. ./.venv/bin/python -m uvicorn web.server:app --host 0.0.0.0 --port 8420
 
 # Open http://localhost:8420
 # - Chat with the brain using causal queries
@@ -69,16 +71,16 @@ PYTHONPATH=. python -m uvicorn web.server:app --host 0.0.0.0 --port 8420
 
 ```bash
 # Multi-task CCB training (GPU recommended)
-PYTHONPATH=. python scripts/train_multitask_ccb.py --num-envs 8192 --timesteps 50000000 --num-tasks 100 --switch-interval 500
+PYTHONPATH=. ./.venv/bin/python scripts/train_multitask_ccb.py --num-envs 8192 --timesteps 50000000 --num-tasks 100 --switch-interval 500
 
 # Shorter test run
-PYTHONPATH=. python scripts/train_multitask_ccb.py --num-envs 4096 --timesteps 1000000 --num-tasks 20 --switch-interval 200
+PYTHONPATH=. ./.venv/bin/python scripts/train_multitask_ccb.py --num-envs 4096 --timesteps 1000000 --num-tasks 20 --switch-interval 200
 ```
 
 ### Run Tests
 
 ```bash
-python -m pytest tests/ -q
+./.venv/bin/python -m pytest tests/ -q
 ```
 
 ## Project Structure

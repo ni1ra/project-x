@@ -664,6 +664,18 @@ def main():
         default=1e-4,
         help="Learning rate for sleep consolidation (default: 1e-4)",
     )
+    parser.add_argument(
+        "--ignore-transfer",
+        action="store_true",
+        default=False,
+        help="Gate only on SR_novel (ignore transfer-T threshold).",
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        default=False,
+        help="Do not write results artifact to results/.",
+    )
 
     args = parser.parse_args()
 
@@ -728,17 +740,20 @@ def main():
     )
 
     # Save results with appropriate filename
-    if args.sleep_consolidation:
-        results_path = Path("results/od_ndt_sleep_results.pt")
-    elif persistence_mode:
-        results_path = Path("results/od_ndt_persistence_results.pt")
-    else:
-        results_path = Path("results/od_ndt_results.pt")
-    torch.save(results, results_path)
-    print(f"\nResults saved to: {results_path}")
+    if not args.no_save:
+        if args.sleep_consolidation:
+            results_path = Path("results/od_ndt_sleep_results.pt")
+        elif persistence_mode:
+            results_path = Path("results/od_ndt_persistence_results.pt")
+        else:
+            results_path = Path("results/od_ndt_results.pt")
+        torch.save(results, results_path)
+        print(f"\nResults saved to: {results_path}")
 
-    return results
+    passed = results["sr_pass"] if args.ignore_transfer else results["overall_pass"]
+    print(f"\n>>> FINAL VERDICT: {'PASS' if passed else 'FAIL'}")
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

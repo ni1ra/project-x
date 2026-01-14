@@ -6,9 +6,10 @@ Per BLUEPRINT.md: CBR_t should be bimodal (Sarle's coefficient > 0.555).
 This indicates the brain switches between compute/not-compute phases.
 
 Usage:
-    python scripts/compute_cbr_bimodality.py
+    python scripts/compute_cbr_bimodality.py --checkpoint results/checkpoint_multitask_ccb_final_50331648.pt
 """
 
+import argparse
 import sys
 from pathlib import Path
 import numpy as np
@@ -69,8 +70,34 @@ def compute_k_eff(g_t: torch.Tensor) -> float:
 
 
 def main():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    checkpoint_path = "results/checkpoint_multitask_ccb_final_50331648.pt"
+    parser = argparse.ArgumentParser(description="Compute CBR bimodality coefficient from a checkpoint")
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default="results/checkpoint_multitask_ccb_final_50331648.pt",
+        help="Path to checkpoint .pt file",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=("cuda" if torch.cuda.is_available() else "cpu"),
+        help="Device to use (cpu or cuda)",
+    )
+    parser.add_argument("--num-tasks", type=int, default=100, help="Task bank size for eval env")
+    parser.add_argument("--env-steps", type=int, default=10, help="Steps per task episode in eval env")
+    parser.add_argument("--num-eval-tasks", type=int, default=10, help="Number of task_ids to sample")
+    parser.add_argument("--steps-per-task", type=int, default=50, help="Max rollout steps per task_id")
+    parser.add_argument("--no-save", action="store_true", help="Do not write results artifact")
+    parser.add_argument(
+        "--save-path",
+        type=str,
+        default="results/cbr_analysis.pt",
+        help="Where to save the results artifact (if not --no-save)",
+    )
+    args = parser.parse_args()
+
+    device = args.device
+    checkpoint_path = args.checkpoint
 
     print("=" * 60)
     print("CBR BIMODALITY ANALYSIS")
@@ -114,10 +141,10 @@ def main():
     # Create environment
     print("\n[2/4] Creating multi-task environment...")
     env = create_multitask_ccb(
-        num_tasks=100,
+        num_tasks=args.num_tasks,
         nonlinear=True,
         device=device,
-        steps_per_task=10,
+        steps_per_task=args.env_steps,
         success_threshold=0.3,
     )
 
@@ -128,8 +155,8 @@ def main():
     all_k_eff = []
     all_g_values = []
 
-    num_eval_tasks = 10
-    steps_per_task = 50
+    num_eval_tasks = args.num_eval_tasks
+    steps_per_task = args.steps_per_task
 
     for task_id in range(num_eval_tasks):
         obs, _ = env.reset(task_id=task_id)
@@ -231,8 +258,9 @@ def main():
         'k_eff_bimodality': k_eff_bimodality,
         'cbr_pass': cbr_pass,
     }
-    torch.save(results, 'results/cbr_analysis.pt')
-    print(f"\nResults saved to: results/cbr_analysis.pt")
+    if not args.no_save:
+        torch.save(results, args.save_path)
+        print(f"\nResults saved to: {args.save_path}")
 
     return cbr_pass
 
