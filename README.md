@@ -13,7 +13,7 @@ After 50M timesteps of multi-task training:
 | CBR_B (bimodal compute allocation) | 0.578 | >0.555 | **PASS** |
 | OD-NDT SR_novel (one-shot transfer) | 0.65 | ≥0.60 | **PASS** |
 
-**External audit (2026-01-14):** 5 validated implementation bugs fixed + regression tests added (`230 passed`).
+**External audit (2026-01-14):** 5 validated implementation bugs fixed + regression tests added (`pytest tests/` is green).
 
 ## Key Constraints
 
