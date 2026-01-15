@@ -91,6 +91,10 @@ class HarnessState:
     last_test_result: Optional[VerifierResult] = None
     last_reward: float = 0.0
     done: bool = False
+    # Exploration tracking
+    action_history: List[int] = field(default_factory=list)  # Recent action types
+    initial_tests_passing: int = 0  # Baseline for progress reward
+    consecutive_same_action: int = 0  # Count of repeated same action
 
 
 class JarvisHarnessEnv:
@@ -194,6 +198,7 @@ class JarvisHarnessEnv:
 
         # Initial test run to establish baseline
         self.state.last_test_result = run_pytest(self.temp_dir)
+        self.state.initial_tests_passing = self.state.last_test_result.tests_passing
         self.state.terminal_buffer += f"Initial tests: {self.state.last_test_result.tests_passing}/{self.state.last_test_result.tests_total} passing\n"
 
         return self._get_observation()
@@ -219,6 +224,16 @@ class JarvisHarnessEnv:
 
         # Decode action
         action = decode_action(action_bytes)
+
+        # Track action history for exploration bonus
+        action_type = int(action.action_type)
+        if self.state.action_history and self.state.action_history[-1] == action_type:
+            self.state.consecutive_same_action += 1
+        else:
+            self.state.consecutive_same_action = 1
+        self.state.action_history.append(action_type)
+        if len(self.state.action_history) > 10:
+            self.state.action_history.pop(0)
 
         # Track energy (simplified - actual FLOP counting would need model forward pass)
         action_energy = self._estimate_action_energy(action)
@@ -672,7 +687,7 @@ class JarvisHarnessEnv:
         return base_cost
 
     def _compute_reward(self) -> float:
-        """Compute reward for current step."""
+        """Compute reward for current step with exploration bonuses."""
         # Get test result
         test_result = self.state.last_test_result or VerifierResult(passed=False, score=0)
 
@@ -685,7 +700,7 @@ class JarvisHarnessEnv:
             changed, _ = compute_diff_size(orig, current)
             total_diff_lines += changed
 
-        # Compute reward components
+        # Compute base reward components
         components = compute_reward(
             test_result=test_result,
             lint_result=lint_result,
@@ -693,7 +708,32 @@ class JarvisHarnessEnv:
             actions_taken=self.state.actions_taken,
         )
 
-        return components.total
+        base_reward = components.total
+
+        # === EXPLORATION BONUSES ===
+
+        # 1. Repetition penalty: punish doing the same action repeatedly
+        # -0.5 per consecutive repeat after the first
+        repetition_penalty = 0.0
+        if self.state.consecutive_same_action > 1:
+            repetition_penalty = -0.5 * (self.state.consecutive_same_action - 1)
+
+        # 2. Diversity bonus: reward for trying different actions
+        # +0.2 for each unique action type in recent history
+        unique_actions = len(set(self.state.action_history))
+        diversity_bonus = 0.2 * unique_actions
+
+        # 3. Progress bonus: extra reward for IMPROVING test count
+        # +2.0 per test improved over baseline
+        progress_bonus = 0.0
+        current_passing = test_result.tests_passing
+        if current_passing > self.state.initial_tests_passing:
+            progress_bonus = 2.0 * (current_passing - self.state.initial_tests_passing)
+
+        # Total reward
+        total_reward = base_reward + repetition_penalty + diversity_bonus + progress_bonus
+
+        return total_reward
 
     def close(self):
         """Clean up resources."""
