@@ -199,6 +199,8 @@ class JarvisHarnessTrainer:
         value_coef: float = 0.5,
         max_grad_norm: float = 1.0,
         rollout_steps: int = 128,
+        update_epochs: int = 4,
+        minibatch_size: int = 1024,
     ):
         self.brain = brain
         self.envs = envs
@@ -214,6 +216,8 @@ class JarvisHarnessTrainer:
         self.value_coef = value_coef
         self.max_grad_norm = max_grad_norm
         self.rollout_steps = rollout_steps
+        self.update_epochs = update_epochs
+        self.minibatch_size = minibatch_size
 
         # Optimizer
         self.optimizer = Adam(brain.parameters(), lr=lr)
@@ -369,46 +373,64 @@ class JarvisHarnessTrainer:
         prev_a_flat = rollout["prev_a"].view(T * B, -1)
         z_flat = rollout["z_t"].view(T * B, -1)
 
-        # PPO update (single epoch for simplicity)
-        # Re-evaluate actions with gradients
-        new_log_probs, entropy, new_values, _, _, _ = self.brain.evaluate_actions(
-            obs_bytes=obs_flat,
-            prev_h=prev_h_flat,
-            prev_g=prev_g_flat,
-            prev_a=prev_a_flat,
-            actions=actions_flat,
-            z_t=z_flat,
-        )
+        batch_size = T * B
+        minibatch = max(1, min(self.minibatch_size, batch_size))
 
-        new_log_probs_sum = new_log_probs.sum(dim=-1)  # [T*B]
-        old_log_probs_sum = old_log_probs_flat.sum(dim=-1)  # [T*B]
+        policy_losses = []
+        value_losses = []
+        entropies = []
+        total_losses = []
 
-        # Policy loss (clipped)
-        ratio = torch.exp(new_log_probs_sum - old_log_probs_sum)
-        surr1 = ratio * advantages_flat
-        surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * advantages_flat
-        policy_loss = -torch.min(surr1, surr2).mean()
+        for _ in range(self.update_epochs):
+            indices = torch.randperm(batch_size, device=self.device)
+            for start in range(0, batch_size, minibatch):
+                mb_idx = indices[start:start + minibatch]
 
-        # Value loss
-        value_loss = F.mse_loss(new_values, returns_flat)
+                # Re-evaluate actions with gradients (TRUNCATED BPTT(1): per-step prev state)
+                new_log_probs, entropy, new_values, _, _, _ = self.brain.evaluate_actions(
+                    obs_bytes=obs_flat[mb_idx],
+                    prev_h=prev_h_flat[mb_idx],
+                    prev_g=prev_g_flat[mb_idx],
+                    prev_a=prev_a_flat[mb_idx],
+                    actions=actions_flat[mb_idx],
+                    z_t=z_flat[mb_idx],
+                )
 
-        # Entropy bonus
-        entropy_loss = -entropy.mean()
+                new_log_probs_sum = new_log_probs.sum(dim=-1)
+                old_log_probs_sum = old_log_probs_flat[mb_idx].sum(dim=-1)
 
-        # Total loss
-        loss = policy_loss + self.value_coef * value_loss + self.entropy_coef * entropy_loss
+                ratio = torch.exp(new_log_probs_sum - old_log_probs_sum)
+                adv = advantages_flat[mb_idx]
+                surr1 = ratio * adv
+                surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * adv
+                policy_loss = -torch.min(surr1, surr2).mean()
 
-        # Backward pass
-        self.optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(self.brain.parameters(), self.max_grad_norm)
-        self.optimizer.step()
+                value_loss = F.mse_loss(new_values, returns_flat[mb_idx])
+                entropy_bonus = entropy.mean()
+
+                # Total loss (maximize entropy_bonus)
+                loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy_bonus
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.brain.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+
+                policy_losses.append(policy_loss.detach())
+                value_losses.append(value_loss.detach())
+                entropies.append(entropy_bonus.detach())
+                total_losses.append(loss.detach())
+
+        def mean(xs: List[torch.Tensor]) -> float:
+            if not xs:
+                return 0.0
+            return torch.stack(xs).mean().item()
 
         return {
-            "policy_loss": policy_loss.item(),
-            "value_loss": value_loss.item(),
-            "entropy": -entropy_loss.item(),
-            "total_loss": loss.item(),
+            "policy_loss": mean(policy_losses),
+            "value_loss": mean(value_losses),
+            "entropy": mean(entropies),
+            "total_loss": mean(total_losses),
         }
 
     def train(self, total_timesteps: int, log_interval: int = 1000):
@@ -548,6 +570,8 @@ def main():
     parser.add_argument("--num-envs", type=int, default=32, help="Number of parallel environments")
     parser.add_argument("--timesteps", type=int, default=100000, help="Total training timesteps")
     parser.add_argument("--rollout-steps", type=int, default=128, help="Steps per rollout")
+    parser.add_argument("--ppo-epochs", type=int, default=4, help="PPO update epochs per rollout (more = more GPU work)")
+    parser.add_argument("--minibatch-size", type=int, default=1024, help="Minibatch size for PPO updates")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
     parser.add_argument("--entropy-coef", type=float, default=0.01,
                         help="Entropy coefficient (lower = less exploration)")
@@ -688,6 +712,8 @@ def main():
         lr=args.lr,
         entropy_coef=args.entropy_coef,
         rollout_steps=args.rollout_steps,
+        update_epochs=args.ppo_epochs,
+        minibatch_size=args.minibatch_size,
     )
 
     # Train

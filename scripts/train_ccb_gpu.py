@@ -8,7 +8,7 @@ during rollout collection. Achieves 90%+ GPU utilization.
 DEEP-DEBUG FIX: Eliminates .item() sync storm that caused 110x slowdown.
 
 Usage:
-    python scripts/train_ccb_gpu.py [--num-envs 32768] [--timesteps 1000000]
+    python scripts/train_ccb_gpu.py [--num-envs 16384] [--timesteps 1000000]
 """
 
 import argparse
@@ -100,7 +100,7 @@ class VectorizedRolloutBuffer:
 
 
 def train_vectorized(
-    num_envs: int = 32768,
+    num_envs: int = 16384,
     num_steps: int = 128,
     total_timesteps: int = 1_000_000,
     device: str = "cuda",
@@ -401,14 +401,14 @@ def train_vectorized(
     print(f"  Total time: {total_time:.1f}s")
     print(f"  Average FPS: {final_fps:,.0f}")
     print(f"  Final checkpoint: {final_ckpt_path}")
-    print(f"  Target FPS for 90% util: ~100,000+ (with 32K envs)")
+    print("  Target FPS for high util: scale num_envs until VRAM cap (keep <10GB total)")
 
     return brain  # Return trained brain for further use
 
 
 def main():
     parser = argparse.ArgumentParser(description="GPU-Native CCB Training")
-    parser.add_argument("--num-envs", type=int, default=32768, help="Number of parallel environments")
+    parser.add_argument("--num-envs", type=int, default=16384, help="Number of parallel environments")
     parser.add_argument("--timesteps", type=int, default=500_000, help="Total training timesteps")
     parser.add_argument("--num-steps", type=int, default=128, help="Steps per rollout")
     parser.add_argument("--log-interval", type=int, default=10, help="Log every N updates")
