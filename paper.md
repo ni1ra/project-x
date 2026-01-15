@@ -33,9 +33,11 @@ After 50 million steps of multi-task training on Confounded Causal Bandits with 
 
 *Under BLINDFOLD test (observation = [Z,X] only), theoretical minimum DoErr is 0.203. Model achieves 96.5% of optimum.
 
-The mission succeeds. The agent distinguishes causation from correlation without being taught causal structure. It develops a 5-channel vocabulary of global control signals from 16 available, through gradient pressure alone. It operates in two compute regimes—cheap and expensive—without being given a "System 1" or "System 2." It transfers from one demonstration to 65% of novel tasks through a learned sleep consolidation phase.
+The architectural validation succeeds. On microscopic benchmarks—2-variable causal bandits where "reasoning" means learning which variable matters—the agent distinguishes causation from correlation without being taught causal structure. It develops a 5-channel vocabulary of global control signals from 16 available, through gradient pressure alone. It operates in two compute regimes—cheap and expensive—without being given a "System 1" or "System 2." It transfers from one demonstration to 65% of novel tasks through a learned sleep consolidation phase.
 
 These results suggest that certain brain-like decompositions (global broadcast, dual-process, synaptic consolidation) are attractors of optimization under scarcity—not biological accidents, but engineering optima. We did not build these structures. We priced the resources, and the structures emerged.
+
+**A necessary caveat:** This is a wind tunnel, not a jet. We have demonstrated that certain aerodynamic principles hold at scale—but the model airplane in our tunnel cannot carry passengers. The gap between "passes toy benchmarks" and "useful capability" is measured in orders of magnitude (10^6 or more). The architecture works; the agent does not yet work on anything that matters.
 
 The next question: can emergence transfer from benchmarks to real work? Sprint 1 (Appendix I) begins the answer—a tool-using harness where the same brain fixes bugs in code repositories, rewarded by pytest, not by human feedback.
 
@@ -82,6 +84,16 @@ The only path to systems that might eventually exceed current capabilities is to
 This is not a guarantee of success. It is merely a necessary condition. And it makes the engineering considerably harder, which is why so few attempt it.
 
 The goal is not to build an impressive demo by clever engineering. The goal is to build a falsifiable mechanism and see what structure it grows.
+
+### 1.3 What this paper is (and is not)
+
+This paper documents the construction and testing of a **scale model**. Like a wind tunnel model of an aircraft, it is designed to test whether certain principles hold—not to carry passengers.
+
+The benchmarks in this paper are deliberately microscopic. A 2-variable causal bandit is not a real problem; it is a controlled experiment. Passing all gates on toy tasks proves the *physics* (emergence from RPJ pressure) but not the *engineering* (capability on meaningful tasks).
+
+We make this explicit because triumphant results on benchmarks have a way of being mistaken for triumphant results in the world. They are not the same thing. The gap between "architecture validated" and "useful system" remains immense—perhaps 10^6 times in capability. The Jarvis Harness (Appendix I) represents the first tentative steps toward closing that gap, but steps are not arrival.
+
+Reader beware: what follows is a story of a system that works. It works on problems that barely count as problems. Whether it can be made to work on problems that matter is the subject of the next paper, which has not yet been written because the experiments have not yet been run.
 
 ---
 
