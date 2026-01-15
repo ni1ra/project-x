@@ -125,6 +125,7 @@ Working tree: dirty (tracked edits + untracked deliverables; not yet PR-ready)
 - **Reward function fix**: Scaled test reward from [0, N_tests] to [0, 2.0] to reduce safe-action bias
 - **Bug diagnosis**: Model looped on STACKTRACE because high per-step reward discouraged exploration
 - **Action decode fix**: Both decode_action and decode_action_v2 now handle numpy arrays
+- **Exploration bonuses added**: Repetition penalty (-0.5/repeat), diversity bonus (+0.2/unique), progress bonus (+2.0/test improved)
 
 ### What's Pending
 - Multi-seed validation (≥5) for emergence metrics (BLUEPRINT requirement)
