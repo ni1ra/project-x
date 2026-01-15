@@ -7,8 +7,11 @@ Defines the action space for tool-using agent:
 - write/patch file chunk
 - run unit tests
 - search docs
+- git operations (checkout, add, commit, etc.)
 
 Actions are byte-encoded for compatibility with RPJ brain.
+
+v2: Extended action space with git operations for multi-file debugging.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ import torch
 
 class ActionType(IntEnum):
     """Action types for Jarvis harness."""
+    # Core operations
     SHELL_CMD = 0      # Execute shell command
     READ_FILE = 1      # Read file chunk
     WRITE_FILE = 2     # Write/patch file
@@ -31,6 +35,19 @@ class ActionType(IntEnum):
     SUBMIT = 5         # Submit solution (episode end)
     NO_OP = 6          # Do nothing (pass)
 
+    # Git operations (v2)
+    GIT_STATUS = 7     # Show git status
+    GIT_DIFF = 8       # Show diff for file
+    GIT_ADD = 9        # Stage file
+    GIT_RESET = 10     # Unstage file
+    GIT_CHECKOUT = 11  # Discard changes to file
+    GIT_LOG = 12       # Show recent commits
+
+    # Multi-file operations (v2)
+    LIST_FILES = 13    # List files in directory
+    NAVIGATE = 14      # Change focus to different file
+    STACKTRACE = 15    # Parse last error stacktrace
+
 
 # Shell command grammar (constrained for safety)
 ALLOWED_SHELL_COMMANDS = [
@@ -38,13 +55,16 @@ ALLOWED_SHELL_COMMANDS = [
     'pip',              # Package management
     'cat',              # View file (limited)
     'ls',               # List directory
-    'git diff',         # View changes
-    'git status',       # View status
     'grep',             # Search in files
     'head',             # View file start
     'tail',             # View file end
     'wc',               # Word/line count
+    'find',             # Find files
+    'tree',             # Directory tree
 ]
+
+# Git commands are now separate action types, not shell commands
+# This prevents arbitrary git commands while allowing structured git ops
 
 
 @dataclass
@@ -179,6 +199,26 @@ def action_to_string(action: JarvisAction) -> str:
         return "SUBMIT"
     elif action.action_type == ActionType.NO_OP:
         return "NO_OP"
+    # Git operations
+    elif action.action_type == ActionType.GIT_STATUS:
+        return "GIT_STATUS"
+    elif action.action_type == ActionType.GIT_DIFF:
+        return f"GIT_DIFF: {action.target or 'all'}"
+    elif action.action_type == ActionType.GIT_ADD:
+        return f"GIT_ADD: {action.target}"
+    elif action.action_type == ActionType.GIT_RESET:
+        return f"GIT_RESET: {action.target}"
+    elif action.action_type == ActionType.GIT_CHECKOUT:
+        return f"GIT_CHECKOUT: {action.target}"
+    elif action.action_type == ActionType.GIT_LOG:
+        return "GIT_LOG"
+    # Multi-file operations
+    elif action.action_type == ActionType.LIST_FILES:
+        return f"LIST_FILES: {action.target or '.'}"
+    elif action.action_type == ActionType.NAVIGATE:
+        return f"NAVIGATE: {action.target}"
+    elif action.action_type == ActionType.STACKTRACE:
+        return "STACKTRACE"
     else:
         return f"UNKNOWN({action.action_type})"
 
@@ -186,3 +226,116 @@ def action_to_string(action: JarvisAction) -> str:
 # Action space size for RL
 NUM_ACTION_TYPES = len(ActionType)
 ACTION_BYTES = 32  # Total bytes per action
+
+
+# =============================================================================
+# Extended Action Encoding (v2) - 64-byte actions for richer content
+# =============================================================================
+
+ACTION_BYTES_V2 = 64  # Extended action size for v2
+
+
+def encode_action_v2(action: JarvisAction, max_bytes: int = ACTION_BYTES_V2) -> torch.Tensor:
+    """
+    Encode action to bytes (v2 format with 64 bytes).
+
+    Format (64 bytes):
+    - byte 0: action_type
+    - byte 1-2: offset (uint16)
+    - byte 3-4: length (uint16)
+    - byte 5-24: target path (20 bytes, null-padded)
+    - byte 25-63: content (39 bytes, null-padded)
+
+    This format allows specifying BOTH target and content simultaneously,
+    enabling multi-file operations.
+    """
+    result = torch.zeros(max_bytes, dtype=torch.uint8)
+
+    # Action type
+    result[0] = action.action_type
+
+    # Offset (uint16 little-endian)
+    result[1] = action.offset & 0xFF
+    result[2] = (action.offset >> 8) & 0xFF
+
+    # Length (uint16 little-endian)
+    result[3] = action.length & 0xFF
+    result[4] = (action.length >> 8) & 0xFF
+
+    # Target path (20 bytes)
+    target_bytes = action.target.encode('utf-8')[:20]
+    for i, b in enumerate(target_bytes):
+        result[5 + i] = b
+
+    # Content (39 bytes)
+    content_bytes = action.content.encode('utf-8')[:39]
+    for i, b in enumerate(content_bytes):
+        result[25 + i] = b
+
+    return result
+
+
+def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
+    """
+    Decode v2 action bytes.
+
+    Args:
+        action_bytes: Tensor of shape [64] or [N, 64]
+
+    Returns:
+        JarvisAction
+    """
+    if action_bytes.dim() == 2:
+        action_bytes = action_bytes[0]
+
+    # Action type
+    action_type_val = int(action_bytes[0].item())
+    action_type = ActionType(min(action_type_val, len(ActionType) - 1))
+
+    # Offset
+    offset = int(action_bytes[1].item()) + (int(action_bytes[2].item()) << 8)
+
+    # Length
+    length = int(action_bytes[3].item()) + (int(action_bytes[4].item()) << 8)
+
+    # Target (bytes 5-24)
+    target_bytes = action_bytes[5:25].cpu().numpy().tobytes()
+    target = target_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
+
+    # Content (bytes 25-63)
+    content_bytes = action_bytes[25:].cpu().numpy().tobytes()
+    content = content_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
+
+    if action_type == ActionType.READ_FILE:
+        length = max(1, length)
+    else:
+        length = max(0, length)
+
+    return JarvisAction(
+        action_type=action_type,
+        target=target,
+        content=content,
+        offset=offset,
+        length=length,
+    )
+
+
+def is_git_action(action_type: ActionType) -> bool:
+    """Check if action type is a git operation."""
+    return action_type in [
+        ActionType.GIT_STATUS,
+        ActionType.GIT_DIFF,
+        ActionType.GIT_ADD,
+        ActionType.GIT_RESET,
+        ActionType.GIT_CHECKOUT,
+        ActionType.GIT_LOG,
+    ]
+
+
+def is_multi_file_action(action_type: ActionType) -> bool:
+    """Check if action type relates to multi-file operations."""
+    return action_type in [
+        ActionType.LIST_FILES,
+        ActionType.NAVIGATE,
+        ActionType.STACKTRACE,
+    ]

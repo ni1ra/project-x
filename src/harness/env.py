@@ -417,7 +417,208 @@ class JarvisHarnessEnv:
             self.state.last_test_result = run_pytest(self.temp_dir)
             return True, f"Submitted. Final tests: {self.state.last_test_result.tests_passing}/{self.state.last_test_result.tests_total}"
 
+        # =================================================================
+        # Git operations (v2)
+        # =================================================================
+        elif action.action_type == ActionType.GIT_STATUS:
+            return self._git_status()
+
+        elif action.action_type == ActionType.GIT_DIFF:
+            return self._git_diff(action.target)
+
+        elif action.action_type == ActionType.GIT_ADD:
+            return self._git_add(action.target)
+
+        elif action.action_type == ActionType.GIT_RESET:
+            return self._git_reset(action.target)
+
+        elif action.action_type == ActionType.GIT_CHECKOUT:
+            return self._git_checkout(action.target)
+
+        elif action.action_type == ActionType.GIT_LOG:
+            return self._git_log()
+
+        # =================================================================
+        # Multi-file operations (v2)
+        # =================================================================
+        elif action.action_type == ActionType.LIST_FILES:
+            return self._list_files(action.target)
+
+        elif action.action_type == ActionType.NAVIGATE:
+            return self._navigate(action.target)
+
+        elif action.action_type == ActionType.STACKTRACE:
+            return self._parse_stacktrace()
+
         return False, f"Unknown action type: {action.action_type}"
+
+    # =================================================================
+    # Git operation implementations
+    # =================================================================
+
+    def _git_status(self) -> Tuple[bool, str]:
+        """Show git status of working directory."""
+        try:
+            result = subprocess.run(
+                ['git', 'status', '--short'],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            output = result.stdout.strip() or "No changes"
+            return True, output
+        except Exception as e:
+            return False, f"Git status error: {e}"
+
+    def _git_diff(self, target: str = "") -> Tuple[bool, str]:
+        """Show git diff for file or all changes."""
+        try:
+            cmd = ['git', 'diff']
+            if target:
+                cmd.append(target)
+            result = subprocess.run(
+                cmd,
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            output = result.stdout[:1000]  # Truncate
+            return True, output or "No diff"
+        except Exception as e:
+            return False, f"Git diff error: {e}"
+
+    def _git_add(self, target: str) -> Tuple[bool, str]:
+        """Stage a file."""
+        if not target:
+            return False, "No file specified for git add"
+        try:
+            result = subprocess.run(
+                ['git', 'add', target],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return True, f"Staged: {target}"
+            return False, result.stderr
+        except Exception as e:
+            return False, f"Git add error: {e}"
+
+    def _git_reset(self, target: str) -> Tuple[bool, str]:
+        """Unstage a file."""
+        if not target:
+            return False, "No file specified for git reset"
+        try:
+            result = subprocess.run(
+                ['git', 'reset', 'HEAD', target],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return True, f"Unstaged: {target}"
+        except Exception as e:
+            return False, f"Git reset error: {e}"
+
+    def _git_checkout(self, target: str) -> Tuple[bool, str]:
+        """Discard changes to a file."""
+        if not target:
+            return False, "No file specified for git checkout"
+        try:
+            result = subprocess.run(
+                ['git', 'checkout', '--', target],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return True, f"Discarded changes: {target}"
+            return False, result.stderr
+        except Exception as e:
+            return False, f"Git checkout error: {e}"
+
+    def _git_log(self) -> Tuple[bool, str]:
+        """Show recent git log."""
+        try:
+            result = subprocess.run(
+                ['git', 'log', '--oneline', '-5'],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return True, result.stdout.strip() or "No commits"
+        except Exception as e:
+            return False, f"Git log error: {e}"
+
+    # =================================================================
+    # Multi-file operation implementations
+    # =================================================================
+
+    def _list_files(self, target: str = "") -> Tuple[bool, str]:
+        """List files in directory."""
+        try:
+            dir_path = os.path.join(self.temp_dir, target) if target else self.temp_dir
+            if not os.path.isdir(dir_path):
+                return False, f"Not a directory: {target}"
+
+            files = []
+            for item in sorted(os.listdir(dir_path)):
+                full = os.path.join(dir_path, item)
+                if os.path.isdir(full):
+                    files.append(f"{item}/")
+                else:
+                    size = os.path.getsize(full)
+                    files.append(f"{item} ({size}b)")
+
+            return True, "\n".join(files[:30])
+        except Exception as e:
+            return False, f"List error: {e}"
+
+    def _navigate(self, target: str) -> Tuple[bool, str]:
+        """Navigate to (focus on) a different file."""
+        if not target:
+            return False, "No target file specified"
+
+        fpath = os.path.join(self.temp_dir, target)
+        if not os.path.exists(fpath):
+            return False, f"File not found: {target}"
+
+        # Read first part of file to show context
+        try:
+            with open(fpath, 'r') as f:
+                content = f.read(500)
+            return True, f"Navigated to {target}:\n{content}"
+        except Exception as e:
+            return False, f"Navigate error: {e}"
+
+    def _parse_stacktrace(self) -> Tuple[bool, str]:
+        """Parse last test output for stacktrace info."""
+        if not self.state.last_test_result:
+            return False, "No test result available"
+
+        details = self.state.last_test_result.details
+        # Extract file:line references from traceback
+        import re
+        pattern = r'File "([^"]+)", line (\d+)'
+        matches = re.findall(pattern, details)
+
+        if not matches:
+            return True, "No stacktrace found in last output"
+
+        # Format results
+        results = []
+        for fpath, line in matches[-5:]:  # Last 5 stack frames
+            # Make path relative to temp_dir
+            if self.temp_dir and fpath.startswith(self.temp_dir):
+                fpath = os.path.relpath(fpath, self.temp_dir)
+            results.append(f"{fpath}:{line}")
+
+        return True, "Stacktrace:\n" + "\n".join(results)
 
     def _estimate_action_energy(self, action: JarvisAction) -> float:
         """Estimate energy cost of an action."""
@@ -444,6 +645,29 @@ class JarvisHarnessEnv:
 
         elif action.action_type == ActionType.SUBMIT:
             return base_cost * 50  # Triggers final tests
+
+        # Git operations (v2) - moderate cost
+        elif action.action_type in [
+            ActionType.GIT_STATUS,
+            ActionType.GIT_LOG,
+            ActionType.GIT_DIFF,
+        ]:
+            return base_cost * 3
+
+        elif action.action_type in [
+            ActionType.GIT_ADD,
+            ActionType.GIT_RESET,
+            ActionType.GIT_CHECKOUT,
+        ]:
+            return base_cost * 5
+
+        # Multi-file operations (v2) - cheap info gathering
+        elif action.action_type in [
+            ActionType.LIST_FILES,
+            ActionType.NAVIGATE,
+            ActionType.STACKTRACE,
+        ]:
+            return base_cost * 2
 
         return base_cost
 

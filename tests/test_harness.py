@@ -74,7 +74,9 @@ class TestActions:
         valid, _ = validate_shell_command("pip install pytest")
         assert valid
 
-        valid, _ = validate_shell_command("git status")
+        # Note: git status/diff are now separate ActionTypes (GIT_STATUS, GIT_DIFF)
+        # not shell commands - test with 'grep' instead
+        valid, _ = validate_shell_command("grep pattern file.py")
         assert valid
 
     def test_validate_shell_denied(self):
