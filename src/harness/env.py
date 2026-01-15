@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Tuple, Optional, Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor
 import os
 import shutil
 import tempfile
@@ -127,6 +128,7 @@ class JarvisHarnessEnv:
         self.task: Optional[Task] = None
         self.temp_dir: Optional[str] = None
         self.state: Optional[HarnessState] = None
+        self._source_repo_path: Optional[str] = None
 
         # Track original file contents for diff computation
         self._original_files: Dict[str, str] = {}
@@ -161,26 +163,37 @@ class JarvisHarnessEnv:
         if self.task is None:
             raise ValueError("No task set. Call set_task() first.")
 
-        # Clean up previous temp directory
-        if self.temp_dir and os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
+        # Prefer a fast reset (git reset/clean) when reusing the same repo source.
+        reuse_workspace = (
+            self.temp_dir
+            and os.path.exists(self.temp_dir)
+            and self._source_repo_path == self.task.repo_path
+        )
 
-        # Copy repo to temp directory
-        self.temp_dir = tempfile.mkdtemp(prefix="jarvis_harness_")
-        if os.path.exists(self.task.repo_path):
-            # Copy contents, not the directory itself
-            for item in os.listdir(self.task.repo_path):
-                if item == ".git":
-                    continue
-                s = os.path.join(self.task.repo_path, item)
-                d = os.path.join(self.temp_dir, item)
-                if os.path.isdir(s):
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
+        if reuse_workspace and self._git_hard_reset():
+            pass
+        else:
+            # Clean up previous temp directory
+            if self.temp_dir and os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-        # Initialize a fresh git repo in the temp workspace so git actions work
-        self._init_git_repo()
+            # Copy repo to temp directory
+            self.temp_dir = tempfile.mkdtemp(prefix="jarvis_harness_")
+            if os.path.exists(self.task.repo_path):
+                # Copy contents, not the directory itself
+                for item in os.listdir(self.task.repo_path):
+                    if item == ".git":
+                        continue
+                    s = os.path.join(self.task.repo_path, item)
+                    d = os.path.join(self.temp_dir, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d)
+                    else:
+                        shutil.copy2(s, d)
+
+            # Initialize a fresh git repo in the temp workspace so git actions work
+            self._init_git_repo()
+            self._source_repo_path = self.task.repo_path
 
         # Store original file contents
         self._original_files = {}
@@ -272,6 +285,34 @@ class JarvisHarnessEnv:
         except Exception as e:
             if self.state is not None:
                 self.state.terminal_buffer += f"git init failed: {e}\n"
+
+    def _git_hard_reset(self) -> bool:
+        """Hard reset the temp workspace to its initial git commit (fast reset path)."""
+        if not self.temp_dir:
+            return False
+        if not os.path.isdir(os.path.join(self.temp_dir, ".git")):
+            return False
+
+        try:
+            reset = subprocess.run(
+                ["git", "reset", "--hard", "HEAD"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            clean = subprocess.run(
+                ["git", "clean", "-fd"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            return reset.returncode == 0 and clean.returncode == 0
+        except Exception:
+            return False
 
     def step(self, action_bytes: torch.Tensor) -> Tuple[torch.Tensor, float, bool, Dict[str, Any]]:
         """
@@ -840,10 +881,21 @@ class VectorizedJarvisEnv:
     Maintains multiple environment instances and provides batched interface.
     """
 
-    def __init__(self, num_envs: int, config: HarnessConfig = None):
+    def __init__(
+        self,
+        num_envs: int,
+        config: HarnessConfig = None,
+        *,
+        parallel: bool = True,
+        max_workers: Optional[int] = None,
+    ):
         self.num_envs = num_envs
         self.config = config or HarnessConfig()
         self.envs = [JarvisHarnessEnv(self.config) for _ in range(num_envs)]
+        self._executor: Optional[ThreadPoolExecutor] = None
+        if parallel and num_envs > 1:
+            workers = max_workers or min(32, num_envs)
+            self._executor = ThreadPoolExecutor(max_workers=workers)
 
     @property
     def observation_space_dim(self) -> int:
@@ -868,7 +920,11 @@ class VectorizedJarvisEnv:
         if tasks:
             self.set_tasks(tasks)
 
-        obs_list = [env.reset() for env in self.envs]
+        if self._executor is not None:
+            futures = [self._executor.submit(env.reset) for env in self.envs]
+            obs_list = [f.result() for f in futures]
+        else:
+            obs_list = [env.reset() for env in self.envs]
         return torch.stack(obs_list)
 
     def step(self, actions: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[Dict]]:
@@ -884,21 +940,40 @@ class VectorizedJarvisEnv:
             dones: [num_envs] (bool)
             infos: List of info dicts
         """
-        obs_list = []
-        reward_list = []
-        done_list = []
-        info_list = []
+        # Environment stepping is CPU-bound; ensure action bytes are on CPU to avoid per-env GPU sync.
+        if isinstance(actions, torch.Tensor):
+            actions_cpu = actions.detach().to(torch.uint8).cpu()
+        else:
+            actions_cpu = torch.tensor(actions, dtype=torch.uint8)
 
-        for i, env in enumerate(self.envs):
-            obs, reward, done, info = env.step(actions[i])
-            obs_list.append(obs)
-            reward_list.append(reward)
-            done_list.append(done)
-            info_list.append(info)
+        obs_list: List[torch.Tensor] = [torch.zeros(self.config.obs_bytes, dtype=torch.uint8)] * self.num_envs
+        reward_list: List[float] = [0.0] * self.num_envs
+        done_list: List[bool] = [False] * self.num_envs
+        info_list: List[Dict[str, Any]] = [{}] * self.num_envs
 
-            # Auto-reset on done
+        if self._executor is not None:
+            futures = [
+                self._executor.submit(env.step, actions_cpu[i])
+                for i, env in enumerate(self.envs)
+            ]
+            results = [f.result() for f in futures]
+            for i, (obs, reward, done, info) in enumerate(results):
+                obs_list[i] = obs
+                reward_list[i] = float(reward)
+                done_list[i] = bool(done)
+                info_list[i] = info
+        else:
+            for i, env in enumerate(self.envs):
+                obs, reward, done, info = env.step(actions_cpu[i])
+                obs_list[i] = obs
+                reward_list[i] = float(reward)
+                done_list[i] = bool(done)
+                info_list[i] = info
+
+        # Auto-reset on done (reset is expensive; keep it out of the parallel critical path)
+        for i, done in enumerate(done_list):
             if done:
-                obs_list[-1] = env.reset()
+                obs_list[i] = self.envs[i].reset()
 
         return (
             torch.stack(obs_list),
@@ -909,5 +984,8 @@ class VectorizedJarvisEnv:
 
     def close(self):
         """Close all environments."""
+        if self._executor is not None:
+            self._executor.shutdown(wait=True, cancel_futures=False)
+            self._executor = None
         for env in self.envs:
             env.close()

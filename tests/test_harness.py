@@ -227,6 +227,36 @@ class TestEnvironment:
 
         env.close()
 
+    def test_env_reset_reuses_workspace_via_git(self, toy_repo_path):
+        """Resetting the same task should reuse the temp repo and hard-reset changes via git."""
+        if not os.path.exists(toy_repo_path):
+            pytest.skip("Toy repo fixture not found")
+
+        env = JarvisHarnessEnv()
+        task = Task(
+            name="fix_multiply",
+            description="Fix the multiply function",
+            repo_path=toy_repo_path,
+            target_file="calculator.py",
+        )
+
+        env.reset(task)
+        assert env.temp_dir is not None
+        temp_dir_1 = env.temp_dir
+
+        # Make a change directly in the temp repo.
+        fpath = os.path.join(env.temp_dir, "calculator.py")
+        with open(fpath, "a") as f:
+            f.write("\n# temp_change\n")
+
+        # Reset again (should keep the same temp_dir and revert changes).
+        env.reset()
+        assert env.temp_dir == temp_dir_1
+        with open(fpath, "r") as f:
+            assert "# temp_change" not in f.read()
+
+        env.close()
+
     def test_env_step_no_op(self, toy_repo_path):
         if not os.path.exists(toy_repo_path):
             pytest.skip("Toy repo fixture not found")
