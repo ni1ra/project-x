@@ -122,6 +122,9 @@ Working tree: dirty (tracked edits + untracked deliverables; not yet PR-ready)
 - **paper.md calibrated**: JARVIS review (410/420) → added wind tunnel disclaimer, explicit capability gap
 - **v2 training runs**: 100k steps on medium difficulty multi-file tasks
 - **v2 checkpoint evaluated**: Model learning to use extended action space (K_eff=6, produces git actions)
+- **Reward function fix**: Scaled test reward from [0, N_tests] to [0, 2.0] to reduce safe-action bias
+- **Bug diagnosis**: Model looped on STACKTRACE because high per-step reward discouraged exploration
+- **Action decode fix**: Both decode_action and decode_action_v2 now handle numpy arrays
 
 ### What's Pending
 - Multi-seed validation (≥5) for emergence metrics (BLUEPRINT requirement)
