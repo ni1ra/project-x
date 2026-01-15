@@ -394,6 +394,7 @@ def run_od_ndt_evaluation(
     brain: RPJBrain,
     env: MultiTaskCCBEnvironment,
     demo_task_id: int,
+    train_task_ids: Optional[List[int]],
     test_task_ids: List[int],
     device: str = "cpu",
     enable_in_episode_plasticity: bool = True,
@@ -499,25 +500,45 @@ def run_od_ndt_evaluation(
         print("  Fast weights adapt WITHIN episode via learned plasticity rules")
 
     # Phase 3: Test evaluation with in-episode plasticity
-    print(f"\n[Phase 3] Evaluating on {len(test_task_ids)} test tasks...")
+    if train_task_ids:
+        print(f"\n[Phase 3] Estimating SR_train on {len(train_task_ids)} train tasks...")
+    print(f"\n[Phase 4] Evaluating SR_novel on {len(test_task_ids)} held-out tasks...")
+    if not train_task_ids:
+        print("  WARNING: SR_train not computed from tasks; defaulting to 1.0 (legacy mode)")
+
+    train_successes: List[bool] = []
     test_successes = []
     test_k_effs = []
     test_errors = []
 
-    for i, task_id in enumerate(test_task_ids):
-        # PERSISTENCE MODE: Keep fast weights from demo (no reset)
-        # STANDARD MODE: Reset fast weights at start of each episode (A_0=0, B_0=0)
-        reset_at_start = not persistence_mode
-
-        # Run test episode with in-episode plasticity
+    def _eval_task(task_id: int, reset_at_start: bool) -> Tuple[bool, EmergenceMetrics]:
         success, task_metrics, _ = run_episode_with_tracking(
             brain, env, task_id,
             use_oracle=False,
             device=device,
             enable_in_episode_plasticity=enable_in_episode_plasticity,
             reset_fast_weights_at_start=reset_at_start,
-            collect_experiences=False,  # Don't collect during test
+            collect_experiences=False,
         )
+        return success, task_metrics
+
+    # Per BLUEPRINT Section 2.4: Fast weights reset to post-sleep state at episode start.
+    # In our implementation, post-sleep fast weights are zeroed (A_0=0, B_0=0).
+    reset_at_start = not persistence_mode
+
+    if train_task_ids:
+        for i, task_id in enumerate(train_task_ids):
+            success, _ = _eval_task(task_id, reset_at_start=reset_at_start)
+            train_successes.append(success)
+
+            if (i + 1) % 20 == 0:
+                sr = sum(train_successes) / len(train_successes)
+                print(f"  Train progress: {i+1}/{len(train_task_ids)} | SR_train: {sr:.3f}")
+
+    for i, task_id in enumerate(test_task_ids):
+        # PERSISTENCE MODE: Keep fast weights from demo (no reset)
+        # STANDARD MODE: Reset fast weights at start of each episode (A_0=0, B_0=0)
+        success, task_metrics = _eval_task(task_id, reset_at_start=reset_at_start)
 
         test_successes.append(success)
         test_k_effs.extend(task_metrics.k_eff_values)
@@ -527,11 +548,14 @@ def run_od_ndt_evaluation(
         if (i + 1) % 20 == 0:
             sr = sum(test_successes) / len(test_successes)
             k_eff_mean = np.mean(test_k_effs)
-            print(f"  Progress: {i+1}/{len(test_task_ids)} | SR: {sr:.3f} | K_eff: {k_eff_mean:.3f}")
+            print(f"  Novel progress: {i+1}/{len(test_task_ids)} | SR_novel: {sr:.3f} | K_eff: {k_eff_mean:.3f}")
 
     # Compute final metrics
     sr_novel = sum(test_successes) / len(test_successes)
-    sr_train = 1.0 if demo_success else 0.0  # Assume oracle succeeds
+    if train_task_ids:
+        sr_train = sum(train_successes) / len(train_successes)
+    else:
+        sr_train = 1.0  # Legacy default (avoids making T==SR_novel by accident)
     transfer_T = sr_novel / sr_train if sr_train > 0 else 0.0
 
     mean_k_eff = np.mean(test_k_effs)
@@ -559,7 +583,9 @@ def run_od_ndt_evaluation(
         'k_eff_elevated': k_eff_elevated,
         'mean_error': mean_error,
         'demo_k_eff': np.mean(demo_metrics.k_eff_values),
+        'num_train_tasks': len(train_task_ids) if train_task_ids else 0,
         'num_test_tasks': len(test_task_ids),
+        'train_successes': train_successes,
         'test_k_effs': test_k_effs,
         'test_errors': test_errors,
         'in_episode_plasticity': enable_in_episode_plasticity,
@@ -611,6 +637,12 @@ def main():
         type=int,
         default=100,
         help="Number of test tasks",
+    )
+    parser.add_argument(
+        "--num-train-tasks",
+        type=int,
+        default=100,
+        help="Number of train tasks to estimate SR_train (for transfer T = SR_novel/SR_train)",
     )
     parser.add_argument(
         "--device",
@@ -707,29 +739,39 @@ def main():
 
     # Create multi-task environment
     env = create_multitask_ccb(
-        num_tasks=args.num_test_tasks + 10,  # Extra for demo
+        num_tasks=args.num_test_tasks + max(0, args.num_train_tasks),
         nonlinear=True,
         device=args.device,
+        seed=args.seed,
         steps_per_task=10,
         success_threshold=0.3,  # Relaxed threshold for multi-task
     )
 
-    # Get task splits
-    demo_ids, test_ids = get_demo_and_test_task_ids(
-        num_demo=1,
-        num_test=args.num_test_tasks,
-        num_tasks=env.config.num_tasks,
-        seed=args.seed,
-    )
+    # Get task splits (disjoint demo/train/test IDs)
+    if args.num_train_tasks < 1:
+        print("ERROR: --num-train-tasks must be >= 1 (needed to define SR_train and demo task)")
+        return 2
+    if env.config.num_tasks < (args.num_train_tasks + args.num_test_tasks):
+        print("ERROR: env task bank too small for requested train/test split")
+        return 2
 
-    print(f"\n  Demo task: {demo_ids[0]}")
+    rng = np.random.default_rng(args.seed)
+    all_ids = list(range(env.config.num_tasks))
+    rng.shuffle(all_ids)
+    train_ids = all_ids[:args.num_train_tasks]
+    test_ids = all_ids[args.num_train_tasks:args.num_train_tasks + args.num_test_tasks]
+    demo_id = train_ids[0]
+
+    print(f"\n  Demo task: {demo_id}")
+    print(f"  Train tasks: {train_ids[:5]}... ({len(train_ids)} total)")
     print(f"  Test tasks: {test_ids[:5]}... ({len(test_ids)} total)")
 
     # Run evaluation
     results = run_od_ndt_evaluation(
         brain=brain,
         env=env,
-        demo_task_id=demo_ids[0],
+        demo_task_id=demo_id,
+        train_task_ids=train_ids,
         test_task_ids=test_ids,
         device=args.device,
         enable_in_episode_plasticity=enable_plasticity,

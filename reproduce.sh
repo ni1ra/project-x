@@ -33,7 +33,7 @@ echo "Checkpoint: ${CHECKPOINT}"
 ${PY} scripts/check_k_eff.py --checkpoint "${CHECKPOINT}" --min 2 --max 6 --window 5
 ${PY} scripts/compute_cbr_bimodality.py --checkpoint "${CHECKPOINT}" --no-save
 ${PY} scripts/eval_doerr.py --checkpoint "${CHECKPOINT}"
-${PY} scripts/eval_od_ndt.py --checkpoint "${CHECKPOINT}" --sleep-consolidation --sleep-steps 50 --sleep-lr 1e-3 --ignore-transfer --no-save
+${PY} scripts/eval_od_ndt.py --checkpoint "${CHECKPOINT}" --sleep-consolidation --sleep-steps 50 --sleep-lr 1e-3 --no-save
 
 echo
 echo "ALL GATES: PASS"
