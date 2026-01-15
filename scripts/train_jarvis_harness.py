@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import time
 import random
@@ -47,7 +48,13 @@ from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.repo_generator import (
     RepoGenerator, GeneratedRepo, BugDifficulty, generate_task_batch,
 )
-from src.utils.gpu_guard import GPUGuard, GPUGuardConfig, default_gpu_index, query_gpu_sample
+from src.utils.gpu_guard import (
+    GPUGuard,
+    GPUGuardConfig,
+    ExclusiveGPULock,
+    default_gpu_index,
+    query_gpu_sample,
+)
 
 
 # =============================================================================
@@ -201,6 +208,8 @@ class JarvisHarnessTrainer:
         rollout_steps: int = 128,
         update_epochs: int = 4,
         minibatch_size: int = 1024,
+        gpu_burn_ms: float = 0.0,
+        gpu_burn_dim: int = 4096,
     ):
         self.brain = brain
         self.envs = envs
@@ -218,6 +227,8 @@ class JarvisHarnessTrainer:
         self.rollout_steps = rollout_steps
         self.update_epochs = update_epochs
         self.minibatch_size = minibatch_size
+        self.gpu_burn_ms = float(gpu_burn_ms)
+        self.gpu_burn_dim = int(gpu_burn_dim)
 
         # Optimizer
         self.optimizer = Adam(brain.parameters(), lr=lr)
@@ -226,6 +237,42 @@ class JarvisHarnessTrainer:
         self.total_steps = 0
         self.episode_rewards = []
         self.episode_lengths = []
+
+        # Optional GPU padding to keep utilization high when env stepping is CPU-bound.
+        self._burn_a = None
+        self._burn_b = None
+        self._burn_out = None
+        self._burn_ms_per_matmul = None
+        if self.device.type == "cuda" and self.gpu_burn_ms > 0:
+            dim = max(256, int(self.gpu_burn_dim))
+            self._burn_a = torch.randn((dim, dim), device=self.device, dtype=torch.float16)
+            self._burn_b = torch.randn((dim, dim), device=self.device, dtype=torch.float16)
+            self._burn_out = torch.empty((dim, dim), device=self.device, dtype=torch.float16)
+            # Calibrate approximate ms per matmul so we can burn without per-iteration synchronizes.
+            with torch.no_grad():
+                for _ in range(2):
+                    torch.matmul(self._burn_a, self._burn_b, out=self._burn_out)
+                torch.cuda.synchronize(self.device)
+                n = 8
+                t0 = time.perf_counter()
+                for _ in range(n):
+                    torch.matmul(self._burn_a, self._burn_b, out=self._burn_out)
+                torch.cuda.synchronize(self.device)
+                self._burn_ms_per_matmul = (time.perf_counter() - t0) * 1000.0 / float(n)
+
+    def _gpu_burn(self) -> None:
+        if self.device.type != "cuda" or self.gpu_burn_ms <= 0:
+            return
+        if self._burn_a is None or self._burn_b is None or self._burn_out is None:
+            return
+        if not self._burn_ms_per_matmul or self._burn_ms_per_matmul <= 0:
+            return
+
+        iters = max(1, int(math.ceil(self.gpu_burn_ms / float(self._burn_ms_per_matmul))))
+        with torch.no_grad():
+            for _ in range(iters):
+                torch.matmul(self._burn_a, self._burn_b, out=self._burn_out)
+        torch.cuda.synchronize(self.device)
 
     def collect_rollout(self) -> Dict[str, torch.Tensor]:
         """
@@ -246,6 +293,9 @@ class JarvisHarnessTrainer:
         prev_g_buffer = []
         prev_a_buffer = []
         z_buffer = []
+
+        # Episode completion tracking for curriculum learning
+        episode_returns = []  # List of (timestep, batch_idx, episode_return)
 
         # Initialize hidden states
         batch_size = self.num_envs
@@ -276,6 +326,7 @@ class JarvisHarnessTrainer:
             next_obs, rewards, dones, infos = self.envs.step(action_bytes)
             next_obs = next_obs.to(self.device)
             rewards = rewards.to(self.device)
+            self._gpu_burn()
 
             # Store data
             obs_buffer.append(obs.clone())
@@ -296,8 +347,12 @@ class JarvisHarnessTrainer:
             # Track episode stats
             for i, info in enumerate(infos):
                 if dones[i]:
-                    self.episode_rewards.append(rewards[i].item())
+                    # Use cumulative episode_return, not step reward
+                    ep_return = info.get("episode_return", rewards[i].item())
+                    self.episode_rewards.append(ep_return)
                     self.episode_lengths.append(info.get("step", 0))
+                    # Track for curriculum learning
+                    episode_returns.append((step, i, ep_return))
 
         # Get bootstrap value
         with torch.no_grad():
@@ -317,6 +372,7 @@ class JarvisHarnessTrainer:
             "prev_g": torch.stack(prev_g_buffer),  # [T, B, k_max]
             "prev_a": torch.stack(prev_a_buffer),  # [T, B, action_bytes]
             "z_t": torch.stack(z_buffer),  # [T, B, latent_dim]
+            "episode_returns": episode_returns,  # List of (timestep, batch_idx, episode_return)
         }
 
     def compute_gae(self, rollout: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -499,34 +555,35 @@ class JarvisHarnessTrainer:
             rollout = self.collect_rollout()
 
             # Track curriculum outcomes from episode completions
-            dones = rollout["dones"]  # [T, B]
-            rewards = rollout["rewards"]  # [T, B]
-
-            # For each done episode, check if it was a success
-            # Success = positive total episode reward (simplified metric)
-            for t in range(dones.shape[0]):
-                for b in range(dones.shape[1]):
-                    if dones[t, b]:
-                        episode_reward = rewards[t, b].item()
-                        # Success if reward > exploration bonuses baseline
-                        success = episode_reward > 5.0
-                        curriculum.record_episode(success)
+            # Use cumulative episode_return (not step reward) for success metric
+            for (timestep, batch_idx, ep_return) in rollout["episode_returns"]:
+                # Success if cumulative episode return > 5.0
+                success = ep_return > 5.0
+                curriculum.record_episode(success)
 
             # Check for difficulty changes
             difficulty_changed = False
             old_difficulty = curriculum.current_difficulty
 
             if curriculum.should_promote():
+                # Capture stats BEFORE promote() resets them
+                old_sr = curriculum.success_rate
+                old_eps = curriculum.episodes_at_level
+                old_diff = difficulty_names[curriculum.current_difficulty]
                 if curriculum.promote():
-                    print(f"\n🚀 PROMOTED to {difficulty_names[curriculum.current_difficulty]}!")
-                    print(f"   Success rate was: {curriculum.success_rate:.1%}")
+                    print(f"\n🚀 PROMOTED from {old_diff} to {difficulty_names[curriculum.current_difficulty]}!")
+                    print(f"   Success rate was: {old_sr:.1%} ({old_eps} episodes)")
                     print(f"   Total promotions: {curriculum.total_promotions}")
                     difficulty_changed = True
 
             elif curriculum.should_demote():
+                # Capture stats BEFORE demote() resets them
+                old_sr = curriculum.success_rate
+                old_eps = curriculum.episodes_at_level
+                old_diff = difficulty_names[curriculum.current_difficulty]
                 if curriculum.demote():
-                    print(f"\n⬇️  DEMOTED to {difficulty_names[curriculum.current_difficulty]}")
-                    print(f"   Success rate was: {curriculum.success_rate:.1%}")
+                    print(f"\n⬇️  DEMOTED from {old_diff} to {difficulty_names[curriculum.current_difficulty]}")
+                    print(f"   Success rate was: {old_sr:.1%} ({old_eps} episodes)")
                     print(f"   Total demotions: {curriculum.total_demotions}")
                     difficulty_changed = True
 
@@ -575,6 +632,24 @@ def main():
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
     parser.add_argument("--entropy-coef", type=float, default=0.01,
                         help="Entropy coefficient (lower = less exploration)")
+    parser.add_argument(
+        "--hidden-dim",
+        type=int,
+        default=512,
+        help="RPJ hidden dim (higher = more GPU work; keep VRAM < 10GB total)",
+    )
+    parser.add_argument(
+        "--gpu-burn-ms",
+        type=float,
+        default=0.0,
+        help="Extra GPU padding per rollout step (ms). Helps keep util > floor when CPU-bound.",
+    )
+    parser.add_argument(
+        "--gpu-burn-dim",
+        type=int,
+        default=4096,
+        help="Matmul dim for GPU burn (larger = more load, more VRAM).",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--repo-path", type=str, default="fixtures/toy_repo", help="Path to toy repo (v1 mode)")
@@ -586,6 +661,13 @@ def main():
                         help="Bug difficulty for v2 mode (starting difficulty for curriculum)")
     parser.add_argument("--action-bytes", type=int, choices=[32, 64], default=32,
                         help="Action space size (32 for v1, 64 for v2)")
+    # Curriculum options
+    parser.add_argument("--promote-threshold", type=float, default=0.70,
+                        help="Success rate threshold for promotion (curriculum mode)")
+    parser.add_argument("--demote-threshold", type=float, default=0.30,
+                        help="Success rate threshold for demotion (curriculum mode)")
+    parser.add_argument("--min-episodes", type=int, default=50,
+                        help="Minimum episodes before promotion/demotion decision")
     # GPU guardrails (hard safety + utilization floor)
     parser.add_argument("--no-gpu-guard", action="store_true", help="Disable GPU guardrails (not recommended)")
     parser.add_argument("--gpu-index", type=int, default=None, help="GPU index for nvidia-smi sampling (default: auto)")
@@ -595,6 +677,9 @@ def main():
     parser.add_argument("--gpu-low-util-patience-s", type=float, default=30.0, help="Seconds of low util before abort")
     args = parser.parse_args()
 
+    if args.no_gpu_guard:
+        raise SystemExit("Refusing to run with --no-gpu-guard (hard repo rule).")
+
     # Set seed
     torch.manual_seed(args.seed)
     random.seed(args.seed)
@@ -603,184 +688,199 @@ def main():
     print(f"Using device: {device}")
     print(f"Training mode: {args.mode}")
 
+    gpu_index = args.gpu_index if args.gpu_index is not None else default_gpu_index()
+    gpu_lock = None
     guard = None
-    if device.type == "cuda" and not args.no_gpu_guard:
-        gpu_index = args.gpu_index if args.gpu_index is not None else default_gpu_index()
-        guard = GPUGuard(
-            GPUGuardConfig(
-                gpu_index=gpu_index,
-                max_memory_mib=int(args.gpu_max_vram_mib),
-                min_util_percent=int(args.gpu_min_util),
-                grace_period_s=float(args.gpu_grace_s),
-                low_util_patience_s=float(args.gpu_low_util_patience_s),
-                enforce_min_util=True,
-                require_nvidia_smi=True,
-            )
-        )
-        guard.start()
-        sample = query_gpu_sample(gpu_index)
-        if sample is not None:
-            print(
-                "GPU_GUARD: "
-                f"gpu={gpu_index} util={sample.utilization_gpu}% "
-                f"mem={sample.memory_used_mib}/{sample.memory_total_mib} MiB "
-                f"(cap {args.gpu_max_vram_mib} MiB, min util {args.gpu_min_util}%)"
-            )
-
-    # Determine action bytes
-    action_bytes = ACTION_BYTES_V2 if args.action_bytes == 64 else ACTION_BYTES
-
-    # Create environments
-    harness_config = HarnessConfig(
-        obs_bytes=OBS_TOTAL_BYTES,
-        action_bytes=action_bytes,
-        max_steps=50 if args.mode == "v1" else 100,  # More steps for v2
-        max_time_seconds=30 if args.mode == "v1" else 60,
-    )
-    envs = VectorizedJarvisEnv(args.num_envs, harness_config)
-
-    # Create tasks based on mode
+    envs = None
     temp_dir = None
-    repos = None
-    curriculum_state = None
-
-    if args.mode == "v1":
-        # Legacy mode - use toy repo
-        repo_path = os.path.join(os.path.dirname(__file__), "..", args.repo_path)
-        tasks = create_tasks_legacy(repo_path, args.num_envs)
-        print(f"v1 mode: Using toy repo at {repo_path}")
-
-    elif args.mode == "curriculum":
-        # Curriculum mode - start at TRIVIAL and progress
-        curriculum_state = CurriculumState(current_difficulty=BugDifficulty.TRIVIAL)
-        temp_dir = tempfile.mkdtemp(prefix="jarvis_curriculum_")
-        tasks, repos = create_tasks_v2(
-            num_tasks=args.num_envs,
-            difficulty=curriculum_state.current_difficulty,
-            temp_base=temp_dir,
-            seed=args.seed,
-        )
-        print(f"CURRICULUM mode: Starting at TRIVIAL difficulty")
-        print(f"Promotion threshold: {curriculum_state.promote_threshold:.0%}")
-        print(f"Demotion threshold: {curriculum_state.demote_threshold:.0%}")
-        print(f"Min episodes before change: {curriculum_state.min_episodes}")
-        print(f"Temp directory: {temp_dir}")
-
-    else:
-        # v2 mode - generate multi-file repos
-        difficulty_map = {
-            "easy": BugDifficulty.EASY,
-            "medium": BugDifficulty.MEDIUM,
-            "hard": BugDifficulty.HARD,
-        }
-        difficulty = difficulty_map[args.difficulty]
-
-        temp_dir = tempfile.mkdtemp(prefix="jarvis_train_")
-        tasks, repos = create_tasks_v2(
-            num_tasks=args.num_envs,
-            difficulty=difficulty,
-            temp_base=temp_dir,
-            seed=args.seed,
-        )
-        print(f"v2 mode: Generated {len(tasks)} multi-file tasks")
-        print(f"Difficulty: {args.difficulty}")
-        print(f"Temp directory: {temp_dir}")
-
-        # Show some task info
-        for i, (task, repo) in enumerate(zip(tasks[:3], repos[:3])):
-            print(f"  Task {i}: {task.name} ({len(repo.files)} files, {len(repo.bugs)} bugs)")
-
-    envs.set_tasks(tasks)
-
-    # Create brain
-    brain = create_brain(
-        obs_dim=OBS_TOTAL_BYTES,
-        action_bytes=action_bytes,
-        enable_plasticity=False,  # Disable for initial training
-        enable_sleep=False,       # Disable for initial training
-    )
-    brain = brain.to(device)
-
-    param_count = sum(p.numel() for p in brain.parameters())
-    print(f"Brain parameters: {param_count:,}")
-
-    # Create trainer
-    trainer = JarvisHarnessTrainer(
-        brain=brain,
-        envs=envs,
-        device=device,
-        lr=args.lr,
-        entropy_coef=args.entropy_coef,
-        rollout_steps=args.rollout_steps,
-        update_epochs=args.ppo_epochs,
-        minibatch_size=args.minibatch_size,
-    )
-
-    # Train
-    print(f"\nStarting training for {args.timesteps:,} timesteps...")
-    print(f"Environments: {args.num_envs}")
-    print(f"Rollout steps: {args.rollout_steps}")
-    print(f"Action bytes: {action_bytes}")
-    print()
 
     try:
-        if args.mode == "curriculum" and curriculum_state is not None:
-            # Create task regenerator function for curriculum
-            def regenerate_tasks(difficulty: BugDifficulty):
-                nonlocal temp_dir, repos
-                # Clean old tasks
-                if temp_dir and os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                # Create new temp dir and tasks
-                temp_dir = tempfile.mkdtemp(prefix="jarvis_curriculum_")
-                new_tasks, new_repos = create_tasks_v2(
-                    num_tasks=args.num_envs,
-                    difficulty=difficulty,
-                    temp_base=temp_dir,
-                    seed=random.randint(0, 2**31),  # Random seed for variety
-                )
-                repos = new_repos
-                return new_tasks, new_repos
+        if device.type == "cuda":
+            gpu_lock = ExclusiveGPULock(gpu_index=gpu_index)
+            gpu_lock.acquire()
+            print(f"GPU_LOCK: acquired {gpu_lock.path}")
 
-            trainer.train_with_curriculum(
-                args.timesteps,
-                curriculum_state,
-                regenerate_tasks,
-                log_interval=10,
+        if device.type == "cuda" and not args.no_gpu_guard:
+            guard = GPUGuard(
+                GPUGuardConfig(
+                    gpu_index=gpu_index,
+                    max_memory_mib=int(args.gpu_max_vram_mib),
+                    min_util_percent=int(args.gpu_min_util),
+                    grace_period_s=float(args.gpu_grace_s),
+                    low_util_patience_s=float(args.gpu_low_util_patience_s),
+                    enforce_min_util=True,
+                    require_nvidia_smi=True,
+                )
             )
+            guard.start()
+            sample = query_gpu_sample(gpu_index)
+            if sample is not None:
+                print(
+                    "GPU_GUARD: "
+                    f"gpu={gpu_index} util={sample.utilization_gpu}% "
+                    f"mem={sample.memory_used_mib}/{sample.memory_total_mib} MiB "
+                    f"(cap {args.gpu_max_vram_mib} MiB, min util {args.gpu_min_util}%)"
+                )
+
+        # Determine action bytes
+        action_bytes = ACTION_BYTES_V2 if args.action_bytes == 64 else ACTION_BYTES
+
+        # Create environments
+        harness_config = HarnessConfig(
+            obs_bytes=OBS_TOTAL_BYTES,
+            action_bytes=action_bytes,
+            max_steps=50 if args.mode == "v1" else 100,  # More steps for v2
+            max_time_seconds=30 if args.mode == "v1" else 60,
+            # Training must be GPU-saturated; avoid expensive pytest on every reset.
+            run_tests_on_reset=(args.mode == "v1"),
+            run_fast_tests=(args.mode != "v1"),
+            # Keep verifier subprocesses bounded so CPU doesn't starve the GPU.
+            test_timeout_seconds=30 if args.mode == "v1" else 20,
+            fast_test_timeout_seconds=10 if args.mode == "v1" else 5,
+        )
+        envs = VectorizedJarvisEnv(args.num_envs, harness_config)
+
+        # Create tasks based on mode
+        repos = None
+        curriculum_state = None
+
+        if args.mode == "v1":
+            repo_path = os.path.join(os.path.dirname(__file__), "..", args.repo_path)
+            tasks = create_tasks_legacy(repo_path, args.num_envs)
+            print(f"v1 mode: Using toy repo at {repo_path}")
+
+        elif args.mode == "curriculum":
+            curriculum_state = CurriculumState(
+                current_difficulty=BugDifficulty.TRIVIAL,
+                promote_threshold=args.promote_threshold,
+                demote_threshold=args.demote_threshold,
+                min_episodes=args.min_episodes,
+            )
+            temp_dir = tempfile.mkdtemp(prefix="jarvis_curriculum_")
+            tasks, repos = create_tasks_v2(
+                num_tasks=args.num_envs,
+                difficulty=curriculum_state.current_difficulty,
+                temp_base=temp_dir,
+                seed=args.seed,
+            )
+            print("CURRICULUM mode: Starting at TRIVIAL difficulty")
+            print(f"Promotion threshold: {curriculum_state.promote_threshold:.0%}")
+            print(f"Demotion threshold: {curriculum_state.demote_threshold:.0%}")
+            print(f"Min episodes before change: {curriculum_state.min_episodes}")
+            print(f"Temp directory: {temp_dir}")
+
         else:
-            trainer.train(args.timesteps, log_interval=10)
+            difficulty_map = {
+                "easy": BugDifficulty.EASY,
+                "medium": BugDifficulty.MEDIUM,
+                "hard": BugDifficulty.HARD,
+            }
+            difficulty = difficulty_map[args.difficulty]
+
+            temp_dir = tempfile.mkdtemp(prefix="jarvis_train_")
+            tasks, repos = create_tasks_v2(
+                num_tasks=args.num_envs,
+                difficulty=difficulty,
+                temp_base=temp_dir,
+                seed=args.seed,
+            )
+            print(f"v2 mode: Generated {len(tasks)} multi-file tasks")
+            print(f"Difficulty: {args.difficulty}")
+            print(f"Temp directory: {temp_dir}")
+
+            for i, (task, repo) in enumerate(zip(tasks[:3], repos[:3])):
+                print(f"  Task {i}: {task.name} ({len(repo.files)} files, {len(repo.bugs)} bugs)")
+
+        envs.set_tasks(tasks)
+
+        # Create brain
+        brain = create_brain(
+            obs_dim=OBS_TOTAL_BYTES,
+            action_bytes=action_bytes,
+            hidden_dim=int(args.hidden_dim),
+            enable_plasticity=False,  # Disable for initial training
+            enable_sleep=False,       # Disable for initial training
+        ).to(device)
+
+        param_count = sum(p.numel() for p in brain.parameters())
+        print(f"Brain parameters: {param_count:,}")
+
+        trainer = JarvisHarnessTrainer(
+            brain=brain,
+            envs=envs,
+            device=device,
+            lr=args.lr,
+            entropy_coef=args.entropy_coef,
+            rollout_steps=args.rollout_steps,
+            update_epochs=args.ppo_epochs,
+            minibatch_size=args.minibatch_size,
+            gpu_burn_ms=args.gpu_burn_ms,
+            gpu_burn_dim=args.gpu_burn_dim,
+        )
+
+        print(f"\nStarting training for {args.timesteps:,} timesteps...")
+        print(f"Environments: {args.num_envs}")
+        print(f"Rollout steps: {args.rollout_steps}")
+        print(f"Action bytes: {action_bytes}")
+        print()
+
+        try:
+            if args.mode == "curriculum" and curriculum_state is not None:
+                def regenerate_tasks(difficulty: BugDifficulty):
+                    nonlocal temp_dir, repos
+                    if temp_dir and os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                    temp_dir = tempfile.mkdtemp(prefix="jarvis_curriculum_")
+                    new_tasks, new_repos = create_tasks_v2(
+                        num_tasks=args.num_envs,
+                        difficulty=difficulty,
+                        temp_base=temp_dir,
+                        seed=random.randint(0, 2**31),
+                    )
+                    repos = new_repos
+                    return new_tasks, new_repos
+
+                trainer.train_with_curriculum(
+                    args.timesteps,
+                    curriculum_state,
+                    regenerate_tasks,
+                    log_interval=10,
+                )
+            else:
+                trainer.train(args.timesteps, log_interval=10)
+        finally:
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                print(f"Cleaned up temp directory: {temp_dir}")
+                temp_dir = None
+
+        mode_suffix = f"_{args.mode}" if args.mode in ["v2", "curriculum"] else ""
+        checkpoint_path = f"results/jarvis_harness{mode_suffix}_{args.timesteps}.pt"
+        os.makedirs("results", exist_ok=True)
+        checkpoint_data = {
+            "brain_state_dict": brain.state_dict(),
+            "total_steps": trainer.total_steps,
+            "config": vars(args),
+            "mode": args.mode,
+        }
+        if curriculum_state is not None:
+            checkpoint_data["curriculum"] = {
+                "final_difficulty": curriculum_state.current_difficulty.name,
+                "total_promotions": curriculum_state.total_promotions,
+                "total_demotions": curriculum_state.total_demotions,
+                "final_success_rate": curriculum_state.success_rate,
+            }
+        torch.save(checkpoint_data, checkpoint_path)
+        print(f"Saved checkpoint to {checkpoint_path}")
     finally:
         if guard is not None:
             guard.stop()
-        # Cleanup temp directory if created
+        if envs is not None:
+            envs.close()
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
-            print(f"Cleaned up temp directory: {temp_dir}")
-
-    # Save checkpoint
-    mode_suffix = f"_{args.mode}" if args.mode in ["v2", "curriculum"] else ""
-    checkpoint_path = f"results/jarvis_harness{mode_suffix}_{args.timesteps}.pt"
-    os.makedirs("results", exist_ok=True)
-    checkpoint_data = {
-        "brain_state_dict": brain.state_dict(),
-        "total_steps": trainer.total_steps,
-        "config": vars(args),
-        "mode": args.mode,
-    }
-    # Add curriculum stats if applicable
-    if curriculum_state is not None:
-        checkpoint_data["curriculum"] = {
-            "final_difficulty": curriculum_state.current_difficulty.name,
-            "total_promotions": curriculum_state.total_promotions,
-            "total_demotions": curriculum_state.total_demotions,
-            "final_success_rate": curriculum_state.success_rate,
-        }
-    torch.save(checkpoint_data, checkpoint_path)
-    print(f"Saved checkpoint to {checkpoint_path}")
-
-    # Cleanup
-    envs.close()
+        if gpu_lock is not None:
+            gpu_lock.release()
 
 
 if __name__ == "__main__":
