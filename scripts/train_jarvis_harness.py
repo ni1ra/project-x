@@ -680,6 +680,12 @@ def main():
     if args.no_gpu_guard:
         raise SystemExit("Refusing to run with --no-gpu-guard (hard repo rule).")
 
+    # Hard safety envelope (non-negotiable).
+    if int(args.gpu_min_util) < 80:
+        raise SystemExit("Refusing --gpu-min-util < 80 (hard repo rule).")
+    if int(args.gpu_max_vram_mib) > 10 * 1024:
+        raise SystemExit("Refusing --gpu-max-vram-mib > 10240 MiB (hard repo rule).")
+
     # Set seed
     torch.manual_seed(args.seed)
     random.seed(args.seed)
@@ -734,9 +740,10 @@ def main():
             # Training must be GPU-saturated; avoid expensive pytest on every reset.
             run_tests_on_reset=(args.mode == "v1"),
             run_fast_tests=(args.mode != "v1"),
+            async_tests=(args.mode != "v1"),
             # Keep verifier subprocesses bounded so CPU doesn't starve the GPU.
-            test_timeout_seconds=30 if args.mode == "v1" else 20,
-            fast_test_timeout_seconds=10 if args.mode == "v1" else 5,
+            test_timeout_seconds=30 if args.mode == "v1" else 10,
+            fast_test_timeout_seconds=10 if args.mode == "v1" else 1,
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
