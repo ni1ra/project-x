@@ -70,6 +70,7 @@ class HarnessConfig:
     success_bonus: float = 10.0       # All tests pass
     run_tests_on_reset: bool = True   # If False, skip pytest in reset() (faster training)
     run_fast_tests: bool = False      # If True, RUN_TESTS uses run_pytest_fast
+    async_tests: bool = False         # If True, RUN_TESTS/SUBMIT run asynchronously (training)
     test_timeout_seconds: int = 30
     fast_test_timeout_seconds: int = 20
 
@@ -105,6 +106,11 @@ class HarnessState:
     total_diff_lines: int = 0
     last_test_result: Optional[VerifierResult] = None
     last_test_step: int = -1
+    test_process: Optional[subprocess.Popen] = None
+    test_process_start: float = 0.0
+    test_process_timeout_s: float = 0.0
+    test_process_scope: str = ""
+    pending_submit: bool = False
     prev_tests_passing: int = 0
     prev_tests_total: int = 0
     last_tests_delta_passing: int = 0
@@ -189,6 +195,14 @@ class JarvisHarnessEnv:
 
         if self.task is None:
             raise ValueError("No task set. Call set_task() first.")
+
+        # Ensure no verifier subprocess is still running from a previous episode.
+        if self.state is not None and self.state.test_process is not None:
+            try:
+                self.state.test_process.kill()
+                self.state.test_process.communicate(timeout=1)
+            except Exception:
+                pass
 
         # Prefer a fast reset (git reset/clean) when reusing the same repo source.
         reuse_workspace = (
@@ -428,6 +442,9 @@ class JarvisHarnessEnv:
         self.state.step += 1
         self.state.actions_taken += 1
 
+        # Poll any in-flight verifier subprocess (non-blocking).
+        self._poll_test_process()
+
         # Check termination conditions
         done = False
         reason = ""
@@ -448,10 +465,22 @@ class JarvisHarnessEnv:
             done = True
             reason = "action_limit"
 
-        # Explicit submit
-        if action.action_type == ActionType.SUBMIT:
+        if not self.config.async_tests and action.action_type == ActionType.SUBMIT:
             done = True
             reason = "submitted"
+        elif self.config.async_tests:
+            # Submit only ends the episode once the full suite passes.
+            tests_fresh = (
+                self.state.last_test_result is not None
+                and self.state.last_test_step == int(self.state.step) - 1
+            )
+            if tests_fresh and bool(self.state.pending_submit) and self.state.last_test_result.scope == "full":
+                if self.state.last_test_result.passed:
+                    done = True
+                    reason = "submitted"
+                else:
+                    # Failed submit: keep episode running and let the agent continue editing.
+                    self.state.pending_submit = False
 
         # Compute reward
         reward = self._compute_reward()
@@ -460,6 +489,14 @@ class JarvisHarnessEnv:
 
         if done:
             self.state.done = True
+            # Best-effort: terminate any still-running test process.
+            if self.state.test_process is not None:
+                try:
+                    self.state.test_process.kill()
+                    self.state.test_process.communicate(timeout=1)
+                except Exception:
+                    pass
+                self.state.test_process = None
 
         # Build info dict
         diff_lines = int(self.state.total_diff_lines) if self.state is not None else 0
@@ -691,22 +728,28 @@ class JarvisHarnessEnv:
                 return False, f"Write focus error: {e}"
 
         elif action.action_type == ActionType.RUN_TESTS:
-            prev_passing = int(self.state.prev_tests_passing)
-            prev_total = int(self.state.prev_tests_total)
-            if self.config.run_fast_tests:
-                self.state.last_test_result = run_pytest_fast(
-                    self.temp_dir,
-                    timeout=self.config.fast_test_timeout_seconds,
-                    maxfail=1,
-                )
-            else:
-                self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
-            self.state.last_test_step = int(self.state.step)
-            self.state.last_tests_delta_passing = int(self.state.last_test_result.tests_passing) - prev_passing
-            self.state.last_tests_delta_total = int(self.state.last_test_result.tests_total) - prev_total
-            self.state.prev_tests_passing = int(self.state.last_test_result.tests_passing)
-            self.state.prev_tests_total = int(self.state.last_test_result.tests_total)
-            return True, self.state.last_test_result.details
+            if not self.config.async_tests:
+                prev_passing = int(self.state.prev_tests_passing)
+                prev_total = int(self.state.prev_tests_total)
+                if self.config.run_fast_tests:
+                    self.state.last_test_result = run_pytest_fast(
+                        self.temp_dir,
+                        timeout=self.config.fast_test_timeout_seconds,
+                        maxfail=1,
+                    )
+                else:
+                    self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                self.state.last_test_step = int(self.state.step)
+                self.state.last_tests_delta_passing = int(self.state.last_test_result.tests_passing) - prev_passing
+                self.state.last_tests_delta_total = int(self.state.last_test_result.tests_total) - prev_total
+                self.state.prev_tests_passing = int(self.state.last_test_result.tests_passing)
+                self.state.prev_tests_total = int(self.state.last_test_result.tests_total)
+                return True, self.state.last_test_result.details
+
+            # Async mode: avoid CPU subprocess stalls that starve the GPU.
+            self.state.pending_submit = False
+            ok, msg = self._start_pytest_process(fast=bool(self.config.run_fast_tests))
+            return ok, msg
 
         elif action.action_type == ActionType.SEARCH:
             # Simple grep-like search
@@ -728,19 +771,25 @@ class JarvisHarnessEnv:
             return True, "\n".join(results[:20]) if results else "No matches found"
 
         elif action.action_type == ActionType.SUBMIT:
-            # Run final tests
-            prev_passing = int(self.state.prev_tests_passing)
-            prev_total = int(self.state.prev_tests_total)
-            self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
-            self.state.last_test_step = int(self.state.step)
-            self.state.last_tests_delta_passing = int(self.state.last_test_result.tests_passing) - prev_passing
-            self.state.last_tests_delta_total = int(self.state.last_test_result.tests_total) - prev_total
-            self.state.prev_tests_passing = int(self.state.last_test_result.tests_passing)
-            self.state.prev_tests_total = int(self.state.last_test_result.tests_total)
-            return True, (
-                "Submitted. Final tests: "
-                f"{self.state.last_test_result.tests_passing}/{self.state.last_test_result.tests_total}"
-            )
+            if not self.config.async_tests:
+                # Run final tests
+                prev_passing = int(self.state.prev_tests_passing)
+                prev_total = int(self.state.prev_tests_total)
+                self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                self.state.last_test_step = int(self.state.step)
+                self.state.last_tests_delta_passing = int(self.state.last_test_result.tests_passing) - prev_passing
+                self.state.last_tests_delta_total = int(self.state.last_test_result.tests_total) - prev_total
+                self.state.prev_tests_passing = int(self.state.last_test_result.tests_passing)
+                self.state.prev_tests_total = int(self.state.last_test_result.tests_total)
+                return True, (
+                    "Submitted. Final tests: "
+                    f"{self.state.last_test_result.tests_passing}/{self.state.last_test_result.tests_total}"
+                )
+
+            # Async submit: run the FULL suite and end the episode only if it passes.
+            self.state.pending_submit = True
+            ok, msg = self._start_pytest_process(fast=False)
+            return ok, msg
 
         # =================================================================
         # Git operations (v2)
@@ -776,6 +825,128 @@ class JarvisHarnessEnv:
             return self._parse_stacktrace()
 
         return False, f"Unknown action type: {action.action_type}"
+
+    def _start_pytest_process(self, *, fast: bool) -> Tuple[bool, str]:
+        if self.state is None or self.temp_dir is None:
+            return False, "No workspace"
+
+        # Only allow one in-flight test process per env to avoid runaway subprocess churn.
+        if self.state.test_process is not None:
+            try:
+                if self.state.test_process.poll() is None:
+                    return True, "Tests already running"
+            except Exception:
+                pass
+
+        import sys
+
+        python_exe = sys.executable
+        cmd = [python_exe, "-m", "pytest", "-q", "--tb=no"]
+        scope = "full"
+        timeout_s: float = float(self.config.test_timeout_seconds)
+        if fast:
+            cmd.append("--maxfail=1")
+            scope = "fast"
+            timeout_s = float(self.config.fast_test_timeout_seconds)
+
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=self.temp_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except Exception as e:
+            return False, f"Failed to start tests: {e}"
+
+        self.state.test_process = proc
+        self.state.test_process_start = time.time()
+        self.state.test_process_timeout_s = max(0.0, timeout_s)
+        self.state.test_process_scope = scope
+        return True, f"Started tests ({scope})"
+
+    def _poll_test_process(self) -> None:
+        if self.state is None or self.state.test_process is None:
+            return
+
+        proc = self.state.test_process
+        scope = self.state.test_process_scope or "fast"
+        now = time.time()
+
+        def _finalize(output: str, *, returncode: int, timed_out: bool) -> None:
+            output = output or ""
+            tests_passing = 0
+            tests_total = 0
+            if "passed" in output:
+                import re
+
+                passed_match = re.search(r"(\\d+) passed", output)
+                if passed_match:
+                    tests_passing = int(passed_match.group(1))
+                    tests_total = tests_passing
+
+                failed_match = re.search(r"(\\d+) failed", output)
+                if failed_match:
+                    tests_total += int(failed_match.group(1))
+
+            passed = (returncode == 0) and (not timed_out)
+            score = tests_passing / tests_total if tests_total > 0 else 0.0
+            details = ("TIMEOUT: tests\n" + output) if timed_out else output
+
+            prev_passing = int(self.state.prev_tests_passing)
+            prev_total = int(self.state.prev_tests_total)
+            self.state.last_test_result = VerifierResult(
+                passed=passed,
+                score=score,
+                details=details[:500],
+                tests_passing=tests_passing,
+                tests_total=tests_total,
+                scope=scope,
+            )
+            # Mark "fresh" on the step where results become available.
+            self.state.last_test_step = int(self.state.step) - 1
+            self.state.last_tests_delta_passing = int(tests_passing) - prev_passing
+            self.state.last_tests_delta_total = int(tests_total) - prev_total
+            self.state.prev_tests_passing = int(tests_passing)
+            self.state.prev_tests_total = int(tests_total)
+
+            # Surface results to the agent.
+            self.state.terminal_buffer += "\n[Tests completed]\n" + details[:500] + "\n"
+            if len(self.state.terminal_buffer) > 2000:
+                self.state.terminal_buffer = self.state.terminal_buffer[-2000:]
+
+            # Clear process handle.
+            self.state.test_process = None
+            self.state.test_process_start = 0.0
+            self.state.test_process_timeout_s = 0.0
+            self.state.test_process_scope = ""
+
+        try:
+            returncode = proc.poll()
+        except Exception:
+            returncode = None
+
+        if returncode is None:
+            # Enforce timeout without blocking.
+            timeout_s = float(self.state.test_process_timeout_s or 0.0)
+            if timeout_s > 0 and (now - float(self.state.test_process_start or 0.0)) > timeout_s:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                try:
+                    out, err = proc.communicate(timeout=1)
+                except Exception:
+                    out, err = "", ""
+                _finalize((out or "") + (err or ""), returncode=-1, timed_out=True)
+            return
+
+        try:
+            out, err = proc.communicate(timeout=1)
+        except Exception:
+            out, err = "", ""
+        _finalize((out or "") + (err or ""), returncode=int(returncode), timed_out=False)
 
     # =================================================================
     # Git operation implementations
@@ -1044,7 +1215,7 @@ class JarvisHarnessEnv:
             if self.state.last_syntax_result.passed:
                 # Small positive for making a real, compiling edit.
                 if delta_diff_lines > 0:
-                    reward += 0.2 if (self.state.write_file_actions + self.state.write_focus_actions) == 1 else 0.05
+                    reward += 1.0 if (self.state.write_file_actions + self.state.write_focus_actions) == 1 else 0.2
             else:
                 reward -= 1.0
 
@@ -1056,6 +1227,13 @@ class JarvisHarnessEnv:
 
     def close(self):
         """Clean up resources."""
+        if self.state is not None and self.state.test_process is not None:
+            try:
+                self.state.test_process.kill()
+                self.state.test_process.communicate(timeout=1)
+            except Exception:
+                pass
+            self.state.test_process = None
         if self.temp_dir and os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
             self.temp_dir = None
