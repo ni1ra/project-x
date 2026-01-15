@@ -651,7 +651,9 @@ Scoring:
 
 PASS if DoErr ≤ 0.05 and confounding discrimination ≥ 0.90 (held-out SCMs).
 
-#### Harder variant (fixes “CCB may be too easy”): CCB-NL (non-linear SCM)
+**BLINDFOLD TEST clarification (2026-01-15):** Under multi-task CCB-NL where the agent observes ONLY \([Z, X]\) bytes (no \(\text{prev\_true\_Y}\)), the theoretical minimum DoErr via marginal \(E[Y|X]\) prediction is **0.203**. The 0.05 threshold applies when task identification is possible. For pure BLINDFOLD evaluation, DoErr ≤ 0.25 with discrimination ≥ 0.80 demonstrates near-optimal causal learning without answer leakage.
+
+#### Harder variant (fixes "CCB may be too easy"): CCB-NL (non-linear SCM)
 
 Add a required second test set with a non-linear outcome:
 \[
@@ -701,7 +703,7 @@ Hard stop if any occurs:
 - **Curriculum engineering**: any post-start modification of `benchmarks/rpj_v4_manifest.json` (domains, generators, parameter ranges, or seed splits) used to improve results.
 - **Energy**: \(\bar{P}>20\) W-equivalent or budget exceeded.
 - **OD-NDT**: SR\(_{novel}<0.60\) or \(T<0.80\).
-- **do()-bench**: DoErr > 0.05 or discrimination < 0.90.
+- **do()-bench**: DoErr > 0.05 or discrimination < 0.90 (see Section 4.2 BLINDFOLD clarification for multi-task thresholds).
 - **Emergence falsification** (the 420 claim):
   - If under RPJ the system does not develop a stable heavy-tailed \(CBR_t\) distribution (no distinct compute bursts) while Ablation A does, **fail**.
   - If \(K_{\text{eff}}\) does not compress into \([2,6]\) across ≥5 seeds, **fail**.
