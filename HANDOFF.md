@@ -30,17 +30,15 @@ This is enforced by `src/utils/gpu_guard.py` and wired into:
 
 ### Git
 - Branch: `feat/harness-v2-multifile`
-- Local HEAD is **ahead of `origin/feat/harness-v2-multifile` by 7 commits** (push is needed).
-- Working tree: clean.
+- Run `git status -sb` to see ahead/behind before pushing.
+- Working tree should be clean before long training runs.
 
-Recent commits (new since origin):
-- `feat(harness): v2 actions, git init, multi-file bugs`
-- `feat(training): add GPU util/VRAM guardrails`
-- `fix(harness): use sys.executable and allow python3`
-- `perf(harness): fast reset + parallel stepping`
-- `feat(harness): add jarvis harness eval script`
-- `fix(harness): generate failing repos for training`
-- `perf(training): more PPO work per rollout`
+Recent work (high-level):
+- v2 (64B) actions execute end-to-end (incl. git ops)
+- task generation injects test-covered failing bugs (no “free wins”)
+- faster env resets + parallel env stepping
+- GPU util/VRAM guardrails integrated into training scripts
+- harness checkpoint evaluator script added
 
 ### Tests
 - `./.venv/bin/python -m pytest -q` → **311 passing**
@@ -204,4 +202,3 @@ Recommended direction (keep it content-free):
 ## 9) If you only do one thing
 
 Make `WRITE_FILE` reliably learnable (focus-relative edits) and keep training GPU-saturated under the guardrails. Everything else is downstream.
-
