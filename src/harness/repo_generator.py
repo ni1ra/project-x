@@ -694,6 +694,233 @@ def inject_wrong_import(files: Dict[str, str]) -> Dict[str, str]:
     return result
 
 
+def inject_fixed_string_replacement(
+    files: Dict[str, str],
+    file_path: str,
+    find: str,
+    replace: str,
+    *,
+    difficulty: BugDifficulty,
+    hint: str,
+    category: BugCategory = BugCategory.LOGIC,
+    multi_file_fix: bool = False,
+    template_name: str = "replace",
+) -> Optional[BugInstance]:
+    """Inject a bug by a single deterministic string replacement in one file."""
+    original = files.get(file_path)
+    if original is None or find not in original:
+        return None
+
+    buggy = original.replace(find, replace, 1)
+    files[file_path] = buggy
+
+    template = BugTemplate(
+        name=f"{template_name}:{file_path}",
+        category=category,
+        difficulty=difficulty,
+        description=hint,
+        files_affected=[file_path],
+        multi_file_fix=multi_file_fix,
+    )
+    return BugInstance(
+        template=template,
+        file_path=file_path,
+        original_code=original,
+        buggy_code=buggy,
+        fix_code=original,
+        line_number=0,
+        hint=hint,
+    )
+
+
+def inject_data_pipeline_bug(
+    files: Dict[str, str],
+    *,
+    difficulty: BugDifficulty,
+    multi_file: bool,
+) -> Optional[BugInstance]:
+    """
+    Template-specific bug injection for DATA_PIPELINE_TEMPLATE.
+
+    These are intentionally tied to existing tests so injected bugs reliably
+    create failing verifiers (no "all tests already pass" free wins).
+    """
+    # HARD+: force a true multi-file bug (two distinct test-covered sites).
+    if multi_file and difficulty.value >= BugDifficulty.HARD.value:
+        bug_a = inject_fixed_string_replacement(
+            files,
+            "models.py",
+            "return self.id > 0 and len(self.name) > 0 and self.value >= 0",
+            "return self.id >= 0 and len(self.name) > 0 and self.value >= 0",
+            difficulty=difficulty,
+            hint="Check Record.is_valid() boundary conditions",
+            template_name="data_pipeline:is_valid",
+            multi_file_fix=True,
+        )
+        bug_b = inject_fixed_string_replacement(
+            files,
+            "processor.py",
+            "name=record.name.upper(),",
+            "name=record.name.lower(),",
+            difficulty=difficulty,
+            hint="Check DataProcessor.transform_record() string casing",
+            template_name="data_pipeline:transform_record",
+            multi_file_fix=True,
+        )
+        if bug_a is None or bug_b is None:
+            return None
+
+        # Combine into one multi-file bug instance with secondary_files populated.
+        return BugInstance(
+            template=BugTemplate(
+                name="data_pipeline:multi_file_combo",
+                category=BugCategory.LOGIC,
+                difficulty=difficulty,
+                description="Multi-file test-covered combo bug",
+                files_affected=["models.py", "processor.py"],
+                multi_file_fix=True,
+            ),
+            file_path=bug_a.file_path,
+            original_code=bug_a.original_code,
+            buggy_code=bug_a.buggy_code,
+            fix_code=bug_a.fix_code,
+            line_number=0,
+            hint=f"{bug_a.hint}; {bug_b.hint}".strip(),
+            secondary_files={
+                bug_b.file_path: (bug_b.original_code, bug_b.buggy_code, bug_b.fix_code),
+            },
+        )
+
+    # EASY/MEDIUM: choose one bug at a test-covered site.
+    candidates = [
+        lambda: inject_fixed_string_replacement(
+            files,
+            "models.py",
+            "return self.id > 0 and len(self.name) > 0 and self.value >= 0",
+            "return self.id >= 0 and len(self.name) > 0 and self.value >= 0",
+            difficulty=difficulty,
+            hint="Check Record.is_valid() boundary conditions",
+            template_name="data_pipeline:is_valid",
+        ),
+        lambda: inject_fixed_string_replacement(
+            files,
+            "processor.py",
+            "name=record.name.upper(),",
+            "name=record.name.lower(),",
+            difficulty=difficulty,
+            hint="Check DataProcessor.transform_record() string casing",
+            template_name="data_pipeline:transform_record",
+        ),
+        lambda: inject_fixed_string_replacement(
+            files,
+            "processor.py",
+            'return Batch(records=transformed, batch_id=f"{batch.batch_id}_processed")',
+            'return Batch(records=transformed, batch_id=f"{batch.batch_id}_proc")',
+            difficulty=difficulty,
+            hint="Check DataProcessor.process_batch() batch_id formatting",
+            template_name="data_pipeline:process_batch",
+        ),
+    ]
+    random.shuffle(candidates)
+    for make_bug in candidates:
+        bug = make_bug()
+        if bug is not None:
+            return bug
+    return None
+
+
+def inject_rest_api_bug(
+    files: Dict[str, str],
+    *,
+    difficulty: BugDifficulty,
+    multi_file: bool,
+) -> Optional[BugInstance]:
+    """
+    Template-specific bug injection for REST_API_TEMPLATE.
+
+    Also tied to existing tests for reliable failing verifiers.
+    """
+    if multi_file and difficulty.value >= BugDifficulty.HARD.value:
+        bug_a = inject_fixed_string_replacement(
+            files,
+            "config.py",
+            "if self.port < 1 or self.port > 65535:",
+            "if self.port < 0 or self.port > 65535:",
+            difficulty=difficulty,
+            hint="Check Config.validate() port bounds",
+            template_name="rest_api:config_validate",
+            multi_file_fix=True,
+        )
+        bug_b = inject_fixed_string_replacement(
+            files,
+            "database.py",
+            "del self._users[user_id]",
+            "pass  # BUG: user not deleted",
+            difficulty=difficulty,
+            hint="Check Database.delete_user() actually removes users",
+            template_name="rest_api:delete_user",
+            multi_file_fix=True,
+        )
+        if bug_a is None or bug_b is None:
+            return None
+
+        return BugInstance(
+            template=BugTemplate(
+                name="rest_api:multi_file_combo",
+                category=BugCategory.LOGIC,
+                difficulty=difficulty,
+                description="Multi-file test-covered combo bug",
+                files_affected=["config.py", "database.py"],
+                multi_file_fix=True,
+            ),
+            file_path=bug_a.file_path,
+            original_code=bug_a.original_code,
+            buggy_code=bug_a.buggy_code,
+            fix_code=bug_a.fix_code,
+            line_number=0,
+            hint=f"{bug_a.hint}; {bug_b.hint}".strip(),
+            secondary_files={
+                bug_b.file_path: (bug_b.original_code, bug_b.buggy_code, bug_b.fix_code),
+            },
+        )
+
+    candidates = [
+        lambda: inject_fixed_string_replacement(
+            files,
+            "config.py",
+            "if self.port < 1 or self.port > 65535:",
+            "if self.port < 0 or self.port > 65535:",
+            difficulty=difficulty,
+            hint="Check Config.validate() port bounds",
+            template_name="rest_api:config_validate",
+        ),
+        lambda: inject_fixed_string_replacement(
+            files,
+            "database.py",
+            "del self._users[user_id]",
+            "pass  # BUG: user not deleted",
+            difficulty=difficulty,
+            hint="Check Database.delete_user() actually removes users",
+            template_name="rest_api:delete_user",
+        ),
+        lambda: inject_fixed_string_replacement(
+            files,
+            "database.py",
+            "id=self._next_id,",
+            "id=0,",
+            difficulty=difficulty,
+            hint="Check Database.create_user() assigns incremental IDs",
+            template_name="rest_api:create_user_id",
+        ),
+    ]
+    random.shuffle(candidates)
+    for make_bug in candidates:
+        bug = make_bug()
+        if bug is not None:
+            return bug
+    return None
+
+
 def inject_two_file_bug_combo(
     files: Dict[str, str],
     difficulty: BugDifficulty,
@@ -840,7 +1067,7 @@ class RepoGenerator:
         buggy_files = dict(template)
 
         for _ in range(num_bugs):
-            bug = self._inject_bug(buggy_files, difficulty, multi_file)
+            bug = self._inject_bug(buggy_files, template_name, difficulty, multi_file)
             if bug:
                 bugs.append(bug)
 
@@ -862,10 +1089,21 @@ class RepoGenerator:
     def _inject_bug(
         self,
         files: Dict[str, str],
+        template_name: str,
         difficulty: BugDifficulty,
         multi_file: bool,
     ) -> Optional[BugInstance]:
         """Inject a single bug into the files."""
+        # Prefer template-specific injections to ensure verifier failure.
+        if template_name == "data_pipeline":
+            bug = inject_data_pipeline_bug(files, difficulty=difficulty, multi_file=multi_file)
+            if bug is not None:
+                return bug
+        if template_name == "rest_api":
+            bug = inject_rest_api_bug(files, difficulty=difficulty, multi_file=multi_file)
+            if bug is not None:
+                return bug
+
         # For HARD+ tasks, optionally inject a true multi-file bug combo.
         if multi_file and difficulty.value >= BugDifficulty.HARD.value:
             multi_bug = inject_two_file_bug_combo(files, difficulty=difficulty)

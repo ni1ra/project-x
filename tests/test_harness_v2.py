@@ -28,6 +28,7 @@ from src.harness.actions import (
 )
 from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task
 from src.harness.observations import OBS_TOTAL_BYTES, decode_observation
+from src.harness.verifiers import run_pytest
 
 
 class TestBugTemplates:
@@ -186,6 +187,17 @@ class TestRepoGenerator:
 
         assert len(tasks) == 5
         assert all(isinstance(t, GeneratedRepo) for t in tasks)
+
+    def test_generated_repos_fail_verifier(self):
+        """Generated repos with injected bugs should fail pytest (no free-win tasks)."""
+        gen = RepoGenerator(seed=42)
+
+        for template_name in ["data_pipeline", "rest_api"]:
+            repo = gen.generate(template_name=template_name, difficulty=BugDifficulty.EASY, num_bugs=1)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                repo_path = gen.write_to_disk(repo, tmpdir)
+                result = run_pytest(repo_path)
+                assert not result.passed, f"{template_name} unexpectedly passed tests with injected bugs"
 
 
 class TestExtendedActions:
