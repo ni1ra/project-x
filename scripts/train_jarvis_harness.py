@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Jarvis Harness Training Script
+Jarvis Harness Training Script (v2)
 
-Sprint 1: Train the RPJ brain to operate tools in a repo-as-world environment.
+Train the RPJ brain to operate tools in a repo-as-world environment.
+
+v2 Update: Uses multi-file repo generation for harder, more realistic tasks.
 
 This converts "cool emergence metrics" into "useful operator" by:
 1. Giving the brain a real job (fix bugs, make tests pass)
 2. Using hard verifiers (tests pass/fail, not model-based scoring)
 3. Enforcing energy budgets (RPJ pressure preserved)
 4. Rewarding minimal diffs (MDL-friendly editing)
+5. Generating synthetic multi-file repos with injected bugs
 
 Usage:
     PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --num-envs 32 --timesteps 1000000
+    PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --mode v2 --difficulty medium
 """
 
 from __future__ import annotations
@@ -20,6 +24,8 @@ import argparse
 import os
 import time
 import random
+import tempfile
+import shutil
 from typing import List, Tuple, Dict, Any, Optional
 
 import torch
@@ -33,14 +39,17 @@ from src.harness.env import (
     JarvisHarnessEnv, HarnessConfig, Task, VectorizedJarvisEnv
 )
 from src.harness.actions import (
-    ActionType, JarvisAction, encode_action, decode_action, ACTION_BYTES
+    ActionType, JarvisAction, encode_action, decode_action,
+    ACTION_BYTES, ACTION_BYTES_V2,
 )
 from src.harness.observations import OBS_TOTAL_BYTES
+from src.harness.repo_generator import (
+    RepoGenerator, GeneratedRepo, BugDifficulty, generate_task_batch,
+)
 
 
-def create_tasks(repo_path: str, num_tasks: int = 1) -> List[Task]:
-    """Create training tasks from the toy repo."""
-    # For now, single task - fix the multiply function
+def create_tasks_legacy(repo_path: str, num_tasks: int = 1) -> List[Task]:
+    """Create training tasks from the toy repo (legacy v1 mode)."""
     tasks = []
     for i in range(num_tasks):
         tasks.append(Task(
@@ -51,6 +60,45 @@ def create_tasks(repo_path: str, num_tasks: int = 1) -> List[Task]:
             expected_tests_passing=18,
         ))
     return tasks
+
+
+def create_tasks_v2(
+    num_tasks: int,
+    difficulty: BugDifficulty,
+    temp_base: str,
+    seed: Optional[int] = None,
+) -> Tuple[List[Task], List[GeneratedRepo]]:
+    """
+    Create training tasks using v2 multi-file repo generation.
+
+    Returns (tasks, repos) where repos should be cleaned up after training.
+    """
+    generator = RepoGenerator(seed=seed)
+    repos = generate_task_batch(
+        num_tasks=num_tasks,
+        difficulty_range=(difficulty, BugDifficulty(min(difficulty.value + 1, 5))),
+        seed=seed,
+    )
+
+    tasks = []
+    for repo in repos:
+        # Write repo to disk
+        repo_path = generator.write_to_disk(repo, temp_base)
+
+        # Create task from repo
+        bug = repo.bugs[0] if repo.bugs else None
+        target_file = bug.file_path if bug else list(repo.files.keys())[0]
+
+        task = Task(
+            name=repo.name,
+            description=f"Fix the bugs in this codebase. Hint: {repo.fix_description}",
+            repo_path=repo_path,
+            target_file=target_file,
+            expected_tests_passing=5,  # Approximate
+        )
+        tasks.append(task)
+
+    return tasks, repos
 
 
 class JarvisHarnessTrainer:
@@ -326,7 +374,15 @@ def main():
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--repo-path", type=str, default="fixtures/toy_repo", help="Path to toy repo")
+    parser.add_argument("--repo-path", type=str, default="fixtures/toy_repo", help="Path to toy repo (v1 mode)")
+
+    # v2 options
+    parser.add_argument("--mode", type=str, choices=["v1", "v2"], default="v1",
+                        help="Training mode: v1 (toy repo) or v2 (multi-file generation)")
+    parser.add_argument("--difficulty", type=str, choices=["easy", "medium", "hard"], default="medium",
+                        help="Bug difficulty for v2 mode")
+    parser.add_argument("--action-bytes", type=int, choices=[32, 64], default=32,
+                        help="Action space size (32 for v1, 64 for v2)")
     args = parser.parse_args()
 
     # Set seed
@@ -335,28 +391,61 @@ def main():
 
     device = torch.device(args.device)
     print(f"Using device: {device}")
+    print(f"Training mode: {args.mode}")
+
+    # Determine action bytes
+    action_bytes = ACTION_BYTES_V2 if args.action_bytes == 64 else ACTION_BYTES
 
     # Create environments
     harness_config = HarnessConfig(
         obs_bytes=OBS_TOTAL_BYTES,
-        action_bytes=ACTION_BYTES,
-        max_steps=50,
-        max_time_seconds=30,
+        action_bytes=action_bytes,
+        max_steps=50 if args.mode == "v1" else 100,  # More steps for v2
+        max_time_seconds=30 if args.mode == "v1" else 60,
     )
     envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
-    # Create tasks
-    repo_path = os.path.join(os.path.dirname(__file__), "..", args.repo_path)
-    tasks = create_tasks(repo_path, args.num_envs)
+    # Create tasks based on mode
+    temp_dir = None
+    repos = None
+
+    if args.mode == "v1":
+        # Legacy mode - use toy repo
+        repo_path = os.path.join(os.path.dirname(__file__), "..", args.repo_path)
+        tasks = create_tasks_legacy(repo_path, args.num_envs)
+        print(f"v1 mode: Using toy repo at {repo_path}")
+    else:
+        # v2 mode - generate multi-file repos
+        difficulty_map = {
+            "easy": BugDifficulty.EASY,
+            "medium": BugDifficulty.MEDIUM,
+            "hard": BugDifficulty.HARD,
+        }
+        difficulty = difficulty_map[args.difficulty]
+
+        temp_dir = tempfile.mkdtemp(prefix="jarvis_train_")
+        tasks, repos = create_tasks_v2(
+            num_tasks=args.num_envs,
+            difficulty=difficulty,
+            temp_base=temp_dir,
+            seed=args.seed,
+        )
+        print(f"v2 mode: Generated {len(tasks)} multi-file tasks")
+        print(f"Difficulty: {args.difficulty}")
+        print(f"Temp directory: {temp_dir}")
+
+        # Show some task info
+        for i, (task, repo) in enumerate(zip(tasks[:3], repos[:3])):
+            print(f"  Task {i}: {task.name} ({len(repo.files)} files, {len(repo.bugs)} bugs)")
+
     envs.set_tasks(tasks)
 
     # Create brain
-    # Harness uses 512-byte observations and a true 32-byte tool-action policy.
     brain = create_brain(
         obs_dim=OBS_TOTAL_BYTES,
-        action_bytes=ACTION_BYTES,
-        enable_plasticity=False,  # Disable for Sprint 1
-        enable_sleep=False,       # Disable for Sprint 1
+        action_bytes=action_bytes,
+        enable_plasticity=False,  # Disable for initial training
+        enable_sleep=False,       # Disable for initial training
     )
     brain = brain.to(device)
 
@@ -376,17 +465,26 @@ def main():
     print(f"\nStarting training for {args.timesteps:,} timesteps...")
     print(f"Environments: {args.num_envs}")
     print(f"Rollout steps: {args.rollout_steps}")
+    print(f"Action bytes: {action_bytes}")
     print()
 
-    trainer.train(args.timesteps, log_interval=10)
+    try:
+        trainer.train(args.timesteps, log_interval=10)
+    finally:
+        # Cleanup temp directory if created
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            print(f"Cleaned up temp directory: {temp_dir}")
 
     # Save checkpoint
-    checkpoint_path = f"results/jarvis_harness_{args.timesteps}.pt"
+    mode_suffix = f"_{args.mode}" if args.mode == "v2" else ""
+    checkpoint_path = f"results/jarvis_harness{mode_suffix}_{args.timesteps}.pt"
     os.makedirs("results", exist_ok=True)
     torch.save({
         "brain_state_dict": brain.state_dict(),
         "total_steps": trainer.total_steps,
         "config": vars(args),
+        "mode": args.mode,
     }, checkpoint_path)
     print(f"Saved checkpoint to {checkpoint_path}")
 
