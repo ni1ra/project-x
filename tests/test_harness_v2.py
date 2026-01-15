@@ -26,6 +26,8 @@ from src.harness.actions import (
     encode_action_v2, decode_action_v2, ACTION_BYTES_V2,
     is_git_action, is_multi_file_action, action_to_string,
 )
+from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task
+from src.harness.observations import OBS_TOTAL_BYTES, decode_observation
 
 
 class TestBugTemplates:
@@ -148,6 +150,19 @@ class TestRepoGenerator:
         # Buggy files should differ from originals
         for bug in repo.bugs:
             assert bug.buggy_code != bug.original_code
+
+    def test_hard_multi_file_injects_secondary_files(self):
+        """HARD multi-file generation should inject a true multi-file bug combo."""
+        gen = RepoGenerator(seed=123)
+        repo = gen.generate(
+            template_name="data_pipeline",
+            difficulty=BugDifficulty.HARD,
+            num_bugs=1,
+            multi_file=True,
+        )
+
+        assert repo.multi_file, "Expected a multi-file bug under HARD + multi_file=True"
+        assert any(b.secondary_files for b in repo.bugs), "Expected secondary_files for multi-file bug"
 
     def test_write_to_disk(self):
         """Test writing generated repo to disk."""
@@ -302,3 +317,64 @@ class TestGeneratedRepoStructure:
                         has_diff = True
                         break
             # May or may not have diff depending on injection success
+
+
+class TestHarnessV2Env:
+    """Smoke tests that v2 (64-byte) actions execute end-to-end in the env."""
+
+    def test_env_steps_with_v2_actions_and_git(self):
+        gen = RepoGenerator(seed=7)
+        repo = gen.generate(
+            template_name="data_pipeline",
+            difficulty=BugDifficulty.HARD,
+            num_bugs=1,
+            multi_file=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = gen.write_to_disk(repo, tmpdir)
+
+            env = JarvisHarnessEnv(
+                HarnessConfig(
+                    obs_bytes=OBS_TOTAL_BYTES,
+                    action_bytes=ACTION_BYTES_V2,
+                    max_steps=10,
+                    max_time_seconds=20,
+                )
+            )
+            task = Task(
+                name="v2_smoke",
+                description="Fix the bugs and make tests pass.",
+                repo_path=repo_path,
+                target_file=repo.bugs[0].file_path if repo.bugs else "models.py",
+            )
+
+            obs = env.reset(task)
+            assert obs.shape == (OBS_TOTAL_BYTES,)
+
+            # Git status should work (env initializes a fresh git repo).
+            action = JarvisAction(action_type=ActionType.GIT_STATUS)
+            obs, _, done, _ = env.step(encode_action_v2(action))
+            assert not done
+            decoded = decode_observation(obs)
+            assert "No changes" in decoded.terminal_output or "GIT_STATUS" in decoded.terminal_output
+
+            # Write to a file using v2's explicit target field.
+            action = JarvisAction(
+                action_type=ActionType.WRITE_FILE,
+                target="models.py",
+                content="\n# jarvis_v2_smoke\n",
+                offset=0,
+                length=0,
+            )
+            obs, _, done, _ = env.step(encode_action_v2(action))
+            assert not done
+
+            # Git diff should now show some output (or at least not error).
+            action = JarvisAction(action_type=ActionType.GIT_DIFF, target="models.py")
+            obs, _, done, _ = env.step(encode_action_v2(action))
+            assert not done
+            decoded = decode_observation(obs)
+            assert "diff --git" in decoded.terminal_output or "No diff" in decoded.terminal_output
+
+            env.close()

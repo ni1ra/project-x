@@ -641,6 +641,17 @@ def inject_wrong_return(code: str) -> Tuple[str, str, str]:
     return code, "", ""
 
 
+def inject_case_transform(code: str) -> Tuple[str, str, str]:
+    """Inject a bug by swapping upper/lower casing transformation."""
+    if ".upper()" in code:
+        buggy = code.replace(".upper()", ".lower()", 1)
+        return buggy, "Check string case transforms", "Use .upper() (not .lower())"
+    if ".lower()" in code:
+        buggy = code.replace(".lower()", ".upper()", 1)
+        return buggy, "Check string case transforms", "Use .lower() (not .upper())"
+    return code, "", ""
+
+
 def inject_missing_arg(code: str) -> Tuple[str, str, str]:
     """Inject missing function argument (signature mismatch)."""
     import re
@@ -681,6 +692,93 @@ def inject_wrong_import(files: Dict[str, str]) -> Dict[str, str]:
                 )
                 return result
     return result
+
+
+def inject_two_file_bug_combo(
+    files: Dict[str, str],
+    difficulty: BugDifficulty,
+) -> Optional[BugInstance]:
+    """
+    Inject a true multi-file bug: two distinct files get different bugs.
+
+    This forces the agent to read/modify multiple files to pass all tests,
+    which is necessary for exercising v2 (64-byte) multi-file editing.
+    """
+    candidates = [
+        (p, c) for p, c in files.items()
+        if not p.startswith("test_") and p != "conftest.py"
+    ]
+    if len(candidates) < 2:
+        return None
+
+    # Choose injectors that tend to succeed on typical Python code.
+    primary_injectors = [
+        inject_wrong_operator,
+        inject_case_transform,
+        inject_off_by_one,
+        inject_wrong_return,
+    ]
+    secondary_injectors = [
+        inject_case_transform,
+        inject_wrong_operator,
+        inject_wrong_return,
+        inject_off_by_one,
+    ]
+
+    def try_inject(code: str, injectors: List) -> Tuple[str, str]:
+        for injector in injectors:
+            buggy, hint, _ = injector(code)
+            if buggy != code:
+                return buggy, hint
+        return code, ""
+
+    # Find two distinct files that both admit an injection.
+    random.shuffle(candidates)
+    chosen = None
+    for path_a, code_a in candidates:
+        buggy_a, hint_a = try_inject(code_a, primary_injectors)
+        if buggy_a == code_a:
+            continue
+        for path_b, code_b in candidates:
+            if path_b == path_a:
+                continue
+            buggy_b, hint_b = try_inject(code_b, secondary_injectors)
+            if buggy_b == code_b:
+                continue
+            chosen = (path_a, code_a, buggy_a, hint_a, path_b, code_b, buggy_b, hint_b)
+            break
+        if chosen is not None:
+            break
+
+    if chosen is None:
+        return None
+
+    path_a, code_a, buggy_a, hint_a, path_b, code_b, buggy_b, hint_b = chosen
+
+    files[path_a] = buggy_a
+    files[path_b] = buggy_b
+
+    template = BugTemplate(
+        name="multi_file_combo",
+        category=BugCategory.LOGIC,
+        difficulty=difficulty,
+        description="Two-file bug combo (requires multi-file fix)",
+        files_affected=[path_a, path_b],
+        multi_file_fix=True,
+    )
+
+    return BugInstance(
+        template=template,
+        file_path=path_a,
+        original_code=code_a,
+        buggy_code=buggy_a,
+        fix_code=code_a,
+        line_number=0,
+        hint=f"Multiple failures: inspect {path_a} and {path_b}. {hint_a}; {hint_b}".strip(),
+        secondary_files={
+            path_b: (code_b, buggy_b, code_b),
+        },
+    )
 
 
 # =============================================================================
@@ -768,6 +866,12 @@ class RepoGenerator:
         multi_file: bool,
     ) -> Optional[BugInstance]:
         """Inject a single bug into the files."""
+        # For HARD+ tasks, optionally inject a true multi-file bug combo.
+        if multi_file and difficulty.value >= BugDifficulty.HARD.value:
+            multi_bug = inject_two_file_bug_combo(files, difficulty=difficulty)
+            if multi_bug is not None:
+                return multi_bug
+
         # Select non-test, non-config file
         candidates = [
             (p, c) for p, c in files.items()

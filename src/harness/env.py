@@ -27,8 +27,15 @@ import time
 import torch
 
 from src.harness.actions import (
-    ActionType, JarvisAction, decode_action, encode_action,
-    validate_shell_command, action_to_string, ACTION_BYTES
+    ACTION_BYTES,
+    ACTION_BYTES_V2,
+    ActionType,
+    JarvisAction,
+    action_to_string,
+    decode_action,
+    decode_action_v2,
+    encode_action,
+    validate_shell_command,
 )
 from src.harness.observations import (
     JarvisObservation, encode_observation, decode_observation,
@@ -163,12 +170,17 @@ class JarvisHarnessEnv:
         if os.path.exists(self.task.repo_path):
             # Copy contents, not the directory itself
             for item in os.listdir(self.task.repo_path):
+                if item == ".git":
+                    continue
                 s = os.path.join(self.task.repo_path, item)
                 d = os.path.join(self.temp_dir, item)
                 if os.path.isdir(s):
                     shutil.copytree(s, d)
                 else:
                     shutil.copy2(s, d)
+
+        # Initialize a fresh git repo in the temp workspace so git actions work
+        self._init_git_repo()
 
         # Store original file contents
         self._original_files = {}
@@ -203,6 +215,64 @@ class JarvisHarnessEnv:
 
         return self._get_observation()
 
+    def _init_git_repo(self) -> None:
+        """Initialize a git repo in the temp workspace for v2 git actions."""
+        if not self.temp_dir:
+            return
+
+        try:
+            # Init
+            subprocess.run(
+                ["git", "init"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+
+            # Local identity (avoid relying on global git config)
+            subprocess.run(
+                ["git", "config", "user.email", "jarvis-harness@local"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Jarvis Harness"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+
+            # Commit initial snapshot so git diff/status/reset/checkout are meaningful.
+            subprocess.run(
+                ["git", "add", "-A"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "init", "--no-gpg-sign"],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except FileNotFoundError:
+            if self.state is not None:
+                self.state.terminal_buffer += "git not found; git actions disabled\n"
+        except Exception as e:
+            if self.state is not None:
+                self.state.terminal_buffer += f"git init failed: {e}\n"
+
     def step(self, action_bytes: torch.Tensor) -> Tuple[torch.Tensor, float, bool, Dict[str, Any]]:
         """
         Execute action and return (obs, reward, done, info).
@@ -222,8 +292,8 @@ class JarvisHarnessEnv:
         if self.state.done:
             return self._get_observation(), 0.0, True, {"reason": "already_done"}
 
-        # Decode action
-        action = decode_action(action_bytes)
+        # Decode action (v1=32 bytes, v2=64 bytes)
+        action = self._decode_action_bytes(action_bytes)
 
         # Track action history for exploration bonus
         action_type = int(action.action_type)
@@ -298,6 +368,20 @@ class JarvisHarnessEnv:
         }
 
         return self._get_observation(), reward, done, info
+
+    def _decode_action_bytes(self, action_bytes: torch.Tensor) -> JarvisAction:
+        """Decode action bytes according to configured action size."""
+        # Ensure we can handle numpy arrays or non-tensors.
+        if not isinstance(action_bytes, torch.Tensor):
+            action_bytes = torch.tensor(action_bytes, dtype=torch.uint8)
+
+        # Prefer config setting, but fall back to shape heuristics if mismatched.
+        expected = int(self.config.action_bytes)
+        actual = int(action_bytes.shape[-1]) if action_bytes.dim() >= 1 else expected
+
+        if expected == ACTION_BYTES_V2 or actual >= ACTION_BYTES_V2:
+            return decode_action_v2(action_bytes)
+        return decode_action(action_bytes)
 
     def _get_observation(self) -> torch.Tensor:
         """Build observation tensor from current state."""
