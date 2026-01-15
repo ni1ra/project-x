@@ -131,6 +131,10 @@ def decode_action(action_bytes: torch.Tensor) -> JarvisAction:
     Returns:
         JarvisAction
     """
+    # Convert numpy to tensor if needed
+    if not isinstance(action_bytes, torch.Tensor):
+        action_bytes = torch.tensor(action_bytes, dtype=torch.uint8)
+
     if action_bytes.dim() == 2:
         action_bytes = action_bytes[0]  # Take first if batched
 
@@ -280,11 +284,15 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     Decode v2 action bytes.
 
     Args:
-        action_bytes: Tensor of shape [64] or [N, 64]
+        action_bytes: Tensor of shape [64] or [N, 64], or numpy array
 
     Returns:
         JarvisAction
     """
+    # Convert numpy to tensor if needed
+    if not isinstance(action_bytes, torch.Tensor):
+        action_bytes = torch.tensor(action_bytes, dtype=torch.uint8)
+
     if action_bytes.dim() == 2:
         action_bytes = action_bytes[0]
 
