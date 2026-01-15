@@ -125,9 +125,11 @@ src/
     od_ndt.py         # One-shot transfer harness
   harness/
     env.py            # Jarvis Harness (repo-as-world) environment
-    actions.py        # Byte-encoded action space
-    observations.py   # Byte-encoded observations
+    actions.py        # Byte-encoded action space (v1: 32B, v2: 64B)
+    observations.py   # Byte-encoded observations (512B)
     verifiers.py      # Test/lint verifiers for ground-truth rewards
+    bug_templates.py  # (v2) Configurable bug types and difficulty
+    repo_generator.py # (v2) Synthetic multi-file repo generation
 web/
   server.py           # FastAPI server (/chat, /ccb, /math)
   static/index.html   # Web UI
@@ -163,18 +165,29 @@ Tests one-shot learning from a single expert demonstration.
 
 A gymnasium-style environment where the RPJ brain operates as a tool-using agent in a repository environment.
 
-Naming note: “Jarvis” is a deliberate reference to Iron Man’s JARVIS. This repo is building toward that target via verifier-scored RL (not LLM chat): byte I/O + ground-truth tests/lint/diff rewards.
+Naming note: "Jarvis" is a deliberate reference to Iron Man's JARVIS. This repo is building toward that target via verifier-scored RL (not LLM chat): byte I/O + ground-truth tests/lint/diff rewards.
 
 **Input:** 512 bytes (terminal output + filesystem snapshot + goal + meta)
-**Output:** 32 bytes (action type + offset + content)
+**Output:** 32 bytes (v1) or 64 bytes (v2) action encoding
 
-**Actions:** Shell commands, file read/write, run tests, search, submit
+**Actions (v2):**
+- Core: Shell commands, file read/write, run tests, search, submit
+- Git: GIT_STATUS, GIT_DIFF, GIT_ADD, GIT_RESET, GIT_CHECKOUT, GIT_LOG
+- Multi-file: LIST_FILES, NAVIGATE, STACKTRACE
 
 **Rewards:** Ground-truth verifiers (pytest pass/fail, lint score, diff minimality)
 
+**Bug Generation (v2):** Synthetic multi-file repos with injected bugs:
+- Categories: Syntax, logic, type, import, interface, state
+- Difficulty levels: Trivial → Expert
+- Templates: data_pipeline, rest_api (more coming)
+
 ```bash
-# Train on toy repo fixture
-PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --timesteps 10000
+# v1: Train on toy repo fixture (simple)
+PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --mode v1 --timesteps 100000
+
+# v2: Train on generated multi-file tasks (harder)
+PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --mode v2 --difficulty medium --timesteps 1000000
 ```
 
 ## Limitations
