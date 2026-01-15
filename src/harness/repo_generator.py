@@ -588,6 +588,80 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Bug Injection Functions
 # =============================================================================
 
+
+def inject_missing_colon(code: str) -> Tuple[str, str, str]:
+    """Inject missing colon after function/class definition - TRUE TRIVIAL syntax bug."""
+    import re
+    # Find function definitions with colons
+    pattern = r'(def \w+\([^)]*\)):'
+    match = re.search(pattern, code)
+    if match:
+        # Remove the colon
+        buggy = code[:match.end()-1] + code[match.end():]
+        return buggy, "Missing colon after function definition", "Add : after function definition"
+
+    # Try class definitions
+    pattern2 = r'(class \w+(?:\([^)]*\))?):'
+    match2 = re.search(pattern2, code)
+    if match2:
+        buggy = code[:match2.end()-1] + code[match2.end():]
+        return buggy, "Missing colon after class definition", "Add : after class definition"
+
+    return code, "", ""
+
+
+def inject_wrong_quote(code: str) -> Tuple[str, str, str]:
+    """Inject mismatched string quotes - TRUE TRIVIAL syntax bug."""
+    import re
+    # Find single-quoted strings and change closing quote to double
+    pattern = r"'([^'\\]|\\.)*'"
+    matches = list(re.finditer(pattern, code))
+    if matches:
+        match = random.choice(matches)
+        # Change closing single quote to double quote
+        original_str = match.group(0)
+        buggy_str = original_str[:-1] + '"'
+        buggy = code[:match.start()] + buggy_str + code[match.end():]
+        return buggy, "Mismatched string quotes", "Fix closing quote to match opening"
+
+    return code, "", ""
+
+
+def inject_missing_paren(code: str) -> Tuple[str, str, str]:
+    """Inject missing closing parenthesis - TRUE TRIVIAL syntax bug."""
+    import re
+    # Find function calls
+    pattern = r'(\w+\([^()]*)\)'
+    matches = list(re.finditer(pattern, code))
+    if matches:
+        match = random.choice(matches)
+        # Remove closing paren
+        buggy = code[:match.end()-1] + code[match.end():]
+        return buggy, "Missing closing parenthesis", "Add ) to close function call"
+
+    return code, "", ""
+
+
+def inject_typo_keyword(code: str) -> Tuple[str, str, str]:
+    """Inject typo in Python keyword - TRUE TRIVIAL syntax bug."""
+    keywords = [
+        ('return ', 'retrun '),
+        ('import ', 'improt '),
+        ('from ', 'form '),
+        ('class ', 'calss '),
+        ('elif ', 'elfi '),
+        ('True', 'Ture'),
+        ('False', 'Flase'),
+        ('None', 'Nonee'),
+    ]
+    for correct, typo in keywords:
+        if correct in code:
+            buggy = code.replace(correct, typo, 1)
+            return buggy, f"Typo in keyword: {typo.strip()}", f"Fix typo: {typo.strip()} -> {correct.strip()}"
+
+    return code, "", ""
+
+
 def inject_off_by_one(code: str) -> Tuple[str, str, str]:
     """Inject off-by-one error. Returns (buggy, hint, fix_description)."""
     # Find range() calls and modify bounds
@@ -1094,15 +1168,17 @@ class RepoGenerator:
         multi_file: bool,
     ) -> Optional[BugInstance]:
         """Inject a single bug into the files."""
-        # Prefer template-specific injections to ensure verifier failure.
-        if template_name == "data_pipeline":
-            bug = inject_data_pipeline_bug(files, difficulty=difficulty, multi_file=multi_file)
-            if bug is not None:
-                return bug
-        if template_name == "rest_api":
-            bug = inject_rest_api_bug(files, difficulty=difficulty, multi_file=multi_file)
-            if bug is not None:
-                return bug
+        # Template-specific injections for EASY+ only (test-covered logic bugs).
+        # TRIVIAL difficulty should use simpler syntax/operator bugs.
+        if difficulty.value >= BugDifficulty.EASY.value:
+            if template_name == "data_pipeline":
+                bug = inject_data_pipeline_bug(files, difficulty=difficulty, multi_file=multi_file)
+                if bug is not None:
+                    return bug
+            if template_name == "rest_api":
+                bug = inject_rest_api_bug(files, difficulty=difficulty, multi_file=multi_file)
+                if bug is not None:
+                    return bug
 
         # For HARD+ tasks, optionally inject a true multi-file bug combo.
         if multi_file and difficulty.value >= BugDifficulty.HARD.value:
@@ -1121,7 +1197,16 @@ class RepoGenerator:
         path, content = random.choice(candidates)
 
         # Select injection type based on difficulty
-        if difficulty.value <= BugDifficulty.EASY.value:
+        if difficulty == BugDifficulty.TRIVIAL:
+            # TRUE TRIVIAL: syntax errors that can be detected by py_compile
+            injectors = [
+                inject_missing_colon,
+                inject_typo_keyword,
+                inject_wrong_quote,
+                inject_missing_paren,
+            ]
+        elif difficulty == BugDifficulty.EASY:
+            # EASY: simple logic bugs (wrong operator, off-by-one)
             injectors = [inject_wrong_operator, inject_off_by_one]
         elif difficulty.value <= BugDifficulty.MEDIUM.value:
             injectors = [inject_wrong_operator, inject_off_by_one, inject_wrong_return]
@@ -1135,9 +1220,14 @@ class RepoGenerator:
                 files[path] = buggy
 
                 # Create template for this bug
+                # TRIVIAL = syntax bugs, EASY+ = logic bugs
+                bug_category = (
+                    BugCategory.SYNTAX if difficulty == BugDifficulty.TRIVIAL
+                    else BugCategory.LOGIC
+                )
                 template = BugTemplate(
                     name=injector.__name__,
-                    category=BugCategory.LOGIC,
+                    category=bug_category,
                     difficulty=difficulty,
                     description=hint,
                     files_affected=[path],
