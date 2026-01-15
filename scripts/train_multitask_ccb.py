@@ -28,6 +28,7 @@ import torch.nn.functional as F
 from src.core.rpj_brain import RPJBrain, RPJConfig
 from src.core.byte_interface import phi
 from src.benchmarks.multitask_ccb import TorchMultiTaskCCBEnvironment
+from src.utils.gpu_guard import GPUGuard, GPUGuardConfig, default_gpu_index, query_gpu_sample
 
 
 def compute_k_eff(g_t: torch.Tensor) -> float:
@@ -510,6 +511,13 @@ def main():
     parser.add_argument("--lambda-mdl", type=float, default=1.0, help="Codelength penalty coefficient (Ablation C: 0.0)")
     parser.add_argument("--log-interval", type=int, default=1, help="Log every N updates")
     parser.add_argument("--save-interval", type=int, default=100, help="Save checkpoint every N updates")
+    # GPU guardrails (hard safety + utilization floor)
+    parser.add_argument("--no-gpu-guard", action="store_true", help="Disable GPU guardrails (not recommended)")
+    parser.add_argument("--gpu-index", type=int, default=None, help="GPU index for nvidia-smi sampling (default: auto)")
+    parser.add_argument("--gpu-max-vram-mib", type=int, default=10 * 1024, help="Abort if total VRAM used exceeds this")
+    parser.add_argument("--gpu-min-util", type=int, default=80, help="Abort if sustained GPU util falls below this %%")
+    parser.add_argument("--gpu-grace-s", type=float, default=20.0, help="Warmup seconds before util enforcement")
+    parser.add_argument("--gpu-low-util-patience-s", type=float, default=30.0, help="Seconds of low util before abort")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -517,19 +525,47 @@ def main():
         print("WARNING: CUDA not available, running on CPU (will be slow)")
         args.num_envs = 64
 
-    train_multitask(
-        num_envs=args.num_envs,
-        num_steps=args.num_steps,
-        total_timesteps=args.timesteps,
-        num_tasks=args.num_tasks,
-        switch_interval=args.switch_interval,
-        k_max=args.k_max,
-        lambda_e=args.lambda_e,
-        lambda_mdl=args.lambda_mdl,
-        device=device,
-        log_interval=args.log_interval,
-        save_interval=args.save_interval,
-    )
+    guard = None
+    if device == "cuda" and not args.no_gpu_guard:
+        gpu_index = args.gpu_index if args.gpu_index is not None else default_gpu_index()
+        guard = GPUGuard(
+            GPUGuardConfig(
+                gpu_index=gpu_index,
+                max_memory_mib=int(args.gpu_max_vram_mib),
+                min_util_percent=int(args.gpu_min_util),
+                grace_period_s=float(args.gpu_grace_s),
+                low_util_patience_s=float(args.gpu_low_util_patience_s),
+                enforce_min_util=True,
+                require_nvidia_smi=True,
+            )
+        )
+        guard.start()
+        sample = query_gpu_sample(gpu_index)
+        if sample is not None:
+            print(
+                "GPU_GUARD: "
+                f"gpu={gpu_index} util={sample.utilization_gpu}% "
+                f"mem={sample.memory_used_mib}/{sample.memory_total_mib} MiB "
+                f"(cap {args.gpu_max_vram_mib} MiB, min util {args.gpu_min_util}%)"
+            )
+
+    try:
+        train_multitask(
+            num_envs=args.num_envs,
+            num_steps=args.num_steps,
+            total_timesteps=args.timesteps,
+            num_tasks=args.num_tasks,
+            switch_interval=args.switch_interval,
+            k_max=args.k_max,
+            lambda_e=args.lambda_e,
+            lambda_mdl=args.lambda_mdl,
+            device=device,
+            log_interval=args.log_interval,
+            save_interval=args.save_interval,
+        )
+    finally:
+        if guard is not None:
+            guard.stop()
 
 
 if __name__ == "__main__":
