@@ -52,9 +52,11 @@ class ActionType(IntEnum):
 # Shell command grammar (constrained for safety)
 ALLOWED_SHELL_COMMANDS = [
     'python',           # Run Python
+    'python3',          # Run Python (common on Linux/WSL)
     'pip',              # Package management
     'cat',              # View file (limited)
     'ls',               # List directory
+    'rg',               # Fast search (ripgrep)
     'grep',             # Search in files
     'head',             # View file start
     'tail',             # View file end

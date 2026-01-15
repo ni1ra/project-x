@@ -109,6 +109,9 @@ def run_lint(repo_path: str, timeout: int = 15) -> VerifierResult:
     Returns:
         VerifierResult with lint pass/fail status
     """
+    import sys
+    python_exe = sys.executable
+
     try:
         # Use python -m py_compile for basic syntax check
         # Find all Python files
@@ -129,7 +132,7 @@ def run_lint(repo_path: str, timeout: int = 15) -> VerifierResult:
         for py_file in py_files[:20]:  # Limit to first 20 files
             try:
                 result = subprocess.run(
-                    ['python', '-m', 'py_compile', py_file],
+                    [python_exe, '-m', 'py_compile', py_file],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -253,10 +256,12 @@ def run_python_file(
         (output, return_code)
     """
     args = args or []
+    import sys
+    python_exe = sys.executable
 
     try:
         result = subprocess.run(
-            ['python', file_path] + args,
+            [python_exe, file_path] + args,
             capture_output=True,
             text=True,
             timeout=timeout,
