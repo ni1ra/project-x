@@ -5,6 +5,18 @@ A 1.5M parameter neural agent demonstrating **emergent brain-like architecture**
 ## Results
 
 Source of truth: run the reproducibility gate `bash reproduce.sh` (tests + fixed-checkpoint evals).
+For falsification/ablation controls (BLUEPRINT Section 6), run `bash verify_thesis.sh <MAIN_CKPT> <ABLATION_A_CKPT> [ABLATION_B_CKPT]`.
+For emergence confound controls (BLUEPRINT Section 6), run `PYTHONPATH=. ./.venv/bin/python scripts/eval_emergence_controls.py --checkpoint <CKPT>`.
+
+## Mission (Iron Man JARVIS)
+
+The mission is to build a real tool-using operator in the spirit of Iron Man’s JARVIS: an agent that can observe, plan implicitly, act in the world (starting with repos), and improve through feedback.
+
+This repo’s approach is **not** “bolt on an LLM”. The constraint is that capability must emerge from the RPJ objective over a content-free substrate (bytes in/out), plus verifiable ground-truth reward.
+
+Terminology disambiguation:
+- **Jarvis Harness**: the repo-as-world environment used to train/evaluate tool-use.
+- **`~/.jarvis/jarvis`**: an external validation/review tool for this repo (not the agent).
 
 Current results (50M checkpoint, all gates pass):
 
@@ -86,28 +98,46 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_multitask_ccb.py --num-envs 4096 -
 ./.venv/bin/python -m pytest tests/ -q
 ```
 
+### Multi-Seed Validation (≥5)
+
+```bash
+# Requires one checkpoint per seed (template uses {seed})
+PYTHONPATH=. ./.venv/bin/python scripts/run_multiseed_validation.py \
+  --checkpoint-template "results/seed_{seed}/checkpoint.pt" \
+  --mode smoke
+```
+
 ## Project Structure
 
 ```
 src/
   core/
-    rpj_brain.py      # Integrated RPJ Brain (1.5M params)
-    substrate.py      # LN-GRU with sparse routing
-    plasticity.py     # Fast weight adaptation
-    byte_interface.py # Bytes-in/bytes-out encoding
-    ppo_trainer.py    # PPO training loop
-    sleep.py          # Offline consolidation
+    rpj_brain.py         # Integrated RPJ Brain (1.5M params)
+    substrate.py         # LN-GRU with sparse routing
+    temporal_hierarchy.py # Hierarchical substrate with gated mixing
+    plasticity.py        # Fast weight adaptation
+    byte_interface.py    # Bytes-in/bytes-out encoding
+    ppo_trainer.py       # PPO training loop
+    sleep.py             # Offline consolidation
   benchmarks/
     multitask_ccb.py  # Multi-Task CCB (primary training env)
     ccb.py            # Single-task CCB
     od_ndt.py         # One-shot transfer harness
+  harness/
+    env.py            # Jarvis Harness (repo-as-world) environment
+    actions.py        # Byte-encoded action space
+    observations.py   # Byte-encoded observations
+    verifiers.py      # Test/lint verifiers for ground-truth rewards
 web/
   server.py           # FastAPI server (/chat, /ccb, /math)
   static/index.html   # Web UI
 scripts/
-  train_multitask_ccb.py  # Primary training script
-  run_server.py           # Web server launcher
-  run_training.py         # Training wrapper (Windows compatible)
+  train_multitask_ccb.py   # Primary training script
+  train_jarvis_harness.py  # Jarvis Harness training script
+  run_server.py            # Web server launcher
+  run_training.py          # Training wrapper (Windows compatible)
+fixtures/
+  toy_repo/           # Test fixture for harness (buggy calculator)
 ```
 
 ## Benchmarks
@@ -128,6 +158,24 @@ The brain learns to predict E[Y | do(X=x)] across many task variants (default: 1
 ### OD-NDT (One-Demonstration No-Data Transfer)
 
 Tests one-shot learning from a single expert demonstration.
+
+### Jarvis Harness (repo-as-world)
+
+A gymnasium-style environment where the RPJ brain operates as a tool-using agent in a repository environment.
+
+Naming note: “Jarvis” is a deliberate reference to Iron Man’s JARVIS. This repo is building toward that target via verifier-scored RL (not LLM chat): byte I/O + ground-truth tests/lint/diff rewards.
+
+**Input:** 512 bytes (terminal output + filesystem snapshot + goal + meta)
+**Output:** 32 bytes (action type + offset + content)
+
+**Actions:** Shell commands, file read/write, run tests, search, submit
+
+**Rewards:** Ground-truth verifiers (pytest pass/fail, lint score, diff minimality)
+
+```bash
+# Train on toy repo fixture
+PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --timesteps 10000
+```
 
 ## Limitations
 
@@ -151,9 +199,20 @@ The brain was trained as a **multi-task RL agent** that uses reward signals to i
 
 ## Energy Model
 
-Energy tracked via proxy:
+Energy is tracked via a proxy (used for RPJ pricing during training):
 ```
 E_step = kappa_F * FLOPs + kappa_M * BytesMoved
 ```
 
-Target: P_bar ≤ 20W equivalent
+Energy constants + calibration status are declared in `benchmarks/rpj_v5_manifest.json` (hash pinned in `benchmarks/rpj_v5_manifest.sha256`) and printed by `reproduce.sh`.
+
+This repo does not claim calibrated watts-equivalent compliance unless calibration logs exist (see `BLUEPRINT.md`).
+
+## Deployment Envelope (RTX 5070 Ti)
+
+The current deployment target is GPU-bounded rather than watt-bounded:
+- **GPU**: RTX 5070 Ti class
+- **VRAM**: < 10 GB
+- **Utilization**: ~80% sustained target (headroom)
+
+These are operational targets and should be verified via `nvidia-smi` during the intended workload.

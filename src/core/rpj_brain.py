@@ -184,6 +184,7 @@ class RPJBrain(nn.Module):
             obs_dim=config.obs_dim,
             latent_dim=config.latent_dim,
             hidden_dim=config.hidden_dim,
+            action_bytes=config.action_bytes,
             k_max=config.k_max,
         )
 
@@ -316,20 +317,23 @@ class RPJBrain(nn.Module):
         sigma = vae_output.sigma
         code_len = vae_output.code_len
 
-        # Substrate forward pass
-        # Flatten a_prev if needed
-        if a_prev.dim() == 2:
-            a_prev_flat = a_prev[:, 0]  # Take first byte
-        else:
-            a_prev_flat = a_prev
+        # Get fast-weight adapter factors if plasticity enabled
+        recurrent_A = None
+        recurrent_B = None
+        if self.plasticity is not None:
+            recurrent_A = self.plasticity.recurrent_adapter.A
+            recurrent_B = self.plasticity.recurrent_adapter.B
 
+        # Substrate forward pass (with optional fast-weight adaptation)
         substrate_out = self.substrate(
             phi_obs=phi_obs,
             z_t=z_t,
-            a_prev=a_prev_flat,
+            a_prev=a_prev,
             h_t=h_t,
             g_prev=g_prev,
             training=training,
+            recurrent_A=recurrent_A,
+            recurrent_B=recurrent_B,
         )
 
         # Get value estimate (conditions on g_t for K_eff gradient flow)
@@ -548,19 +552,13 @@ class RPJBrain(nn.Module):
             vae_output = self.vae(prev_h, phi_obs, obs_bytes)
             z_t = vae_output.z_t
 
-        # Flatten prev_a if needed
-        if prev_a.dim() == 2:
-            prev_a_flat = prev_a[:, 0]
-        else:
-            prev_a_flat = prev_a
-
         # Substrate forward pass WITH GRADIENTS
         # This is the key: we re-run the forward pass so gradients can flow
         # from policy loss back through substrate to learn input→output mapping
         substrate_out = self.substrate(
             phi_obs=phi_obs,
             z_t=z_t,
-            a_prev=prev_a_flat,
+            a_prev=prev_a,
             h_t=prev_h,
             g_prev=prev_g,
             training=True,  # Always training mode for PPO update
@@ -785,7 +783,7 @@ if __name__ == "__main__":
 
     # Dummy inputs
     obs = torch.randint(0, 256, (batch_size, obs_dim))
-    a_prev = torch.randint(0, 256, (batch_size,))
+    a_prev = torch.randint(0, 256, (batch_size, brain.config.action_bytes))
 
     # Forward pass
     output = brain(obs, h, g, a_prev, training=True)

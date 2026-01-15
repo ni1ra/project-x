@@ -406,7 +406,7 @@ class RPJTrainer:
         # Initialize brain state
         batch_size = 1
         h, g = self.brain.init_state(batch_size, self.device)
-        a_prev = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+        a_prev = torch.zeros((batch_size, self.brain.config.action_bytes), dtype=torch.long, device=self.device)
 
         # Reset energy tracking for episode
         self.energy_tracker.reset_episode()
@@ -576,13 +576,13 @@ class RPJTrainer:
                 obs, info = env.reset()
                 obs = torch.tensor(obs, dtype=torch.long, device=self.device).unsqueeze(0)
                 h, g = self.brain.init_state(batch_size, self.device)
-                a_prev = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+                a_prev = torch.zeros((batch_size, self.brain.config.action_bytes), dtype=torch.long, device=self.device)
                 self.energy_tracker.reset_episode()
             else:
                 obs = next_obs_tensor
                 h = output.h_next
                 g = output.g_t
-                a_prev = output.action.flatten()
+                a_prev = output.action
 
             self.total_steps += 1
 

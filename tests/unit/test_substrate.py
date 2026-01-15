@@ -343,6 +343,27 @@ class TestRPJSubstrate:
         assert output.cbr_t.shape == (batch_size,)
         assert output.bi_t.shape == (batch_size,)
 
+    def test_forward_pass_shapes_multibyte_prev_action(self):
+        """Substrate must support 32-byte previous-action context (Jarvis harness)."""
+        batch_size = 4
+        obs_dim = 64
+        action_bytes = 32
+
+        substrate = RPJSubstrate(obs_dim=obs_dim, action_bytes=action_bytes)
+        assert substrate.input_dim == obs_dim + LATENT_DIM + action_bytes + K_MAX
+
+        h = substrate.init_hidden(batch_size, torch.device("cpu"))
+        g = substrate.init_global_scalars(batch_size, torch.device("cpu"))
+
+        phi_obs = torch.randn(batch_size, obs_dim)
+        z_t = torch.randn(batch_size, LATENT_DIM)
+        a_prev = torch.randint(0, 256, (batch_size, action_bytes))
+
+        output = substrate(phi_obs, z_t, a_prev, h, g, training=True)
+
+        assert output.h_next.shape == (batch_size, HIDDEN_DIM)
+        assert output.g_t.shape == (batch_size, K_MAX)
+
     def test_output_type(self, substrate):
         batch_size = 2
         h = substrate.init_hidden(batch_size, torch.device('cpu'))

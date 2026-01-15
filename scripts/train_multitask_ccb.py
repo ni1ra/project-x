@@ -127,6 +127,9 @@ def train_multitask(
     total_timesteps: int = 50_000_000,
     num_tasks: int = 100,
     switch_interval: int = 500,
+    k_max: int = 16,
+    lambda_e: float = 1.0,
+    lambda_mdl: float = 1.0,
     device: str = "cuda",
     log_interval: int = 1,
     save_interval: int = 100,
@@ -146,6 +149,7 @@ def train_multitask(
     print(f"  Steps per update: {num_steps}")
     print(f"  Batch size: {num_envs * num_steps:,}")
     print(f"  Total timesteps: {total_timesteps:,}")
+    print(f"  k_max: {k_max} | lambda_E: {lambda_e} | lambda_mdl: {lambda_mdl}")
 
     torch.set_float32_matmul_precision('high')
 
@@ -168,7 +172,9 @@ def train_multitask(
         obs_dim=obs_dim,
         action_bytes=action_bytes,
         hidden_dim=512,
-        k_max=16,  # JARVIS 420 FIX: Match BLUEPRINT.md Section 2.2
+        k_max=k_max,  # Ablation B: set k_max=0 (no global scalars)
+        lambda_E=lambda_e,  # Ablation A: set lambda_E=0 (no RPJ selection pressure)
+        lambda_mdl=lambda_mdl,  # Ablation C: set lambda_mdl=0 (no MDL/codelength)
         lambda_g=0.05,  # JARVIS RAPID: 5x sparsity for CPU validation
         enable_plasticity=True,   # Enable for OD-NDT transfer
         enable_sleep=False,
@@ -422,6 +428,8 @@ def train_multitask(
                     'action_bytes': config.action_bytes,
                     'hidden_dim': config.hidden_dim,
                     'k_max': config.k_max,
+                    'lambda_E': config.lambda_E,
+                    'lambda_mdl': config.lambda_mdl,
                     'num_tasks': num_tasks,
                     'multitask': True,
                 },
@@ -458,6 +466,8 @@ def train_multitask(
             'action_bytes': config.action_bytes,
             'hidden_dim': config.hidden_dim,
             'k_max': config.k_max,
+            'lambda_E': config.lambda_E,
+            'lambda_mdl': config.lambda_mdl,
             'num_tasks': num_tasks,
             'multitask': True,
         },
@@ -495,6 +505,9 @@ def main():
     parser.add_argument("--num-steps", type=int, default=128, help="Steps per rollout")
     parser.add_argument("--num-tasks", type=int, default=100, help="Number of task types")
     parser.add_argument("--switch-interval", type=int, default=500, help="Steps between task switches")
+    parser.add_argument("--k-max", type=int, default=16, help="Global scalar count (Ablation B: 0)")
+    parser.add_argument("--lambda-e", type=float, default=1.0, help="Energy penalty coefficient (Ablation A: 0.0)")
+    parser.add_argument("--lambda-mdl", type=float, default=1.0, help="Codelength penalty coefficient (Ablation C: 0.0)")
     parser.add_argument("--log-interval", type=int, default=1, help="Log every N updates")
     parser.add_argument("--save-interval", type=int, default=100, help="Save checkpoint every N updates")
     args = parser.parse_args()
@@ -510,6 +523,9 @@ def main():
         total_timesteps=args.timesteps,
         num_tasks=args.num_tasks,
         switch_interval=args.switch_interval,
+        k_max=args.k_max,
+        lambda_e=args.lambda_e,
+        lambda_mdl=args.lambda_mdl,
         device=device,
         log_interval=args.log_interval,
         save_interval=args.save_interval,

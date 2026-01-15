@@ -2,8 +2,8 @@
   "version": "v5",
   "name": "RPJ Brain Manifest",
   "created": "2026-01-12",
-  "frozen": false,
-  "note": "FREEZE THIS FILE BEFORE ANY TRAINING RUN - Rule 4.1.A",
+  "frozen": true,
+  "note": "FROZEN: hash pinned in benchmarks/rpj_v5_manifest.sha256 (Rule 4.1.A)",
 
   "energy_constants": {
     "kappa_F": 1e-9,

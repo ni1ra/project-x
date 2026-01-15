@@ -89,7 +89,9 @@ class LNGRUCell(nn.Module):
     def forward(
         self,
         x_t: torch.Tensor,
-        h_t: torch.Tensor
+        h_t: torch.Tensor,
+        recurrent_A: Optional[torch.Tensor] = None,
+        recurrent_B: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Single GRU step with LayerNorm.
@@ -97,10 +99,47 @@ class LNGRUCell(nn.Module):
         Args:
             x_t: Input [batch, input_dim]
             h_t: Previous hidden state [batch, hidden_dim]
+            recurrent_A: Optional low-rank adapter A factors for the recurrent projection.
+                         Shapes:
+                           - [3*hidden_dim, rank] (non-batched)
+                           - [batch, 3*hidden_dim, rank] (batched per-env)
+            recurrent_B: Optional low-rank adapter B factors for the recurrent projection.
+                         Shapes:
+                           - [hidden_dim, rank] (non-batched)
+                           - [batch, hidden_dim, rank] (batched per-env)
 
         Returns:
             h_next: Next hidden state [batch, hidden_dim]
         """
+        def _apply_recurrent_adapter(x: torch.Tensor) -> torch.Tensor:
+            if recurrent_A is None or recurrent_B is None:
+                return torch.zeros(x.size(0), 3 * self.hidden_dim, device=x.device, dtype=x.dtype)
+
+            A = recurrent_A
+            B = recurrent_B
+
+            if A.dim() != B.dim():
+                raise ValueError(f"recurrent_A and recurrent_B must have same rank, got {A.dim()} and {B.dim()}")
+
+            if A.dim() == 3:
+                if A.size(0) != x.size(0) or B.size(0) != x.size(0):
+                    raise ValueError(
+                        f"batched recurrent adapter requires batch match: "
+                        f"A[0]={A.size(0)} B[0]={B.size(0)} batch={x.size(0)}"
+                    )
+                # x: [B, hidden], B: [B, hidden, r] -> [B, r]
+                x_B = torch.bmm(x.unsqueeze(1), B).squeeze(1)
+                # x_B: [B, r], A^T: [B, r, 3h] -> [B, 3h]
+                return torch.bmm(x_B.unsqueeze(1), A.transpose(1, 2)).squeeze(1)
+
+            if A.dim() == 2:
+                # x: [B, hidden], B: [hidden, r] -> [B, r]
+                x_B = x @ B
+                # x_B: [B, r], A^T: [r, 3h] -> [B, 3h]
+                return x_B @ A.t()
+
+            raise ValueError(f"unsupported adapter rank for recurrent_A/recurrent_B: {A.dim()}")
+
         # Pre-activation LayerNorm
         h_bar = self.ln_h(h_t)
 
@@ -108,8 +147,8 @@ class LNGRUCell(nn.Module):
         input_proj = self.W_input(x_t)
         W_z, W_r, W_h = input_proj.chunk(3, dim=-1)
 
-        # Compute all hidden projections at once
-        hidden_proj = self.U_hidden(h_bar)
+        # Compute all hidden projections at once (+ optional fast adapter)
+        hidden_proj = self.U_hidden(h_bar) + _apply_recurrent_adapter(h_bar)
         U_z, U_r, U_h = hidden_proj.chunk(3, dim=-1)
 
         # Update gate: z = σ(W_z x + U_z h̄)
@@ -120,7 +159,9 @@ class LNGRUCell(nn.Module):
 
         # Candidate: h̃ = tanh(W_h x + U_h LN(r ⊙ h̄))
         reset_h = self.ln_reset(r * h_bar)
-        h_tilde = torch.tanh(W_h + self.U_hidden(reset_h).chunk(3, dim=-1)[2])
+        hidden_proj_reset = self.U_hidden(reset_h) + _apply_recurrent_adapter(reset_h)
+        U_h_reset = hidden_proj_reset.chunk(3, dim=-1)[2]
+        h_tilde = torch.tanh(W_h + U_h_reset)
 
         # Output: h' = (1-z) ⊙ h + z ⊙ h̃
         h_next = (1 - z) * h_t + z * h_tilde
@@ -492,6 +533,7 @@ class RPJSubstrate(nn.Module):
         obs_dim: int,
         latent_dim: int = LATENT_DIM,
         hidden_dim: int = HIDDEN_DIM,
+        action_bytes: int = 1,
         num_blocks: int = NUM_BLOCKS,
         k_r_max: int = K_R_MAX,
         n_max: int = N_MAX,
@@ -502,15 +544,15 @@ class RPJSubstrate(nn.Module):
         self.obs_dim = obs_dim
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
+        self.action_bytes = action_bytes
         self.num_blocks = num_blocks
         self.k_r_max = k_r_max
         self.n_max = n_max
         self.k_max = k_max
 
-        # Input: [φ(o_t) || z_t || a_t || g_t]
-        # Note: a_t size depends on action space, assume 1 byte for now
-        # g_t from previous step (or zeros initially)
-        self.input_dim = obs_dim + latent_dim + 1 + k_max
+        # Input: [φ(o_t) || z_t || a_prev || g_prev]
+        # a_prev is byte-encoded with length = action_bytes.
+        self.input_dim = obs_dim + latent_dim + action_bytes + k_max
 
         # Core recurrent unit
         self.gru_cell = LNGRUCell(self.input_dim, hidden_dim)
@@ -546,7 +588,9 @@ class RPJSubstrate(nn.Module):
         a_prev: torch.Tensor,
         h_t: torch.Tensor,
         g_prev: torch.Tensor,
-        training: bool = True
+        training: bool = True,
+        recurrent_A: Optional[torch.Tensor] = None,
+        recurrent_B: Optional[torch.Tensor] = None,
     ) -> SubstrateOutput:
         """
         Single substrate step.
@@ -558,6 +602,8 @@ class RPJSubstrate(nn.Module):
             h_t: Current hidden state [batch, hidden_dim]
             g_prev: Previous global scalars [batch, k_max]
             training: Whether in training mode
+            recurrent_A: Optional low-rank adapter A factors [3*hidden, rank] or [batch, 3*hidden, rank]
+            recurrent_B: Optional low-rank adapter B factors [hidden, rank] or [batch, hidden, rank]
 
         Returns:
             SubstrateOutput containing next state and metrics
@@ -579,8 +625,8 @@ class RPJSubstrate(nn.Module):
         # Get routing mask
         soft_weights, hard_mask = self.router(h_t, k_r, training)
 
-        # GRU step (candidate next state)
-        h_candidate = self.gru_cell(x_t, h_t)
+        # GRU step (candidate next state) - with optional fast-weight adaptation
+        h_candidate = self.gru_cell(x_t, h_t, recurrent_A, recurrent_B)
 
         # Apply blockwise routing
         h_next = self.router.apply_routing(h_t, h_candidate, hard_mask)

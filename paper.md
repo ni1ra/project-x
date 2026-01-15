@@ -37,6 +37,8 @@ The mission succeeds. The agent distinguishes causation from correlation without
 
 These results suggest that certain brain-like decompositions (global broadcast, dual-process, synaptic consolidation) are attractors of optimization under scarcity—not biological accidents, but engineering optima. We did not build these structures. We priced the resources, and the structures emerged.
 
+The next question: can emergence transfer from benchmarks to real work? Sprint 1 (Appendix I) begins the answer—a tool-using harness where the same brain fixes bugs in code repositories, rewarded by pytest, not by human feedback.
+
 ---
 
 ## Act I — The Meter (the only honest beginning)
@@ -723,34 +725,9 @@ We measure whether these channels specialize via an effective count metric \(K_{
 
 This is the “neuromodulator emergence” bet: a small set of global signals should become reused and interpretable under scarcity.
 
-### 3.5 Compression pressure via bits-back codelength (MDL)
+### 3.5 Compression and sleep (see Acts VI, Appendix H)
 
-A VAE-style latent \(z_t\) provides a codelength estimate:
-\[
-\text{CodeLen}_t =
--\log p(o_t\mid z_t) - \log p_0(z_t) + \log q(z_t\mid h_t,\phi(o_t))
-\]
-
-In implementation, \(\log\) is typically the natural log, so \(\text{CodeLen}_t\) is measured in nats. When normalizing against raw observation *bits* (for the RPJ penalty), convert via:
-\[
-\text{CodeLen}^{bits}_t = \frac{\text{CodeLen}^{nats}_t}{\ln 2}.
-\]
-
-Two points are non-negotiable (and explicitly emphasized in the project memory):
-
-- The encoder must be a posterior: \(q(z\mid h,o)\), not \(q(z\mid h)\).
-- The VAE should be trained by direct likelihood/SGD (not “hoping RL reward will shape densities”).
-
-The intent is that the agent pays rent for representational complexity, and benefits from learning reusable compressed structure.
-
-### 3.6 Sleep/offline consolidation (available, not forced)
-
-The blueprint includes an offline compute mode (“sleep”) with a fixed sleep energy budget \(B_{sleep}\). The key conceptual stance is:
-
-- Sleep is not a hand-triggered phase.
-- It is only “real” if it emerges because it improves long-horizon objective value under energy pricing.
-
-This repo treats sleep as a capability the agent can allocate energy to, and evaluates whether enabling offline compute improves retention/transfer under matched budgets.
+Compression via bits-back VAE and sleep consolidation are detailed in Acts VI and Appendix H. Key requirement: encoder must be posterior \(q(z\mid h,o)\), not prior \(q(z\mid h)\).
 
 ---
 
@@ -764,7 +741,7 @@ E_t = \kappa_F\cdot \text{FLOPs}_t + \kappa_M \cdot \text{BytesMoved}_t
 \]
 and is charged against hard caps (episode/day/sleep).
 
-Important nuance from the docs: without hardware calibration, \(\kappa_F,\kappa_M\) are defaults and should be treated as **uncalibrated**. The mechanism is still useful (it prices compute consistently inside the run), but any “20W-equivalent” claim should be labeled appropriately until calibration is done.
+Important nuance from the docs: without hardware calibration, \(\kappa_F,\kappa_M\) are defaults and should be treated as **uncalibrated**. The mechanism is still useful (it prices compute consistently inside the run), but any calibrated “watts-equivalent” claim should be avoided until calibration is done.
 
 ### 4.2 The RPJ+MDL objective (a Lagrangian, not a slogan)
 
@@ -804,37 +781,7 @@ The goal is to make “transfer” mean what it says, not “fine-tuning on the 
 
 ---
 
-## 6. Experimental status (the negative result, in detail)
-
-This repo has reached a meaningful milestone: it can train, log, checkpoint, and analyze the emergence metrics and benchmark scores.
-
-Per the handoff summary:
-
-- Reward improves (learning occurs).
-- Compute allocation does not collapse (compute decisions remain variable).
-- But the key emergence targets do not appear at the reported training horizon:
-  - **CBR bimodality is too low** to support a clean two-regime story.
-  - **\(K_{\text{eff}}\) remains near maximal**, suggesting global scalars are not specializing.
-  - **DoErr remains poor** (no do()-operator competence yet).
-
-This is the central tension: the system trains, but does not self-organize as predicted.
-
-### 6.1 Why this failure is not mysterious (coupling, not vibes)
-
-The “emergence” story depends on **signal paths**:
-
-- If energy is not sensitive to some structural choice, RPJ cannot select for it.
-- If PPO cannot credit-assign into the parameters that produce a proposed mechanism, that mechanism will drift or remain unused.
-
-The paper’s earlier diagnosis already points at a plausible coupling gap: if policy outputs do not depend on a component (e.g., the broadcast \(g_t\)), PPO will not shape that component through the policy gradient, and any specialization metric (\(K_{\text{eff}}\)) may remain flat.
-
-In other words: if the hypothesis is “neuromodulators emerge,” the implementation must ensure that neuromodulator-like signals are on a path that (a) affects behavior, and (b) receives learning signal.
-
-This is not a defeat. It is the difference between narrative and mechanism: the repo can now audit its own causal wiring.
-
----
-
-## 7. Ablations and falsification plan (how we stop moving goalposts)
+## 6. Ablations and falsification plan (how we stop moving goalposts)
 
 The blueprint pre-registers ablations intended to be decisive:
 
@@ -853,7 +800,7 @@ Additionally, the falsification section includes control conditions (e.g., shuff
 ## 8. Limitations (what this repo cannot yet conclude)
 
 - **Training horizon**: a negative result at 100K steps is informative, but it is not a proof of impossibility.
-- **Energy calibration**: until \(\kappa\) values are calibrated, “20W-equivalent” is a structural intent, not a hardware-verified claim.
+- **Energy calibration**: until \(\kappa\) values are calibrated, any “watts-equivalent” statement is a structural intent, not a hardware-verified claim.
 - **Benchmark scope**: CCB is a clean verifier task, but it is still a narrow slice of causality.
 - **Emergence metrics**: scalar compression and burst metrics are proxies. They need to correlate with functional improvement (transfer, retention, causal accuracy) to matter.
 
@@ -1108,7 +1055,7 @@ If this approach scales—and the author emphasises that no one knows if it scal
 
 1. **Intelligence without the intelligence ceiling.** The current generation of AI systems (including the one assisting in writing this paper) is capped by the transformer architecture and the training distribution. An agent that learns representations from scratch, under scarcity, has no ceiling except the laws of physics. Whether this is good news or terrifying news depends on one's disposition.
 
-2. **Minds that cost what they're worth.** A properly priced cognitive architecture does not think unless thinking pays. This is alien to biological intelligence (our brains run at 20W regardless of task difficulty) but natural to engineering. The implications for deployment, safety, and resource allocation are substantial.
+2. **Minds that cost what they're worth.** A properly priced cognitive architecture does not think unless thinking pays. This is alien to biological intelligence (our brains run at roughly constant power regardless of task difficulty) but natural to engineering. The implications for deployment, safety, and resource allocation are substantial.
 
 3. **The end of the "bigger model" arms race.** If structure matters more than scale, then the competition shifts from "who has the most GPUs" to "who has the best objective functions." This would be a healthier equilibrium for the field.[^perhapswishfulthinking]
 
@@ -1219,5 +1166,137 @@ That is enough for now. The blindfold test awaits.
 ---
 
 *The code is at `WIRED-BRAIN`. The data is in the checkpoints. The Oracle has spoken. The story continues.*
+
+---
+
+## Appendix I — Sprint 1: Jarvis Harness (from emergence metrics to tool-use)
+
+**Date:** 2026-01-15
+
+**Naming note:** “Jarvis” is literal: the long-term target is Iron Man’s JARVIS (a tool-using operator). This appendix is Sprint 1: a verifier-scored RL harness (bytes in/out + hard tests), not a general conversational assistant.
+
+The emergence results (K_eff, DoErr, CBR, OD-NDT) prove the architecture works. But a brain that passes benchmarks is not yet a brain that does useful work. Sprint 1 extends WIRED-BRAIN from "cool metrics" into "operator mode."
+
+### I.1 The Problem
+
+The RPJ Brain was trained on CCB (predicting causal effects). This is a controlled benchmark—useful for proving the architecture, useless for real tasks. The next step is to make the brain operate tools in a closed loop.
+
+### I.2 Jarvis Harness: Repo-as-World
+
+We built a gymnasium-style environment where the brain operates as a tool-using agent in a repository:
+
+**Interface (byte-encoded):**
+- **Observation (512 bytes):** Terminal output (256B) + filesystem snapshot (128B) + goal string (64B) + meta info (64B)
+- **Action (32 bytes):** Action type (1B) + offset/length (4B) + target/content (27B)
+
+**Action Types:**
+| Type | Description |
+|------|-------------|
+| SHELL_CMD | Execute shell command |
+| READ_FILE | Read file chunk |
+| WRITE_FILE | Write/patch file |
+| RUN_TESTS | Run pytest/unittest |
+| SEARCH | Search docs/code |
+| SUBMIT | Submit solution (episode end) |
+| NO_OP | Do nothing |
+
+**Rewards (ground-truth verifiers):**
+- +1.0 per passing test
+- +0.5 for clean lint
+- -0.01 per changed line (MDL pressure for minimal diffs)
+- -0.01 per action (efficiency pressure)
+- +10.0 success bonus (all tests pass)
+
+This is not RL-from-human-feedback. The verifier (pytest) knows the truth.
+
+### I.3 Temporal Hierarchy: Fast/Slow Gating
+
+The original substrate has one timescale. Real cognition operates at multiple timescales—fast reflexes and slow deliberation. We added a hierarchical substrate:
+
+**Architecture:**
+- **Fast GRU (every step):** Reacts to immediate observations
+- **Slow GRU (conditional):** Updates only when triggered
+- **Gated mixing:** `h = h_fast + gate * proj(h_slow)`
+
+**Slow Update Triggers:**
+1. **Clock:** Every N steps (configurable)
+2. **Policy:** Learned trigger from hidden state
+3. **Surprise:** When prediction error spikes
+
+The surprise-driven trigger is key: the slow state updates when the fast state encounters something unexpected. This is "pay attention when confused" implemented as a mechanism.
+
+**Equations:**
+```
+surprise_t = ||h_fast - predicted_fast||²
+trigger = sigmoid(w_trigger · [h_fast || h_slow || surprise_t])
+h_slow_next = trigger * GRU_slow(h_slow, h_fast) + (1-trigger) * h_slow
+h_combined = h_fast + gate * W_proj(h_slow)
+```
+
+### I.4 Training Loop
+
+The harness integrates with the existing RPJ training infrastructure:
+
+```python
+# Simplified training loop
+for step in range(timesteps):
+    obs = env.observe()  # 512 bytes
+    action = brain(obs)  # 32 bytes (currently simplified to 1 byte)
+    reward = env.step(action)  # Ground-truth from verifiers
+    brain.update(reward)  # PPO + energy penalty
+```
+
+Initial results (10K steps on toy repo fixture):
+- FPS: 31
+- Avg Reward: 14.51
+- Training loop closes successfully
+
+### I.5 Current Limitation: Action Space
+
+**JARVIS validation (412/420) identified the gap:**
+
+> "The Brain must generate the full 32-byte JarvisAction structure. The agent cannot fix arbitrary bugs if it cannot generate arbitrary strings/coordinates."
+
+Currently: Brain outputs 1 byte → mapped to hardcoded actions
+Needed: Brain outputs 32 bytes → arbitrary action generation
+
+**Next step (Sprint 2):** Implement autoregressive "Motor Head" for 32-byte action generation.
+
+### I.6 Why This Matters
+
+The Jarvis Harness closes the loop:
+1. **Observation:** See the repo state (tests failing, lint errors)
+2. **Action:** Make changes (edit files, run commands)
+3. **Verification:** Ground-truth reward from test results
+4. **Learning:** Update brain via PPO under energy constraints
+
+This is the path from "emergence demo" to "useful operator." The architecture is the same—bytes in, bytes out, energy priced. The task is different—fix bugs instead of predict causal effects.
+
+The emergence properties (K_eff compression, bimodal compute, sleep consolidation) should transfer. Whether they do is an empirical question for Sprint 2.
+
+The stakes are higher now. CCB asked: can you tell causation from correlation? The harness asks: can you fix a bug? One is a benchmark. The other is useful. If the architecture survives the transition, the thesis strengthens. If it doesn't, we learn why.
+
+---
+
+## Appendix J — Temporal Hierarchy Specification
+
+For replication, here are the architectural constants for the hierarchical substrate:
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| fast_hidden_dim | 256 | Fast GRU hidden size |
+| slow_hidden_dim | 256 | Slow GRU hidden size |
+| surprise_threshold | 0.5 | Threshold for surprise-triggered updates |
+| clock_period | 10 | Steps between clock-triggered updates |
+| gate_hidden_dim | 64 | Gate network hidden layer |
+| policy_trigger_temp | 1.0 | Temperature for policy trigger sampling |
+
+**Parameter count:** ~200K additional parameters (fast GRU + slow GRU + gate network + projection layers)
+
+**Gradient flow:** The slow state receives gradients through both the gated mixing (always) and the slow GRU update (when triggered). The surprise computation is stop-gradient to prevent the fast GRU from learning to minimize surprise artificially.
+
+---
+
+*The meter is running. The story continues.*
 
 

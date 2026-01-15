@@ -187,3 +187,62 @@ class TestSleepReplay:
         assert torch.allclose(captured_h[0].squeeze(0), h1)
         assert torch.allclose(captured_h[1].squeeze(0), h2)
 
+
+class TestMultibyteActions:
+    """Regression tests for 32-byte action mode (Jarvis harness)."""
+
+    def test_forward_shapes_action_bytes_32(self):
+        config = RPJConfig(
+            obs_dim=8,
+            action_bytes=32,
+            enable_plasticity=False,
+            enable_sleep=False,
+        )
+        brain = RPJBrain(config)
+
+        batch_size = 2
+        device = torch.device("cpu")
+        h, g = brain.init_state(batch_size, device)
+
+        obs = torch.randint(0, 256, (batch_size, config.obs_dim), dtype=torch.long)
+        a_prev = torch.zeros((batch_size, config.action_bytes), dtype=torch.long)
+
+        output = brain(obs, h, g, a_prev, training=True)
+
+        assert output.action.shape == (batch_size, config.action_bytes)
+        assert output.action_log_prob.shape == (batch_size, config.action_bytes)
+        assert output.h_next.shape == (batch_size, config.hidden_dim)
+        assert output.g_t.shape == (batch_size, config.k_max)
+
+    def test_evaluate_actions_accepts_prev_action_bytes_32(self):
+        config = RPJConfig(
+            obs_dim=8,
+            action_bytes=32,
+            enable_plasticity=False,
+            enable_sleep=False,
+        )
+        brain = RPJBrain(config)
+
+        batch_size = 2
+        device = torch.device("cpu")
+        h, g = brain.init_state(batch_size, device)
+
+        obs = torch.randint(0, 256, (batch_size, config.obs_dim), dtype=torch.long)
+        a_prev = torch.zeros((batch_size, config.action_bytes), dtype=torch.long)
+
+        with torch.no_grad():
+            output = brain(obs, h, g, a_prev, training=True)
+
+        log_probs, entropy, values, _, _, action_mu = brain.evaluate_actions(
+            obs_bytes=obs,
+            prev_h=h,
+            prev_g=g,
+            prev_a=a_prev,
+            actions=output.action,
+            z_t=output.z_t,
+        )
+
+        assert log_probs.shape == (batch_size, config.action_bytes)
+        assert entropy.shape == (batch_size,)
+        assert values.shape == (batch_size,)
+        assert action_mu is None

@@ -402,6 +402,8 @@ def run_od_ndt_evaluation(
     sleep_consolidation: bool = False,
     sleep_steps: int = 10,
     sleep_lr: float = 1e-4,
+    sr_novel_min: float = 0.60,
+    transfer_min: float = 0.80,
 ) -> Dict:
     """
     Run full OD-NDT evaluation with emergence tracking.
@@ -563,8 +565,8 @@ def run_od_ndt_evaluation(
     mean_error = np.mean(test_errors)
 
     # Pass criteria
-    sr_pass = sr_novel >= 0.60
-    t_pass = transfer_T >= 0.80
+    sr_pass = sr_novel >= sr_novel_min
+    t_pass = transfer_T >= transfer_min
     overall_pass = sr_pass and t_pass
 
     # Emergence assessment
@@ -578,6 +580,8 @@ def run_od_ndt_evaluation(
         'sr_pass': sr_pass,
         't_pass': t_pass,
         'overall_pass': overall_pass,
+        'sr_novel_min': sr_novel_min,
+        'transfer_min': transfer_min,
         'mean_k_eff': mean_k_eff,
         'std_k_eff': std_k_eff,
         'k_eff_elevated': k_eff_elevated,
@@ -598,8 +602,8 @@ def run_od_ndt_evaluation(
     print(f"{'='*60}")
     print(f"\n=== Transfer Metrics ===")
     print(f"  SR_train:    {sr_train:.3f}")
-    print(f"  SR_novel:    {sr_novel:.3f} (threshold: 0.60) {'PASS' if sr_pass else 'FAIL'}")
-    print(f"  Transfer T:  {transfer_T:.3f} (threshold: 0.80) {'PASS' if t_pass else 'FAIL'}")
+    print(f"  SR_novel:    {sr_novel:.3f} (threshold: {sr_novel_min:.2f}) {'PASS' if sr_pass else 'FAIL'}")
+    print(f"  Transfer T:  {transfer_T:.3f} (threshold: {transfer_min:.2f}) {'PASS' if t_pass else 'FAIL'}")
     print(f"  Overall:     {'PASS' if overall_pass else 'FAIL'}")
 
     print(f"\n=== Emergence Metrics (Key for PERSISTENT EMERGENCE) ===")
@@ -643,6 +647,18 @@ def main():
         type=int,
         default=100,
         help="Number of train tasks to estimate SR_train (for transfer T = SR_novel/SR_train)",
+    )
+    parser.add_argument(
+        "--sr-novel-min",
+        type=float,
+        default=0.60,
+        help="Gate threshold for SR_novel (default: 0.60)",
+    )
+    parser.add_argument(
+        "--transfer-min",
+        type=float,
+        default=0.80,
+        help="Gate threshold for transfer T = SR_novel/SR_train (default: 0.80)",
     )
     parser.add_argument(
         "--device",
@@ -779,6 +795,8 @@ def main():
         sleep_consolidation=args.sleep_consolidation,
         sleep_steps=args.sleep_steps,
         sleep_lr=args.sleep_lr,
+        sr_novel_min=args.sr_novel_min,
+        transfer_min=args.transfer_min,
     )
 
     # Save results with appropriate filename
