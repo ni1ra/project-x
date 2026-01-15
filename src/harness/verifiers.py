@@ -308,8 +308,14 @@ def compute_reward(
     """
     components = RewardComponents()
 
-    # Test reward: +1 per passing test
-    components.test_reward = test_result.tests_passing
+    # Test reward: Small bonus per passing test (scaled down to reduce safe-action bias)
+    # The main reward should come from success_bonus for completing the task
+    if test_result.tests_total > 0:
+        pass_rate = test_result.tests_passing / test_result.tests_total
+        # Only +2 for perfect pass rate (was +N for N tests)
+        components.test_reward = 2.0 * pass_rate
+    else:
+        components.test_reward = 0.0
 
     # Lint reward: +0.5 if lint passes
     if lint_result and lint_result.passed:

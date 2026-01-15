@@ -186,8 +186,8 @@ class TestVerifiers:
             diff_changed_lines=5,
             actions_taken=20,
         )
-        # 10 tests * 1.0 + 10.0 success - 0.05 diff - 0.2 actions
-        assert components.test_reward == 10
+        # 100% pass rate * 2.0 + 10.0 success - 0.05 diff - 0.2 actions
+        assert components.test_reward == 2.0  # 100% pass rate * 2.0
         assert components.success_bonus == 10.0
         assert components.total > 0
 
