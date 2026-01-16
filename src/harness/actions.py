@@ -47,6 +47,8 @@ class ActionType(IntEnum):
     LIST_FILES = 13    # List files in directory
     NAVIGATE = 14      # Change focus to different file
     STACKTRACE = 15    # Parse last error stacktrace
+    WRITE_FOCUS = 16   # Write/patch relative to current focus buffer
+    REPLACE_FOCUS = 17 # Find/replace within the current focus buffer
 
 
 # Shell command grammar (constrained for safety)
@@ -107,7 +109,7 @@ def encode_action(action: JarvisAction, max_bytes: int = 32) -> torch.Tensor:
         target_content = action.content
     elif action.action_type == ActionType.READ_FILE:
         target_content = action.target
-    elif action.action_type == ActionType.WRITE_FILE:
+    elif action.action_type in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS):
         # Jarvis Harness v0: WRITE_FILE uses bytes 5-31 as the content/patch payload.
         # The target file may be task-defined (see env.py) since the action only has
         # one payload string slot (BLUEPRINT.md 2.8.2).
@@ -142,7 +144,7 @@ def decode_action(action_bytes: torch.Tensor) -> JarvisAction:
 
     # Action type
     action_type_val = int(action_bytes[0].item())
-    action_type = ActionType(min(action_type_val, len(ActionType) - 1))
+    action_type = ActionType(action_type_val % len(ActionType))
 
     # Offset
     offset = int(action_bytes[1].item()) + (int(action_bytes[2].item()) << 8)
@@ -162,7 +164,7 @@ def decode_action(action_bytes: torch.Tensor) -> JarvisAction:
     return JarvisAction(
         action_type=action_type,
         target=target_content if action_type in [ActionType.READ_FILE, ActionType.SEARCH] else "",
-        content=target_content if action_type in [ActionType.SHELL_CMD, ActionType.WRITE_FILE] else "",
+        content=target_content if action_type in [ActionType.SHELL_CMD, ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS] else "",
         offset=offset,
         length=length,
     )
@@ -197,6 +199,12 @@ def action_to_string(action: JarvisAction) -> str:
     elif action.action_type == ActionType.WRITE_FILE:
         target = action.target or "<task_target>"
         return f"WRITE: {target}[{action.offset}:{action.offset + action.length}] = '{action.content[:20]}...'"
+    elif action.action_type == ActionType.WRITE_FOCUS:
+        # WRITE_FOCUS ignores absolute file offsets and instead applies the edit relative
+        # to the environment's current focus buffer (see env.py).
+        return f"WRITE_FOCUS[{action.offset}:{action.offset + action.length}] = '{action.content[:20]}...'"
+    elif action.action_type == ActionType.REPLACE_FOCUS:
+        return f"REPLACE_FOCUS find='{action.target[:20]}' replace='{action.content[:20]}'"
     elif action.action_type == ActionType.RUN_TESTS:
         return "RUN_TESTS"
     elif action.action_type == ActionType.SEARCH:
@@ -300,7 +308,7 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
 
     # Action type
     action_type_val = int(action_bytes[0].item())
-    action_type = ActionType(min(action_type_val, len(ActionType) - 1))
+    action_type = ActionType(action_type_val % len(ActionType))
 
     # Offset
     offset = int(action_bytes[1].item()) + (int(action_bytes[2].item()) << 8)

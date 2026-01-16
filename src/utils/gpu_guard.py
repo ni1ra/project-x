@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections import deque
 from typing import Deque, List, Optional
+import tempfile
 import os
 import shutil
 import subprocess
@@ -211,3 +212,87 @@ def default_gpu_index() -> int:
     except ValueError:
         return 0
 
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except Exception:
+        return True
+    return True
+
+
+@dataclass
+class ExclusiveGPULock:
+    """
+    Best-effort, cross-process lock to ensure only one training job owns a GPU.
+
+    This is intentionally separate from GPUGuard: the guard enforces utilization/VRAM,
+    while this prevents multiple concurrent training scripts from interfering.
+    """
+
+    gpu_index: int
+    name: str = "wired_brain_train"
+    lock_dir: Optional[str] = None
+    path: str = ""
+    acquired: bool = False
+
+    def __post_init__(self) -> None:
+        base = self.lock_dir or tempfile.gettempdir()
+        safe_name = "".join(c if (c.isalnum() or c in ("-", "_")) else "_" for c in self.name)
+        self.path = os.path.join(base, f"{safe_name}_gpu{int(self.gpu_index)}.lock")
+
+    def acquire(self) -> None:
+        if self.acquired:
+            return
+
+        for _ in range(2):
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                pid = self._read_pid()
+                if pid is not None and _pid_is_running(pid):
+                    raise RuntimeError(
+                        f"GPU_LOCK: another training process is running (pid={pid}). "
+                        f"Refusing to start. Lock: {self.path}"
+                    )
+                try:
+                    os.remove(self.path)
+                except FileNotFoundError:
+                    pass
+                continue
+
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(f"pid={os.getpid()}\n")
+                f.write(f"start_time={time.time()}\n")
+                f.write(f"argv={' '.join(sys.argv)}\n")
+
+            self.acquired = True
+            return
+
+        raise RuntimeError(f"GPU_LOCK: failed to acquire lock after clearing stale lock: {self.path}")
+
+    def release(self) -> None:
+        if not self.acquired:
+            return
+        try:
+            os.remove(self.path)
+        except FileNotFoundError:
+            pass
+        self.acquired = False
+
+    def _read_pid(self) -> Optional[int]:
+        try:
+            with open(self.path, "r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("pid="):
+                        return int(line.split("=", 1)[1].strip())
+        except Exception:
+            return None
+        return None

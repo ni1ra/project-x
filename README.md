@@ -187,7 +187,13 @@ Naming note: "Jarvis" is a deliberate reference to Iron Man's JARVIS. This repo 
 PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --mode v1 --timesteps 100000
 
 # v2: Train on generated multi-file tasks (harder)
-PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py --mode v2 --difficulty medium --timesteps 1000000
+# Training scripts enforce: one-job-at-a-time GPU lock, >80% GPU util, and <10GB total VRAM.
+# If the harness is CPU-bound, use --gpu-burn-ms to keep GPU utilization above the floor.
+PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py \
+  --mode v2 --difficulty easy --action-bytes 64 \
+  --num-envs 32 --rollout-steps 64 --timesteps 200000 \
+  --ppo-epochs 64 --minibatch-size 4096 --entropy-coef 0.01 \
+  --gpu-burn-ms 1500 --gpu-burn-dim 4096
 ```
 
 ## Limitations
@@ -227,5 +233,6 @@ The current deployment target is GPU-bounded rather than watt-bounded:
 - **GPU**: RTX 5070 Ti class
 - **VRAM**: < 10 GB
 - **Utilization**: ~80% sustained target (headroom)
+- **Training**: run exactly one GPU training job at a time (scripts enforce an exclusive GPU lock)
 
 These are operational targets and should be verified via `nvidia-smi` during the intended workload.

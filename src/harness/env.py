@@ -71,6 +71,8 @@ class HarnessConfig:
     run_tests_on_reset: bool = True   # If False, skip pytest in reset() (faster training)
     run_fast_tests: bool = False      # If True, RUN_TESTS uses run_pytest_fast
     async_tests: bool = False         # If True, RUN_TESTS/SUBMIT run asynchronously (training)
+    auto_tests_on_write: bool = False # If True, start fast tests after successful writes (async only)
+    auto_full_tests_on_fast_pass: bool = False  # If True, run full tests when fast tests pass (async only)
     test_timeout_seconds: int = 30
     fast_test_timeout_seconds: int = 20
 
@@ -113,16 +115,20 @@ class HarnessState:
     pending_submit: bool = False
     prev_tests_passing: int = 0
     prev_tests_total: int = 0
+    has_test_baseline: bool = False
     last_tests_delta_passing: int = 0
     last_tests_delta_total: int = 0
     last_reward: float = 0.0
     episode_return: float = 0.0  # Cumulative reward for the episode
     done: bool = False
+    last_action_success: bool = True
+    last_edit_changed: bool = False
     # Step-local bookkeeping for reward shaping / metrics
     last_action_type: int = -1
     prev_diff_lines: int = 0
     write_file_actions: int = 0
     write_focus_actions: int = 0
+    effective_edits: int = 0
     run_tests_actions: int = 0
     # Focus buffer (for learnable, relative edits)
     focus_file: str = ""
@@ -279,19 +285,54 @@ class JarvisHarnessEnv:
             last_syntax_step=-1,
         )
 
-        # Optional initial test run to establish baseline (expensive; disable for training).
+        # Initialize focus to the task's target file so WRITE_FOCUS is immediately usable.
+        try:
+            target = self.task.target_file if self.task else ""
+            if target and self.temp_dir:
+                fpath = os.path.join(self.temp_dir, target)
+                if os.path.exists(fpath):
+                    with open(fpath, "r") as f:
+                        content = f.read()
+                    self.state.focus_file = target
+                    self.state.focus_offset = 0
+                    self.state.focus_text = content[:256]
+        except Exception:
+            pass
+
+        # Optional initial test run to establish baseline.
+        #
+        # In async mode, start a non-blocking fast pytest so the agent gets early failure localization
+        # without stalling vectorized env stepping.
         if self.config.run_tests_on_reset:
-            self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
-            self.state.last_test_step = 0
-            self.state.initial_tests_passing = self.state.last_test_result.tests_passing
-            self.state.prev_tests_passing = self.state.last_test_result.tests_passing
-            self.state.prev_tests_total = self.state.last_test_result.tests_total
-            self.state.terminal_buffer += (
-                f"Initial tests: {self.state.last_test_result.tests_passing}/"
-                f"{self.state.last_test_result.tests_total} passing\n"
-            )
+            if self.config.async_tests:
+                self.state.initial_tests_passing = 0
+                self.state.has_test_baseline = False
+                self.state.last_test_result = None
+                self.state.last_test_step = -1
+                ok, msg = self._start_pytest_process(fast=bool(self.config.run_fast_tests))
+                self.state.terminal_buffer += f"Initial tests: {msg if ok else 'failed to start'}\n"
+            else:
+                if self.config.run_fast_tests:
+                    self.state.last_test_result = run_pytest_fast(
+                        self.temp_dir,
+                        timeout=self.config.fast_test_timeout_seconds,
+                        maxfail=1,
+                    )
+                else:
+                    self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+
+                self.state.last_test_step = 0
+                self.state.initial_tests_passing = self.state.last_test_result.tests_passing
+                self.state.prev_tests_passing = self.state.last_test_result.tests_passing
+                self.state.prev_tests_total = self.state.last_test_result.tests_total
+                self.state.has_test_baseline = True
+                self.state.terminal_buffer += (
+                    f"Initial tests: {self.state.last_test_result.tests_passing}/"
+                    f"{self.state.last_test_result.tests_total} passing\n"
+                )
         else:
             self.state.initial_tests_passing = 0
+            self.state.has_test_baseline = False
             self.state.terminal_buffer += "Initial tests: (skipped)\n"
 
         return self._get_observation()
@@ -428,7 +469,10 @@ class JarvisHarnessEnv:
         self.state.energy_used += action_energy
 
         # Execute action
+        self.state.last_action_success = True
+        self.state.last_edit_changed = False
         result, output = self._execute_action(action)
+        self.state.last_action_success = bool(result)
 
         # Update terminal buffer
         self.state.terminal_buffer += f"\n[Step {self.state.step}] {action_to_string(action)}\n"
@@ -562,6 +606,8 @@ class JarvisHarnessEnv:
                 if self.state and self.state.focus_file
                 else b""
             ),
+            focus_text=(self.state.focus_text if self.state and self.state.focus_text else ""),
+            focus_preview=(self.state.focus_text[:32] if self.state and self.state.focus_text else ""),
         )
 
         return encode_observation(obs, self.config.obs_bytes)
@@ -639,6 +685,13 @@ class JarvisHarnessEnv:
                 length = max(0, min(action.length, len(existing) - offset))
                 new_content = existing[:offset] + action.content + existing[offset + length:]
 
+                changed = new_content != existing
+                self.state.last_edit_changed = bool(changed)
+                if changed:
+                    self.state.effective_edits += 1
+                if not changed:
+                    return True, f"No-op write (no changes) to {target_path}"
+
                 # Write file
                 os.makedirs(os.path.dirname(fpath), exist_ok=True)
                 with open(fpath, 'w') as f:
@@ -669,6 +722,16 @@ class JarvisHarnessEnv:
                     else:
                         syntax_msg = f"\nSyntax ERROR:\n{self.state.last_syntax_result.details}"
 
+                # Training helper: after a real, syntax-valid edit, start a cheap async test run.
+                if self.config.auto_tests_on_write and self.config.async_tests:
+                    diff_changed = int(new_changed) != int(old_changed)
+                    syntax_ok = (not target_path.endswith(".py")) or (
+                        self.state.last_syntax_result is not None and self.state.last_syntax_result.passed
+                    )
+                    if diff_changed and syntax_ok:
+                        self.state.pending_submit = False
+                        self._start_pytest_process(fast=True)
+
                 return True, f"Wrote {len(action.content)} bytes to {target_path}{syntax_msg}"
             except Exception as e:
                 return False, f"Write error: {e}"
@@ -697,6 +760,13 @@ class JarvisHarnessEnv:
                 replace_len = max(0, min(int(action.length), max(0, len(existing) - global_offset)))
                 new_content = existing[:global_offset] + action.content + existing[global_offset + replace_len:]
 
+                changed = new_content != existing
+                self.state.last_edit_changed = bool(changed)
+                if changed:
+                    self.state.effective_edits += 1
+                if not changed:
+                    return True, f"No-op write (no changes) to focus {target_path}"
+
                 os.makedirs(os.path.dirname(fpath), exist_ok=True)
                 with open(fpath, "w") as f:
                     f.write(new_content)
@@ -723,28 +793,131 @@ class JarvisHarnessEnv:
                     else:
                         syntax_msg = f"\nSyntax ERROR:\n{self.state.last_syntax_result.details}"
 
+                if self.config.auto_tests_on_write and self.config.async_tests:
+                    diff_changed = int(new_changed) != int(old_changed)
+                    syntax_ok = (not target_path.endswith(".py")) or (
+                        self.state.last_syntax_result is not None and self.state.last_syntax_result.passed
+                    )
+                    if diff_changed and syntax_ok:
+                        self.state.pending_submit = False
+                        self._start_pytest_process(fast=True)
+
                 return True, f"Wrote {len(action.content)} bytes to focus {target_path}{syntax_msg}"
             except Exception as e:
                 return False, f"Write focus error: {e}"
 
+        elif action.action_type == ActionType.REPLACE_FOCUS:
+            if not self.state.focus_file:
+                return False, "No focus set (use READ_FILE/NAVIGATE first)"
+
+            find_s = (action.target or "").strip()
+            repl_s = action.content or ""
+            if not find_s:
+                return False, "No find string provided"
+
+            target_path = self.state.focus_file
+            fpath = os.path.join(self.temp_dir, target_path)
+            if not os.path.exists(fpath):
+                return False, f"Focused file not found: {target_path}"
+
+            try:
+                with open(fpath, "r") as f:
+                    existing = f.read()
+
+                rel_path = os.path.relpath(fpath, self.temp_dir)
+                if rel_path not in self.state.file_changes:
+                    self.state.file_changes[rel_path] = (existing, existing)
+
+                # Prefer replacing within the current focus window.
+                focus_text = self.state.focus_text or ""
+                idx = focus_text.find(find_s)
+                if idx < 0:
+                    return False, "Find string not found in focus window"
+
+                focus_base = max(0, min(int(self.state.focus_offset), len(existing)))
+                global_offset = max(0, min(focus_base + idx, len(existing)))
+                end = max(0, min(global_offset + len(find_s), len(existing)))
+
+                new_content = existing[:global_offset] + repl_s + existing[end:]
+
+                changed = new_content != existing
+                self.state.last_edit_changed = bool(changed)
+                if changed:
+                    self.state.effective_edits += 1
+                if not changed:
+                    return True, f"No-op replace (no changes) in focus {target_path}"
+
+                os.makedirs(os.path.dirname(fpath), exist_ok=True)
+                with open(fpath, "w") as f:
+                    f.write(new_content)
+
+                orig, _ = self.state.file_changes[rel_path]
+                self.state.file_changes[rel_path] = (orig, new_content)
+
+                old_changed = int(self.state.per_file_diff_lines.get(rel_path, 0))
+                new_changed, _ = compute_diff_size(orig, new_content)
+                self.state.per_file_diff_lines[rel_path] = int(new_changed)
+                self.state.total_diff_lines = int(self.state.total_diff_lines) + int(new_changed) - old_changed
+                self._fs_snapshot_cache[rel_path] = hash_file_content(new_content).hex()
+
+                # Refresh focus window in the edited file.
+                window_len = len(self.state.focus_text) if self.state.focus_text else 256
+                self.state.focus_offset = max(0, min(focus_base, len(new_content)))
+                self.state.focus_text = new_content[self.state.focus_offset:self.state.focus_offset + window_len]
+
+                syntax_msg = ""
+                if target_path.endswith(".py"):
+                    self.state.last_syntax_result = run_py_compile_file(self.temp_dir, rel_path, timeout=5)
+                    self.state.last_syntax_step = int(self.state.step)
+                    if self.state.last_syntax_result.passed:
+                        syntax_msg = "\nSyntax OK"
+                    else:
+                        syntax_msg = f"\nSyntax ERROR:\n{self.state.last_syntax_result.details}"
+
+                if self.config.auto_tests_on_write and self.config.async_tests:
+                    diff_changed = int(new_changed) != int(old_changed)
+                    syntax_ok = (not target_path.endswith(".py")) or (
+                        self.state.last_syntax_result is not None and self.state.last_syntax_result.passed
+                    )
+                    if diff_changed and syntax_ok:
+                        self.state.pending_submit = False
+                        self._start_pytest_process(fast=True)
+
+                return True, f"Replaced '{find_s}' -> '{repl_s}' in focus {target_path}{syntax_msg}"
+            except Exception as e:
+                return False, f"Replace focus error: {e}"
+
         elif action.action_type == ActionType.RUN_TESTS:
             if not self.config.async_tests:
-                prev_passing = int(self.state.prev_tests_passing)
-                prev_total = int(self.state.prev_tests_total)
                 if self.config.run_fast_tests:
-                    self.state.last_test_result = run_pytest_fast(
+                    result = run_pytest_fast(
                         self.temp_dir,
                         timeout=self.config.fast_test_timeout_seconds,
                         maxfail=1,
                     )
                 else:
-                    self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                    result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+
+                self.state.last_test_result = result
                 self.state.last_test_step = int(self.state.step)
-                self.state.last_tests_delta_passing = int(self.state.last_test_result.tests_passing) - prev_passing
-                self.state.last_tests_delta_total = int(self.state.last_test_result.tests_total) - prev_total
-                self.state.prev_tests_passing = int(self.state.last_test_result.tests_passing)
-                self.state.prev_tests_total = int(self.state.last_test_result.tests_total)
-                return True, self.state.last_test_result.details
+
+                if not bool(self.state.has_test_baseline):
+                    self.state.has_test_baseline = True
+                    self.state.initial_tests_passing = int(result.tests_passing)
+                    self.state.prev_tests_passing = int(result.tests_passing)
+                    self.state.prev_tests_total = int(result.tests_total)
+                    self.state.last_tests_delta_passing = 0
+                    self.state.last_tests_delta_total = 0
+                else:
+                    prev_passing = int(self.state.prev_tests_passing)
+                    prev_total = int(self.state.prev_tests_total)
+                    self.state.last_tests_delta_passing = int(result.tests_passing) - prev_passing
+                    self.state.last_tests_delta_total = int(result.tests_total) - prev_total
+                    self.state.prev_tests_passing = int(result.tests_passing)
+                    self.state.prev_tests_total = int(result.tests_total)
+
+                self._maybe_update_focus_from_test_details(result.details)
+                return True, result.details
 
             # Async mode: avoid CPU subprocess stalls that starve the GPU.
             self.state.pending_submit = False
@@ -773,17 +946,29 @@ class JarvisHarnessEnv:
         elif action.action_type == ActionType.SUBMIT:
             if not self.config.async_tests:
                 # Run final tests
-                prev_passing = int(self.state.prev_tests_passing)
-                prev_total = int(self.state.prev_tests_total)
-                self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                self.state.last_test_result = result
                 self.state.last_test_step = int(self.state.step)
-                self.state.last_tests_delta_passing = int(self.state.last_test_result.tests_passing) - prev_passing
-                self.state.last_tests_delta_total = int(self.state.last_test_result.tests_total) - prev_total
-                self.state.prev_tests_passing = int(self.state.last_test_result.tests_passing)
-                self.state.prev_tests_total = int(self.state.last_test_result.tests_total)
+
+                if not bool(self.state.has_test_baseline):
+                    self.state.has_test_baseline = True
+                    self.state.initial_tests_passing = int(result.tests_passing)
+                    self.state.prev_tests_passing = int(result.tests_passing)
+                    self.state.prev_tests_total = int(result.tests_total)
+                    self.state.last_tests_delta_passing = 0
+                    self.state.last_tests_delta_total = 0
+                else:
+                    prev_passing = int(self.state.prev_tests_passing)
+                    prev_total = int(self.state.prev_tests_total)
+                    self.state.last_tests_delta_passing = int(result.tests_passing) - prev_passing
+                    self.state.last_tests_delta_total = int(result.tests_total) - prev_total
+                    self.state.prev_tests_passing = int(result.tests_passing)
+                    self.state.prev_tests_total = int(result.tests_total)
+
+                self._maybe_update_focus_from_test_details(result.details)
                 return True, (
                     "Submitted. Final tests: "
-                    f"{self.state.last_test_result.tests_passing}/{self.state.last_test_result.tests_total}"
+                    f"{result.tests_passing}/{result.tests_total}"
                 )
 
             # Async submit: run the FULL suite and end the episode only if it passes.
@@ -841,7 +1026,7 @@ class JarvisHarnessEnv:
         import sys
 
         python_exe = sys.executable
-        cmd = [python_exe, "-m", "pytest", "-q", "--tb=no"]
+        cmd = [python_exe, "-m", "pytest", "-q", "--tb=short"]
         scope = "full"
         timeout_s: float = float(self.config.test_timeout_seconds)
         if fast:
@@ -881,46 +1066,81 @@ class JarvisHarnessEnv:
             if "passed" in output:
                 import re
 
-                passed_match = re.search(r"(\\d+) passed", output)
+                passed_match = re.search(r"(\d+) passed", output)
                 if passed_match:
                     tests_passing = int(passed_match.group(1))
                     tests_total = tests_passing
 
-                failed_match = re.search(r"(\\d+) failed", output)
+                failed_match = re.search(r"(\d+) failed", output)
                 if failed_match:
                     tests_total += int(failed_match.group(1))
 
             passed = (returncode == 0) and (not timed_out)
             score = tests_passing / tests_total if tests_total > 0 else 0.0
             details = ("TIMEOUT: tests\n" + output) if timed_out else output
+            details_trunc = details[:500]
 
-            prev_passing = int(self.state.prev_tests_passing)
-            prev_total = int(self.state.prev_tests_total)
+            # Clear the completed process handle first so we can optionally launch follow-on tests.
+            self.state.test_process = None
+            self.state.test_process_start = 0.0
+            self.state.test_process_timeout_s = 0.0
+            self.state.test_process_scope = ""
+
             self.state.last_test_result = VerifierResult(
                 passed=passed,
                 score=score,
-                details=details[:500],
+                details=details_trunc,
                 tests_passing=tests_passing,
                 tests_total=tests_total,
                 scope=scope,
             )
             # Mark "fresh" on the step where results become available.
             self.state.last_test_step = int(self.state.step) - 1
-            self.state.last_tests_delta_passing = int(tests_passing) - prev_passing
-            self.state.last_tests_delta_total = int(tests_total) - prev_total
-            self.state.prev_tests_passing = int(tests_passing)
-            self.state.prev_tests_total = int(tests_total)
+
+            if not bool(self.state.has_test_baseline):
+                self.state.has_test_baseline = True
+                self.state.initial_tests_passing = int(tests_passing)
+                self.state.prev_tests_passing = int(tests_passing)
+                self.state.prev_tests_total = int(tests_total)
+                self.state.last_tests_delta_passing = 0
+                self.state.last_tests_delta_total = 0
+            else:
+                prev_passing = int(self.state.prev_tests_passing)
+                prev_total = int(self.state.prev_tests_total)
+                self.state.last_tests_delta_passing = int(tests_passing) - prev_passing
+                self.state.last_tests_delta_total = int(tests_total) - prev_total
+                self.state.prev_tests_passing = int(tests_passing)
+                self.state.prev_tests_total = int(tests_total)
 
             # Surface results to the agent.
-            self.state.terminal_buffer += "\n[Tests completed]\n" + details[:500] + "\n"
+            self.state.terminal_buffer += (
+                f"\n[Tests completed: {scope}] {tests_passing}/{tests_total} passing\n"
+                + details_trunc
+                + "\n"
+            )
             if len(self.state.terminal_buffer) > 2000:
                 self.state.terminal_buffer = self.state.terminal_buffer[-2000:]
 
-            # Clear process handle.
-            self.state.test_process = None
-            self.state.test_process_start = 0.0
-            self.state.test_process_timeout_s = 0.0
-            self.state.test_process_scope = ""
+            # Update focus from traceback hints (makes focused edits learnable).
+            self._maybe_update_focus_from_test_details(details_trunc)
+
+            # Training helper: if fast tests pass, opportunistically run the full suite so the
+            # success bonus is reachable even if the agent hasn't learned SUBMIT yet.
+            if (
+                scope == "fast"
+                and bool(passed)
+                and bool(self.config.async_tests)
+                and bool(self.config.auto_full_tests_on_fast_pass)
+                and self.state is not None
+                and (not bool(self.state.pending_submit))
+            ):
+                self.state.pending_submit = True
+                ok, msg = self._start_pytest_process(fast=False)
+                if not ok:
+                    self.state.pending_submit = False
+                self.state.terminal_buffer += f"\n[Auto full tests] {msg}\n"
+                if len(self.state.terminal_buffer) > 2000:
+                    self.state.terminal_buffer = self.state.terminal_buffer[-2000:]
 
         try:
             returncode = proc.poll()
@@ -947,6 +1167,134 @@ class JarvisHarnessEnv:
         except Exception:
             out, err = "", ""
         _finalize((out or "") + (err or ""), returncode=int(returncode), timed_out=False)
+
+    def _extract_trace_locations(self, details: str) -> List[Tuple[str, int]]:
+        """Best-effort parse of file:line locations from pytest/traceback text."""
+        if not details:
+            return []
+
+        import re
+
+        locs: List[Tuple[str, int]] = []
+
+        # Python traceback format.
+        for fpath, line_s in re.findall(r'File "([^"]+)", line (\d+)', details):
+            try:
+                locs.append((fpath, int(line_s)))
+            except Exception:
+                continue
+
+        # Pytest short/summary format (also catches many error lines).
+        for fpath, line_s in re.findall(r"([A-Za-z0-9_./\\\\-]+\\.py):(\\d+)", details):
+            try:
+                locs.append((fpath, int(line_s)))
+            except Exception:
+                continue
+
+        return locs
+
+    def _normalize_trace_path(self, fpath: str) -> Optional[str]:
+        """Return repo-relative path if fpath points inside the temp workspace."""
+        if not self.temp_dir:
+            return None
+        fpath = (fpath or "").strip()
+        if not fpath or not fpath.endswith(".py"):
+            return None
+
+        try:
+            if os.path.isabs(fpath):
+                if not fpath.startswith(self.temp_dir):
+                    return None
+                rel = os.path.relpath(fpath, self.temp_dir)
+            else:
+                candidate = os.path.join(self.temp_dir, fpath)
+                if not os.path.exists(candidate):
+                    return None
+                rel = fpath
+        except Exception:
+            return None
+
+        rel = rel.replace("\\", "/")
+        if rel.startswith("../"):
+            return None
+        return rel
+
+    def _set_focus_from_location(self, rel_path: str, *, line: int) -> bool:
+        """Set focus window around a (file, line) location and surface a small snippet."""
+        if self.state is None or self.temp_dir is None:
+            return False
+
+        rel_path = (rel_path or "").replace("\\", "/")
+        if not rel_path:
+            return False
+
+        fpath = os.path.join(self.temp_dir, rel_path)
+        if not os.path.exists(fpath):
+            return False
+
+        try:
+            with open(fpath, "r") as f:
+                content = f.read()
+        except Exception:
+            return False
+
+        lines = content.splitlines(True)
+        if not lines:
+            return False
+
+        try:
+            line_idx = int(line) - 1
+        except Exception:
+            line_idx = 0
+        line_idx = max(0, min(line_idx, len(lines) - 1))
+
+        offset = 0
+        for i in range(line_idx):
+            offset += len(lines[i])
+
+        self.state.focus_file = rel_path
+        self.state.focus_offset = int(offset)
+        self.state.focus_text = content[offset:offset + 512]
+
+        # Surface a small snippet for debugging/edit guidance.
+        start = max(0, line_idx - 3)
+        end = min(len(lines), line_idx + 4)
+        snippet = "".join(f"{i+1:04d} {lines[i]}" for i in range(start, end))
+        self.state.terminal_buffer += f"\n[Focus] {rel_path}:{line_idx + 1}\n{snippet}\n"
+        if len(self.state.terminal_buffer) > 2000:
+            self.state.terminal_buffer = self.state.terminal_buffer[-2000:]
+
+        return True
+
+    def _maybe_update_focus_from_test_details(self, details: str) -> None:
+        """Opportunistically set focus to a relevant traceback location (learnability helper)."""
+        if self.state is None or self.temp_dir is None:
+            return
+
+        candidates: List[Tuple[str, int]] = []
+        seen: set[Tuple[str, int]] = set()
+        for fpath, line in self._extract_trace_locations(details):
+            rel = self._normalize_trace_path(fpath)
+            if rel is None:
+                continue
+            key = (rel, int(line))
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(key)
+
+        if not candidates:
+            return
+
+        chosen: Optional[Tuple[str, int]] = None
+        for rel, line in reversed(candidates):
+            if not rel.replace("\\", "/").startswith("tests/"):
+                chosen = (rel, line)
+                break
+        if chosen is None:
+            chosen = candidates[-1]
+
+        self._set_focus_from_location(chosen[0], line=int(chosen[1]))
 
     # =================================================================
     # Git operation implementations
@@ -1108,23 +1456,21 @@ class JarvisHarnessEnv:
             return False, "No test result available"
 
         details = self.state.last_test_result.details
-        # Extract file:line references from traceback
-        import re
-        pattern = r'File "([^"]+)", line (\d+)'
-        matches = re.findall(pattern, details)
-
-        if not matches:
+        locs = self._extract_trace_locations(details)
+        if not locs:
             return True, "No stacktrace found in last output"
 
-        # Format results
-        results = []
-        for fpath, line in matches[-5:]:  # Last 5 stack frames
-            # Make path relative to temp_dir
-            if self.temp_dir and fpath.startswith(self.temp_dir):
-                fpath = os.path.relpath(fpath, self.temp_dir)
-            results.append(f"{fpath}:{line}")
+        results: List[str] = []
+        seen: set[str] = set()
+        for fpath, line in locs[-10:]:
+            rel = self._normalize_trace_path(fpath)
+            label = f"{rel}:{line}" if rel is not None else f"{fpath}:{line}"
+            if label in seen:
+                continue
+            seen.add(label)
+            results.append(label)
 
-        return True, "Stacktrace:\n" + "\n".join(results)
+        return True, "Stacktrace:\n" + "\n".join(results[-5:])
 
     def _estimate_action_energy(self, action: JarvisAction) -> float:
         """Estimate energy cost of an action."""
@@ -1140,7 +1486,7 @@ class JarvisHarnessEnv:
         elif action.action_type == ActionType.READ_FILE:
             return base_cost * (1 + action.length / 1000)
 
-        elif action.action_type in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS):
+        elif action.action_type in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS):
             return base_cost * (2 + len(action.content) / 1000)
 
         elif action.action_type == ActionType.RUN_TESTS:
@@ -1190,7 +1536,7 @@ class JarvisHarnessEnv:
         total_diff_lines = int(self.state.total_diff_lines)
 
         # Penalize only NEW diff introduced this step (discourages thrashing).
-        delta_diff_lines = max(0, total_diff_lines - int(self.state.prev_diff_lines))
+        delta_diff_lines = max(0, int(total_diff_lines) - int(self.state.prev_diff_lines))
         self.state.prev_diff_lines = int(total_diff_lines)
 
         # Only treat pytest results as "fresh" on the step they were executed.
@@ -1213,15 +1559,27 @@ class JarvisHarnessEnv:
         )
         if syntax_fresh:
             if self.state.last_syntax_result.passed:
-                # Small positive for making a real, compiling edit.
-                if delta_diff_lines > 0:
-                    reward += 1.0 if (self.state.write_file_actions + self.state.write_focus_actions) == 1 else 0.2
+                # Positive for making a real, compiling edit (avoid rewarding no-ops).
+                if bool(self.state.last_edit_changed):
+                    reward += 1.0 if int(self.state.effective_edits) == 1 else 0.2
             else:
-                reward -= 1.0
+                reward -= 0.5
 
         # Reward improvement in tests when tests are run (dense delta signal).
         if tests_fresh:
-            reward += 1.0 * float(self.state.last_tests_delta_passing)
+            reward += 2.0 * float(self.state.last_tests_delta_passing)
+
+        # Penalize ineffective write actions (no-op edits).
+        try:
+            at = ActionType(int(self.state.last_action_type))
+        except Exception:
+            at = None
+        if (
+            at in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS)
+            and bool(self.state.last_action_success)
+            and (not bool(self.state.last_edit_changed))
+        ):
+            reward -= 0.05
 
         return reward
 

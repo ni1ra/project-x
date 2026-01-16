@@ -31,6 +31,12 @@ class JarvisObservation:
     last_reward: float = 0.0            # Previous step's reward
     tests_passing: int = 0              # Number of tests passing
     tests_total: int = 0                # Total tests
+    # Focus buffer metadata (learnable editing support)
+    focus_offset: int = 0               # Byte offset into focus_file
+    focus_length: int = 0               # Focus window length in bytes/chars
+    focus_file_hash: bytes = b""        # 16-byte hash of focus file identifier
+    focus_text: str = ""                # Focus window text (truncated in encoding)
+    focus_preview: str = ""             # Small preview of focus_text (for learnable edits)
 
     def __post_init__(self):
         if self.fs_snapshot is None:
@@ -44,6 +50,9 @@ GOAL_BYTES = 64           # Goal string
 FS_BYTES = 128            # Filesystem snapshot
 META_BYTES = 64           # Budget, step, reward, test status
 OBS_TOTAL_BYTES = TERMINAL_BYTES + GOAL_BYTES + FS_BYTES + META_BYTES  # 512
+
+# META_BYTES layout uses 32 bytes today; reserve the rest for focus preview.
+FOCUS_PREVIEW_BYTES = 32
 
 
 def hash_file_content(content: str, max_bytes: int = 16) -> bytes:
@@ -75,23 +84,11 @@ def encode_observation(obs: JarvisObservation, max_bytes: int = OBS_TOTAL_BYTES)
     for i, b in enumerate(goal_bytes):
         result[goal_offset + i] = b
 
-    # Filesystem snapshot (128 bytes)
-    # Encode as: [file_count, hash1, hash2, ...]
+    # Focus text block (FS_BYTES)
     fs_offset = TERMINAL_BYTES + GOAL_BYTES
-    fs_items = list(obs.fs_snapshot.items())[:7]  # Max 7 files × 16 bytes + 16 bytes header
-    result[fs_offset] = min(len(fs_items), 255)  # File count
-
-    for i, (path, content_hash) in enumerate(fs_items):
-        if isinstance(content_hash, str):
-            h = content_hash.encode('utf-8', errors='replace')[:16]
-        else:
-            h = content_hash
-        start = fs_offset + 16 + i * 16
-        for j, b in enumerate(h[:16]):
-            if isinstance(b, int):
-                result[start + j] = b
-            else:
-                result[start + j] = ord(b) if isinstance(b, str) else b
+    focus_bytes = (obs.focus_text or "").encode("utf-8", errors="replace")[:FS_BYTES]
+    for i, b in enumerate(focus_bytes):
+        result[fs_offset + i] = b
 
     # Metadata (64 bytes)
     meta_offset = TERMINAL_BYTES + GOAL_BYTES + FS_BYTES
@@ -126,6 +123,32 @@ def encode_observation(obs: JarvisObservation, max_bytes: int = OBS_TOTAL_BYTES)
     # Tests total (uint8)
     result[meta_offset + 11] = min(obs.tests_total, 255)
 
+    # Focus offset (uint16)
+    focus_offset = int(obs.focus_offset) if obs.focus_offset is not None else 0
+    focus_offset = max(0, min(65535, focus_offset))
+    result[meta_offset + 12] = focus_offset & 0xFF
+    result[meta_offset + 13] = (focus_offset >> 8) & 0xFF
+
+    # Focus length (uint16)
+    focus_length = int(obs.focus_length) if obs.focus_length is not None else 0
+    focus_length = max(0, min(65535, focus_length))
+    result[meta_offset + 14] = focus_length & 0xFF
+    result[meta_offset + 15] = (focus_length >> 8) & 0xFF
+
+    # Focus file hash (16 bytes)
+    focus_hash = obs.focus_file_hash or b""
+    if isinstance(focus_hash, str):
+        focus_hash = focus_hash.encode("utf-8", errors="replace")
+    focus_hash = bytes(focus_hash)[:16].ljust(16, b"\x00")
+    for i, b in enumerate(focus_hash):
+        result[meta_offset + 16 + i] = b
+
+    # Focus preview (remaining META bytes)
+    preview = (obs.focus_preview or "").encode("utf-8", errors="replace")[:FOCUS_PREVIEW_BYTES]
+    preview_start = meta_offset + 32
+    for i, b in enumerate(preview):
+        result[preview_start + i] = b
+
     return result
 
 
@@ -151,10 +174,11 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
     goal_bytes = obs_bytes[goal_offset:goal_offset + GOAL_BYTES].cpu().numpy().tobytes()
     goal = goal_bytes.rstrip(b'\x00').decode('utf-8', errors='replace')
 
-    # Filesystem snapshot (simplified - just file count)
+    # Focus text block
     fs_offset = TERMINAL_BYTES + GOAL_BYTES
-    file_count = int(obs_bytes[fs_offset].item())
-    fs_snapshot = {f"file_{i}": "hash" for i in range(file_count)}
+    focus_block_bytes = obs_bytes[fs_offset:fs_offset + FS_BYTES].cpu().numpy().tobytes()
+    focus_text = focus_block_bytes.rstrip(b"\x00").decode("utf-8", errors="replace")
+    fs_snapshot = {}
 
     # Metadata
     meta_offset = TERMINAL_BYTES + GOAL_BYTES + FS_BYTES
@@ -175,6 +199,12 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
     tests_passing = int(obs_bytes[meta_offset + 10].item())
     tests_total = int(obs_bytes[meta_offset + 11].item())
 
+    focus_offset = int(obs_bytes[meta_offset + 12].item()) + (int(obs_bytes[meta_offset + 13].item()) << 8)
+    focus_length = int(obs_bytes[meta_offset + 14].item()) + (int(obs_bytes[meta_offset + 15].item()) << 8)
+    focus_hash = obs_bytes[meta_offset + 16:meta_offset + 32].cpu().numpy().tobytes()
+    preview_bytes = obs_bytes[meta_offset + 32:meta_offset + 32 + FOCUS_PREVIEW_BYTES].cpu().numpy().tobytes()
+    focus_preview = preview_bytes.rstrip(b"\x00").decode("utf-8", errors="replace")
+
     return JarvisObservation(
         terminal_output=terminal,
         fs_snapshot=fs_snapshot,
@@ -186,6 +216,11 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
         last_reward=last_reward,
         tests_passing=tests_passing,
         tests_total=tests_total,
+        focus_offset=focus_offset,
+        focus_length=focus_length,
+        focus_file_hash=focus_hash,
+        focus_text=focus_text,
+        focus_preview=focus_preview,
     )
 
 

@@ -152,6 +152,8 @@ def create_tasks_v2(
     difficulty: BugDifficulty,
     temp_base: str,
     seed: Optional[int] = None,
+    *,
+    difficulty_span: int = 0,
 ) -> Tuple[List[Task], List[GeneratedRepo]]:
     """
     Create training tasks using v2 multi-file repo generation.
@@ -159,11 +161,9 @@ def create_tasks_v2(
     Returns (tasks, repos) where repos should be cleaned up after training.
     """
     generator = RepoGenerator(seed=seed)
-    repos = generate_task_batch(
-        num_tasks=num_tasks,
-        difficulty_range=(difficulty, BugDifficulty(min(difficulty.value + 1, 5))),
-        seed=seed,
-    )
+    span = max(0, int(difficulty_span))
+    max_diff = BugDifficulty(min(int(difficulty.value) + span, 5))
+    repos = generate_task_batch(num_tasks=num_tasks, difficulty_range=(difficulty, max_diff), seed=seed)
 
     tasks = []
     for repo in repos:
@@ -260,7 +260,7 @@ class JarvisHarnessTrainer:
                 torch.cuda.synchronize(self.device)
                 self._burn_ms_per_matmul = (time.perf_counter() - t0) * 1000.0 / float(n)
 
-    def _gpu_burn(self) -> None:
+    def _gpu_burn(self, *, sync: bool = False) -> None:
         if self.device.type != "cuda" or self.gpu_burn_ms <= 0:
             return
         if self._burn_a is None or self._burn_b is None or self._burn_out is None:
@@ -272,7 +272,8 @@ class JarvisHarnessTrainer:
         with torch.no_grad():
             for _ in range(iters):
                 torch.matmul(self._burn_a, self._burn_b, out=self._burn_out)
-        torch.cuda.synchronize(self.device)
+        if sync:
+            torch.cuda.synchronize(self.device)
 
     def collect_rollout(self) -> Dict[str, torch.Tensor]:
         """
@@ -320,13 +321,18 @@ class JarvisHarnessTrainer:
             z_buffer.append(output.z_t.clone())
 
             # Use the brain's full action bytes directly (32-byte tool-action policy).
-            action_bytes = output.action.clamp(0, 255).to(torch.uint8)
+            #
+            # Important: convert actions to CPU *before* stepping the env so we can overlap optional
+            # GPU padding (burn) with the CPU-bound env step.
+            action_bytes = output.action.clamp(0, 255).to(torch.uint8).cpu()
 
-            # Step environments
+            # Optional: keep GPU busy while the env step runs on CPU.
+            self._gpu_burn(sync=False)
+
+            # Step environments (CPU-bound)
             next_obs, rewards, dones, infos = self.envs.step(action_bytes)
             next_obs = next_obs.to(self.device)
             rewards = rewards.to(self.device)
-            self._gpu_burn()
 
             # Store data
             obs_buffer.append(obs.clone())
@@ -741,9 +747,11 @@ def main():
             run_tests_on_reset=(args.mode == "v1"),
             run_fast_tests=(args.mode != "v1"),
             async_tests=(args.mode != "v1"),
+            auto_tests_on_write=(args.mode != "v1"),
+            auto_full_tests_on_fast_pass=(args.mode != "v1"),
             # Keep verifier subprocesses bounded so CPU doesn't starve the GPU.
             test_timeout_seconds=30 if args.mode == "v1" else 10,
-            fast_test_timeout_seconds=10 if args.mode == "v1" else 1,
+            fast_test_timeout_seconds=10 if args.mode == "v1" else 2,
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
@@ -769,6 +777,7 @@ def main():
                 difficulty=curriculum_state.current_difficulty,
                 temp_base=temp_dir,
                 seed=args.seed,
+                difficulty_span=0,
             )
             print("CURRICULUM mode: Starting at TRIVIAL difficulty")
             print(f"Promotion threshold: {curriculum_state.promote_threshold:.0%}")
@@ -790,6 +799,7 @@ def main():
                 difficulty=difficulty,
                 temp_base=temp_dir,
                 seed=args.seed,
+                difficulty_span=0,
             )
             print(f"v2 mode: Generated {len(tasks)} multi-file tasks")
             print(f"Difficulty: {args.difficulty}")
@@ -843,6 +853,7 @@ def main():
                         difficulty=difficulty,
                         temp_base=temp_dir,
                         seed=random.randint(0, 2**31),
+                        difficulty_span=0,
                     )
                     repos = new_repos
                     return new_tasks, new_repos

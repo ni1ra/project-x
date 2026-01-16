@@ -28,7 +28,13 @@ import torch.nn.functional as F
 from src.core.rpj_brain import RPJBrain, RPJConfig
 from src.core.byte_interface import phi
 from src.benchmarks.multitask_ccb import TorchMultiTaskCCBEnvironment
-from src.utils.gpu_guard import GPUGuard, GPUGuardConfig, default_gpu_index, query_gpu_sample
+from src.utils.gpu_guard import (
+    GPUGuard,
+    GPUGuardConfig,
+    ExclusiveGPULock,
+    default_gpu_index,
+    query_gpu_sample,
+)
 
 
 def compute_k_eff(g_t: torch.Tensor) -> float:
@@ -520,36 +526,51 @@ def main():
     parser.add_argument("--gpu-low-util-patience-s", type=float, default=30.0, help="Seconds of low util before abort")
     args = parser.parse_args()
 
+    if args.no_gpu_guard:
+        raise SystemExit("Refusing to run with --no-gpu-guard (hard repo rule).")
+
+    # Hard safety envelope (non-negotiable).
+    if int(args.gpu_min_util) < 80:
+        raise SystemExit("Refusing --gpu-min-util < 80 (hard repo rule).")
+    if int(args.gpu_max_vram_mib) > 10 * 1024:
+        raise SystemExit("Refusing --gpu-max-vram-mib > 10240 MiB (hard repo rule).")
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cpu":
         print("WARNING: CUDA not available, running on CPU (will be slow)")
         args.num_envs = 64
 
+    gpu_index = args.gpu_index if args.gpu_index is not None else default_gpu_index()
+    gpu_lock = None
     guard = None
-    if device == "cuda" and not args.no_gpu_guard:
-        gpu_index = args.gpu_index if args.gpu_index is not None else default_gpu_index()
-        guard = GPUGuard(
-            GPUGuardConfig(
-                gpu_index=gpu_index,
-                max_memory_mib=int(args.gpu_max_vram_mib),
-                min_util_percent=int(args.gpu_min_util),
-                grace_period_s=float(args.gpu_grace_s),
-                low_util_patience_s=float(args.gpu_low_util_patience_s),
-                enforce_min_util=True,
-                require_nvidia_smi=True,
-            )
-        )
-        guard.start()
-        sample = query_gpu_sample(gpu_index)
-        if sample is not None:
-            print(
-                "GPU_GUARD: "
-                f"gpu={gpu_index} util={sample.utilization_gpu}% "
-                f"mem={sample.memory_used_mib}/{sample.memory_total_mib} MiB "
-                f"(cap {args.gpu_max_vram_mib} MiB, min util {args.gpu_min_util}%)"
-            )
-
     try:
+        if device == "cuda":
+            gpu_lock = ExclusiveGPULock(gpu_index=gpu_index)
+            gpu_lock.acquire()
+            print(f"GPU_LOCK: acquired {gpu_lock.path}")
+
+        if device == "cuda" and not args.no_gpu_guard:
+            guard = GPUGuard(
+                GPUGuardConfig(
+                    gpu_index=gpu_index,
+                    max_memory_mib=int(args.gpu_max_vram_mib),
+                    min_util_percent=int(args.gpu_min_util),
+                    grace_period_s=float(args.gpu_grace_s),
+                    low_util_patience_s=float(args.gpu_low_util_patience_s),
+                    enforce_min_util=True,
+                    require_nvidia_smi=True,
+                )
+            )
+            guard.start()
+            sample = query_gpu_sample(gpu_index)
+            if sample is not None:
+                print(
+                    "GPU_GUARD: "
+                    f"gpu={gpu_index} util={sample.utilization_gpu}% "
+                    f"mem={sample.memory_used_mib}/{sample.memory_total_mib} MiB "
+                    f"(cap {args.gpu_max_vram_mib} MiB, min util {args.gpu_min_util}%)"
+                )
+
         train_multitask(
             num_envs=args.num_envs,
             num_steps=args.num_steps,
@@ -566,6 +587,8 @@ def main():
     finally:
         if guard is not None:
             guard.stop()
+        if gpu_lock is not None:
+            gpu_lock.release()
 
 
 if __name__ == "__main__":

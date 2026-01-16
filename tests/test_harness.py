@@ -316,6 +316,61 @@ class TestEnvironment:
 
         env.close()
 
+    def test_env_step_write_focus(self, toy_repo_path):
+        """WRITE_FOCUS should apply a relative patch to the last READ_FILE focus buffer."""
+        if not os.path.exists(toy_repo_path):
+            pytest.skip("Toy repo fixture not found")
+
+        env = JarvisHarnessEnv()
+        task = Task(
+            name="fix_multiply",
+            description="Fix the multiply function",
+            repo_path=toy_repo_path,
+            target_file="calculator.py",
+        )
+
+        env.reset(task)
+
+        # Baseline test status.
+        obs, _, _, info = env.step(encode_action(JarvisAction(action_type=ActionType.RUN_TESTS)))
+        baseline_passing = info["tests_passing"]
+
+        # Focus the file (READ_FILE sets focus buffer).
+        obs, _, _, _ = env.step(
+            encode_action(
+                JarvisAction(
+                    action_type=ActionType.READ_FILE,
+                    target="calculator.py",
+                    offset=0,
+                    length=2000,
+                )
+            )
+        )
+
+        assert env.state is not None
+        assert env.state.focus_file == "calculator.py"
+        assert "return 0" in env.state.focus_text
+
+        offset_in_focus = env.state.focus_text.index("return 0")
+
+        # Patch relative to focus.
+        env.step(
+            encode_action(
+                JarvisAction(
+                    action_type=ActionType.WRITE_FOCUS,
+                    offset=offset_in_focus,
+                    length=len("return 0"),
+                    content="return a * b",
+                )
+            )
+        )
+
+        # Tests should improve after fixing the bug.
+        obs, _, _, info = env.step(encode_action(JarvisAction(action_type=ActionType.RUN_TESTS)))
+        assert info["tests_passing"] > baseline_passing
+
+        env.close()
+
     def test_env_step_run_tests(self, toy_repo_path):
         if not os.path.exists(toy_repo_path):
             pytest.skip("Toy repo fixture not found")

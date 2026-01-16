@@ -28,6 +28,7 @@ class VerifierResult:
     details: str = ""      # Human-readable details
     tests_passing: int = 0
     tests_total: int = 0
+    scope: str = "full"    # e.g. "full", "syntax", "lint"
 
 
 def run_pytest(repo_path: str, timeout: int = 30, python_path: str = None) -> VerifierResult:
@@ -48,7 +49,7 @@ def run_pytest(repo_path: str, timeout: int = 30, python_path: str = None) -> Ve
     try:
         # Note: removed -x flag to get full test count
         result = subprocess.run(
-            [python_exe, '-m', 'pytest', '-q', '--tb=no'],
+            [python_exe, "-m", "pytest", "-q", "--tb=short"],
             cwd=repo_path,
             capture_output=True,
             text=True,
@@ -82,6 +83,7 @@ def run_pytest(repo_path: str, timeout: int = 30, python_path: str = None) -> Ve
             details=output[:500],  # Truncate for obs
             tests_passing=tests_passing,
             tests_total=tests_total,
+            scope="full",
         )
 
     except subprocess.TimeoutExpired:
@@ -95,6 +97,76 @@ def run_pytest(repo_path: str, timeout: int = 30, python_path: str = None) -> Ve
             passed=False,
             score=0.0,
             details=f"ERROR: {str(e)[:200]}",
+        )
+
+
+def run_pytest_fast(
+    repo_path: str,
+    *,
+    timeout: int = 20,
+    python_path: str | None = None,
+    maxfail: int = 1,
+) -> VerifierResult:
+    """
+    Run a cheap pytest pass that stops after the first failure.
+
+    This is intended for denser feedback during training; use full `run_pytest`
+    for final verification / SUBMIT.
+    """
+    import sys
+
+    python_exe = python_path or sys.executable
+    maxfail = max(1, int(maxfail))
+
+    try:
+        result = subprocess.run(
+            [python_exe, "-m", "pytest", "-q", "--tb=short", f"--maxfail={maxfail}"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        output = result.stdout + result.stderr
+
+        tests_passing = 0
+        tests_total = 0
+        if "passed" in output:
+            import re
+
+            passed_match = re.search(r"(\d+) passed", output)
+            if passed_match:
+                tests_passing = int(passed_match.group(1))
+                tests_total = tests_passing
+
+            failed_match = re.search(r"(\d+) failed", output)
+            if failed_match:
+                tests_total += int(failed_match.group(1))
+
+        passed = result.returncode == 0
+        score = tests_passing / tests_total if tests_total > 0 else 0.0
+
+        return VerifierResult(
+            passed=passed,
+            score=score,
+            details=output[:500],
+            tests_passing=tests_passing,
+            tests_total=tests_total,
+            scope="fast",
+        )
+    except subprocess.TimeoutExpired:
+        return VerifierResult(
+            passed=False,
+            score=0.0,
+            details="TIMEOUT: fast pytest took too long",
+            scope="fast",
+        )
+    except Exception as e:
+        return VerifierResult(
+            passed=False,
+            score=0.0,
+            details=f"ERROR: {str(e)[:200]}",
+            scope="fast",
         )
 
 
@@ -126,6 +198,7 @@ def run_lint(repo_path: str, timeout: int = 15) -> VerifierResult:
                 passed=True,
                 score=1.0,
                 details="No Python files to lint",
+                scope="lint",
             )
 
         errors = []
@@ -149,6 +222,7 @@ def run_lint(repo_path: str, timeout: int = 15) -> VerifierResult:
             passed=passed,
             score=score,
             details="\n".join(errors[:5]) if errors else "All files pass syntax check",
+            scope="lint",
         )
 
     except Exception as e:
@@ -191,6 +265,7 @@ def verify_output_matches(
         passed=passed,
         score=score,
         details=f"Match ratio: {score:.2f}",
+        scope="output",
     )
 
 
@@ -241,7 +316,53 @@ def verify_minimal_diff(
         passed=passed,
         score=score,
         details=f"Changed {changed_lines} lines (max {max_changed_lines}), compression: {compression_ratio:.2f}",
+        scope="diff",
     )
+
+
+def run_py_compile_file(
+    repo_path: str,
+    rel_path: str,
+    *,
+    timeout: int = 5,
+    python_path: str | None = None,
+) -> VerifierResult:
+    """
+    Run a cheap syntax-only verifier (python -m py_compile) on a single file.
+
+    This is intended as a dense, low-cost signal compared to full pytest.
+    """
+    file_path = os.path.join(repo_path, rel_path)
+
+    if not rel_path:
+        return VerifierResult(passed=False, score=0.0, details="No file specified", scope="syntax")
+    if not os.path.exists(file_path):
+        return VerifierResult(passed=False, score=0.0, details=f"File not found: {rel_path}", scope="syntax")
+
+    import py_compile
+
+    try:
+        # Avoid spawning a subprocess (major training bottleneck). Compile in-process
+        # and write bytecode to a temporary location so we don't mutate the repo.
+        with tempfile.NamedTemporaryFile(suffix=".pyc") as tmp:
+            py_compile.compile(file_path, cfile=tmp.name, doraise=True)
+        passed = True
+        details = ""
+        return VerifierResult(
+            passed=passed,
+            score=1.0,
+            details=details[:500],
+            scope="syntax",
+        )
+    except py_compile.PyCompileError as e:
+        return VerifierResult(
+            passed=False,
+            score=0.0,
+            details=str(e).strip()[:500],
+            scope="syntax",
+        )
+    except Exception as e:
+        return VerifierResult(passed=False, score=0.0, details=f"ERROR: {str(e)[:200]}", scope="syntax")
 
 
 def run_python_file(
@@ -278,7 +399,7 @@ class RewardComponents:
     """Breakdown of reward for transparency."""
     test_reward: float = 0.0        # +1 per test that passes
     lint_reward: float = 0.0        # +0.5 if lint passes
-    diff_penalty: float = 0.0       # -0.01 per changed line
+    diff_penalty: float = 0.0       # -0.0001 per changed line
     action_penalty: float = 0.0     # -0.01 per action
     success_bonus: float = 0.0      # +10 if all tests pass
 
@@ -313,12 +434,12 @@ def compute_reward(
     """
     components = RewardComponents()
 
-    # Test reward: Small bonus per passing test (scaled down to reduce safe-action bias)
-    # The main reward should come from success_bonus for completing the task
+    # Test reward:
+    # - For FAST checks, avoid rewarding the baseline pass rate (easy to farm without fixing).
+    # - For FULL checks, keep a small pass-rate shaping term, plus a large success bonus when all pass.
     if test_result.tests_total > 0:
         pass_rate = test_result.tests_passing / test_result.tests_total
-        # Only +2 for perfect pass rate (was +N for N tests)
-        components.test_reward = 2.0 * pass_rate
+        components.test_reward = 2.0 * pass_rate if test_result.scope == "full" else 0.0
     else:
         components.test_reward = 0.0
 
@@ -326,14 +447,15 @@ def compute_reward(
     if lint_result and lint_result.passed:
         components.lint_reward = 0.5
 
-    # Diff penalty: -0.01 per changed line (encourages minimal edits)
-    components.diff_penalty = -0.01 * diff_changed_lines
+    # Diff penalty: keep small early so the agent learns to write at all.
+    # MDL pressure is still present, but not so strong that "never write" dominates.
+    components.diff_penalty = -0.0001 * diff_changed_lines
 
     # Action penalty: -0.01 per action (encourages efficiency)
     components.action_penalty = -0.01 * actions_taken
 
-    # Success bonus: +10 if all tests pass
-    if test_result.passed and test_result.tests_total > 0:
+    # Success bonus: +10 if the FULL suite passes.
+    if test_result.passed and test_result.tests_total > 0 and test_result.scope == "full":
         components.success_bonus = 10.0
 
     return components

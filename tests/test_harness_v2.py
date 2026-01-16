@@ -283,8 +283,8 @@ class TestActionTypeCount:
 
     def test_action_count(self):
         """Verify all action types are defined."""
-        # Original 7 + 6 git + 3 multi-file = 16
-        assert len(ActionType) == 16
+        # Original 7 + 6 git + 3 multi-file + 2 focus-edits = 18
+        assert len(ActionType) == 18
 
     def test_all_actions_have_string(self):
         """Verify all actions have string representation."""
