@@ -213,9 +213,10 @@ def compute_correct_action_for_missing_colon(
     length = 0
 
     # Create action bytes
+    # CRITICAL FIX (2026-01-17): Use full byte range for offset, not % 32
     action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
     action_bytes[0] = ActionType.WRITE_FOCUS.value
-    action_bytes[1] = offset_in_focus % 32  # Constrained offset
+    action_bytes[1] = max(0, min(255, offset_in_focus))  # Full 8-bit offset (clamped to 0-255)
     action_bytes[3] = length % 4            # Constrained length
     action_bytes[25] = vocab_idx            # Content vocab index
 
@@ -263,9 +264,10 @@ def compute_correct_action_for_missing_paren(
     vocab_idx = 1  # ')' in reduced TRIVIAL_VOCAB [':\n', ')', ',', '']
     length = 0     # Insert mode
 
+    # CRITICAL FIX (2026-01-17): Use full byte range for offset, not % 32
     action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
     action_bytes[0] = ActionType.WRITE_FOCUS.value
-    action_bytes[1] = offset_in_focus % 32  # Reduced to 32
+    action_bytes[1] = max(0, min(255, offset_in_focus))  # Full 8-bit offset (clamped to 0-255)
     action_bytes[3] = length % 4
     action_bytes[25] = vocab_idx
 
@@ -317,7 +319,7 @@ def compute_correct_action_generic(
 
     action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
     action_bytes[0] = ActionType.WRITE_FOCUS.value
-    action_bytes[1] = offset_in_focus % 32
+    action_bytes[1] = max(0, min(255, offset_in_focus))  # Full 8-bit offset (clamped to 0-255)
     action_bytes[3] = length % 4
     action_bytes[25] = vocab_idx
 

@@ -34,6 +34,9 @@ from src.harness.verifiers import run_pytest, compute_diff_size
 from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.actions import ACTION_BYTES, ACTION_BYTES_V2, ActionType
 
+# Python path with pytest installed (for running tests)
+PYTEST_PYTHON = "/tmp/jarvis_venv/bin/python"
+
 
 @dataclass
 class EpisodeResult:
@@ -63,7 +66,7 @@ def run_episode(
     obs = env.reset()
 
     # Baseline full-suite result for "improved vs initial" metrics.
-    baseline = run_pytest(env.temp_dir) if env.temp_dir else None
+    baseline = run_pytest(env.temp_dir, python_path=PYTEST_PYTHON) if env.temp_dir else None
     baseline_passing = baseline.tests_passing if baseline is not None else 0
     baseline_total = baseline.tests_total if baseline is not None else 0
 
@@ -95,7 +98,7 @@ def run_episode(
             break
 
     # Always evaluate final state with pytest (ground truth).
-    final = run_pytest(env.temp_dir) if env.temp_dir else None
+    final = run_pytest(env.temp_dir, python_path=PYTEST_PYTHON) if env.temp_dir else None
     tests_passing = final.tests_passing if final is not None else 0
     tests_total = final.tests_total if final is not None else 0
     success = bool(final.passed) if final is not None else False

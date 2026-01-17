@@ -310,11 +310,10 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     action_type_val = int(action_bytes[0].item())
     action_type = ActionType(action_type_val % len(ActionType))
 
-    # Offset - CONSTRAINED to 0-31 for learnable action space.
-    # WRITE_FOCUS operates relative to focus_offset, and most TRIVIAL bugs
-    # are within the first 32 chars of the focus window (e.g., "def __init__(self)").
-    # Reduced from 64 to 32 to increase random hit probability from 0.05% to 0.2%.
-    offset = int(action_bytes[1].item()) % 32  # 5-bit offset for easier learning
+    # Offset - use full byte range (0-255) to support focus windows up to 256 chars.
+    # CRITICAL FIX (2026-01-17): % 32 was causing offset aliasing - bugs at position 45
+    # would be encoded as 13, causing incorrect edits. Now using full byte.
+    offset = int(action_bytes[1].item())  # Full 8-bit offset (0-255)
 
     # Length - constrained to 0-3 for simpler action space
     # 0 = insert, 1-3 = replace small amounts

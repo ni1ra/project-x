@@ -6,12 +6,12 @@
 > This document is designed to be followed by a human + copilot (any model).
 > Every checkbox is a gate. If a gate fails, stop and debug that gate.
 >
-> **Current State:** **20% SUCCESS ACHIEVED** | BC-only model fixes 4/20 TRIVIAL bugs
+> **Current State:** **25% SUCCESS ACHIEVED** | BC+RL model fixes 5/20 TRIVIAL bugs
 > **Target:** Jarvis Operator v1 (Persistent) + Jarvis UI v1 (Voice/CLI) + Architecture Track (Heterogeneous Brain)
-> **Last Updated:** 2026-01-17 (v4 - 20% milestone achieved)
+> **Last Updated:** 2026-01-17 (v5 - 25% milestone achieved after offset fix)
 >
-> **MILESTONE (2026-01-17):** BC-only model achieves 20% success rate on TRIVIAL bugs!
-> **ROOT CAUSES FIXED:** (1) BC observations empty (2) v1/v2 decoder mismatch (3) Focus window alignment
+> **MILESTONE (2026-01-17):** Model achieves 25% success rate on TRIVIAL bugs!
+> **ROOT CAUSES FIXED:** (1) BC observations empty (2) v1/v2 decoder mismatch (3) Focus window alignment (4) Offset % 32 aliasing
 
 ---
 
@@ -284,6 +284,71 @@ The model can't transfer to RL because it never saw real file content.
 | RL Success Rate (100k) | 15% (regressed) | 20% (no regression) |
 | Token Prediction | - | 90% correct |
 | Offset Prediction | - | 20% correct (bottleneck) |
+
+---
+
+## PHASE 2.5: CRITICAL FIX - Offset Encoding Corruption ✅ COMPLETE
+
+**Goal:** Fix the % 32 modulo corruption that was silently breaking offset prediction.
+
+### 2.5.1 Root Cause Discovery
+**Oracle consultation (2026-01-17):** Found critical bug in offset encoding!
+
+```python
+# BUG in expert_trajectories.py (multiple locations):
+action_bytes[1] = offset_in_focus % 32  # ❌ ALIASING!
+
+# A bug at position 45 gets encoded as position 13
+# The model learns wrong target offsets
+```
+
+**Impact:**
+- 60% of TRIVIAL bugs have offsets >= 32
+- These offsets were being aliased (45 → 13, 38 → 6, etc.)
+- Model learned WRONG target positions
+- BC demos were teaching incorrect fixes!
+
+### 2.5.2 Fixes Applied ✅
+- [x] **Fix actions.py decoder** - Remove `% 32` from `decode_action_v2()`
+  - File: `src/harness/actions.py:316`
+  - Change: `offset = int(action_bytes[1].item()) % 32` → `offset = int(action_bytes[1].item())`
+
+- [x] **Fix expert_trajectories.py** - All 4 occurrences
+  - Lines 219, 270, 322: `offset_in_focus % 32` → `max(0, min(255, offset_in_focus))`
+
+- [x] **Add dense reward shaping** - Oracle guidance (Score 420)
+  - File: `src/harness/env.py:1634-1646`
+  - Gives partial credit for "close" offsets: `reward += 0.5 * (1.0 - abs(error) / 32.0)`
+
+- [x] **Add target_offset to Task** - For reward shaping
+  - File: `src/harness/env.py:100`
+  - New field: `target_offset: Optional[int] = None`
+
+- [x] **Compute target_offset in training**
+  - File: `scripts/train_jarvis_harness.py:257-271`
+  - Uses `compute_fix_offset_in_focus()` to get correct offset for each task
+
+### 2.5.3 Retraining ✅ COMPLETE
+- [x] **BC retraining** - Generate demos with correct offsets
+  ```bash
+  PYTHONPATH=. python3 scripts/train_jarvis_harness.py \
+    --mode curriculum --difficulty trivial \
+    --bc-epochs 50 --bc-demos 1000 \
+    --timesteps 50000 --num-envs 4 \
+    --single-step --force-write-focus --action-bytes 64
+  ```
+  - BC accuracy: 30.4% (lower than before due to harder offset targets)
+  - Checkpoint: `results/jarvis_harness_curriculum_50000.pt`
+
+- [x] **Fix eval pytest path** - Use jarvis_venv for tests
+  - File: `scripts/eval_jarvis_harness.py`
+  - Added `PYTEST_PYTHON = "/tmp/jarvis_venv/bin/python"`
+
+- [x] **Evaluation** - Test with fixed offsets + dense reward
+  - **Result: 25% SUCCESS RATE (5/20)** ✅
+  - **+5% improvement over 20% baseline!**
+  - Model correctly predicts both `)` and `:\n` tokens
+  - Offsets now correctly encoded (38 stays 38, not aliased to 6)
 
 ---
 

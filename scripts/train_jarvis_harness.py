@@ -49,7 +49,7 @@ from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.repo_generator import (
     RepoGenerator, GeneratedRepo, BugDifficulty, generate_task_batch,
 )
-from src.harness.expert_trajectories import create_bc_dataset
+from src.harness.expert_trajectories import create_bc_dataset, compute_fix_offset_in_focus
 from src.utils.gpu_guard import (
     GPUGuard,
     GPUGuardConfig,
@@ -254,6 +254,22 @@ def create_tasks_v2(
         target_file = bug.file_path if bug else list(repo.files.keys())[0]
         bug_line = bug.line_number if bug else None
 
+        # Compute target_offset for reward shaping (TRIVIAL curriculum)
+        target_offset = None
+        if bug and bug.file_path in repo.original_files and bug.file_path in repo.files:
+            original = repo.original_files.get(bug.file_path, "")
+            buggy_file = repo.files.get(bug.file_path)
+            buggy = buggy_file.content if buggy_file else ""
+            if original and buggy:
+                # Compute focus_start (same as env._set_focus_from_location)
+                lines = buggy.splitlines(True)
+                line_idx = max(0, min((bug.line_number or 1) - 1, len(lines) - 1))
+                focus_start = sum(len(lines[i]) for i in range(line_idx))
+                # Compute offset within focus
+                offset_in_focus, _, _ = compute_fix_offset_in_focus(original, buggy, focus_start)
+                if 0 <= offset_in_focus < 256:  # Valid offset within focus window
+                    target_offset = offset_in_focus
+
         task = Task(
             name=repo.name,
             description=f"Fix the bugs in this codebase. Hint: {repo.fix_description}",
@@ -261,6 +277,7 @@ def create_tasks_v2(
             target_file=target_file,
             expected_tests_passing=5,  # Approximate
             bug_line=bug_line,  # Pre-set focus to bug location
+            target_offset=target_offset,  # For dense reward shaping
         )
         tasks.append(task)
 

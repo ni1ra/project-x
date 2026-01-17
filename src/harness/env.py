@@ -97,6 +97,7 @@ class Task:
     target_file: str                  # Primary file to fix/modify
     expected_tests_passing: int = 1   # Minimum tests that should pass
     bug_line: Optional[int] = None    # Line number of bug (for pre-setting focus)
+    target_offset: Optional[int] = None  # Expected edit offset within focus (for reward shaping)
 
 
 @dataclass
@@ -146,6 +147,9 @@ class HarnessState:
     consecutive_same_action: int = 0  # Count of repeated same action
     # One-time rewards (prevent farming)
     compile_bonus_given: bool = False  # Track if compile bonus was given this episode
+    # Reward shaping for offset learning
+    target_offset: Optional[int] = None  # Expected edit offset within focus (from Task)
+    last_edit_offset: int = -1  # Offset of last WRITE_FOCUS action
 
 
 class JarvisHarnessEnv:
@@ -309,6 +313,10 @@ class JarvisHarnessEnv:
                         self.state.focus_text = content[:256]
         except Exception:
             pass
+
+        # Set target offset for reward shaping (from Task, for TRIVIAL curriculum)
+        if self.task and self.task.target_offset is not None:
+            self.state.target_offset = self.task.target_offset
 
         # Optional initial test run to establish baseline.
         #
@@ -791,6 +799,7 @@ class JarvisHarnessEnv:
 
                 changed = new_content != existing
                 self.state.last_edit_changed = bool(changed)
+                self.state.last_edit_offset = offset_in_focus  # Track for reward shaping
                 if changed:
                     self.state.effective_edits += 1
                 if not changed:
@@ -1621,6 +1630,20 @@ class JarvisHarnessEnv:
             else:
                 # Stronger penalty for no-op writes (tried to write but nothing changed)
                 reward -= 0.2  # -r_noop (was -0.05)
+
+        # === DENSE OFFSET REWARD SHAPING (TRIVIAL curriculum) ===
+        # Give partial credit for "close" edits even if they don't fix the bug.
+        # This provides gradient signal for learning precise offset prediction.
+        # Oracle guidance: reward += 0.5 * (1.0 - abs(offset_pred - offset_target) / 32.0)
+        if (
+            at == ActionType.WRITE_FOCUS
+            and self.state.target_offset is not None
+            and self.state.last_edit_offset >= 0
+        ):
+            offset_error = abs(self.state.last_edit_offset - self.state.target_offset)
+            # Scale: 0 error = +0.5 bonus, 32+ error = 0 bonus
+            offset_reward = 0.5 * max(0.0, 1.0 - offset_error / 32.0)
+            reward += offset_reward
 
         # Penalty for repetitive actions (same action 5+ consecutive times)
         if self.state.consecutive_same_action >= 5:
