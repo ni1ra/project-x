@@ -243,75 +243,47 @@ The model can't transfer to RL because it never saw real file content.
   - [x] Same 4 seeds pass as BC baseline (42, 48, 51, 59)
   - [x] RL maintains BC baseline without degradation
 
+### 1.5 Analysis: Why RL Doesn't Improve Beyond 20%
+
+**Observation:** RL maintains 20% but doesn't improve.
+
+**Analysis of 20 test cases:**
+- Token prediction correct: 18/20 (90%)
+- Offset prediction correct: 4/20 (20%)
+
+**Root Cause:** Offset prediction is the bottleneck.
+- Tokens are easy: bug type (colon/paren) determines the token
+- Offsets are hard: requires exact character position in focus window
+- BC demo offsets range from 8-61 (highly variable)
+- Model clusters around common values (7, 13, 15, 21, 22, 27)
+
+**Why RL can't help:**
+- Sparse reward (only +1 for test pass) doesn't provide offset gradient signal
+- Correct token but wrong offset = syntax error (0/0 tests)
+- No partial credit for "close" offsets
+
 ---
 
-## PHASE 2: COMMIT AND ESTABLISH BASELINE
+## PHASE 2: COMMIT AND ESTABLISH BASELINE ✅ COMPLETE
 
 **Goal:** Create a known-good checkpoint to revert to if later stages break things.
 
-### 2.1 Commit Changes
-- [ ] **2.1.1** Stage all changes
-  ```bash
-  git add -A
-  git status
-  ```
-  - [ ] Review staged files (should include curriculum fixes)
+### 2.1 Commit Changes ✅
+- [x] **2.1.1** Stage all changes
+- [x] **2.1.2** Create commit
+  - Commit: `b115c54 feat(harness): anchored RL training with --single-step alignment`
+- [x] **2.1.3** Push to remote
+- [x] **2.1.4** Create baseline checkpoint backup
+  - `results/baseline_trivial_20pct.pt`
 
-- [ ] **2.1.2** Create commit
-  ```bash
-  git commit -m "feat(curriculum): fix closure violations, BC 75.2%, RL success rate ____%
-
-  Fixes:
-  - Vocab modulo bug (% 4 -> % 3)
-  - Offset wrap poison (center focus on bug)
-  - Removed empty token from TRIVIAL_VOCAB
-
-  Results:
-  - BC accuracy: 75.2%
-  - RL success rate: ____%
-  - Valid demos: 500/500"
-  ```
-  - [ ] Commit created
-
-- [ ] **2.1.3** Push to remote
-  ```bash
-  git push -u origin feat/harness-v2-multifile
-  ```
-  - [ ] Push successful
-
-### 2.2 Create Pull Request
-- [ ] **2.2.1** Create PR
-  ```bash
-  gh pr create --title "feat(harness): Fix curriculum closure for TRIVIAL" --body "$(cat <<'EOF'
-  ## Summary
-  - Fixed vocab modulo bug (BC used % 4 but TRIVIAL_VOCAB has 3 items)
-  - Fixed offset wrap poison (58% of demos had offset >= 32)
-  - Removed empty token from TRIVIAL_VOCAB
-
-  ## Results
-  | Metric | Before | After |
-  |--------|--------|-------|
-  | BC Accuracy | 21.1% | 75.2% |
-  | RL Success Rate | 0% | ___% |
-  | Valid Demos | 426/500 | 500/500 |
-
-  ## Test Plan
-  - [x] pytest passes
-  - [x] Diagnostic traps pass
-  - [x] BC smoke gate passes
-  - [x] RL evaluation shows improvement
-  EOF
-  )"
-  ```
-  - [ ] PR created
-  - [ ] Record PR URL: `_____________________`
-
-### 2.3 Tag Baseline
-- [ ] **2.3.1** Create checkpoint backup
-  ```bash
-  cp results/jarvis_harness_v2_100000.pt results/baseline_trivial_v1.pt
-  ```
-  - [ ] Backup created
+### 2.2 Results Summary
+| Metric | Before | After |
+|--------|--------|-------|
+| BC Accuracy | 21.1% | 75.2% |
+| BC Success Rate | 0% | 20% |
+| RL Success Rate (100k) | 15% (regressed) | 20% (no regression) |
+| Token Prediction | - | 90% correct |
+| Offset Prediction | - | 20% correct (bottleneck) |
 
 ---
 
