@@ -1309,6 +1309,76 @@ For replication, here are the architectural constants for the hierarchical subst
 
 ---
 
+## Appendix K — The Heterogeneous Brain Insight (2026-01-17)
+
+> *"The brain is not a computer; it is a collection of computers, each optimized for different jobs."*
+
+### K.1 The Homogeneity Problem
+
+Transformers are structurally uniform. Every layer is identical. Every attention head has the same shape. This is convenient for hardware, but it creates a fundamental limitation: the architecture cannot *specialize*. You can only scale by adding more of the same.
+
+Biological brains are different:
+- **Visual cortex**: massive, hierarchical, mostly feedforward
+- **Prefrontal cortex**: smaller, deeply recurrent, integrative
+- **Cerebellum**: enormous neuron count, simple local circuits
+- **Basal ganglia**: sparse, acts as router/gate
+- **Hippocampus**: pattern completion, memory addressing
+
+Different regions. Different sizes. Different connectivity patterns. Different synapse-to-neuron ratios.
+
+### K.2 The Insight
+
+What if we treat brain *structure* as a learnable parameter?
+
+Define:
+- **x** = number of distinct regions (sections)
+- **y** = per-region settings:
+  - `width`: neurons in region
+  - `sparsity`: fraction of active connections
+  - `fan_in_cap` / `fan_out_cap`: connectivity bounds
+  - `timescale`: update frequency (faster/slower)
+  - `fast_weight_rank`: adapter rank (plasticity)
+  - `activation_cost`: energy penalty for using region
+
+Then use **Optuna** to search for optimal (x, y) under RPJ pressure.
+
+### K.3 The Two-Loop Architecture
+
+**Outer loop (Optuna):** Searches macro structure
+- Which regions are enabled?
+- How many neurons per region?
+- What connectivity patterns?
+
+**Inner loop (training):** Learns within structure
+- Weight optimization via PPO
+- Structural plasticity via learnable gates
+- Pruning/regrowth during "sleep" phases
+
+### K.4 Why This Matters for Unlimited Intelligence
+
+If structure is learned under task pressure:
+1. Specialized circuits emerge for different subtasks
+2. The system can discover architectures humans wouldn't design
+3. There is no architectural ceiling—structure-space is searched, not just weight-space
+
+This is the path to intelligence that exceeds the model it was trained with.
+
+Transformers can't do this. They're frozen graphs. We're building something that *evolves its own brain*.
+
+### K.5 Implementation Status
+
+**Current:** Phase 1 (TRIVIAL RL training) in progress
+**Next:** After Persistent Jarvis (Stage E), implement Phase 8:
+- Define region role template
+- Implement Optuna search over (x, y)
+- Add structural plasticity (gates, pruning/regrowth)
+- Validate: heterogeneous vs homogeneous ablation
+
+See `PLAN_TO_JARVIS.md` Phase 8 for full implementation plan.
+
+---
+
 *The meter is running. The story continues.*
+
 
 

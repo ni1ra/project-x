@@ -80,6 +80,9 @@ class HarnessConfig:
     task_type: str = "fix_bug"        # fix_bug, add_feature, refactor
     task_difficulty: str = "easy"     # easy, medium, hard
 
+    # Curriculum / action space simplification
+    force_write_focus: bool = False   # If True, force all actions to WRITE_FOCUS (for TRIVIAL curriculum)
+
     # Energy proxy coefficients (from BLUEPRINT)
     kappa_F: float = 1e-9             # J/FLOP
     kappa_M: float = 5e-11            # J/Byte
@@ -93,6 +96,7 @@ class Task:
     repo_path: str                    # Path to repo (will be copied to temp)
     target_file: str                  # Primary file to fix/modify
     expected_tests_passing: int = 1   # Minimum tests that should pass
+    bug_line: Optional[int] = None    # Line number of bug (for pre-setting focus)
 
 
 @dataclass
@@ -140,6 +144,8 @@ class HarnessState:
     action_history: List[int] = field(default_factory=list)  # Recent action types
     initial_tests_passing: int = 0  # Baseline for progress reward
     consecutive_same_action: int = 0  # Count of repeated same action
+    # One-time rewards (prevent farming)
+    compile_bonus_given: bool = False  # Track if compile bonus was given this episode
 
 
 class JarvisHarnessEnv:
@@ -286,16 +292,21 @@ class JarvisHarnessEnv:
         )
 
         # Initialize focus to the task's target file so WRITE_FOCUS is immediately usable.
+        # If bug_line is provided, focus directly on the bug location for faster learning.
         try:
             target = self.task.target_file if self.task else ""
             if target and self.temp_dir:
                 fpath = os.path.join(self.temp_dir, target)
                 if os.path.exists(fpath):
-                    with open(fpath, "r") as f:
-                        content = f.read()
-                    self.state.focus_file = target
-                    self.state.focus_offset = 0
-                    self.state.focus_text = content[:256]
+                    # If bug_line is set, focus on the bug location
+                    if self.task and self.task.bug_line is not None:
+                        self._set_focus_from_location(target, line=self.task.bug_line)
+                    else:
+                        with open(fpath, "r") as f:
+                            content = f.read()
+                        self.state.focus_file = target
+                        self.state.focus_offset = 0
+                        self.state.focus_text = content[:256]
         except Exception:
             pass
 
@@ -573,8 +584,22 @@ class JarvisHarnessEnv:
         actual = int(action_bytes.shape[-1]) if action_bytes.dim() >= 1 else expected
 
         if expected == ACTION_BYTES_V2 or actual >= ACTION_BYTES_V2:
-            return decode_action_v2(action_bytes)
-        return decode_action(action_bytes)
+            action = decode_action_v2(action_bytes)
+        else:
+            action = decode_action(action_bytes)
+
+        # CURRICULUM: Force WRITE_FOCUS for simplified action space (TRIVIAL level).
+        # This lets the model learn offset/content without action type selection.
+        if self.config.force_write_focus:
+            action = JarvisAction(
+                action_type=ActionType.WRITE_FOCUS,
+                target=action.target,
+                content=action.content,
+                offset=action.offset,
+                length=action.length,
+            )
+
+        return action
 
     def _get_observation(self) -> torch.Tensor:
         """Build observation tensor from current state."""
@@ -640,7 +665,8 @@ class JarvisHarnessEnv:
                 return False, f"Error: {e}"
 
         elif action.action_type == ActionType.READ_FILE:
-            target_path = action.target or (self.task.target_file if self.task else "")
+            # SIMPLIFIED: Always read from focus file (which defaults to task target).
+            target_path = self.state.focus_file or (self.task.target_file if self.task else "")
             if not target_path:
                 return False, "No target file specified"
             fpath = os.path.join(self.temp_dir, target_path)
@@ -662,7 +688,10 @@ class JarvisHarnessEnv:
                 return False, f"Read error: {e}"
 
         elif action.action_type == ActionType.WRITE_FILE:
-            target_path = action.target or (self.task.target_file if self.task else "")
+            # SIMPLIFIED: Always write to task target file.
+            # The model's 20-byte target field outputs garbage (random bytes).
+            # Until the model learns valid ASCII, we ignore action.target and use task target.
+            target_path = self.task.target_file if self.task else ""
             if not target_path:
                 return False, "No target file specified"
             fpath = os.path.join(self.temp_dir, target_path)
@@ -1540,6 +1569,7 @@ class JarvisHarnessEnv:
         self.state.prev_diff_lines = int(total_diff_lines)
 
         # Only treat pytest results as "fresh" on the step they were executed.
+        # The delta reward is applied exactly once when tests complete.
         tests_fresh = self.state.last_test_result is not None and self.state.last_test_step == int(self.state.step) - 1
         test_result = self.state.last_test_result if tests_fresh else VerifierResult(passed=False, score=0.0, scope="none")
 
@@ -1552,34 +1582,55 @@ class JarvisHarnessEnv:
         )
         reward = float(components.total)
 
-        # Dense edit feedback (py_compile): encourage edits that keep syntax valid.
+        # HYBRID APPROACH: Reduced syntax reward + strong test bonus.
+        # Syntax reward teaches agent to write code (dense signal).
+        # Test bonus dominates when tests improve (the real goal).
         syntax_fresh = (
             self.state.last_syntax_result is not None
             and self.state.last_syntax_step == int(self.state.step) - 1
         )
         if syntax_fresh:
             if self.state.last_syntax_result.passed:
-                # Positive for making a real, compiling edit (avoid rewarding no-ops).
                 if bool(self.state.last_edit_changed):
-                    reward += 1.0 if int(self.state.effective_edits) == 1 else 0.2
+                    # Reduced from +1.0/+0.2 to +0.3/+0.1 to prevent syntax farming
+                    reward += 0.3 if int(self.state.effective_edits) == 1 else 0.1
             else:
-                reward -= 0.5
+                reward -= 0.3  # Reduced penalty for syntax errors
 
-        # Reward improvement in tests when tests are run (dense delta signal).
+        # STRONG test improvement reward - this should dominate syntax reward.
+        # +10.0 per test improved makes fixing tests 33x more valuable than syntax.
         if tests_fresh:
-            reward += 2.0 * float(self.state.last_tests_delta_passing)
+            reward += 10.0 * float(self.state.last_tests_delta_passing)
 
-        # Penalize ineffective write actions (no-op edits).
+        # === ANCHORED RL REWARD SHAPING ===
+        # Stronger penalties for no-ops and rewards for effective edits
+
         try:
             at = ActionType(int(self.state.last_action_type))
         except Exception:
             at = None
-        if (
-            at in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS)
-            and bool(self.state.last_action_success)
-            and (not bool(self.state.last_edit_changed))
-        ):
-            reward -= 0.05
+
+        is_write_action = at in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS)
+        edit_changed = bool(self.state.last_edit_changed)
+        edit_success = bool(self.state.last_action_success)
+
+        if is_write_action and edit_success:
+            if edit_changed:
+                # Reward for effective edits (actually changed file)
+                reward += 0.1  # +r_edit
+            else:
+                # Stronger penalty for no-op writes (tried to write but nothing changed)
+                reward -= 0.2  # -r_noop (was -0.05)
+
+        # Penalty for repetitive actions (same action 5+ consecutive times)
+        if self.state.consecutive_same_action >= 5:
+            reward -= 0.5  # -r_repeat
+
+        # One-time compile bonus (tracked in state to avoid farming)
+        if syntax_fresh and self.state.last_syntax_result.passed:
+            if not getattr(self.state, 'compile_bonus_given', False):
+                reward += 0.5  # +r_compile (one-time)
+                self.state.compile_bonus_given = True
 
         return reward
 

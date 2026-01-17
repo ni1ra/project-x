@@ -359,8 +359,13 @@ class AutoregressiveActionDecoder(nn.Module):
             # Byte embeddings for conditioning on previous bytes
             self.byte_embedding = nn.Embedding(256, byte_embed_dim)
 
-            # Project [h_t || g_t] to decoder initial state (K_eff fix)
-            self.h_proj = nn.Linear(hidden_dim + k_max, decoder_hidden)
+            # JARVIS FIX: Use only focus_preview (bytes 480-511) for cleaner signal
+            # The full obs_dim (512) is mostly zeros; focus_preview has the actual code
+            # Handle smaller obs_dim for test compatibility
+            self.focus_preview_dim = min(32, obs_dim)  # Last N bytes of observation
+
+            # Project [h_t || g_t || focus_preview] to decoder initial state
+            self.h_proj = nn.Linear(hidden_dim + k_max + self.focus_preview_dim, decoder_hidden)
 
             # GRU decoder
             self.gru = nn.GRU(
@@ -412,12 +417,18 @@ class AutoregressiveActionDecoder(nn.Module):
         batch_size = h_t.size(0)
         num_bytes = num_bytes or self.num_action_bytes
 
-        # Concatenate [h_t || g_t] for K_eff gradient flow
+        # JARVIS FIX: Extract focus_preview (bytes 480-511) from phi_obs
+        # This provides cleaner signal than the full 512-byte observation
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
-        context = torch.cat([h_t, g_t], dim=-1)  # [batch, hidden_dim + k_max]
+        if phi_obs is None:
+            focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
+        else:
+            # Extract last 32 bytes (focus_preview region)
+            focus_preview = phi_obs[:, -self.focus_preview_dim:]
+        context = torch.cat([h_t, g_t, focus_preview], dim=-1)  # [batch, hidden_dim + k_max + 32]
 
-        # Initialize decoder hidden state from [h_t || g_t]
+        # Initialize decoder hidden state from [h_t || g_t || focus_preview]
         decoder_h = self.h_proj(context).unsqueeze(0)  # [1, batch, decoder_hidden]
 
         # Start with start token
@@ -493,12 +504,16 @@ class AutoregressiveActionDecoder(nn.Module):
         batch_size = h_t.size(0)
         num_bytes = actions.size(1)
 
-        # Concatenate [h_t || g_t] for K_eff gradient flow
+        # JARVIS FIX: Extract focus_preview (bytes 480-511) from phi_obs
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
-        context = torch.cat([h_t, g_t], dim=-1)
+        if phi_obs is None:
+            focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
+        else:
+            focus_preview = phi_obs[:, -self.focus_preview_dim:]
+        context = torch.cat([h_t, g_t, focus_preview], dim=-1)
 
-        # Initialize decoder hidden state from [h_t || g_t]
+        # Initialize decoder hidden state from [h_t || g_t || focus_preview]
         decoder_h = self.h_proj(context).unsqueeze(0)
 
         # Start with start token
@@ -554,10 +569,15 @@ class AutoregressiveActionDecoder(nn.Module):
         batch_size = h_t.size(0)
         num_bytes = num_bytes or self.num_action_bytes
 
-        # Concatenate [h_t || g_t] for K_eff gradient flow
+        # JARVIS FIX: Extract focus_preview (bytes 480-511) from phi_obs
+        # Full phi_obs is mostly zeros; focus_preview contains the actual buggy code
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
-        context = torch.cat([h_t, g_t], dim=-1)
+        if phi_obs is None:
+            focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
+        else:
+            focus_preview = phi_obs[:, -self.focus_preview_dim:]
+        context = torch.cat([h_t, g_t, focus_preview], dim=-1)
 
         # Initialize decoder hidden state
         decoder_h = self.h_proj(context).unsqueeze(0)

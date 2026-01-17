@@ -589,6 +589,27 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # =============================================================================
 
 
+def _compute_bug_line(original: str, buggy: str) -> int:
+    """Compute the line number where a bug was injected.
+
+    Returns 1-indexed line number (0 if can't determine).
+    """
+    # Find first difference position
+    min_len = min(len(original), len(buggy))
+    diff_pos = 0
+    for i in range(min_len):
+        if original[i] != buggy[i]:
+            diff_pos = i
+            break
+    else:
+        # No difference found in common prefix
+        diff_pos = min_len
+
+    # Count newlines before diff_pos in original
+    line_num = original[:diff_pos].count('\n') + 1
+    return line_num
+
+
 def inject_missing_colon(code: str) -> Tuple[str, str, str]:
     """Inject missing colon after function/class definition - TRUE TRIVIAL syntax bug."""
     import re
@@ -802,7 +823,7 @@ def inject_fixed_string_replacement(
         original_code=original,
         buggy_code=buggy,
         fix_code=original,
-        line_number=0,
+        line_number=_compute_bug_line(original, buggy),
         hint=hint,
     )
 
@@ -858,7 +879,7 @@ def inject_data_pipeline_bug(
             original_code=bug_a.original_code,
             buggy_code=bug_a.buggy_code,
             fix_code=bug_a.fix_code,
-            line_number=0,
+            line_number=bug_a.line_number,  # Use primary bug's line
             hint=f"{bug_a.hint}; {bug_b.hint}".strip(),
             secondary_files={
                 bug_b.file_path: (bug_b.original_code, bug_b.buggy_code, bug_b.fix_code),
@@ -951,7 +972,7 @@ def inject_rest_api_bug(
             original_code=bug_a.original_code,
             buggy_code=bug_a.buggy_code,
             fix_code=bug_a.fix_code,
-            line_number=0,
+            line_number=bug_a.line_number,  # Use primary bug's line
             hint=f"{bug_a.hint}; {bug_b.hint}".strip(),
             secondary_files={
                 bug_b.file_path: (bug_b.original_code, bug_b.buggy_code, bug_b.fix_code),
@@ -1074,7 +1095,7 @@ def inject_two_file_bug_combo(
         original_code=code_a,
         buggy_code=buggy_a,
         fix_code=code_a,
-        line_number=0,
+        line_number=_compute_bug_line(code_a, buggy_a),
         hint=f"Multiple failures: inspect {path_a} and {path_b}. {hint_a}; {hint_b}".strip(),
         secondary_files={
             path_b: (code_b, buggy_b, code_b),
@@ -1198,11 +1219,11 @@ class RepoGenerator:
 
         # Select injection type based on difficulty
         if difficulty == BugDifficulty.TRIVIAL:
-            # TRUE TRIVIAL: syntax errors that can be detected by py_compile
+            # TRUE TRIVIAL: syntax errors fixable with TRIVIAL_VOCAB
+            # ONLY include injectors whose fixes are in vocab: ':\n', ')', ','
+            # REMOVED: inject_typo_keyword, inject_wrong_quote (not in vocab)
             injectors = [
                 inject_missing_colon,
-                inject_typo_keyword,
-                inject_wrong_quote,
                 inject_missing_paren,
             ]
         elif difficulty == BugDifficulty.EASY:
@@ -1212,6 +1233,9 @@ class RepoGenerator:
             injectors = [inject_wrong_operator, inject_off_by_one, inject_wrong_return]
         else:
             injectors = [inject_wrong_return, inject_missing_arg]
+
+        # Shuffle to get variety instead of always preferring first injector
+        random.shuffle(injectors)
 
         # Try injectors until one works
         for injector in injectors:
@@ -1233,13 +1257,16 @@ class RepoGenerator:
                     files_affected=[path],
                 )
 
+                # Compute where the bug was injected
+                bug_line = _compute_bug_line(content, buggy)
+
                 return BugInstance(
                     template=template,
                     file_path=path,
                     original_code=content,
                     buggy_code=buggy,
                     fix_code=content,
-                    line_number=0,
+                    line_number=bug_line,
                     hint=hint,
                 )
 

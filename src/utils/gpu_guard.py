@@ -149,16 +149,23 @@ class GPUGuard:
         start_t = time.time()
         util_samples: Deque[int] = deque()
         low_util_since: Optional[float] = None
+        consecutive_failures = 0  # Track consecutive nvidia-smi failures
+        max_consecutive_failures = 5  # Allow up to 5 consecutive failures before aborting
 
         window_len = max(1, int(self.config.util_window_s / max(self.config.poll_interval_s, 1e-6)))
 
         while not self._stop_event.is_set():
-            sample = query_gpu_sample(self.config.gpu_index)
+            # Use longer timeout (5s) for query under heavy GPU load
+            sample = query_gpu_sample(self.config.gpu_index, timeout_s=5.0)
             if sample is None:
-                if self.config.require_nvidia_smi:
-                    self._abort(90, "GPU_GUARD: failed to query nvidia-smi; aborting")
+                consecutive_failures += 1
+                if self.config.require_nvidia_smi and consecutive_failures >= max_consecutive_failures:
+                    self._abort(90, f"GPU_GUARD: failed to query nvidia-smi {consecutive_failures} times; aborting")
                 time.sleep(self.config.poll_interval_s)
                 continue
+
+            # Reset failure counter on successful query
+            consecutive_failures = 0
 
             # Hard VRAM cap (total GPU usage).
             if sample.memory_used_mib > self.config.max_memory_mib:

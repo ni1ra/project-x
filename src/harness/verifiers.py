@@ -434,12 +434,11 @@ def compute_reward(
     """
     components = RewardComponents()
 
-    # Test reward:
-    # - For FAST checks, avoid rewarding the baseline pass rate (easy to farm without fixing).
-    # - For FULL checks, keep a small pass-rate shaping term, plus a large success bonus when all pass.
+    # Test reward: Give reward for ALL scopes now that syntax reward is disabled.
+    # Fast tests get same reward as full - the delta signal in env.py is the main driver.
     if test_result.tests_total > 0:
         pass_rate = test_result.tests_passing / test_result.tests_total
-        components.test_reward = 2.0 * pass_rate if test_result.scope == "full" else 0.0
+        components.test_reward = 2.0 * pass_rate  # All scopes get reward
     else:
         components.test_reward = 0.0
 

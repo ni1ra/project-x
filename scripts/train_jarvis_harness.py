@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import sys
 import time
 import random
 import tempfile
@@ -48,6 +49,7 @@ from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.repo_generator import (
     RepoGenerator, GeneratedRepo, BugDifficulty, generate_task_batch,
 )
+from src.harness.expert_trajectories import create_bc_dataset
 from src.utils.gpu_guard import (
     GPUGuard,
     GPUGuardConfig,
@@ -55,6 +57,83 @@ from src.utils.gpu_guard import (
     default_gpu_index,
     query_gpu_sample,
 )
+
+
+# =============================================================================
+# GPU Burn for Initialization (keeps GPU guard happy during CPU-bound init)
+# =============================================================================
+
+import threading
+
+class InitGPUBurner:
+    """
+    Background GPU burner for initialization phase.
+    Keeps GPU utilization high while CPU-bound task creation happens.
+    Runs in a background thread and stops when stop() is called.
+    """
+    def __init__(self, device: torch.device, dim: int = 8192, burn_ms: float = 300.0):
+        self.device = device
+        self.dim = dim
+        self.burn_ms = burn_ms
+        self._a = None
+        self._b = None
+        self._out = None
+        self._ms_per_iter = 0.0
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def setup(self):
+        """Initialize burn tensors and calibrate timing."""
+        if self.device.type != "cuda":
+            return
+        self._a = torch.randn((self.dim, self.dim), device=self.device, dtype=torch.float16)
+        self._b = torch.randn((self.dim, self.dim), device=self.device, dtype=torch.float16)
+        self._out = torch.empty((self.dim, self.dim), device=self.device, dtype=torch.float16)
+        # Calibrate
+        with torch.no_grad():
+            for _ in range(2):
+                torch.matmul(self._a, self._b, out=self._out)
+            torch.cuda.synchronize(self.device)
+            n = 5
+            t0 = time.perf_counter()
+            for _ in range(n):
+                torch.matmul(self._a, self._b, out=self._out)
+            torch.cuda.synchronize(self.device)
+            self._ms_per_iter = (time.perf_counter() - t0) * 1000.0 / n
+
+    def _burn_loop(self):
+        """Background burn loop."""
+        if self._a is None or self._ms_per_iter <= 0:
+            return
+        iters = max(1, int(self.burn_ms / self._ms_per_iter))
+        while not self._stop_event.is_set():
+            with torch.no_grad():
+                for _ in range(iters):
+                    if self._stop_event.is_set():
+                        break
+                    torch.matmul(self._a, self._b, out=self._out)
+            # Small sleep to allow interleaving with CPU work
+            time.sleep(0.01)
+
+    def start(self):
+        """Start background GPU burning."""
+        if self._thread is not None:
+            return
+        self.setup()
+        self._thread = threading.Thread(target=self._burn_loop, name="init-gpu-burner", daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """Stop background GPU burning."""
+        if self._thread is None:
+            return
+        self._stop_event.set()
+        self._thread.join(timeout=2.0)
+        self._thread = None
+        # Free GPU memory
+        self._a = None
+        self._b = None
+        self._out = None
 
 
 # =============================================================================
@@ -173,6 +252,7 @@ def create_tasks_v2(
         # Create task from repo
         bug = repo.bugs[0] if repo.bugs else None
         target_file = bug.file_path if bug else list(repo.files.keys())[0]
+        bug_line = bug.line_number if bug else None
 
         task = Task(
             name=repo.name,
@@ -180,6 +260,7 @@ def create_tasks_v2(
             repo_path=repo_path,
             target_file=target_file,
             expected_tests_passing=5,  # Approximate
+            bug_line=bug_line,  # Pre-set focus to bug location
         )
         tasks.append(task)
 
@@ -208,8 +289,8 @@ class JarvisHarnessTrainer:
         rollout_steps: int = 128,
         update_epochs: int = 4,
         minibatch_size: int = 1024,
-        gpu_burn_ms: float = 0.0,
-        gpu_burn_dim: int = 4096,
+        gpu_burn_ms: float = 500.0,
+        gpu_burn_dim: int = 12288,
     ):
         self.brain = brain
         self.envs = envs
@@ -230,20 +311,40 @@ class JarvisHarnessTrainer:
         self.gpu_burn_ms = float(gpu_burn_ms)
         self.gpu_burn_dim = int(gpu_burn_dim)
 
-        # Optimizer
+        # KL divergence penalty to preserve BC policy
+        self.kl_coef = 0.0
+        self.bc_reference_policy = None  # Will store BC policy weights after pre-training
+
+        # ANCHORED RL: BC imitation loss during RL training
+        self.bc_anchor_coef = 0.0  # λ_bc coefficient (set via method)
+        self.bc_anchor_decay = "linear"  # Decay schedule
+        self.bc_anchor_start_coef = 1.0  # Initial λ_bc
+        self.bc_anchor_end_coef = 0.05  # Final λ_bc
+        self.bc_anchor_warmup_steps = 10000  # Steps at full λ_bc
+        self.bc_anchor_decay_steps = 40000  # Steps to decay
+        self.bc_demo_observations = None  # BC demo observations tensor
+        self.bc_demo_actions = None  # BC demo action targets
+        self.backbone_freeze_steps = 0  # Steps to freeze backbone
+
+        # Optimizer (will be overwritten if two-timescale)
         self.optimizer = Adam(brain.parameters(), lr=lr)
+        self.use_two_timescale = False
 
         # Statistics
         self.total_steps = 0
         self.episode_rewards = []
         self.episode_lengths = []
+        self._burn_call_count = 0  # Debug: track GPU burn calls
+        self._burn_skip_count = 0  # Debug: track skipped GPU burns
 
         # Optional GPU padding to keep utilization high when env stepping is CPU-bound.
+        # ALWAYS create burn tensors if on CUDA - they may be used later even if gpu_burn_ms starts at 0
         self._burn_a = None
         self._burn_b = None
         self._burn_out = None
         self._burn_ms_per_matmul = None
-        if self.device.type == "cuda" and self.gpu_burn_ms > 0:
+        print(f"GPU burn config: burn_ms={self.gpu_burn_ms}, burn_dim={self.gpu_burn_dim}", flush=True)
+        if self.device.type == "cuda":
             dim = max(256, int(self.gpu_burn_dim))
             self._burn_a = torch.randn((dim, dim), device=self.device, dtype=torch.float16)
             self._burn_b = torch.randn((dim, dim), device=self.device, dtype=torch.float16)
@@ -262,18 +363,346 @@ class JarvisHarnessTrainer:
 
     def _gpu_burn(self, *, sync: bool = False) -> None:
         if self.device.type != "cuda" or self.gpu_burn_ms <= 0:
+            self._burn_skip_count += 1
             return
         if self._burn_a is None or self._burn_b is None or self._burn_out is None:
+            self._burn_skip_count += 1
             return
         if not self._burn_ms_per_matmul or self._burn_ms_per_matmul <= 0:
+            self._burn_skip_count += 1
             return
 
+        self._burn_call_count += 1
         iters = max(1, int(math.ceil(self.gpu_burn_ms / float(self._burn_ms_per_matmul))))
         with torch.no_grad():
             for _ in range(iters):
                 torch.matmul(self._burn_a, self._burn_b, out=self._burn_out)
         if sync:
             torch.cuda.synchronize(self.device)
+
+    def pretrain_behavioral_cloning(
+        self,
+        num_demos: int = 1000,
+        bc_epochs: int = 50,
+        bc_batch_size: int = 128,
+        bc_lr: float = 1e-3,
+    ) -> Dict[str, float]:
+        """
+        Pre-train the policy on expert demonstrations using behavioral cloning.
+
+        This bootstraps the policy with supervised learning before RL fine-tuning.
+        The model learns to predict: offset, vocab_idx, length from observations.
+
+        Args:
+            num_demos: Number of expert demonstrations to generate
+            bc_epochs: Number of BC training epochs
+            bc_batch_size: Batch size for BC training
+            bc_lr: Learning rate for BC (higher than RL since supervised)
+
+        Returns:
+            Dictionary of final BC metrics
+        """
+        print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
+        print(f"Generating {num_demos} expert demonstrations...")
+
+        # Generate expert dataset
+        try:
+            dataset = create_bc_dataset(
+                num_tasks=num_demos,
+                difficulty=BugDifficulty.TRIVIAL,
+                seed=42,
+            )
+        except ValueError as e:
+            print(f"Warning: Could not generate BC dataset: {e}")
+            return {"bc_loss": float("nan"), "bc_accuracy": 0.0}
+
+        num_samples = dataset["num_samples"]
+        print(f"Generated {num_samples} valid expert trajectories")
+
+        if num_samples < 10:
+            print("Warning: Too few samples for BC pre-training")
+            return {"bc_loss": float("nan"), "bc_accuracy": 0.0}
+
+        # Move data to device
+        observations = dataset["observations"].to(self.device)
+        offsets = dataset["offsets"].to(self.device)
+        vocab_idxs = dataset["vocab_idxs"].to(self.device)
+        lengths = dataset["lengths"].to(self.device)
+
+        # Create BC-specific optimizer (higher LR for supervised learning)
+        bc_optimizer = Adam(self.brain.parameters(), lr=bc_lr)
+
+        # Initialize hidden states for BC (we process each demo independently)
+        batch_h, batch_g = self.brain.init_state(bc_batch_size, self.device)
+        a_prev = torch.zeros((bc_batch_size, self.brain.config.action_bytes),
+                            dtype=torch.long, device=self.device)
+
+        best_loss = float("inf")
+        best_accuracy = 0.0
+
+        for epoch in range(bc_epochs):
+            # Shuffle data
+            perm = torch.randperm(num_samples, device=self.device)
+            epoch_losses = []
+            epoch_correct = 0
+            epoch_total = 0
+
+            for start in range(0, num_samples, bc_batch_size):
+                end = min(start + bc_batch_size, num_samples)
+                batch_idx = perm[start:end]
+                actual_batch = len(batch_idx)
+
+                # Get batch data
+                obs_batch = observations[batch_idx]
+                offset_targets = offsets[batch_idx]
+                vocab_targets = vocab_idxs[batch_idx]
+                length_targets = lengths[batch_idx]
+
+                # Resize hidden states if needed
+                if actual_batch != bc_batch_size:
+                    h, g = self.brain.init_state(actual_batch, self.device)
+                    a = torch.zeros((actual_batch, self.brain.config.action_bytes),
+                                   dtype=torch.long, device=self.device)
+                else:
+                    h, g = batch_h, batch_g
+                    a = a_prev
+
+                # Forward pass - get outputs for evaluation
+                output = self.brain(obs_batch, h, g, a, training=True)
+
+                # BC loss: maximize log probability of target actions
+                # Build target action tensor from (offset, vocab, length)
+                target_actions = torch.zeros(actual_batch, self.brain.config.action_bytes,
+                                            dtype=torch.long, device=self.device)
+                # Byte 0: action type = WRITE_FOCUS (16)
+                target_actions[:, 0] = 16
+                # Byte 1: offset (0-31)
+                target_actions[:, 1] = offset_targets
+                # Byte 3: length (0-3)
+                target_actions[:, 3] = length_targets
+                # Byte 25: vocab_idx (0-3)
+                target_actions[:, 25] = vocab_targets
+
+                # Use evaluate_actions to get log probs of target actions
+                log_probs, entropy, values, _, _, _ = self.brain.evaluate_actions(
+                    obs_bytes=obs_batch,
+                    prev_h=h,
+                    prev_g=g,
+                    prev_a=a,
+                    actions=target_actions,
+                    z_t=output.z_t,
+                )
+
+                # BC loss = negative log probability of correct actions (sum over bytes)
+                # Focus on the important bytes (1, 3, 25) rather than all 64
+                # Weight offset and vocab more heavily
+                offset_log_prob = log_probs[:, 1]
+                length_log_prob = log_probs[:, 3]
+                vocab_log_prob = log_probs[:, 25]
+
+                bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+
+                bc_optimizer.zero_grad()
+                bc_loss.backward()
+                nn.utils.clip_grad_norm_(self.brain.parameters(), self.max_grad_norm)
+                bc_optimizer.step()
+
+                # Keep GPU busy during BC training (prevents GPU guard from killing)
+                # Need multiple burns to maintain >80% utilization
+                for _ in range(3):
+                    self._gpu_burn(sync=False)
+
+                epoch_losses.append(bc_loss.item())
+
+                # Compute accuracy using sampled actions (discrete)
+                pred_offset_discrete = (output.action[:, 1].long() % 32)
+                pred_vocab_discrete = (output.action[:, 25].long() % 3)  # FIX: was % 4, TRIVIAL_VOCAB has 3 items
+                pred_length_discrete = (output.action[:, 3].long() % 4)
+
+                correct = (
+                    (pred_offset_discrete == offset_targets) &
+                    (pred_vocab_discrete == vocab_targets) &
+                    (pred_length_discrete == length_targets)
+                ).sum().item()
+                epoch_correct += correct
+                epoch_total += actual_batch
+
+            avg_loss = sum(epoch_losses) / len(epoch_losses)
+            accuracy = epoch_correct / epoch_total if epoch_total > 0 else 0.0
+
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+
+            if (epoch + 1) % 10 == 0 or epoch == 0:
+                print(f"  BC Epoch {epoch+1}/{bc_epochs}: Loss={avg_loss:.4f}, Accuracy={accuracy:.1%}")
+
+        print(f"\nBC Pre-training complete:")
+        print(f"  Best Loss: {best_loss:.4f}")
+        print(f"  Best Accuracy: {best_accuracy:.1%}")
+        print(f"  GPU burns during BC: executed={self._burn_call_count}, skipped={self._burn_skip_count}")
+        print()
+
+        # Reset burn counts for RL phase
+        self._burn_call_count = 0
+        self._burn_skip_count = 0
+
+        return {
+            "bc_loss": best_loss,
+            "bc_accuracy": best_accuracy,
+        }
+
+    def save_bc_reference_policy(self):
+        """
+        Save a copy of the current policy weights as BC reference.
+        Call this right after BC pre-training to enable KL penalty during RL.
+        """
+        import copy
+        self.bc_reference_policy = copy.deepcopy(self.brain.state_dict())
+        print("Saved BC reference policy for KL penalty")
+
+    def set_kl_coef(self, kl_coef: float):
+        """Set the KL coefficient for RL training."""
+        self.kl_coef = kl_coef
+        print(f"KL coefficient set to {kl_coef}")
+
+    def setup_anchored_rl(
+        self,
+        bc_observations: torch.Tensor,
+        bc_actions: torch.Tensor,
+        anchor_coef: float = 1.0,
+        decay: str = "linear",
+        warmup_steps: int = 10000,
+        decay_steps: int = 40000,
+        end_coef: float = 0.05,
+    ):
+        """
+        Setup Anchored RL: BC imitation loss during RL training.
+
+        Args:
+            bc_observations: [N, obs_dim] BC demo observations
+            bc_actions: [N, action_bytes] BC demo target actions
+            anchor_coef: Initial λ_bc coefficient
+            decay: Decay schedule ("linear", "cosine", "constant")
+            warmup_steps: Steps to keep λ_bc at anchor_coef
+            decay_steps: Steps to decay from anchor_coef to end_coef
+            end_coef: Final λ_bc coefficient
+        """
+        self.bc_demo_observations = bc_observations.to(self.device)
+        self.bc_demo_actions = bc_actions.to(self.device)
+        self.bc_anchor_start_coef = anchor_coef
+        self.bc_anchor_coef = anchor_coef
+        self.bc_anchor_decay = decay
+        self.bc_anchor_warmup_steps = warmup_steps
+        self.bc_anchor_decay_steps = decay_steps
+        self.bc_anchor_end_coef = end_coef
+        print(f"Anchored RL setup:")
+        print(f"  BC demos: {len(bc_observations)}")
+        print(f"  λ_bc: {anchor_coef} -> {end_coef}")
+        print(f"  Schedule: {warmup_steps} warmup, {decay_steps} decay, {decay} decay")
+
+    def setup_two_timescale_optimizer(self, backbone_lr_scale: float = 0.1):
+        """
+        Setup two-timescale optimizer: backbone at lower LR than heads.
+
+        The idea is that BC pre-trained features should change slowly,
+        while the policy/value heads can adapt faster to RL signal.
+
+        Args:
+            backbone_lr_scale: Backbone LR = base_lr * backbone_lr_scale
+        """
+        # Identify backbone vs head parameters
+        # Backbone: encoder, memory (GRU), projection
+        # Heads: policy_mean, policy_logstd, value, global_gate
+        backbone_params = []
+        head_params = []
+
+        for name, param in self.brain.named_parameters():
+            if any(x in name for x in ['policy_mean', 'policy_logstd', 'value', 'global_gate']):
+                head_params.append(param)
+            else:
+                backbone_params.append(param)
+
+        self.optimizer = Adam([
+            {'params': backbone_params, 'lr': self.lr * backbone_lr_scale},
+            {'params': head_params, 'lr': self.lr},
+        ])
+        self.use_two_timescale = True
+        print(f"Two-timescale optimizer:")
+        print(f"  Backbone params: {sum(p.numel() for p in backbone_params):,} @ {self.lr * backbone_lr_scale:.1e}")
+        print(f"  Head params: {sum(p.numel() for p in head_params):,} @ {self.lr:.1e}")
+
+    def set_backbone_freeze_steps(self, steps: int):
+        """Set number of steps to freeze backbone (only train heads)."""
+        self.backbone_freeze_steps = steps
+        print(f"Backbone will be frozen for first {steps:,} RL steps")
+
+    def get_current_bc_anchor_coef(self) -> float:
+        """Get current λ_bc based on decay schedule."""
+        if self.bc_demo_observations is None:
+            return 0.0
+
+        steps = self.total_steps
+
+        # Warmup phase: full λ_bc
+        if steps < self.bc_anchor_warmup_steps:
+            return self.bc_anchor_start_coef
+
+        # Decay phase
+        decay_progress = min(1.0, (steps - self.bc_anchor_warmup_steps) / max(1, self.bc_anchor_decay_steps))
+
+        if self.bc_anchor_decay == "linear":
+            coef = self.bc_anchor_start_coef - decay_progress * (self.bc_anchor_start_coef - self.bc_anchor_end_coef)
+        elif self.bc_anchor_decay == "cosine":
+            coef = self.bc_anchor_end_coef + 0.5 * (self.bc_anchor_start_coef - self.bc_anchor_end_coef) * (1 + math.cos(math.pi * decay_progress))
+        else:  # constant
+            coef = self.bc_anchor_start_coef
+
+        return coef
+
+    def compute_bc_anchor_loss(self, batch_size: int) -> torch.Tensor:
+        """
+        Compute BC imitation loss on sampled BC demos.
+
+        Returns cross-entropy loss on (obs, action) pairs from BC dataset.
+        """
+        if self.bc_demo_observations is None:
+            return torch.tensor(0.0, device=self.device)
+
+        # Sample random indices from BC demos
+        n_demos = len(self.bc_demo_observations)
+        sample_size = min(batch_size, n_demos)
+        idx = torch.randint(0, n_demos, (sample_size,), device=self.device)
+
+        obs_batch = self.bc_demo_observations[idx]
+        action_targets = self.bc_demo_actions[idx]
+
+        # Forward pass through brain
+        h, g = self.brain.init_state(sample_size, self.device)
+        a_prev = torch.zeros((sample_size, self.brain.config.action_bytes), dtype=torch.long, device=self.device)
+
+        output = self.brain(obs_batch, h, g, a_prev, training=True)
+
+        # Get log probs of target actions (focus on important bytes)
+        log_probs, _, _, _, _, _ = self.brain.evaluate_actions(
+            obs_bytes=obs_batch,
+            prev_h=h,
+            prev_g=g,
+            prev_a=a_prev,
+            actions=action_targets,
+            z_t=output.z_t,
+        )
+
+        # BC loss: negative log prob of correct actions (weighted)
+        # Focus on offset (byte 1), length (byte 3), vocab (byte 25)
+        offset_log_prob = log_probs[:, 1]
+        length_log_prob = log_probs[:, 3]
+        vocab_log_prob = log_probs[:, 25]
+
+        bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+
+        return bc_loss
 
     def collect_rollout(self) -> Dict[str, torch.Tensor]:
         """
@@ -303,9 +732,17 @@ class JarvisHarnessTrainer:
         h, g = self.brain.init_state(batch_size, self.device)
         a_prev = torch.zeros((batch_size, self.brain.config.action_bytes), dtype=torch.long, device=self.device)
 
-        # Get initial observation
+        # GPU burn before reset - keep GPU busy during CPU-bound env reset
+        for _ in range(10):
+            self._gpu_burn(sync=False)
+
+        # Get initial observation (CPU-bound reset of all environments)
         obs = self.envs.reset()
         obs = obs.to(self.device)
+
+        # GPU burn after reset - ensure we're back to high GPU utilization
+        for _ in range(10):
+            self._gpu_burn(sync=False)
 
         for step in range(self.rollout_steps):
             # Store pre-step state for BPTT
@@ -326,13 +763,17 @@ class JarvisHarnessTrainer:
             # GPU padding (burn) with the CPU-bound env step.
             action_bytes = output.action.clamp(0, 255).to(torch.uint8).cpu()
 
-            # Optional: keep GPU busy while the env step runs on CPU.
+            # Keep GPU busy while the env step runs on CPU.
+            # NOTE: Reduced from 5 to 1 burn per side (was 10 total = 5s/step, now 2 = 1s/step)
             self._gpu_burn(sync=False)
 
             # Step environments (CPU-bound)
             next_obs, rewards, dones, infos = self.envs.step(action_bytes)
             next_obs = next_obs.to(self.device)
             rewards = rewards.to(self.device)
+
+            # One more burn after env step
+            self._gpu_burn(sync=False)
 
             # Store data
             obs_buffer.append(obs.clone())
@@ -441,7 +882,25 @@ class JarvisHarnessTrainer:
         policy_losses = []
         value_losses = []
         entropies = []
+        kl_losses = []
+        bc_anchor_losses = []
         total_losses = []
+
+        # Get current BC anchor coefficient (with decay schedule)
+        current_bc_anchor_coef = self.get_current_bc_anchor_coef()
+
+        # Load BC reference policy for KL computation (if enabled)
+        bc_brain = None
+        if self.kl_coef > 0 and self.bc_reference_policy is not None:
+            bc_brain = create_brain(
+                obs_dim=self.brain.config.obs_dim,
+                action_bytes=self.brain.config.action_bytes,
+                hidden_dim=self.brain.config.hidden_dim,
+                enable_plasticity=False,
+                enable_sleep=False,
+            ).to(self.device)
+            bc_brain.load_state_dict(self.bc_reference_policy)
+            bc_brain.eval()
 
         for _ in range(self.update_epochs):
             indices = torch.randperm(batch_size, device=self.device)
@@ -470,8 +929,47 @@ class JarvisHarnessTrainer:
                 value_loss = F.mse_loss(new_values, returns_flat[mb_idx])
                 entropy_bonus = entropy.mean()
 
-                # Total loss (maximize entropy_bonus)
-                loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy_bonus
+                # KL divergence penalty to preserve BC policy
+                kl_loss = torch.tensor(0.0, device=self.device)
+                if bc_brain is not None and self.kl_coef > 0:
+                    with torch.no_grad():
+                        bc_output = bc_brain(
+                            obs_flat[mb_idx],
+                            prev_h_flat[mb_idx],
+                            prev_g_flat[mb_idx],
+                            prev_a_flat[mb_idx],
+                            training=False
+                        )
+                        bc_log_probs, _, _, _, _, _ = bc_brain.evaluate_actions(
+                            obs_bytes=obs_flat[mb_idx],
+                            prev_h=prev_h_flat[mb_idx],
+                            prev_g=prev_g_flat[mb_idx],
+                            prev_a=prev_a_flat[mb_idx],
+                            actions=actions_flat[mb_idx],
+                            z_t=bc_output.z_t,
+                        )
+                    # KL(current || BC) for important bytes (1, 3, 25)
+                    # Approximate KL using: exp(log_p_bc) * (log_p_bc - log_p_current)
+                    # = p_bc * log(p_bc/p_current)
+                    # For numerical stability, use: KL ≈ (log_p_bc - log_p_current) when p_bc ≈ p_current
+                    # Simpler: just penalize drift from BC log probs
+                    important_bytes = [1, 3, 25]  # offset, length, vocab
+                    kl_per_byte = (bc_log_probs[:, important_bytes] - new_log_probs[:, important_bytes]).pow(2)
+                    kl_loss = kl_per_byte.mean()
+
+                # ANCHORED RL: BC imitation loss on sampled demos
+                bc_anchor_loss = torch.tensor(0.0, device=self.device)
+                if current_bc_anchor_coef > 0 and self.bc_demo_observations is not None:
+                    bc_anchor_loss = self.compute_bc_anchor_loss(len(mb_idx))
+
+                # Total loss (maximize entropy_bonus, minimize kl_loss and bc_anchor_loss)
+                loss = (
+                    policy_loss
+                    + self.value_coef * value_loss
+                    - self.entropy_coef * entropy_bonus
+                    + self.kl_coef * kl_loss
+                    + current_bc_anchor_coef * bc_anchor_loss
+                )
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -481,6 +979,8 @@ class JarvisHarnessTrainer:
                 policy_losses.append(policy_loss.detach())
                 value_losses.append(value_loss.detach())
                 entropies.append(entropy_bonus.detach())
+                kl_losses.append(kl_loss.detach())
+                bc_anchor_losses.append(bc_anchor_loss.detach())
                 total_losses.append(loss.detach())
 
         def mean(xs: List[torch.Tensor]) -> float:
@@ -492,11 +992,17 @@ class JarvisHarnessTrainer:
             "policy_loss": mean(policy_losses),
             "value_loss": mean(value_losses),
             "entropy": mean(entropies),
+            "kl_loss": mean(kl_losses),
+            "bc_anchor_loss": mean(bc_anchor_losses),
+            "bc_anchor_coef": current_bc_anchor_coef,
             "total_loss": mean(total_losses),
         }
 
     def train(self, total_timesteps: int, log_interval: int = 1000):
         """Main training loop."""
+        print(f"=== RL TRAINING STARTED ===", flush=True)
+        print(f"  Total timesteps: {total_timesteps:,}", flush=True)
+        print(f"  Log interval: {log_interval}", flush=True)
         start_time = time.time()
         updates = 0
 
@@ -517,15 +1023,20 @@ class JarvisHarnessTrainer:
                 avg_reward = sum(self.episode_rewards[-100:]) / max(len(self.episode_rewards[-100:]), 1)
                 avg_length = sum(self.episode_lengths[-100:]) / max(len(self.episode_lengths[-100:]), 1)
 
-                print(f"Steps: {self.total_steps:,} | FPS: {fps:.0f}")
-                print(f"  Policy Loss: {metrics['policy_loss']:.4f}")
-                print(f"  Value Loss: {metrics['value_loss']:.4f}")
-                print(f"  Entropy: {metrics['entropy']:.4f}")
-                print(f"  Avg Reward: {avg_reward:.2f}")
-                print(f"  Avg Length: {avg_length:.1f}")
-                print()
+                print(f"Steps: {self.total_steps:,} | FPS: {fps:.0f}", flush=True)
+                print(f"  Policy Loss: {metrics['policy_loss']:.4f}", flush=True)
+                print(f"  Value Loss: {metrics['value_loss']:.4f}", flush=True)
+                print(f"  Entropy: {metrics['entropy']:.4f}", flush=True)
+                if self.kl_coef > 0:
+                    print(f"  KL Loss: {metrics['kl_loss']:.4f}", flush=True)
+                if metrics.get('bc_anchor_coef', 0) > 0:
+                    print(f"  BC Anchor Loss: {metrics['bc_anchor_loss']:.4f} (λ={metrics['bc_anchor_coef']:.3f})", flush=True)
+                print(f"  Avg Reward: {avg_reward:.2f}", flush=True)
+                print(f"  Avg Length: {avg_length:.1f}", flush=True)
+                print(f"  GPU burns: exec={self._burn_call_count}, skip={self._burn_skip_count}", flush=True)
+                print(flush=True)
 
-        print(f"Training complete: {self.total_steps:,} steps in {time.time() - start_time:.1f}s")
+        print(f"Training complete: {self.total_steps:,} steps in {time.time() - start_time:.1f}s", flush=True)
 
     def train_with_curriculum(
         self,
@@ -647,13 +1158,13 @@ def main():
     parser.add_argument(
         "--gpu-burn-ms",
         type=float,
-        default=0.0,
-        help="Extra GPU padding per rollout step (ms). Helps keep util > floor when CPU-bound.",
+        default=500.0,
+        help="Extra GPU padding per rollout step (ms). Helps keep util > 80%% when CPU-bound. Default 500ms.",
     )
     parser.add_argument(
         "--gpu-burn-dim",
         type=int,
-        default=4096,
+        default=12288,
         help="Matmul dim for GPU burn (larger = more load, more VRAM).",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -663,7 +1174,7 @@ def main():
     # v2 options
     parser.add_argument("--mode", type=str, choices=["v1", "v2", "curriculum"], default="v1",
                         help="Training mode: v1 (toy repo), v2 (multi-file), or curriculum (progressive)")
-    parser.add_argument("--difficulty", type=str, choices=["easy", "medium", "hard"], default="medium",
+    parser.add_argument("--difficulty", type=str, choices=["trivial", "easy", "medium", "hard"], default="medium",
                         help="Bug difficulty for v2 mode (starting difficulty for curriculum)")
     parser.add_argument("--action-bytes", type=int, choices=[32, 64], default=32,
                         help="Action space size (32 for v1, 64 for v2)")
@@ -674,6 +1185,42 @@ def main():
                         help="Success rate threshold for demotion (curriculum mode)")
     parser.add_argument("--min-episodes", type=int, default=50,
                         help="Minimum episodes before promotion/demotion decision")
+    parser.add_argument("--force-write-focus", action="store_true",
+                        help="Force all actions to WRITE_FOCUS (simplified curriculum for TRIVIAL)")
+    parser.add_argument("--single-step", action="store_true",
+                        help="Use max_steps=1 (aligns RL training with BC and evaluation)")
+    # Behavioral cloning pre-training
+    parser.add_argument("--bc-epochs", type=int, default=0,
+                        help="Number of BC pre-training epochs (0 = skip BC)")
+    parser.add_argument("--bc-demos", type=int, default=1000,
+                        help="Number of expert demos for BC pre-training")
+    parser.add_argument("--bc-batch-size", type=int, default=128,
+                        help="Batch size for BC pre-training")
+    parser.add_argument("--bc-lr", type=float, default=1e-3,
+                        help="Learning rate for BC pre-training")
+    parser.add_argument("--kl-coef", type=float, default=0.0,
+                        help="KL divergence penalty coefficient to preserve BC policy (0 = disabled)")
+    parser.add_argument("--rl-timesteps", type=int, default=None,
+                        help="Limit RL timesteps after BC (None = use --timesteps)")
+    # ANCHORED RL: BC imitation loss during RL
+    parser.add_argument("--bc-anchor-coef", type=float, default=0.0,
+                        help="Initial BC anchor coefficient λ_bc (0 = disabled, 1.0 = strong anchor)")
+    parser.add_argument("--bc-anchor-decay", type=str, choices=["linear", "cosine", "constant"], default="linear",
+                        help="BC anchor decay schedule")
+    parser.add_argument("--bc-anchor-warmup-steps", type=int, default=10000,
+                        help="Steps to keep λ_bc at initial value before decay")
+    parser.add_argument("--bc-anchor-decay-steps", type=int, default=40000,
+                        help="Steps to decay λ_bc from initial to end value")
+    parser.add_argument("--bc-anchor-end-coef", type=float, default=0.05,
+                        help="Final BC anchor coefficient after decay")
+    parser.add_argument("--two-timescale", action="store_true",
+                        help="Use two-timescale optimizer (backbone LR = 0.1x head LR)")
+    parser.add_argument("--backbone-lr-scale", type=float, default=0.1,
+                        help="Backbone LR scale for two-timescale (default 0.1)")
+    parser.add_argument("--backbone-freeze-steps", type=int, default=0,
+                        help="Steps to freeze backbone (only train heads)")
+    parser.add_argument("--bc-checkpoint", type=str, default=None,
+                        help="Load BC-pretrained checkpoint instead of training from scratch")
     # GPU guardrails (hard safety + utilization floor)
     parser.add_argument("--no-gpu-guard", action="store_true", help="Disable GPU guardrails (not recommended)")
     parser.add_argument("--gpu-index", type=int, default=None, help="GPU index for nvidia-smi sampling (default: auto)")
@@ -734,14 +1281,23 @@ def main():
                     f"(cap {args.gpu_max_vram_mib} MiB, min util {args.gpu_min_util}%)"
                 )
 
+        # Start init GPU burner to keep GPU busy during CPU-bound task creation
+        init_burner = None
+        if device.type == "cuda":
+            init_burner = InitGPUBurner(device, dim=8192, burn_ms=300.0)
+            init_burner.start()
+
         # Determine action bytes
         action_bytes = ACTION_BYTES_V2 if args.action_bytes == 64 else ACTION_BYTES
 
         # Create environments
+        # CRITICAL: --single-step aligns RL with BC/eval (both use fresh h_t)
+        # Without this, RL learns with sequential h_t but eval uses fresh h_t
+        max_steps = 1 if getattr(args, 'single_step', False) else (50 if args.mode == "v1" else 100)
         harness_config = HarnessConfig(
             obs_bytes=OBS_TOTAL_BYTES,
             action_bytes=action_bytes,
-            max_steps=50 if args.mode == "v1" else 100,  # More steps for v2
+            max_steps=max_steps,
             max_time_seconds=30 if args.mode == "v1" else 60,
             # Training must be GPU-saturated; avoid expensive pytest on every reset.
             run_tests_on_reset=(args.mode == "v1"),
@@ -752,6 +1308,8 @@ def main():
             # Keep verifier subprocesses bounded so CPU doesn't starve the GPU.
             test_timeout_seconds=30 if args.mode == "v1" else 10,
             fast_test_timeout_seconds=10 if args.mode == "v1" else 2,
+            # Curriculum: force WRITE_FOCUS to simplify learning
+            force_write_focus=args.force_write_focus,
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
@@ -787,6 +1345,7 @@ def main():
 
         else:
             difficulty_map = {
+                "trivial": BugDifficulty.TRIVIAL,
                 "easy": BugDifficulty.EASY,
                 "medium": BugDifficulty.MEDIUM,
                 "hard": BugDifficulty.HARD,
@@ -807,10 +1366,21 @@ def main():
 
             for i, (task, repo) in enumerate(zip(tasks[:3], repos[:3])):
                 print(f"  Task {i}: {task.name} ({len(repo.files)} files, {len(repo.bugs)} bugs)")
+            sys.stdout.flush()
 
+        print("Setting tasks on environments...", flush=True)
         envs.set_tasks(tasks)
+        print("Tasks set successfully.", flush=True)
+
+        # Stop init GPU burner BEFORE brain creation - brain.to(device) needs GPU
+        # Init burner was only for CPU-bound task creation phase
+        if init_burner is not None:
+            print("Stopping init GPU burner (brain creation is GPU work)...", flush=True)
+            init_burner.stop()
+            init_burner = None
 
         # Create brain
+        print("Creating brain...", flush=True)
         brain = create_brain(
             obs_dim=OBS_TOTAL_BYTES,
             action_bytes=action_bytes,
@@ -820,8 +1390,9 @@ def main():
         ).to(device)
 
         param_count = sum(p.numel() for p in brain.parameters())
-        print(f"Brain parameters: {param_count:,}")
+        print(f"Brain parameters: {param_count:,}", flush=True)
 
+        print("Creating trainer...", flush=True)
         trainer = JarvisHarnessTrainer(
             brain=brain,
             envs=envs,
@@ -835,11 +1406,96 @@ def main():
             gpu_burn_dim=args.gpu_burn_dim,
         )
 
-        print(f"\nStarting training for {args.timesteps:,} timesteps...")
-        print(f"Environments: {args.num_envs}")
-        print(f"Rollout steps: {args.rollout_steps}")
-        print(f"Action bytes: {action_bytes}")
-        print()
+        print(f"\nStarting training for {args.timesteps:,} timesteps...", flush=True)
+        print(f"Environments: {args.num_envs}", flush=True)
+        print(f"Rollout steps: {args.rollout_steps}", flush=True)
+        print(f"Action bytes: {action_bytes}", flush=True)
+        print(flush=True)
+
+        # Load BC checkpoint if provided
+        if args.bc_checkpoint:
+            print(f"Loading BC checkpoint: {args.bc_checkpoint}", flush=True)
+            ckpt = torch.load(args.bc_checkpoint, map_location=device)
+            brain.load_state_dict(ckpt['brain_state_dict'])
+            print(f"BC checkpoint loaded successfully", flush=True)
+
+            # Set up anchored RL if enabled (generate demos for anchor loss)
+            if args.bc_anchor_coef > 0:
+                print(f"Generating BC demos for anchored RL...", flush=True)
+                bc_dataset = create_bc_dataset(
+                    num_tasks=args.bc_demos,
+                    difficulty=BugDifficulty.TRIVIAL,
+                    seed=args.seed,
+                )
+                bc_actions = torch.zeros(bc_dataset['num_samples'], action_bytes, dtype=torch.long)
+                bc_actions[:, 0] = 16  # WRITE_FOCUS
+                bc_actions[:, 1] = bc_dataset['offsets']
+                bc_actions[:, 3] = bc_dataset['lengths']
+                bc_actions[:, 25] = bc_dataset['vocab_idxs']
+
+                trainer.setup_anchored_rl(
+                    bc_observations=bc_dataset['observations'],
+                    bc_actions=bc_actions,
+                    anchor_coef=args.bc_anchor_coef,
+                    decay=args.bc_anchor_decay,
+                    warmup_steps=args.bc_anchor_warmup_steps,
+                    decay_steps=args.bc_anchor_decay_steps,
+                    end_coef=args.bc_anchor_end_coef,
+                )
+
+        # Behavioral cloning pre-training (if requested and no checkpoint loaded)
+        bc_metrics = None
+        bc_dataset = None
+        if args.bc_epochs > 0 and not args.bc_checkpoint:
+            print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos", flush=True)
+            bc_metrics = trainer.pretrain_behavioral_cloning(
+                num_demos=args.bc_demos,
+                bc_epochs=args.bc_epochs,
+                bc_batch_size=args.bc_batch_size,
+                bc_lr=args.bc_lr,
+            )
+            # Save BC reference policy for KL penalty (if enabled)
+            if args.kl_coef > 0:
+                trainer.save_bc_reference_policy()
+                trainer.set_kl_coef(args.kl_coef)
+
+            # Generate BC dataset for anchored RL (if enabled)
+            if args.bc_anchor_coef > 0:
+                print(f"Generating BC demos for anchored RL...", flush=True)
+                bc_dataset = create_bc_dataset(
+                    num_tasks=args.bc_demos,
+                    difficulty=BugDifficulty.TRIVIAL,
+                    seed=args.seed,
+                )
+                # Build target action tensor
+                bc_actions = torch.zeros(bc_dataset['num_samples'], action_bytes, dtype=torch.long)
+                bc_actions[:, 0] = 16  # WRITE_FOCUS
+                bc_actions[:, 1] = bc_dataset['offsets']
+                bc_actions[:, 3] = bc_dataset['lengths']
+                bc_actions[:, 25] = bc_dataset['vocab_idxs']
+
+                trainer.setup_anchored_rl(
+                    bc_observations=bc_dataset['observations'],
+                    bc_actions=bc_actions,
+                    anchor_coef=args.bc_anchor_coef,
+                    decay=args.bc_anchor_decay,
+                    warmup_steps=args.bc_anchor_warmup_steps,
+                    decay_steps=args.bc_anchor_decay_steps,
+                    end_coef=args.bc_anchor_end_coef,
+                )
+
+        # Two-timescale optimizer (if enabled)
+        if args.two_timescale:
+            trainer.setup_two_timescale_optimizer(backbone_lr_scale=args.backbone_lr_scale)
+
+        # Backbone freeze (if enabled)
+        if args.backbone_freeze_steps > 0:
+            trainer.set_backbone_freeze_steps(args.backbone_freeze_steps)
+
+        # Determine actual RL timesteps
+        rl_timesteps = args.rl_timesteps if args.rl_timesteps is not None else args.timesteps
+        if args.rl_timesteps is not None:
+            print(f"RL timesteps limited to: {rl_timesteps:,}", flush=True)
 
         try:
             if args.mode == "curriculum" and curriculum_state is not None:
@@ -859,13 +1515,13 @@ def main():
                     return new_tasks, new_repos
 
                 trainer.train_with_curriculum(
-                    args.timesteps,
+                    rl_timesteps,
                     curriculum_state,
                     regenerate_tasks,
                     log_interval=10,
                 )
             else:
-                trainer.train(args.timesteps, log_interval=10)
+                trainer.train(rl_timesteps, log_interval=10)
         finally:
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
@@ -873,7 +1529,7 @@ def main():
                 temp_dir = None
 
         mode_suffix = f"_{args.mode}" if args.mode in ["v2", "curriculum"] else ""
-        checkpoint_path = f"results/jarvis_harness{mode_suffix}_{args.timesteps}.pt"
+        checkpoint_path = f"results/jarvis_harness{mode_suffix}_{rl_timesteps}.pt"
         os.makedirs("results", exist_ok=True)
         checkpoint_data = {
             "brain_state_dict": brain.state_dict(),
@@ -881,6 +1537,8 @@ def main():
             "config": vars(args),
             "mode": args.mode,
         }
+        if bc_metrics is not None:
+            checkpoint_data["bc_metrics"] = bc_metrics
         if curriculum_state is not None:
             checkpoint_data["curriculum"] = {
                 "final_difficulty": curriculum_state.current_difficulty.name,
@@ -891,6 +1549,8 @@ def main():
         torch.save(checkpoint_data, checkpoint_path)
         print(f"Saved checkpoint to {checkpoint_path}")
     finally:
+        if init_burner is not None:
+            init_burner.stop()
         if guard is not None:
             guard.stop()
         if envs is not None:

@@ -171,6 +171,94 @@
 
 ---
 
+### 2026-01-17 - Eval Script: Sequential Batch=1 Inference Wastes GPU
+**What happened:** eval_jarvis_harness.py ran 50 tasks sequentially with batch_size=1 inference. GPU utilization spiked between 20-30% instead of 80%+. Evaluation took 10x longer than necessary.
+
+**Root cause:**
+1. Original eval script was written for debugging, not production evaluation
+2. Copied single-task pattern without considering GPU efficiency
+3. Each brain forward pass is tiny (batch=1), GPU starved
+4. CPU-bound pytest calls block between inference steps
+5. Training script has VectorizedJarvisEnv - eval script didn't use it
+
+**Score:** 350/420 (works but wastes time and GPU)
+
+**Recovery taken:** RETRY - Rewriting eval to use VectorizedJarvisEnv with parallel batching
+
+**Lesson:**
+- Evaluation scripts should match training efficiency
+- Batch inference ALWAYS beats sequential when possible
+- If training uses vectorized envs, evaluation should too
+- GPU utilization <80% during inference = something is wrong
+- Check nvidia-smi during ANY GPU operation
+
+---
+
+### 2026-01-17 - KL Penalty Fix Failed: Still 0% Success
+**What happened:** Added KL divergence penalty to prevent RL from destroying BC-learned behavior. Trained 20k RL steps with kl_coef=0.5. Result: still 0% success, diff=0, policy still collapsed.
+
+**Root cause (hypotheses to investigate):**
+1. KL coefficient too low (0.5 may not be enough)
+2. 20k RL steps still too many
+3. KL computed on wrong action bytes
+4. BC reference saved incorrectly
+5. **NEW HYPOTHESIS:** BC achieved 75% on training data but maybe doesn't generalize?
+
+**Score:** 300/420 (fix implemented correctly but didn't solve the problem)
+
+**Recovery taken:** INVESTIGATE - Run diagnostic traps on new checkpoint to check action distribution
+
+**Lesson:**
+- One fix per problem - don't stack multiple changes
+- Verify each fix independently before combining
+- KL penalty is ONE approach - may need different solution
+- When a "correct" fix doesn't work, question the diagnosis
+
+---
+
+### 2026-01-17 - Ad-Hoc Debugging Instead of deep-debug Protocol
+**What happened:** After KL penalty fix failed, started running random diagnostic commands instead of formally invoking the /deep-debug skill with proper 5+5 hypotheses and diagnostic traps.
+
+**Root cause:**
+1. Impatience - wanted quick answer instead of systematic investigation
+2. Forgot the skill exists for exactly this situation
+3. "Quick check" mentality instead of rigorous protocol
+
+**Score:** 340/420 (inefficient, may miss root cause)
+
+**Recovery taken:** RETRY - Properly invoke /deep-debug with full protocol
+
+**Lesson:**
+- /deep-debug EXISTS FOR A REASON - use it
+- Ad-hoc debugging leads to tunnel vision
+- 5+5 hypotheses + traps = systematic elimination
+- The protocol catches things "quick checks" miss
+
+---
+
+### 2026-01-17 - CRITICAL: BC Observation Gap (Never Validated Data Distribution)
+**What happened:** BC training achieved 75.2% accuracy but used observations with EMPTY focus/terminal regions (0% non-zero). RL environment has REAL file content (99% non-zero). BC learned to predict actions from zeros - it never saw actual code.
+
+**Root cause:**
+1. `create_bc_dataset()` in `expert_trajectories.py` generated synthetic observations
+2. Never validated that BC observations match RL observations
+3. Assumed "high BC accuracy" meant the model learned useful behavior
+4. 75.2% accuracy on garbage data is still garbage
+
+**Score:** 200/420 (fundamental data mismatch - everything downstream is broken)
+
+**Recovery taken:** INVESTIGATE - Created diagnostic trap that compared BC vs RL observations
+
+**Lesson:**
+- **ALWAYS validate data distributions match between training regimes**
+- High accuracy on wrong data means nothing
+- BC observations must come from the SAME environment as RL
+- "The model learned" ≠ "The model learned the right thing"
+- Diagnostic traps should ALWAYS include observation comparisons
+- When something doesn't transfer, check the INPUT first
+
+---
+
 ### 2026-01-15 10:00 - DEFEATISM: Giving Up on Completion Promise
 **What happened:** Ralph Loop completion promise was SINGULARITY. Instead of continuing to work, I repeatedly declared "SINGULARITY: FALSE", "not achievable within constraints", provided "Final Status" summaries, and essentially stopped pushing. Made progress (exploration bonuses working) then sat back and reported instead of iterating.
 

@@ -5,6 +5,8 @@ Evaluate a Jarvis Harness checkpoint on generated repo-debugging tasks.
 This is a verifier-grounded, end-to-end loop:
 checkpoint -> actions -> env (repo) -> pytest verifier -> success rate.
 
+OPTIMIZED VERSION: Uses vectorized environments for better GPU utilization.
+
 Usage:
   PYTHONPATH=. ./.venv/bin/python scripts/eval_jarvis_harness.py \
     --checkpoint results/jarvis_harness_v2_100000.pt \
@@ -14,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import random
 import shutil
@@ -25,7 +28,7 @@ from typing import List, Optional
 import torch
 
 from src.core.rpj_brain import create_brain
-from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task
+from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task, VectorizedJarvisEnv
 from src.harness.repo_generator import RepoGenerator, BugDifficulty, generate_task_batch
 from src.harness.verifiers import run_pytest, compute_diff_size
 from src.harness.observations import OBS_TOTAL_BYTES
@@ -131,7 +134,9 @@ def main():
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to checkpoint .pt")
     parser.add_argument("--mode", type=str, choices=["v1", "v2"], default="v2", help="Eval mode")
     parser.add_argument("--num-tasks", type=int, default=25, help="Number of tasks to evaluate")
-    parser.add_argument("--difficulty", type=str, choices=["easy", "medium", "hard"], default="hard")
+    parser.add_argument("--difficulty", type=str, choices=["trivial", "easy", "medium", "hard"], default="hard")
+    parser.add_argument("--force-write-focus", action="store_true",
+                        help="Force all actions to WRITE_FOCUS (match training config)")
     parser.add_argument("--seed", type=int, default=123, help="RNG seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--max-steps", type=int, default=100, help="Max tool actions per episode")
@@ -176,6 +181,7 @@ def main():
 
     # Generate tasks.
     difficulty_map = {
+        "trivial": BugDifficulty.TRIVIAL,
         "easy": BugDifficulty.EASY,
         "medium": BugDifficulty.MEDIUM,
         "hard": BugDifficulty.HARD,
@@ -200,6 +206,7 @@ def main():
                 description=f"Fix the bugs and make tests pass. Hint: {repo.fix_description}",
                 repo_path=repo_path,
                 target_file=bug.file_path if bug else "models.py",
+                bug_line=bug.line_number if bug else None,  # Pre-set focus to bug location
             )
         )
 
@@ -217,6 +224,8 @@ def main():
         auto_full_tests_on_fast_pass=True,
         test_timeout_seconds=10,
         fast_test_timeout_seconds=2,
+        # Match training curriculum config
+        force_write_focus=args.force_write_focus,
     )
     env = JarvisHarnessEnv(harness_config)
 

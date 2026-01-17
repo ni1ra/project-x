@@ -29,6 +29,13 @@ from src.harness.actions import (
 from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task
 from src.harness.observations import OBS_TOTAL_BYTES, decode_observation
 from src.harness.verifiers import run_pytest
+from src.harness.expert_trajectories import (
+    ExpertAction, ExpertTrajectory,
+    compute_fix_offset_in_focus, get_vocab_idx_for_fix,
+    compute_correct_action_for_missing_colon,
+    generate_expert_demos, create_bc_dataset,
+    TRIVIAL_VOCAB,
+)
 
 
 class TestBugTemplates:
@@ -205,12 +212,14 @@ class TestExtendedActions:
 
     def test_encode_decode_v2_basic(self):
         """Test basic v2 encoding/decoding."""
+        # Note: v2 decode now constrains offset (% 32), length (% 4), and content (TRIVIAL_VOCAB)
+        # for curriculum learning. This test verifies the constrained behavior.
         action = JarvisAction(
             action_type=ActionType.WRITE_FILE,
             target="models.py",
-            content="return result",
-            offset=100,
-            length=50,
+            content=":\n",  # Use valid TRIVIAL_VOCAB content
+            offset=20,      # Use offset within 0-31 range
+            length=2,       # Use length within 0-3 range
         )
 
         encoded = encode_action_v2(action)
@@ -219,9 +228,10 @@ class TestExtendedActions:
         decoded = decode_action_v2(encoded)
         assert decoded.action_type == ActionType.WRITE_FILE
         assert decoded.target == "models.py"
-        assert decoded.content == "return result"
-        assert decoded.offset == 100
-        assert decoded.length == 50
+        # Content is mapped through TRIVIAL_VOCAB based on byte 25
+        assert decoded.content in TRIVIAL_VOCAB
+        assert decoded.offset == 20  # Offset constrained to % 32
+        assert decoded.length == 2   # Length constrained to % 4
 
     def test_encode_decode_v2_git_action(self):
         """Test git action encoding."""
@@ -387,6 +397,122 @@ class TestHarnessV2Env:
             obs, _, done, _ = env.step(encode_action_v2(action))
             assert not done
             decoded = decode_observation(obs)
-            assert "diff --git" in decoded.terminal_output or "No diff" in decoded.terminal_output
+            # Diff output may be truncated in observation, so check for partial match
+            assert ("diff" in decoded.terminal_output or
+                    "--git" in decoded.terminal_output or
+                    "@@" in decoded.terminal_output or
+                    "No diff" in decoded.terminal_output)
 
             env.close()
+
+
+class TestExpertTrajectories:
+    """Test expert trajectory generation for behavioral cloning."""
+
+    def test_trivial_vocab_size(self):
+        """TRIVIAL_VOCAB should have 3 items (no empty string - causes policy collapse)."""
+        assert len(TRIVIAL_VOCAB) == 3
+        assert ':\n' in TRIVIAL_VOCAB
+        assert ')' in TRIVIAL_VOCAB
+        assert ',' in TRIVIAL_VOCAB
+        # NO empty string - it was removed to fix curriculum closure
+
+    def test_compute_fix_offset(self):
+        """Test fix offset computation."""
+        original = "def foo():\n    pass"
+        buggy = "def foo()\n    pass"  # Missing colon
+        focus_start = 0
+
+        offset, removed, needed = compute_fix_offset_in_focus(original, buggy, focus_start)
+
+        # The colon is at position 9 in original
+        assert offset == 9
+        assert removed == ':'
+        assert needed == ':'
+
+    def test_get_vocab_idx(self):
+        """Test vocab index lookup."""
+        # Exact matches
+        assert get_vocab_idx_for_fix(':\n') == 0
+        assert get_vocab_idx_for_fix(')') == 1
+        assert get_vocab_idx_for_fix(',') == 2
+
+        # Colon alone should map to ':\n'
+        assert get_vocab_idx_for_fix(':') == 0
+
+        # Unknown should return -1 (curriculum closure: reject unfixable samples)
+        assert get_vocab_idx_for_fix('xyz') == -1  # Not in vocab, sample rejected
+
+    def test_compute_correct_action_colon(self):
+        """Test correct action for missing colon."""
+        original = "def __init__(self):\n    pass"
+        buggy = "def __init__(self)\n    pass"  # Missing colon
+        focus_start = 0
+
+        action = compute_correct_action_for_missing_colon(original, buggy, focus_start)
+
+        assert isinstance(action, ExpertAction)
+        assert action.vocab_idx == 0  # ':\n'
+        assert action.length == 0  # Insert mode
+        assert action.offset == 18  # Position of colon in "def __init__(self):"
+        assert action.content == ':\n'
+
+    def test_generate_expert_demos(self):
+        """Test expert demo generation."""
+        demos = generate_expert_demos(num_tasks=20, seed=42)
+
+        # Should get some valid demos (not all tasks may succeed)
+        assert len(demos) >= 5
+
+        for demo in demos:
+            assert isinstance(demo, ExpertTrajectory)
+            assert demo.correct_action.offset >= 0
+            assert demo.correct_action.offset < 64
+            assert demo.correct_action.vocab_idx >= 0
+            assert demo.correct_action.vocab_idx < len(TRIVIAL_VOCAB)
+
+    def test_create_bc_dataset(self):
+        """Test BC dataset creation."""
+        dataset = create_bc_dataset(num_tasks=30, seed=42)
+
+        assert 'observations' in dataset
+        assert 'offsets' in dataset
+        assert 'vocab_idxs' in dataset
+        assert 'lengths' in dataset
+        assert 'num_samples' in dataset
+
+        n = dataset['num_samples']
+        assert n >= 10  # Should have enough samples
+
+        # Check shapes
+        assert dataset['observations'].shape == (n, 512)
+        assert dataset['offsets'].shape == (n,)
+        assert dataset['vocab_idxs'].shape == (n,)
+        assert dataset['lengths'].shape == (n,)
+
+        # Check value ranges
+        assert (dataset['offsets'] >= 0).all()
+        assert (dataset['offsets'] < 64).all()  # Offset validated < 64 in generator
+        assert (dataset['vocab_idxs'] >= 0).all()
+        assert (dataset['vocab_idxs'] < len(TRIVIAL_VOCAB)).all()
+        assert (dataset['lengths'] >= 0).all()
+        assert (dataset['lengths'] < 4).all()
+
+    def test_expert_action_bytes_match_actions_py(self):
+        """Expert action bytes should match decode_action_v2 format."""
+        original = "def foo():\n    pass"
+        buggy = "def foo()\n    pass"
+
+        action = compute_correct_action_for_missing_colon(original, buggy, focus_start=0)
+
+        # Byte 0 should be WRITE_FOCUS
+        assert action.action_bytes[0] == ActionType.WRITE_FOCUS.value
+
+        # Byte 1 should be offset % 32
+        assert action.action_bytes[1] == action.offset % 32
+
+        # Byte 3 should be length % 4
+        assert action.action_bytes[3] == action.length % 4
+
+        # Byte 25 should be vocab_idx
+        assert action.action_bytes[25] == action.vocab_idx

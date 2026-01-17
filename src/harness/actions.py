@@ -310,19 +310,35 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     action_type_val = int(action_bytes[0].item())
     action_type = ActionType(action_type_val % len(ActionType))
 
-    # Offset
-    offset = int(action_bytes[1].item()) + (int(action_bytes[2].item()) << 8)
+    # Offset - CONSTRAINED to 0-31 for learnable action space.
+    # WRITE_FOCUS operates relative to focus_offset, and most TRIVIAL bugs
+    # are within the first 32 chars of the focus window (e.g., "def __init__(self)").
+    # Reduced from 64 to 32 to increase random hit probability from 0.05% to 0.2%.
+    offset = int(action_bytes[1].item()) % 32  # 5-bit offset for easier learning
 
-    # Length
-    length = int(action_bytes[3].item()) + (int(action_bytes[4].item()) << 8)
+    # Length - constrained to 0-3 for simpler action space
+    # 0 = insert, 1-3 = replace small amounts
+    length = int(action_bytes[3].item()) % 4  # 2-bit length
 
     # Target (bytes 5-24)
     target_bytes = action_bytes[5:25].cpu().numpy().tobytes()
     target = target_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
 
     # Content (bytes 25-63)
-    content_bytes = action_bytes[25:].cpu().numpy().tobytes()
-    content = content_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
+    # TRIVIAL vocabulary: Map first content byte to a small fix vocabulary.
+    # This lets the model learn "which fix to apply" instead of raw bytes.
+    # Reduced from 8 to 4 items to increase random hit probability.
+    content_raw = action_bytes[25:].cpu().numpy()
+    if len(content_raw) > 0:
+        # First byte selects from MINIMAL vocabulary of Python fixes.
+        # 3 items = 33% chance of correct content (vs 25% with 4).
+        # Focus on the most common TRIVIAL fixes: colon, paren, comma.
+        # REMOVED empty string '' - it caused policy collapse to no-ops
+        TRIVIAL_VOCAB = [':\n', ')', ',']  # 3 items, NO empty string
+        vocab_idx = int(content_raw[0]) % len(TRIVIAL_VOCAB)
+        content = TRIVIAL_VOCAB[vocab_idx]
+    else:
+        content = ''
 
     if action_type == ActionType.READ_FILE:
         length = max(1, length)
