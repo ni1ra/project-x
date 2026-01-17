@@ -1183,9 +1183,11 @@ That is enough for now. The blindfold test awaits.
 
 ## Appendix I — Sprint 1: Jarvis Harness (from emergence metrics to tool-use)
 
-**Date:** 2026-01-15
+**Date:** 2026-01-17 (Updated)
 
-**Naming note:** “Jarvis” is literal: the long-term target is Iron Man’s JARVIS (a tool-using operator). This appendix is Sprint 1: a verifier-scored RL harness (bytes in/out + hard tests), not a general conversational assistant.
+**Naming note:** "Jarvis" is literal: the long-term target is Iron Man's JARVIS (a tool-using operator). This appendix is Sprint 1: a verifier-scored RL harness (bytes in/out + hard tests), not a general conversational assistant.
+
+**STATUS: 25% SUCCESS ACHIEVED** (2026-01-17) — BC-only model solves 5/20 TRIVIAL syntax bugs.
 
 The emergence results (K_eff, DoErr, CBR, OD-NDT) prove the architecture works. But a brain that passes benchmarks is not yet a brain that does useful work. Sprint 1 extends WIRED-BRAIN from "cool metrics" into "operator mode."
 
@@ -1199,7 +1201,7 @@ We built a gymnasium-style environment where the brain operates as a tool-using 
 
 **Interface (byte-encoded):**
 - **Observation (512 bytes):** Terminal output (256B) + filesystem snapshot (128B) + goal string (64B) + meta info (64B)
-- **Action (32 bytes):** Action type (1B) + offset/length (4B) + target/content (27B)
+- **Action (64 bytes, v2):** Action type (1B) + offset (1B) + length (1B) + content (61B)
 
 **Action Types:**
 | Type | Description |
@@ -1263,16 +1265,23 @@ Initial results (10K steps on toy repo fixture):
 - Avg Reward: 14.51
 - Training loop closes successfully
 
-### I.5 Current Limitation: Action Space
+### I.5 Current Results: 25% Success on TRIVIAL Bugs
 
-**JARVIS validation (412/420) identified the gap:**
+**Update (2026-01-17):** The harness now achieves 25% success rate on TRIVIAL syntax bugs.
 
-> "The Brain must generate the full 32-byte JarvisAction structure. The agent cannot fix arbitrary bugs if it cannot generate arbitrary strings/coordinates."
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Success Rate | **25%** | 5/20 tasks solved |
+| BC Accuracy | ~26.7% | With 5-item TRIVIAL_VOCAB |
+| Action Format | 64 bytes (v2) | Full offset + vocab encoding |
+| Training | BC-only | RL degrades performance |
 
-Currently: Brain outputs 1 byte → mapped to hardcoded actions
-Needed: Brain outputs 32 bytes → arbitrary action generation
+**Key findings:**
+1. **BC-only works best**: Behavioral cloning achieves 25% success; adding RL training degrades to 13.3%
+2. **TRIVIAL_VOCAB**: Content constrained to 5 tokens: `[':\n', ')', ',', "'", '"']`
+3. **Single-step evaluation**: max_steps=1 with force_write_focus for TRIVIAL curriculum
 
-**Next step (Sprint 2):** Implement autoregressive "Motor Head" for 32-byte action generation.
+**Next step:** Investigate anchored RL or proceed BC-only to 70% TRIVIAL threshold, then Phase 4 EASY.
 
 ### I.6 Why This Matters
 
@@ -1367,8 +1376,8 @@ Transformers can't do this. They're frozen graphs. We're building something that
 
 ### K.5 Implementation Status
 
-**Current:** Phase 1 (TRIVIAL RL training) in progress
-**Next:** After Persistent Jarvis (Stage E), implement Phase 8:
+**Current:** Phase 3 (TRIVIAL++) complete — 25% success achieved (BC-only)
+**Next:** Reach 70% TRIVIAL threshold, then Phase 4 EASY, then Phase 8:
 - Define region role template
 - Implement Optuna search over (x, y)
 - Add structural plasticity (gates, pruning/regrowth)

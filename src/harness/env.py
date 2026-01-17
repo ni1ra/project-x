@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Tuple, Optional, Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
 import os
+import random
 import shutil
 import tempfile
 import subprocess
@@ -82,6 +83,7 @@ class HarnessConfig:
 
     # Curriculum / action space simplification
     force_write_focus: bool = False   # If True, force all actions to WRITE_FOCUS (for TRIVIAL curriculum)
+    force_write_focus_prob: float = 1.0  # Probability of forcing WRITE_FOCUS (for gradual curriculum)
     focus_jitter: int = 0             # If > 0, add random jitter +/- this value to focus offset (for robustness)
 
     # Energy proxy coefficients (from BLUEPRINT)
@@ -599,7 +601,9 @@ class JarvisHarnessEnv:
 
         # CURRICULUM: Force WRITE_FOCUS for simplified action space (TRIVIAL level).
         # This lets the model learn offset/content without action type selection.
-        if self.config.force_write_focus:
+        # Uses force_write_focus_prob for gradual curriculum (1.0 = always force, 0.0 = never force)
+        should_force = self.config.force_write_focus and (random.random() < self.config.force_write_focus_prob)
+        if should_force:
             action = JarvisAction(
                 action_type=ActionType.WRITE_FOCUS,
                 target=action.target,
@@ -1637,6 +1641,12 @@ class JarvisHarnessEnv:
             else:
                 # Stronger penalty for no-op writes (tried to write but nothing changed)
                 reward -= 0.2  # -r_noop (was -0.05)
+
+        # TEST RUNNING INCENTIVE (Stage B - EASY)
+        # Small reward for running tests (encourages the developer loop)
+        # Capped at 3 runs per episode to prevent farming
+        if at == ActionType.RUN_TESTS and self.state.run_tests_actions <= 3:
+            reward += 0.3  # Small incentive for test-driven development
 
         # === DENSE OFFSET REWARD SHAPING (TRIVIAL curriculum) ===
         # Give partial credit for "close" edits even if they don't fix the bug.

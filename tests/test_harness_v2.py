@@ -410,11 +410,13 @@ class TestExpertTrajectories:
     """Test expert trajectory generation for behavioral cloning."""
 
     def test_trivial_vocab_size(self):
-        """TRIVIAL_VOCAB should have 3 items (no empty string - causes policy collapse)."""
-        assert len(TRIVIAL_VOCAB) == 3
+        """TRIVIAL_VOCAB should have 5 items (quotes added in Phase 3 TRIVIAL++)."""
+        assert len(TRIVIAL_VOCAB) == 5
         assert ':\n' in TRIVIAL_VOCAB
         assert ')' in TRIVIAL_VOCAB
         assert ',' in TRIVIAL_VOCAB
+        assert "'" in TRIVIAL_VOCAB  # Single quote for wrong_quote bugs
+        assert '"' in TRIVIAL_VOCAB  # Double quote for wrong_quote bugs
         # NO empty string - it was removed to fix curriculum closure
 
     def test_compute_fix_offset(self):

@@ -359,13 +359,19 @@ class AutoregressiveActionDecoder(nn.Module):
             # Byte embeddings for conditioning on previous bytes
             self.byte_embedding = nn.Embedding(256, byte_embed_dim)
 
-            # JARVIS FIX: Use only focus_preview (bytes 480-511) for cleaner signal
-            # The full obs_dim (512) is mostly zeros; focus_preview has the actual code
+            # JARVIS FIX: Include goal bytes, focus_text, and focus_preview for full context
+            # Goal bytes (256-320) contain bug type info: "Missing colon", "Missing paren", etc.
+            # Focus text (320-448) contains the actual code where the bug is
+            # Focus preview (480-512) contains a small preview (redundant but kept for compatibility)
             # Handle smaller obs_dim for test compatibility
             self.focus_preview_dim = min(32, obs_dim)  # Last N bytes of observation
+            self.goal_dim = min(64, obs_dim)  # Goal bytes (256-320)
+            self.focus_text_dim = min(128, max(0, obs_dim - 320))  # Focus text (320-448)
+            self.goal_start = 256 if obs_dim >= 320 else 0  # Start of goal section
+            self.focus_text_start = 320 if obs_dim >= 448 else 0  # Start of focus text
 
-            # Project [h_t || g_t || focus_preview] to decoder initial state
-            self.h_proj = nn.Linear(hidden_dim + k_max + self.focus_preview_dim, decoder_hidden)
+            # Project [h_t || g_t || goal_bytes || focus_text || focus_preview] to decoder initial state
+            self.h_proj = nn.Linear(hidden_dim + k_max + self.goal_dim + self.focus_text_dim + self.focus_preview_dim, decoder_hidden)
 
             # GRU decoder
             self.gru = nn.GRU(
@@ -417,16 +423,24 @@ class AutoregressiveActionDecoder(nn.Module):
         batch_size = h_t.size(0)
         num_bytes = num_bytes or self.num_action_bytes
 
-        # JARVIS FIX: Extract focus_preview (bytes 480-511) from phi_obs
-        # This provides cleaner signal than the full 512-byte observation
+        # JARVIS FIX: Extract goal bytes, focus_text, AND focus_preview from phi_obs
+        # Goal bytes (256-320) contain bug type info for vocabulary selection
+        # Focus text (320-448) contains actual code for offset selection
+        # Focus preview (480-512) contains small code preview
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
         if phi_obs is None:
+            goal_bytes = torch.zeros(batch_size, self.goal_dim, device=h_t.device)
+            focus_text = torch.zeros(batch_size, self.focus_text_dim, device=h_t.device)
             focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
         else:
+            # Extract goal bytes (256-320) for bug type discrimination
+            goal_bytes = phi_obs[:, self.goal_start:self.goal_start + self.goal_dim]
+            # Extract focus text (320-448) for offset selection - this is where the bug is!
+            focus_text = phi_obs[:, self.focus_text_start:self.focus_text_start + self.focus_text_dim]
             # Extract last 32 bytes (focus_preview region)
             focus_preview = phi_obs[:, -self.focus_preview_dim:]
-        context = torch.cat([h_t, g_t, focus_preview], dim=-1)  # [batch, hidden_dim + k_max + 32]
+        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview], dim=-1)
 
         # Initialize decoder hidden state from [h_t || g_t || focus_preview]
         decoder_h = self.h_proj(context).unsqueeze(0)  # [1, batch, decoder_hidden]
@@ -504,16 +518,20 @@ class AutoregressiveActionDecoder(nn.Module):
         batch_size = h_t.size(0)
         num_bytes = actions.size(1)
 
-        # JARVIS FIX: Extract focus_preview (bytes 480-511) from phi_obs
+        # JARVIS FIX: Extract goal bytes, focus_text, AND focus_preview from phi_obs
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
         if phi_obs is None:
+            goal_bytes = torch.zeros(batch_size, self.goal_dim, device=h_t.device)
+            focus_text = torch.zeros(batch_size, self.focus_text_dim, device=h_t.device)
             focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
         else:
+            goal_bytes = phi_obs[:, self.goal_start:self.goal_start + self.goal_dim]
+            focus_text = phi_obs[:, self.focus_text_start:self.focus_text_start + self.focus_text_dim]
             focus_preview = phi_obs[:, -self.focus_preview_dim:]
-        context = torch.cat([h_t, g_t, focus_preview], dim=-1)
+        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview], dim=-1)
 
-        # Initialize decoder hidden state from [h_t || g_t || focus_preview]
+        # Initialize decoder hidden state
         decoder_h = self.h_proj(context).unsqueeze(0)
 
         # Start with start token
@@ -569,15 +587,18 @@ class AutoregressiveActionDecoder(nn.Module):
         batch_size = h_t.size(0)
         num_bytes = num_bytes or self.num_action_bytes
 
-        # JARVIS FIX: Extract focus_preview (bytes 480-511) from phi_obs
-        # Full phi_obs is mostly zeros; focus_preview contains the actual buggy code
+        # JARVIS FIX: Extract goal bytes, focus_text, AND focus_preview from phi_obs
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
         if phi_obs is None:
+            goal_bytes = torch.zeros(batch_size, self.goal_dim, device=h_t.device)
+            focus_text = torch.zeros(batch_size, self.focus_text_dim, device=h_t.device)
             focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
         else:
+            goal_bytes = phi_obs[:, self.goal_start:self.goal_start + self.goal_dim]
+            focus_text = phi_obs[:, self.focus_text_start:self.focus_text_start + self.focus_text_dim]
             focus_preview = phi_obs[:, -self.focus_preview_dim:]
-        context = torch.cat([h_t, g_t, focus_preview], dim=-1)
+        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview], dim=-1)
 
         # Initialize decoder hidden state
         decoder_h = self.h_proj(context).unsqueeze(0)

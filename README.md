@@ -182,7 +182,7 @@ Naming note: "Jarvis" is a deliberate reference to Iron Man's JARVIS. This repo 
 - `--force-write-focus`: Forces all actions to WRITE_FOCUS (simplifies action space for TRIVIAL curriculum)
 - `bug_line` pre-setting: Focus window starts at the injected bug location
 - Async test execution: Non-blocking pytest for faster training loops
-- TRIVIAL_VOCAB: Content bytes map to small vocabulary (`:\n`, `:`, `,`, etc.) instead of raw bytes
+- TRIVIAL_VOCAB: Content bytes map to 5-item vocabulary (`':\n'`, `')'`, `','`, `"'"`, `'"'`) instead of raw bytes
 
 **Rewards:** Ground-truth verifiers (pytest pass/fail, lint score, diff minimality)
 
@@ -215,21 +215,21 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py \
 
 ### Jarvis Harness Training Status
 
-**CURRENT STATE (2026-01-17):** UNBLOCKED - Curriculum closure fixed.
+**CURRENT STATE (2026-01-17):** **25% SUCCESS ACHIEVED** on TRIVIAL bugs (BC-only).
 
-| Metric | Before (broken) | After (fixed) | Status |
-|--------|----------------|---------------|--------|
-| BC Accuracy | 21.1% | **75.2%** | **3.6x improvement** |
-| Valid demos | 426/500 | **500/500** | **100% valid** |
-| Offset in-range | 42% | **100%** | **Fixed** |
-| TRIVIAL_VOCAB | 4 items (with '') | 3 items | **Fixed** |
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Success Rate | **25%** | 5/20 tasks solved |
+| BC Accuracy | ~26.7% | With 5-item TRIVIAL_VOCAB |
+| TRIVIAL_VOCAB | 5 items | `[':\n', ')', ',', "'", '"']` |
+| Test Status | Solved = 100% tests pass | 11-13 tests per task |
 
-**Bugs Fixed (via /deep-debug 2026-01-17):**
-1. **Vocab Modulo Bug** (`train_jarvis_harness.py:503`): BC used `% 4` but vocab has 3 items → Fixed to `% 3`
-2. **Offset Wrap Poison** (`expert_trajectories.py`): 58% of demos had offset >= 32 → Focus window now centered on bug position
-3. **Empty Vocab Token**: Removed `''` from TRIVIAL_VOCAB (caused policy collapse)
+**Key Findings (Phase 3 TRIVIAL++):**
+1. **RL degrades BC performance**: Single-step RL dropped success from 25% to 13.3%
+2. **Focus jitter hurts BC**: Jitter=8 dropped accuracy from 14.9% to 2.9%
+3. **BC-only is currently best**: No RL needed for TRIVIAL with constrained vocab
 
-**Next:** Full RL training run (100K+ steps) to verify improved success rate on actual bug fixing.
+**Next:** Investigate anchored RL to preserve BC knowledge, or proceed BC-only to 70% threshold.
 
 See `HANDOFF.md` for implementation details and `diagnostics/` for debug traps.
 
@@ -237,17 +237,17 @@ See `HANDOFF.md` for implementation details and `diagnostics/` for debug traps.
 
 The path to "Iron Man Jarvis" within constraints (no LLMs, minimal priors):
 
-| Stage | Goal | Key Additions | Exit Criteria |
-|-------|------|---------------|---------------|
-| **TRIVIAL** | Basic syntax fixes | BC pre-training, 3-token vocab | ≥20% success |
-| **A: TRIVIAL++** | Robust syntax | Add quotes, focus jitter | >70% success |
-| **B: EASY** | Developer loop | RUN_TESTS, SEARCH, free action | >20-30% multi-step |
-| **C: Multi-File** | Navigation | LIST_FILES, NAVIGATE, stacktrace | Solves multi-file |
-| **D: General** | Byte-level edits | Drop vocab, BPE micro-tokens | Fixes typos |
-| **E: Persistent** | Continuous ops | Task queue, scratchpad, no reset | Back-to-back tasks |
-| **F: Heterogeneous** | Optuna-discovered brain | Regional heterogeneity, structural plasticity | Beats homogeneous baseline |
+| Stage | Goal | Key Additions | Exit Criteria | Status |
+|-------|------|---------------|---------------|--------|
+| **TRIVIAL** | Basic syntax fixes | BC pre-training, 3-token vocab | ≥20% success | **✅ 25%** |
+| **A: TRIVIAL++** | Robust syntax | Add quotes (5-token vocab) | >70% success | **IN PROGRESS** |
+| **B: EASY** | Developer loop | RUN_TESTS, SEARCH, free action | >20-30% multi-step | Pending |
+| **C: Multi-File** | Navigation | LIST_FILES, NAVIGATE, stacktrace | Solves multi-file | Pending |
+| **D: General** | Byte-level edits | Drop vocab, BPE micro-tokens | Fixes typos | Pending |
+| **E: Persistent** | Continuous ops | Task queue, scratchpad, no reset | Back-to-back tasks | Pending |
+| **F: Heterogeneous** | Optuna-discovered brain | Regional heterogeneity, structural plasticity | Beats homogeneous baseline | Pending |
 
-**Current position:** TRIVIAL curriculum fixed, running RL training (100k steps).
+**Current position:** TRIVIAL++ (Phase 3 complete), working toward 70% threshold before EASY.
 
 ### NEW: Heterogeneous Brain Architecture (2026-01-17)
 

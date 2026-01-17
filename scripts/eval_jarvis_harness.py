@@ -140,6 +140,8 @@ def main():
     parser.add_argument("--difficulty", type=str, choices=["trivial", "easy", "medium", "hard"], default="hard")
     parser.add_argument("--force-write-focus", action="store_true",
                         help="Force all actions to WRITE_FOCUS (match training config)")
+    parser.add_argument("--force-write-focus-prob", type=float, default=1.0,
+                        help="Probability of forcing WRITE_FOCUS (1.0=always, 0.0=never)")
     parser.add_argument("--seed", type=int, default=123, help="RNG seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--max-steps", type=int, default=100, help="Max tool actions per episode")
@@ -229,6 +231,7 @@ def main():
         fast_test_timeout_seconds=2,
         # Match training curriculum config
         force_write_focus=args.force_write_focus,
+        force_write_focus_prob=args.force_write_focus_prob,
     )
     env = JarvisHarnessEnv(harness_config)
 

@@ -282,3 +282,64 @@
 - Difficulty is not an excuse. Constraints are not an excuse. CONTINUE.
 
 ---
+
+### 2026-01-17 - Offset Aliasing: % 32 Instead of % 64
+**What happened:** BC accuracy computation used `% 32` for offset discretization, but ACTION_BYTES_V2 uses 64 bytes, meaning valid offsets span 0-63. This caused 50% of "correct" predictions to alias to wrong offset.
+
+**Root cause:**
+1. Original v1 format used 32 bytes; v2 expanded to 64
+2. Accuracy calculation wasn't updated when format changed
+3. Aliasing: offset 33 % 32 = 1, but offset 33 is NOT offset 1
+
+**Score:** 320/420 (subtle bug, wasted training cycles)
+
+**Recovery taken:** FIXED - Changed to `% 64` for offset, `% 5` for vocab (TRIVIAL_VOCAB has 5 items)
+
+**Lesson:**
+- When format changes, audit ALL code that depends on the format
+- ACTION_BYTES_V2 = 64 means offset range is 0-63
+- Modulo aliasing is silent and deadly - values look correct but mean wrong thing
+
+---
+
+### 2026-01-17 - RL Degrades BC Performance (Catastrophic Forgetting Still Happens)
+**What happened:** BC-only model achieved 25% success. After single-step RL training (even with --single-step flag), success dropped to 13.3%. RL training actively hurt performance.
+
+**Root cause:**
+1. RL gradients overwhelm BC-learned behavior even with 1 step per episode
+2. max_steps=100 during training means 100 bad RL updates per episode
+3. Single-step eval shows 25% success, but RL training degrades it
+4. Anchored RL (BC loss during RL) may help but wasn't sufficient alone
+
+**Score:** 350/420 (RL training counterproductive for current task)
+
+**Recovery taken:** INVESTIGATE - May need pure BC approach or much stronger BC anchoring
+
+**Lesson:**
+- RL is not always beneficial - can destroy learned behavior
+- For simple TRIVIAL bugs, BC-only may be optimal
+- If RL hurts, investigate WHY before adding more RL
+- "More training" is not always "better training"
+
+---
+
+### 2026-01-17 - Focus Jitter Hurts BC Accuracy Significantly
+**What happened:** Added focus_jitter=8 to improve robustness to focus window position. BC accuracy dropped from 14.9% to 2.9% with jitter enabled.
+
+**Root cause:**
+1. Expert demos assume bug is at exact offset
+2. Jitter moves the bug relative to where expert expects it
+3. If bug isn't where expert action targets, action is wrong
+4. Need jitter-aware expert trajectories, not just jitter at eval
+
+**Score:** 340/420 (good idea, wrong implementation)
+
+**Recovery taken:** DISABLED - Focus jitter=0 for now until expert trajectories are jitter-aware
+
+**Lesson:**
+- Data augmentation must be applied CONSISTENTLY to inputs AND labels
+- Adding noise to inputs without adjusting labels = garbage training
+- If jitter moves the bug, expert action offset must also change
+- Test augmentations on small scale before full training
+
+---

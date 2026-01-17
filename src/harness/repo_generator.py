@@ -1326,9 +1326,15 @@ def generate_task_batch(
 
     for i in range(num_tasks):
         difficulty = random.choice(valid_difficulties)
+        # TRIVIAL curriculum: exactly 1 bug for single-action fixes
+        # EASY+: 1-2 bugs for multi-step debugging
+        if difficulty == BugDifficulty.TRIVIAL:
+            num_bugs = 1
+        else:
+            num_bugs = random.randint(1, 2)
         repo = generator.generate(
             difficulty=difficulty,
-            num_bugs=random.randint(1, 2),
+            num_bugs=num_bugs,
             multi_file=difficulty.value >= BugDifficulty.MEDIUM.value,
         )
         tasks.append(repo)
