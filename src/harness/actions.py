@@ -331,9 +331,9 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     if len(content_raw) > 0:
         # First byte selects from MINIMAL vocabulary of Python fixes.
         # 3 items = 33% chance of correct content (vs 25% with 4).
-        # Focus on the most common TRIVIAL fixes: colon, paren, comma.
+        # TRIVIAL++: colon, paren, comma, quotes for string literal fixes
         # REMOVED empty string '' - it caused policy collapse to no-ops
-        TRIVIAL_VOCAB = [':\n', ')', ',']  # 3 items, NO empty string
+        TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']  # 5 items, includes quotes
         vocab_idx = int(content_raw[0]) % len(TRIVIAL_VOCAB)
         content = TRIVIAL_VOCAB[vocab_idx]
     else:

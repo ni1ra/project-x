@@ -634,16 +634,33 @@ def inject_missing_colon(code: str) -> Tuple[str, str, str]:
 def inject_wrong_quote(code: str) -> Tuple[str, str, str]:
     """Inject mismatched string quotes - TRUE TRIVIAL syntax bug."""
     import re
-    # Find single-quoted strings and change closing quote to double
-    pattern = r"'([^'\\]|\\.)*'"
-    matches = list(re.finditer(pattern, code))
-    if matches:
-        match = random.choice(matches)
-        # Change closing single quote to double quote
+
+    # Try single-quoted strings first (change closing ' to ")
+    pattern_single = r"'([^'\\]|\\.)*'"
+    matches_single = list(re.finditer(pattern_single, code))
+
+    # Also try double-quoted strings (change closing " to ')
+    # Exclude f-strings and triple-quoted strings
+    pattern_double = r'"([^"\\]|\\.)*"'
+    matches_double = [m for m in re.finditer(pattern_double, code)
+                      if not code[max(0, m.start()-1):m.start()].endswith('f')
+                      and not code[m.start():m.start()+3] == '"""']
+
+    # Combine all matches with their fix type
+    all_matches = [(m, 'single') for m in matches_single] + [(m, 'double') for m in matches_double]
+
+    if all_matches:
+        match, quote_type = random.choice(all_matches)
         original_str = match.group(0)
-        buggy_str = original_str[:-1] + '"'
-        buggy = code[:match.start()] + buggy_str + code[match.end():]
-        return buggy, "Mismatched string quotes", "Fix closing quote to match opening"
+
+        if quote_type == 'single':
+            # Change closing ' to "
+            buggy_str = original_str[:-1] + '"'
+            return code[:match.start()] + buggy_str + code[match.end():], "Mismatched string quotes", "Fix closing quote to match opening (need ')"
+        else:
+            # Change closing " to '
+            buggy_str = original_str[:-1] + "'"
+            return code[:match.start()] + buggy_str + code[match.end():], "Mismatched string quotes", "Fix closing quote to match opening (need \")"
 
     return code, "", ""
 
@@ -1219,12 +1236,13 @@ class RepoGenerator:
 
         # Select injection type based on difficulty
         if difficulty == BugDifficulty.TRIVIAL:
-            # TRUE TRIVIAL: syntax errors fixable with TRIVIAL_VOCAB
-            # ONLY include injectors whose fixes are in vocab: ':\n', ')', ','
-            # REMOVED: inject_typo_keyword, inject_wrong_quote (not in vocab)
+            # TRIVIAL++: syntax errors fixable with TRIVIAL_VOCAB
+            # VOCAB = [':\n', ')', ',', "'", '"']  # 5 items with quote support
+            # NOTE: inject_typo_keyword still excluded (not in vocab)
             injectors = [
                 inject_missing_colon,
                 inject_missing_paren,
+                inject_wrong_quote,  # Re-enabled with TRIVIAL++ quote support
             ]
         elif difficulty == BugDifficulty.EASY:
             # EASY: simple logic bugs (wrong operator, off-by-one)

@@ -82,6 +82,7 @@ class HarnessConfig:
 
     # Curriculum / action space simplification
     force_write_focus: bool = False   # If True, force all actions to WRITE_FOCUS (for TRIVIAL curriculum)
+    focus_jitter: int = 0             # If > 0, add random jitter +/- this value to focus offset (for robustness)
 
     # Energy proxy coefficients (from BLUEPRINT)
     kappa_F: float = 1e-9             # J/FLOP
@@ -1289,6 +1290,12 @@ class JarvisHarnessEnv:
         offset = 0
         for i in range(line_idx):
             offset += len(lines[i])
+
+        # Apply focus jitter if configured (for curriculum robustness)
+        if self.config.focus_jitter > 0:
+            import random
+            jitter = random.randint(-self.config.focus_jitter, self.config.focus_jitter)
+            offset = max(0, min(len(content) - 1, offset + jitter))
 
         self.state.focus_file = rel_path
         self.state.focus_offset = int(offset)

@@ -403,6 +403,7 @@ class JarvisHarnessTrainer:
         bc_epochs: int = 50,
         bc_batch_size: int = 128,
         bc_lr: float = 1e-3,
+        jitter: int = 0,
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -415,6 +416,7 @@ class JarvisHarnessTrainer:
             bc_epochs: Number of BC training epochs
             bc_batch_size: Batch size for BC training
             bc_lr: Learning rate for BC (higher than RL since supervised)
+            jitter: Focus offset jitter +/- this value (for robustness)
 
         Returns:
             Dictionary of final BC metrics
@@ -428,6 +430,7 @@ class JarvisHarnessTrainer:
                 num_tasks=num_demos,
                 difficulty=BugDifficulty.TRIVIAL,
                 seed=42,
+                jitter=jitter,
             )
         except ValueError as e:
             print(f"Warning: Could not generate BC dataset: {e}")
@@ -532,8 +535,9 @@ class JarvisHarnessTrainer:
                 epoch_losses.append(bc_loss.item())
 
                 # Compute accuracy using sampled actions (discrete)
-                pred_offset_discrete = (output.action[:, 1].long() % 32)
-                pred_vocab_discrete = (output.action[:, 25].long() % 3)  # FIX: was % 4, TRIVIAL_VOCAB has 3 items
+                # TRIVIAL++ has 5 vocab items: [':\n', ')', ',', "'", '"']
+                pred_offset_discrete = (output.action[:, 1].long() % 64)  # Full offset range
+                pred_vocab_discrete = (output.action[:, 25].long() % 5)   # TRIVIAL++ has 5 items
                 pred_length_discrete = (output.action[:, 3].long() % 4)
 
                 correct = (
@@ -1215,6 +1219,8 @@ def main():
                         help="Batch size for BC pre-training")
     parser.add_argument("--bc-lr", type=float, default=1e-3,
                         help="Learning rate for BC pre-training")
+    parser.add_argument("--focus-jitter", type=int, default=0,
+                        help="Focus offset jitter +/- this value (for robustness, 0 = disabled)")
     parser.add_argument("--kl-coef", type=float, default=0.0,
                         help="KL divergence penalty coefficient to preserve BC policy (0 = disabled)")
     parser.add_argument("--rl-timesteps", type=int, default=None,
@@ -1327,6 +1333,8 @@ def main():
             fast_test_timeout_seconds=10 if args.mode == "v1" else 2,
             # Curriculum: force WRITE_FOCUS to simplify learning
             force_write_focus=args.force_write_focus,
+            # Focus jitter for curriculum robustness
+            focus_jitter=args.focus_jitter,
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
@@ -1443,6 +1451,7 @@ def main():
                     num_tasks=args.bc_demos,
                     difficulty=BugDifficulty.TRIVIAL,
                     seed=args.seed,
+                    jitter=args.focus_jitter,
                 )
                 bc_actions = torch.zeros(bc_dataset['num_samples'], action_bytes, dtype=torch.long)
                 bc_actions[:, 0] = 16  # WRITE_FOCUS
@@ -1470,6 +1479,7 @@ def main():
                 bc_epochs=args.bc_epochs,
                 bc_batch_size=args.bc_batch_size,
                 bc_lr=args.bc_lr,
+                jitter=args.focus_jitter,
             )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:
@@ -1483,6 +1493,7 @@ def main():
                     num_tasks=args.bc_demos,
                     difficulty=BugDifficulty.TRIVIAL,
                     seed=args.seed,
+                    jitter=args.focus_jitter,
                 )
                 # Build target action tensor
                 bc_actions = torch.zeros(bc_dataset['num_samples'], action_bytes, dtype=torch.long)

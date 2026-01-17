@@ -32,8 +32,8 @@ from src.harness.observations import OBS_TOTAL_BYTES, encode_observation, Jarvis
 
 
 # TRIVIAL_VOCAB from actions.py - must match exactly
-# 3 items only - NO empty string (it caused policy collapse to no-ops)
-TRIVIAL_VOCAB = [':\n', ')', ',']  # 3 items, NO empty string
+# TRIVIAL++: 5 items with quote support - NO empty string (it caused policy collapse to no-ops)
+TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']  # 5 items, includes quotes
 
 
 @dataclass
@@ -102,7 +102,7 @@ def compute_focus_start_centered(diff_pos: int, file_length: int, target_offset:
     return focus_start
 
 
-def compute_focus_start_line_based(content: str, bug_line: int) -> int:
+def compute_focus_start_line_based(content: str, bug_line: int, jitter: int = 0) -> int:
     """
     Compute focus_start matching how the env does it (line-start based).
 
@@ -114,6 +114,7 @@ def compute_focus_start_line_based(content: str, bug_line: int) -> int:
     Args:
         content: The file content
         bug_line: 1-indexed line number of the bug
+        jitter: If > 0, add random jitter +/- this value (for curriculum robustness)
 
     Returns:
         focus_start: Position to start the focus window (start of bug line)
@@ -127,6 +128,12 @@ def compute_focus_start_line_based(content: str, bug_line: int) -> int:
     offset = 0
     for i in range(line_idx):
         offset += len(lines[i])
+
+    # Apply jitter if configured (for curriculum robustness)
+    if jitter > 0:
+        import random
+        jitter_val = random.randint(-jitter, jitter)
+        offset = max(0, min(len(content) - 1, offset + jitter_val))
 
     return offset
 
@@ -236,15 +243,46 @@ def compute_correct_action_for_wrong_quote(
     """
     Compute correct action for mismatched quote bug.
 
-    The bug changes closing ' to " in a string.
-    The fix is to replace " with '.
+    The bug changes a quote type (e.g., closing ' to " or vice versa).
+    The fix is to replace the wrong quote with the correct one.
 
-    Returns None because quote fixes are NOT in TRIVIAL_VOCAB.
-    This bug type should be excluded from TRIVIAL difficulty.
+    TRIVIAL++ now supports quotes: vocab_idx=3 for ', vocab_idx=4 for "
     """
-    # CURRICULUM CLOSURE: Quote fixes are not in TRIVIAL_VOCAB
-    # Return None to signal this sample should be rejected
-    return None
+    offset_in_focus, removed, needed = compute_fix_offset_in_focus(
+        original, buggy, focus_start
+    )
+
+    # Find the diff position in the original to see what quote was there
+    diff_pos = find_diff_position(original, buggy)
+    if diff_pos >= len(original):
+        return None
+
+    correct_char = original[diff_pos]
+
+    # Map to vocab index
+    if correct_char == "'":
+        vocab_idx = 3  # single quote
+    elif correct_char == '"':
+        vocab_idx = 4  # double quote
+    else:
+        # Not a quote fix - can't handle
+        return None
+
+    # Replace mode (length = 1) since we're replacing the wrong quote
+    length = 1
+
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.WRITE_FOCUS.value
+    action_bytes[1] = max(0, min(255, offset_in_focus))  # Full 8-bit offset
+    action_bytes[3] = length % 4
+    action_bytes[25] = vocab_idx
+
+    return ExpertAction(
+        offset=offset_in_focus,
+        vocab_idx=vocab_idx,
+        length=length,
+        action_bytes=action_bytes,
+    )
 
 
 def compute_correct_action_for_missing_paren(
@@ -290,32 +328,56 @@ def compute_correct_action_generic(
 
     Tries to infer the correct vocab index from the difference.
     Returns None if the fix is not in TRIVIAL_VOCAB (curriculum closure).
+
+    TRIVIAL++ VOCAB: [':\n', ')', ',', "'", '"']  # 5 items
     """
     offset_in_focus, removed, needed = compute_fix_offset_in_focus(
         original, buggy, focus_start
     )
 
-    # Determine what needs to be inserted (using 3-item vocab)
-    # TRIVIAL_VOCAB = [':\n', ')', ',']  # NO empty string
+    # Find the diff position to detect the character that was changed/removed
+    diff_pos = find_diff_position(original, buggy)
+    correct_char = original[diff_pos] if diff_pos < len(original) else ""
+
+    # Determine what needs to be inserted/replaced (using 5-item vocab)
+    # TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']
     vocab_idx = -1  # Invalid until matched
+    length = 0      # Default: insert mode
+
+    # Check hints first
     if "colon" in fix_hint.lower() or ":" in fix_hint:
         vocab_idx = 0  # ':\n'
     elif "paren" in fix_hint.lower() or ")" in fix_hint:
         vocab_idx = 1  # ')'
     elif "comma" in fix_hint.lower() or "," in fix_hint:
         vocab_idx = 2  # ','
-    elif needed == ":":
-        vocab_idx = 0  # ':\n'
-    elif needed == ")":
-        vocab_idx = 1  # ')'
-    elif needed == ",":
-        vocab_idx = 2  # ','
+    elif "quote" in fix_hint.lower():
+        # Quote fix - need to check which quote
+        if correct_char == "'":
+            vocab_idx = 3  # single quote
+            length = 1     # replace mode
+        elif correct_char == '"':
+            vocab_idx = 4  # double quote
+            length = 1     # replace mode
+
+    # Fallback to character-based detection
+    if vocab_idx < 0:
+        if correct_char == ":":
+            vocab_idx = 0  # ':\n'
+        elif correct_char == ")":
+            vocab_idx = 1  # ')'
+        elif correct_char == ",":
+            vocab_idx = 2  # ','
+        elif correct_char == "'":
+            vocab_idx = 3  # single quote
+            length = 1     # replace mode for quotes
+        elif correct_char == '"':
+            vocab_idx = 4  # double quote
+            length = 1     # replace mode for quotes
 
     # CURRICULUM CLOSURE: Reject samples that can't be fixed with vocab
     if vocab_idx < 0:
         return None
-
-    length = 0  # Insert mode
 
     action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
     action_bytes[0] = ActionType.WRITE_FOCUS.value
@@ -334,9 +396,15 @@ def compute_correct_action_generic(
 def generate_expert_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
+    jitter: int = 0,
 ) -> Optional[ExpertTrajectory]:
     """
     Generate an expert trajectory for a single repo/bug.
+
+    Args:
+        repo: Generated repo with bugs
+        focus_length: Size of focus window
+        jitter: If > 0, add random jitter +/- this value to focus offset (for robustness)
 
     Returns None if the bug type isn't supported or can't compute fix.
     """
@@ -356,7 +424,7 @@ def generate_expert_trajectory(
     # The env sets focus_offset to the start of the bug line (not centered).
     # This ensures BC training matches eval conditions.
     diff_pos = find_diff_position(original, buggy_content)
-    focus_start = compute_focus_start_line_based(buggy_content, bug.line_number)
+    focus_start = compute_focus_start_line_based(buggy_content, bug.line_number, jitter=jitter)
 
     # Get focus text
     focus_text = buggy_content[focus_start:focus_start + focus_length]
@@ -434,6 +502,7 @@ def generate_expert_demos(
     num_tasks: int = 1000,
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     seed: int = 42,
+    jitter: int = 0,
 ) -> List[ExpertTrajectory]:
     """
     Generate a batch of expert demonstrations for behavioral cloning.
@@ -442,6 +511,7 @@ def generate_expert_demos(
         num_tasks: Number of demonstrations to generate
         difficulty: Bug difficulty level
         seed: Random seed
+        jitter: If > 0, add random jitter +/- this value to focus offset (for robustness)
 
     Returns:
         List of ExpertTrajectory objects with correct actions
@@ -455,7 +525,7 @@ def generate_expert_demos(
 
     trajectories = []
     for repo in repos:
-        traj = generate_expert_trajectory(repo)
+        traj = generate_expert_trajectory(repo, jitter=jitter)
         if traj is not None:
             trajectories.append(traj)
 
@@ -488,9 +558,16 @@ def create_bc_dataset(
     num_tasks: int = 1000,
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     seed: int = 42,
+    jitter: int = 0,
 ) -> Dict[str, torch.Tensor]:
     """
     Create a complete behavioral cloning dataset.
+
+    Args:
+        num_tasks: Number of demonstrations to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+        jitter: If > 0, add random jitter +/- this value to focus offset (for robustness)
 
     Returns dict with:
         - observations: [N, 512]
@@ -499,7 +576,7 @@ def create_bc_dataset(
         - vocab_idxs: [N] - vocab labels for softmax head
         - lengths: [N] - length labels for softmax head
     """
-    trajectories = generate_expert_demos(num_tasks, difficulty, seed)
+    trajectories = generate_expert_demos(num_tasks, difficulty, seed, jitter=jitter)
 
     if not trajectories:
         raise ValueError("No valid trajectories generated")
