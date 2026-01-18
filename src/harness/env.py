@@ -85,6 +85,8 @@ class HarnessConfig:
     force_write_focus: bool = False   # If True, force all actions to WRITE_FOCUS (for TRIVIAL curriculum)
     force_write_focus_prob: float = 1.0  # Probability of forcing WRITE_FOCUS (for gradual curriculum)
     focus_jitter: int = 0             # If > 0, add random jitter +/- this value to focus offset (for robustness)
+    auto_focus_target: bool = True    # If True, auto-set focus to target_file on reset (for TRIVIAL/EASY)
+                                      # Set False for multi-file navigation training
 
     # Energy proxy coefficients (from BLUEPRINT)
     kappa_F: float = 1e-9             # J/FLOP
@@ -150,6 +152,7 @@ class HarnessState:
     consecutive_same_action: int = 0  # Count of repeated same action
     # One-time rewards (prevent farming)
     compile_bonus_given: bool = False  # Track if compile bonus was given this episode
+    navigation_bonus_given: bool = False  # Track if navigation bonus was given this episode
     # Reward shaping for offset learning
     target_offset: Optional[int] = None  # Expected edit offset within focus (from Task)
     last_edit_offset: int = -1  # Offset of last WRITE_FOCUS action
@@ -300,22 +303,24 @@ class JarvisHarnessEnv:
 
         # Initialize focus to the task's target file so WRITE_FOCUS is immediately usable.
         # If bug_line is provided, focus directly on the bug location for faster learning.
-        try:
-            target = self.task.target_file if self.task else ""
-            if target and self.temp_dir:
-                fpath = os.path.join(self.temp_dir, target)
-                if os.path.exists(fpath):
-                    # If bug_line is set, focus on the bug location
-                    if self.task and self.task.bug_line is not None:
-                        self._set_focus_from_location(target, line=self.task.bug_line)
-                    else:
-                        with open(fpath, "r") as f:
-                            content = f.read()
-                        self.state.focus_file = target
-                        self.state.focus_offset = 0
-                        self.state.focus_text = content[:256]
-        except Exception:
-            pass
+        # If auto_focus_target is False, skip this (for multi-file navigation training).
+        if self.config.auto_focus_target:
+            try:
+                target = self.task.target_file if self.task else ""
+                if target and self.temp_dir:
+                    fpath = os.path.join(self.temp_dir, target)
+                    if os.path.exists(fpath):
+                        # If bug_line is set, focus on the bug location
+                        if self.task and self.task.bug_line is not None:
+                            self._set_focus_from_location(target, line=self.task.bug_line)
+                        else:
+                            with open(fpath, "r") as f:
+                                content = f.read()
+                            self.state.focus_file = target
+                            self.state.focus_offset = 0
+                            self.state.focus_text = content[:256]
+            except Exception:
+                pass
 
         # Set target offset for reward shaping (from Task, for TRIVIAL curriculum)
         if self.task and self.task.target_offset is not None:
@@ -1647,6 +1652,21 @@ class JarvisHarnessEnv:
         # Capped at 3 runs per episode to prevent farming
         if at == ActionType.RUN_TESTS and self.state.run_tests_actions <= 3:
             reward += 0.3  # Small incentive for test-driven development
+
+        # NAVIGATION REWARD (Phase 5.3 - Multi-file)
+        # One-time reward for navigating to the file containing the bug.
+        # Helps agent learn to find bugs in multi-file repos.
+        if not self.state.navigation_bonus_given and self.task is not None:
+            # Check if agent is focused on the correct file
+            target_file = self.task.target_file
+            focus_file = self.state.focus_file
+            if target_file and focus_file:
+                # Normalize paths for comparison (handle ./ prefixes and case)
+                target_norm = os.path.normpath(target_file).lower()
+                focus_norm = os.path.normpath(focus_file).lower()
+                if target_norm == focus_norm or focus_norm.endswith(target_norm):
+                    reward += 1.0  # +r_nav (one-time)
+                    self.state.navigation_bonus_given = True
 
         # === DENSE OFFSET REWARD SHAPING (TRIVIAL curriculum) ===
         # Give partial credit for "close" edits even if they don't fix the bug.
