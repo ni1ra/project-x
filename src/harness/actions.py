@@ -70,6 +70,24 @@ ALLOWED_SHELL_COMMANDS = [
 # Git commands are now separate action types, not shell commands
 # This prevents arbitrary git commands while allowing structured git ops
 
+# Vocabulary definitions for different difficulty levels
+# TRIVIAL: Syntax bugs (missing colon, paren, wrong quotes)
+TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']  # 5 items
+
+# EASY: Logic bugs (wrong operators, off-by-one)
+# These tokens allow fixing wrong_operator and off_by_one bugs
+EASY_VOCAB = [
+    '<=', '>=', '!=', '==',   # comparison operators (4)
+    '<', '>',                  # single char comparisons (2)
+    '+', '-', '*', '/',        # arithmetic operators (4)
+    ' + 1', ' - 1',            # off-by-one fixes with spaces (2)
+    '+1', '-1',                # compact off-by-one (2)
+    '+ 1', '- 1',              # alternate spacing (2)
+]  # 16 items
+
+# Combined vocab for training that can handle both TRIVIAL and EASY
+COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB  # 21 items total
+
 
 @dataclass
 class JarvisAction:
@@ -324,18 +342,18 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     target = target_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
 
     # Content (bytes 25-63)
-    # TRIVIAL vocabulary: Map first content byte to a small fix vocabulary.
+    # Vocabulary-based content: Map first content byte to a fix vocabulary.
     # This lets the model learn "which fix to apply" instead of raw bytes.
-    # Reduced from 8 to 4 items to increase random hit probability.
+    # Vocabulary selection based on difficulty:
+    #   - TRIVIAL: 5 syntax tokens (colon, paren, comma, quotes)
+    #   - EASY: 21 tokens (TRIVIAL + operators for logic bugs)
     content_raw = action_bytes[25:].cpu().numpy()
     if len(content_raw) > 0:
-        # First byte selects from MINIMAL vocabulary of Python fixes.
-        # 3 items = 33% chance of correct content (vs 25% with 4).
-        # TRIVIAL++: colon, paren, comma, quotes for string literal fixes
-        # REMOVED empty string '' - it caused policy collapse to no-ops
-        TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']  # 5 items, includes quotes
-        vocab_idx = int(content_raw[0]) % len(TRIVIAL_VOCAB)
-        content = TRIVIAL_VOCAB[vocab_idx]
+        # Use COMBINED_VOCAB for all difficulties - this allows the model to
+        # learn which tokens to select based on goal bytes. The same checkpoint
+        # can then work for both TRIVIAL and EASY bugs.
+        vocab_idx = int(content_raw[0]) % len(COMBINED_VOCAB)
+        content = COMBINED_VOCAB[vocab_idx]
     else:
         content = ''
 

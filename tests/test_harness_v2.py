@@ -25,6 +25,7 @@ from src.harness.actions import (
     ActionType, JarvisAction,
     encode_action_v2, decode_action_v2, ACTION_BYTES_V2,
     is_git_action, is_multi_file_action, action_to_string,
+    TRIVIAL_VOCAB, EASY_VOCAB, COMBINED_VOCAB,
 )
 from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task
 from src.harness.observations import OBS_TOTAL_BYTES, decode_observation
@@ -34,7 +35,6 @@ from src.harness.expert_trajectories import (
     compute_fix_offset_in_focus, get_vocab_idx_for_fix,
     compute_correct_action_for_missing_colon,
     generate_expert_demos, create_bc_dataset,
-    TRIVIAL_VOCAB,
 )
 
 
@@ -228,8 +228,8 @@ class TestExtendedActions:
         decoded = decode_action_v2(encoded)
         assert decoded.action_type == ActionType.WRITE_FILE
         assert decoded.target == "models.py"
-        # Content is mapped through TRIVIAL_VOCAB based on byte 25
-        assert decoded.content in TRIVIAL_VOCAB
+        # Content is mapped through COMBINED_VOCAB based on byte 25
+        assert decoded.content in COMBINED_VOCAB
         assert decoded.offset == 20  # Offset constrained to % 32
         assert decoded.length == 2   # Length constrained to % 4
 
@@ -418,6 +418,29 @@ class TestExpertTrajectories:
         assert "'" in TRIVIAL_VOCAB  # Single quote for wrong_quote bugs
         assert '"' in TRIVIAL_VOCAB  # Double quote for wrong_quote bugs
         # NO empty string - it was removed to fix curriculum closure
+
+    def test_easy_vocab_size(self):
+        """EASY_VOCAB should have 16 items for logic bug fixes."""
+        assert len(EASY_VOCAB) == 16
+        # Comparison operators
+        assert '<=' in EASY_VOCAB
+        assert '>=' in EASY_VOCAB
+        assert '!=' in EASY_VOCAB
+        assert '==' in EASY_VOCAB
+        assert '<' in EASY_VOCAB
+        assert '>' in EASY_VOCAB
+        # Arithmetic operators
+        assert '+' in EASY_VOCAB
+        assert '-' in EASY_VOCAB
+        # Off-by-one fixes
+        assert '+1' in EASY_VOCAB
+        assert '-1' in EASY_VOCAB
+
+    def test_combined_vocab_size(self):
+        """COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB = 21 items."""
+        assert len(COMBINED_VOCAB) == 21
+        assert COMBINED_VOCAB[:5] == TRIVIAL_VOCAB
+        assert COMBINED_VOCAB[5:] == EASY_VOCAB
 
     def test_compute_fix_offset(self):
         """Test fix offset computation."""

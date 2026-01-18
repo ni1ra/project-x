@@ -22,18 +22,15 @@ import torch
 from src.harness.actions import (
     ActionType, JarvisAction, ACTION_BYTES_V2,
     encode_action_v2, decode_action_v2,
+    TRIVIAL_VOCAB, EASY_VOCAB, COMBINED_VOCAB,  # Vocab definitions
 )
 from src.harness.bug_templates import BugDifficulty, BugCategory
 from src.harness.repo_generator import (
     GeneratedRepo, generate_task_batch, RepoGenerator,
     inject_missing_colon, inject_wrong_quote, inject_missing_paren, inject_typo_keyword,
+    inject_wrong_operator, inject_off_by_one,  # EASY bug injectors
 )
 from src.harness.observations import OBS_TOTAL_BYTES, encode_observation, JarvisObservation
-
-
-# TRIVIAL_VOCAB from actions.py - must match exactly
-# TRIVIAL++: 5 items with quote support - NO empty string (it caused policy collapse to no-ops)
-TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']  # 5 items, includes quotes
 
 
 @dataclass
