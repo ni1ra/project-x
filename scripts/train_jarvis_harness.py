@@ -725,13 +725,32 @@ class JarvisHarnessTrainer:
             z_t=output.z_t,
         )
 
-        # BC loss: negative log prob of correct actions (weighted)
-        # Focus on offset (byte 1), length (byte 3), vocab (byte 25)
-        offset_log_prob = log_probs[:, 1]
-        length_log_prob = log_probs[:, 3]
-        vocab_log_prob = log_probs[:, 25]
+        # BC loss: negative log prob of correct actions
+        # DEEP-DEBUG FIX: Use ALL bytes, not just 3
+        # Previous bug: only constraining bytes [1, 3, 25] allowed other 29 bytes to collapse
+        #
+        # Weight scheme:
+        # - Byte 0 (action type): 1.0 (important for action selection)
+        # - Byte 1 (offset): 2.0 (critical for positioning)
+        # - Byte 3 (length): 0.5 (moderately important)
+        # - Byte 25 (vocab): 1.0 (important for token selection)
+        # - All other bytes: 0.1 (light regularization to prevent collapse)
 
-        bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+        n_bytes = log_probs.size(1)
+        weights = torch.ones(n_bytes, device=log_probs.device) * 0.1  # Base weight for all
+
+        # Override key bytes with higher weights
+        if n_bytes > 0:
+            weights[0] = 1.0   # action type
+        if n_bytes > 1:
+            weights[1] = 2.0   # offset
+        if n_bytes > 3:
+            weights[3] = 0.5   # length
+        if n_bytes > 25:
+            weights[25] = 1.0  # vocab
+
+        # Weighted negative log probability across ALL bytes
+        bc_loss = -(log_probs * weights.unsqueeze(0)).sum(dim=1).mean()
 
         return bc_loss
 
@@ -1234,7 +1253,7 @@ def main():
     parser.add_argument("--focus-jitter", type=int, default=0,
                         help="Focus offset jitter +/- this value (for robustness, 0 = disabled)")
     parser.add_argument("--kl-coef", type=float, default=0.0,
-                        help="KL divergence penalty coefficient to preserve BC policy (0 = disabled)")
+                        help="[DEPRECATED] KL penalty has mathematical bugs. Use --bc-anchor-coef instead.")
     parser.add_argument("--rl-timesteps", type=int, default=None,
                         help="Limit RL timesteps after BC (None = use --timesteps)")
     # ANCHORED RL: BC imitation loss during RL
@@ -1497,6 +1516,12 @@ def main():
             )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:
+                print("\n" + "=" * 60)
+                print("WARNING: --kl-coef is DEPRECATED and has known bugs:")
+                print("  1. Uses squared difference instead of true KL divergence")
+                print("  2. Only constrains 3/32 bytes, allowing policy collapse")
+                print("Use --bc-anchor-coef instead (fixed in DEEP-DEBUG session)")
+                print("=" * 60 + "\n")
                 trainer.save_bc_reference_policy()
                 trainer.set_kl_coef(args.kl_coef)
 
