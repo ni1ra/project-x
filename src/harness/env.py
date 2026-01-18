@@ -87,6 +87,8 @@ class HarnessConfig:
     focus_jitter: int = 0             # If > 0, add random jitter +/- this value to focus offset (for robustness)
     auto_focus_target: bool = True    # If True, auto-set focus to target_file on reset (for TRIVIAL/EASY)
                                       # Set False for multi-file navigation training
+    auto_focus_from_stacktrace: bool = False  # If True, parse pytest stacktrace on reset and focus there
+                                              # This is a middle ground: uses test output to find bug location
 
     # Energy proxy coefficients (from BLUEPRINT)
     kappa_F: float = 1e-9             # J/FLOP
@@ -361,6 +363,28 @@ class JarvisHarnessEnv:
             self.state.initial_tests_passing = 0
             self.state.has_test_baseline = False
             self.state.terminal_buffer += "Initial tests: (skipped)\n"
+
+        # STACKTRACE-BASED AUTO-FOCUS (Phase 5.5 bridge)
+        # If tests failed and auto_focus_from_stacktrace is enabled,
+        # parse the stacktrace to find the failing location and set focus there.
+        # This bridges the gap between "agent knows WRITE_FOCUS" and "agent finds bugs".
+        if self.config.auto_focus_from_stacktrace and not self.config.auto_focus_target:
+            if (self.state.last_test_result is not None and
+                self.state.last_test_result.tests_passing < self.state.last_test_result.tests_total):
+                # Tests failed - try to focus on the error location
+                details = self.state.last_test_result.details
+                locs = self._extract_trace_locations(details)
+                if locs:
+                    # Use the last (most recent) location in the stacktrace
+                    # that's within our temp dir (not in test framework)
+                    for fpath, line in reversed(locs):
+                        rel = self._normalize_trace_path(fpath)
+                        if rel and self.temp_dir:
+                            full_path = os.path.join(self.temp_dir, rel)
+                            if os.path.exists(full_path) and not rel.startswith("test_"):
+                                self._set_focus_from_location(rel, line=line)
+                                self.state.terminal_buffer += f"[auto-focus] {rel}:{line}\n"
+                                break
 
         return self._get_observation()
 
@@ -1233,7 +1257,8 @@ class JarvisHarnessEnv:
                 continue
 
         # Pytest short/summary format (also catches many error lines).
-        for fpath, line_s in re.findall(r"([A-Za-z0-9_./\\\\-]+\\.py):(\\d+)", details):
+        # Pattern: file.py:123 - matches pytest traceback format like "test_file.py:16: in test_func"
+        for fpath, line_s in re.findall(r"([A-Za-z0-9_./-]+\.py):(\d+)", details):
             try:
                 locs.append((fpath, int(line_s)))
             except Exception:
