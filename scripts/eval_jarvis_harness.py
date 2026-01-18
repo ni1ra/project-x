@@ -140,6 +140,8 @@ def main():
     parser.add_argument("--difficulty", type=str, choices=["trivial", "easy", "medium", "hard"], default="hard")
     parser.add_argument("--force-write-focus", action="store_true",
                         help="Force all actions to WRITE_FOCUS (match training config)")
+    parser.add_argument("--no-auto-focus", action="store_true",
+                        help="Disable auto-focus on target file (for navigation eval)")
     parser.add_argument("--force-write-focus-prob", type=float, default=1.0,
                         help="Probability of forcing WRITE_FOCUS (1.0=always, 0.0=never)")
     parser.add_argument("--seed", type=int, default=123, help="RNG seed")
@@ -232,6 +234,8 @@ def main():
         # Match training curriculum config
         force_write_focus=args.force_write_focus,
         force_write_focus_prob=args.force_write_focus_prob,
+        # Navigation eval: disable auto-focus on target file
+        auto_focus_target=not getattr(args, 'no_auto_focus', False),
     )
     env = JarvisHarnessEnv(harness_config)
 

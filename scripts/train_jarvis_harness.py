@@ -1237,6 +1237,8 @@ def main():
                         help="Minimum episodes before promotion/demotion decision")
     parser.add_argument("--force-write-focus", action="store_true",
                         help="Force all actions to WRITE_FOCUS (simplified curriculum for TRIVIAL)")
+    parser.add_argument("--no-auto-focus", action="store_true",
+                        help="Disable auto-focus on target file (for navigation training)")
     parser.add_argument("--force-write-focus-prob", type=float, default=1.0,
                         help="Probability of forcing WRITE_FOCUS (1.0=always, 0.0=never, for gradual curriculum)")
     parser.add_argument("--single-step", action="store_true",
@@ -1367,6 +1369,8 @@ def main():
             force_write_focus_prob=args.force_write_focus_prob,
             # Focus jitter for curriculum robustness
             focus_jitter=args.focus_jitter,
+            # Navigation training: disable auto-focus on target file
+            auto_focus_target=not getattr(args, 'no_auto_focus', False),
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
