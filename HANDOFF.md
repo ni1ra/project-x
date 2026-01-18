@@ -1,25 +1,25 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-18 (Updated v11 - **PHASE 7 INFRASTRUCTURE COMPLETE**)
+Generated: 2026-01-18 (Updated v12 - **BODY BUILT, NEEDS NERVOUS SYSTEM**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
-WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal was to achieve ≥70% test improvement rate on generated bug-fixing episodes for TRIVIAL difficulty.
+WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal is to achieve persistent autonomous operation (Jarvis-Operator mode).
 
-**STATUS: Phase 7 Infrastructure Complete** (2026-01-18)
-- **Phase 7 (Persistent Jarvis):** Infrastructure DONE, training ready
-- **Eval Truthfulness:** FIXED (commit 97667ae) - free wins now filtered
+**STATUS: Body Built, Nervous System Needed** (2026-01-18)
+- Phase 7 infrastructure: COMPLETE (actions/tools/env/reward plumbing)
+- All sanity gates: PASSED
+- **THE GAP:** Need to train long-horizon loops (run tests → edit → rerun → recover → finish → next task)
 - TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
-- EASY BC Accuracy: 76.8% | Pytest Success: 90% (with focus hints)
-- All 26 harness tests pass
+- EASY BC Accuracy: 76.8% | Pytest Success: 90% (**with focus hints only**)
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
 
 ### Tech Stack
 - **Neural Network:** RPJ Brain (2.7M parameters, recurrent + GRU + MLP)
-- **Training:** PPO with Behavioral Cloning (BC) pre-training + **Anchored RL** (NEW)
+- **Training:** PPO with Behavioral Cloning (BC) pre-training + **Anchored RL**
 - **Environment:** JarvisHarnessEnv (multi-file Python repos with injected bugs)
 - **Verifier:** pytest (ground-truth test pass/fail)
 - **GPU Guard:** Enforces >80% GPU utilization during training
@@ -33,333 +33,176 @@ Last commit: c666171 docs: update PLAN_TO_JARVIS.md - mark all Gate D gates as C
 Uncommitted changes: NO - clean state
 ```
 
-### Current Progress (Updated 2026-01-18 - **PHASE 7 INFRASTRUCTURE COMPLETE**)
-- [x] Phase 0: Validate Current State ✅ COMPLETE
-- [x] Deep-Debug Protocol ✅ ROOT CAUSES FOUND
-  - [x] Root Cause 1: BC observations EMPTY, RL observations REAL
-  - [x] Root Cause 2: v1/v2 decoder mismatch (action_bytes=32 vs 64)
-  - [x] Root Cause 3: Focus window mismatch (centered vs line-start)
-- [x] Phase 0.5: Sanity Gates ✅ **ALL PASSED**
-  - [x] Gate A: Fixed BC observation generation ✅
-  - [x] Gate B: Fixed v1/v2 decoder (action_bytes=64) ✅
-  - [x] Gate C: Fixed focus window alignment ✅
-- [x] **MILESTONE: 25% SUCCESS RATE ACHIEVED** ✅
-  - BC-only model, 1 step, TRIVIAL difficulty
-  - 5/20 tasks solved (25.0%)
-  - All solved tasks: 100% tests passing (11-13 tests each)
-- [x] **Phase 3: TRIVIAL++ COMPLETE** ✅
-  - TRIVIAL_VOCAB expanded: 3→5 tokens (added quotes)
-  - Quote injector: supports both single→double and double→single
-  - Focus jitter infrastructure added (hurts BC, disabled for now)
-  - Finding: RL degrades BC performance (13.3% vs 25% BC-only)
-- [x] **Phase 4: EASY Infrastructure COMPLETE** ✅
-  - Added `--force-write-focus-prob` for gradual curriculum (1.0=always, 0.0=never)
-  - Added test running incentive (+0.3 reward, capped at 3 runs)
-  - EASY training runs: 20k steps, avg reward 0.48→0.58
-- [x] **Phase 4.5: EASY Expert Trajectories COMPLETE** ✅ (2026-01-18)
-  - EASY_VOCAB: 16 logic tokens (`<=`, `>=`, `!=`, `==`, `<`, `>`, `+`, `-`, `*`, `/`, etc.)
-  - COMBINED_VOCAB: 21 tokens (TRIVIAL + EASY)
-  - Fixed expert functions to detect BOTH directions of operator swaps
-  - data_pipeline template: has test-catchable `> 0 → >= 0` bugs
-  - rest_api template: skipped for EASY (tests don't catch operator swaps)
-  - **70/100 EASY demos generated with 100% EASY token usage** (`>`: 55, `==`: 15)
-- [x] **Phase 5: Navigation Infrastructure COMPLETE** ✅
-  - Added `--no-auto-focus` flag for navigation training
-  - BC anchor loss uses ALL bytes
-- [x] **Phase 7: Persistent Jarvis Infrastructure COMPLETE** ✅ (2026-01-18)
-  - Persistent mode: `env.py` - `persistent_mode` config
-  - Task queue: `env.py` - `reset(task_queue=...)`
-  - COMPLETE_TASK action: `actions.py:18`, `env.py:1590`
-  - Scratchpad: `.jarvis_notes` file support
-  - Recovery: GIT_CHECKOUT, GIT_RESET actions
-  - Sleep module: `src/core/sleep.py`, `--enable-sleep` flag
-  - Gate D (Eval Truthfulness): FIXED (commit 97667ae)
-  - Gate D2 (RL Non-Regression): PASSED (30% >= 25%)
-  - Gate 3 (No bricked repos): PASSED
-  - All 26 harness tests: PASSING
+### Phase 7 Infrastructure (COMPLETE)
+| Component | Status | Location |
+|-----------|--------|----------|
+| Persistent mode | DONE | `env.py` - `persistent_mode` config |
+| Task queue | DONE | `env.py` - `reset(task_queue=...)` |
+| COMPLETE_TASK action | DONE | `actions.py:18`, `env.py:1590` |
+| COMPLETE_TASK reward | **JUST FIXED** | Was broken: bonus went to episode_return, not step reward |
+| Scratchpad (.jarvis_notes) | DONE | `env.py` - `scratchpad_enabled` |
+| GIT_CHECKOUT | DONE | `actions.py:11`, `env.py` |
+| GIT_RESET | DONE | `actions.py:10`, `env.py` |
+| Sleep module | DONE | `src/core/sleep.py`, `--enable-sleep` flag |
 
-### ROOT CAUSE IDENTIFIED: BC-RL Observation Gap
+### Critical Bug Fixed: COMPLETE_TASK Reward
+**Problem:** `_complete_current_task()` added bonus to `episode_return`, but `_compute_reward()` didn't return it. PPO never saw the bonus → agents loiter forever after solving.
 
-**The diagnostic trap found the smoking gun:**
+**Fix Applied:**
+- Added `completion_bonus_pending` field to HarnessState
+- `_complete_current_task()` sets pending bonus
+- `_compute_reward()` adds it to reward and clears it
 
-| Region | BC non-zero | RL non-zero | Gap |
-|--------|-------------|-------------|-----|
-| Terminal | 0% | 100% | **100%** |
-| Focus | 0% | 99% | **99%** |
-| File meta | 0% | 12.5% | 12.5% |
-| Test status | 99% | 100% | ~1% |
-| Goal | 98% | 100% | ~2% |
+### All Gates PASSED
+| Gate | Status | Evidence |
+|------|--------|----------|
+| Gate D: Eval Truthfulness | PASS | commit 97667ae - free-wins filtered |
+| Gate D2: RL Non-Regression | PASS | Anchored RL (30%) >= BC baseline (25%) |
+| Gate 3: No bricked repos | PASS | Previous eval showed no crashes |
+| All 26 harness tests | PASS | `pytest tests/` passes |
 
-**Translation:** BC training data has EMPTY focus/terminal regions while RL has real file content.
-BC learned to predict actions from zeros. It can't generalize to real observations.
-
-### Why KL Penalty Failed
-KL alone doesn't preserve **competence**, it only regularizes **distribution drift**.
-When BC observations differ fundamentally from RL observations, KL is meaningless.
-
-### What's Complete
-- [x] BC pre-training infrastructure (`expert_trajectories.py`)
-- [x] TRIVIAL_VOCAB action space (5 tokens: `':\n'`, `')'`, `','`, `"'"`, `'"'`)
-- [x] GPU burn mechanism for >80% utilization
-- [x] Curriculum closure fixed (vocab modulo, offset centering)
-- [x] **BC accuracy: 22.1%** (with real observations, line-based focus)
-- [x] All demos valid: 426/500 (rejected 74 unfixable with vocab)
-- [x] Deep-debug diagnostic traps created and run
-- [x] Root cause identified AND FIXED: BC-RL observation gap
-- [x] Root cause identified AND FIXED: v1/v2 decoder mismatch
-- [x] Root cause identified AND FIXED: Focus window alignment
-- [x] **20% SUCCESS RATE ON TRIVIAL BUGS**
-- [x] **ANCHORED RL IMPLEMENTED** (2026-01-17)
-  - [x] BC imitation loss during RL (`compute_bc_anchor_loss()`)
-  - [x] λ_bc decay schedule (1.0 → 0.05 linear)
-  - [x] Two-timescale optimizer (backbone 0.1x LR)
-  - [x] No-op penalties in reward shaping
-  - [x] `--bc-checkpoint` to load pre-trained BC
-
-### /deep-debug Results (2026-01-17)
-
-**Session 1: Curriculum closure (FIXED)**
-| Bug | Location | Problem | Fix |
-|-----|----------|---------|-----|
-| Vocab Modulo | `train_jarvis_harness.py:503` | Used `% 4` but TRIVIAL_VOCAB has 3 items | Changed to `% 3` |
-| Offset Wrap Poison | `expert_trajectories.py` | 58.2% of demos had offset >= 32 | Center focus on bug position |
-
-**Session 2: Policy collapse (ROOT CAUSE FOUND)**
-| Trap | Verdict | Finding |
-|------|---------|---------|
-| KL Collapsed Actions | GUILTY | Post-RL policy assigns 74.8% prob to one action |
-| Hidden State Saturation | SUSPICIOUS | States bounded, but collapse happens with fresh states too |
-| Dataset-Reality Gap | **GUILTY** | BC obs 0% focus, RL obs 99% focus - totally different! |
+### Training In Progress
+```bash
+PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+    --mode v2 --timesteps 200000 --difficulty trivial \
+    --persistent --tasks-per-episode 3 --scratchpad \
+    --num-envs 16 --action-bytes 64 --force-write-focus \
+    --bc-epochs 20 --bc-demos 500 \
+    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000
+```
 
 ---
 
-## 3. IMMEDIATE MOVES (Do These In Order)
+## 3. IMMEDIATE MOVES (Gated Plan)
 
-### Move 0: Fix BC Observation Generation (CRITICAL)
+### Phase 7.4a: Make Persistent Training Learnable (1-2 days)
 
-The BC dataset uses **empty observations** while RL uses **real file content**.
-This must be fixed first - everything else is downstream.
+**Step 1: COMPLETE_TASK reward** ✅ FIXED
+- Bonus now returned as step reward, not hidden in episode_return
 
-```bash
-# Verify the problem exists
-PYTHONPATH=. .venv/bin/python diagnostics/_debug_trap_dataset_reality_gap.py
-```
+**Step 2: Add BC demos that end tasks** ✅ COMPLETE
+- Added `create_persistent_bc_dataset()` with 4-step loop:
+  - RUN_TESTS (discover) → WRITE_FOCUS (fix) → RUN_TESTS (verify) → COMPLETE_TASK
+- Training script updated to use persistent demos with `--persistent` flag
 
-**Fix:** Edit `src/harness/expert_trajectories.py` to use actual environment observations.
+**Gate A (must pass before RL):**
+- [ ] In persistent eval with 3 queued tasks, policy emits COMPLETE_TASK within N≤10 steps after tests pass
+- [ ] `tasks_completed/session > 0`
 
-### Move 1: Gate A - BC-Only Evaluation
+**If Gate A fails:** Do NOT touch PPO. Fix BC and reward alignment first.
 
-After fixing BC observations, eval BC-only (no RL) to see if it works:
-```bash
-PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
-  --checkpoint results/jarvis_harness_v2_0.pt \
-  --mode v2 --difficulty trivial --num-tasks 50 \
-  --force-write-focus --max-steps 128
-```
+### Phase 7.4b: Persistent BC-Only Baseline (2-4 days)
 
-**Expected:** Some success (even 2-5%) if BC actually learned useful behavior.
-**If 0%:** BC obs still broken, or env write path broken.
+**Target behavior per task:**
+1. RUN_TESTS early
+2. WRITE_FOCUS edit(s)
+3. RUN_TESTS again
+4. COMPLETE_TASK when solved
+5. Repeat for next task without reset
 
-### Move 2: Gate B - Verify Env Registers Edits
+**BC dataset mix needed:**
+- RUN_TESTS-first steps (already implemented)
+- Fix steps (WRITE_FOCUS etc.)
+- RUN_TESTS-confirm steps (new)
+- COMPLETE_TASK steps (new)
 
-Instrument `src/harness/env.py` to log when WRITE_FOCUS actually changes the file:
-- Log: offset, replace_len, token, global_offset, changed (bool)
-- Run 50 random actions and count how often changed=True
+**Gate B (BC-only persistence):**
+- [ ] `tasks_completed/session ≥ 2` on TRIVIAL+EASY mixed queue
+- [ ] `run_tests_actions per task ≥ 1`
+- [ ] Catastrophic failure rate ≈ 0
 
-**If changed=True sometimes:** Env works, policy is the problem.
-**If changed=False always:** Env write path is broken.
+### Phase 7.4c: Anchored RL in Persistent Mode (1-2 weeks)
 
-### Move 3: Gate C - Add Collapse Detector
+**Non-negotiables:**
+- Keep BC anchor loss active (λ_bc not tiny at start)
+- Two-timescale optimizer (backbone LR smaller)
+- Collapse detector stays armed
 
-Add alarm to training that triggers when:
-- Last 200 actions have >95% same (type, offset, len, token)
-- Dump observations when triggered for inspection
+**Gate C (must beat BC baseline):**
+- [ ] `solved_rate (eligible) >= BC baseline`
+- [ ] `tasks_completed/session` increases
+- [ ] Action diversity healthy (no 95% same action)
 
-### Move 4: Anchored RL Training
-
-**Replace KL penalty with BC imitation loss during RL:**
-```python
-loss = PPO_loss + λ_bc * CE(action | demo_obs) + λ_value * V_loss
-```
-
-**Schedule:**
-- 0-10k steps: λ_bc = 1.0 (strong anchor)
-- 10k-50k: λ_bc linear decay to 0.2
-- 50k+: λ_bc = 0.05 (still anchored)
-
-**Plus:** Two-timescale optimizer (backbone LR = 0.1× head LR)
-
-### Move 5: Add No-Op Penalties
-
-```python
-+r_edit = 0.1   # if changed=True
--r_noop = 0.2   # if changed=False for WRITE_FOCUS
--r_repeat = 0.5 # if same action 5+ times
-+r_compile = 0.5 # if py_compile passes (once per episode)
-+r_test = 2.0   # if pytest improves
-```
-
-### Move 6: Full Training + Eval
-
-```bash
-PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-  --mode v2 --timesteps 100000 --difficulty trivial \
-  --bc-epochs 50 --bc-demos 500 \
-  --bc-anchor-coef 1.0 --bc-anchor-decay linear
-```
-
-**Target:** ≥20% success rate on TRIVIAL.
-
-### Move 7: Commit + PR Once Working
-
-```bash
-git add -A
-git commit -m "feat(harness): anchored RL + fixed BC observations"
-git push -u origin feat/harness-v2-multifile
-gh pr create --title "Fix BC-RL observation gap + anchored RL" --body "..."
-```
+**If it regresses:** Stop RL immediately. Increase BC baseline first.
 
 ---
 
 ## 4. STAGED ROADMAP TO JARVIS
 
-### NEW INSIGHT (2026-01-17): Heterogeneous Brain Architecture
+See `PLAN_TO_JARVIS.md` for detailed roadmap.
 
-**The Key to Unlimited Intelligence:**
+### Completed Phases
+- Phase 0: Validate Current State - DONE
+- Phase 0.5: Sanity Gates - DONE (all passed)
+- Phase 1: Anchored RL Training - DONE
+- Phase 2: Commit and Establish Baseline - DONE
+- Phase 2.5: Offset Encoding Fix - DONE
+- Phase 3: Stage A - TRIVIAL++ - DONE (72.7%)
+- Phase 4: Stage B - EASY - DONE (90% with hints)
+- Phase 5: Navigation Infrastructure - DONE
 
-Biological brains have regional heterogeneity:
-- Different regions with different neuron counts
-- Different synapse-to-neuron ratios
-- Different timescales and connectivity patterns
+### Current Phase
+- **Phase 7: Stage E - Persistent Jarvis** - IN PROGRESS
+  - 7.1-7.3 Infrastructure - COMPLETE
+  - 7.4 Training - IN PROGRESS
+  - 7.5 Evaluation - PENDING
 
-**Our approach:**
-- **x** = number of distinct regions (sections)
-- **y** = per-region settings (width, sparsity, fan-in/out, timescale, plasticity)
-- **Optuna** searches for optimal (x, y) under RPJ pressure
+### Future Phases
+- Phase 8: Heterogeneous Brain (Research Track)
+- Phase 9-12: Desktop, UI, Personal Jarvis
 
-**Why this matters:**
-Transformers are homogeneous (every layer looks the same). Brains are not.
-If structure is learned under task pressure, the system can discover specialized circuits.
-This is the path to intelligence that exceeds the model it was trained with.
+### Phase Sequencing (Correct Order)
+**DO NOT chase "general byte edits" or "full navigation" yet.**
 
-See `PLAN_TO_JARVIS.md` Phase 8 for full implementation plan.
+1. **Persistence + developer loop** (Phase 7.4) ← YOU ARE HERE
+2. General edits via MICRO_VOCAB expansion (Phase 6)
+3. Navigation without auto-focus (Phase 5.5)
+4. Multi-file "real repos" as default
 
----
-
-### Stage A: TRIVIAL++ (Constrained but Less Toy)
-
-**Goal:** Make TRIVIAL robust enough that success feels boring.
-
-**A1: Add wrong-quote back (solvable)**
-- Expand `TRIVIAL_VOCAB` to include `'` and `"` (still tiny)
-- Ensure experts label correctly (replace length=1)
-- Re-run BC gate (must stay high)
-
-**A2: Add focus jitter curriculum**
-- Slightly randomize focus start around bug
-- Prevents brittle "only works at exactly centered windows"
-
-**Exit criteria:** >70% success on TRIVIAL++ with held-out templates.
-
-### Stage B: EASY (Enable RUN_TESTS, Stop Forcing WRITE_FOCUS)
-
-**Goal:** Agent learns basic developer loop:
-```
-run tests → read failure → edit → re-run tests → submit
-```
-
-**Enable:**
-- `RUN_TESTS`
-- `STACKTRACE` / failure parsing
-- `SEARCH` (ripgrep-like)
-
-**Disable:**
-- `--force-write-focus` (gradually: 80% forced → 20% → 0%)
-
-**Exit criteria:** >20-30% success on EASY with multi-step episodes; agent uses tests strategically.
-
-### Stage C: Multi-File (NAVIGATE Becomes Real)
-
-Repo generator already produces multi-file templates (data pipeline, REST API).
-
-**Add:**
-- `LIST_FILES`
-- `NAVIGATE`
-- `READ_FILE` chunking
-
-**Training trick:** Make stacktraces reliably include file/line in observation bytes. Give small reward for navigating to correct file (once per episode, not spammable).
-
-**Exit criteria:** Solves meaningful fraction of multi-file repos without editing tests.
-
-### Stage D: General Edits (Drop TRIVIAL_VOCAB, Go Byte-Level)
-
-This is where "Jarvis" starts to feel like Jarvis.
-
-**How to avoid exploding search space:**
-1. Start with byte-BPE style micro-vocab learned from repo text (no pretrained models)
-2. Allow only short inserts first (1-8 bytes), then extend
-3. Keep closure gate: tasks requiring longer edits don't enter curriculum yet
-
-**Exit criteria:** Agent fixes simple typos/keywords because it can emit those bytes.
-
-### Stage E: Persistent Jarvis (Long-Horizon Operator Mode)
-
-Current harness is episodic (reset → solve → done). Jarvis is continuous.
-
-**Add:**
-- Persistent workspace (no reset between tasks)
-- Scratchpad file (agent writes notes to itself)
-- Task queue ("fix bug A, then implement feature B")
-- Safety sandbox (agent cannot brick system)
-
-**Leverage existing RPJ Brain features:**
-- Energy proxy and budgets
-- Sleep/consolidation
-- Plasticity within episodes
-
-**Exit criteria:** Agent completes multiple tasks back-to-back, recovers from mistakes via git checkout/diff/reset.
+**Reason:** A Jarvis that can only do tiny edits but reliably loops + recovers + finishes tasks is an operator. A Jarvis that emits any bytes but doesn't know when to run tests or finish tasks is a noisy keyboard ghost.
 
 ---
 
-## 5. THE JARVIS REALITY CHECK
+## 5. "IF THINGS GO WRONG" PLAYBOOK
 
-Your docs are honest about the gap. Within the constraints, "Jarvis" means:
+### Symptom: Policy does nothing (writes=0, run_tests=0)
+**Causes:** BC dataset missing "first move" states; action entropy collapsed
+**Fixes:** Train BC on RUN_TESTS-first; add small negative for NO_OP; verify --no-auto-focus shows meaningful terminal bytes
 
-- Extremely strong operator behavior in constrained world (repos, tools, tests)
-- Learned planning via reward, not natural-language reasoning
-- Minimal priors, but still some priors (action formats, focus window, verifiers)
+### Symptom: Tons of WRITE_FOCUS but no file changes
+**Causes:** Offset/length out of range; focus text empty/wrong file
+**Fixes:** Log focus_file, focus_offset, len(focus_text); clamp offsets; temporarily force auto_focus_target=True
 
-That's still a legit Jarvis-shaped beast.
+### Symptom: Solves tests but never calls COMPLETE_TASK
+**Cause:** No reward for COMPLETE_TASK ← **NOW FIXED**; No BC examples
+**Fix:** Patch reward ✅ DONE; Add BC steps with COMPLETE_TASK
+
+### Symptom: RL regresses (BC 30% → RL 10-15%)
+**Cause:** Anchor too weak, LR too high, PPO too aggressive
+**Fix:** Raise λ_bc; shorten rollouts; reduce LR (especially backbone); hard-stop on non-regression gate fail
+
+### Symptom: Eval painfully slow / GPU bored
+**Fix:** Vectorize eval; async tests; cache repo generation
+
+### Symptom: VRAM spikes / instability
+**Rule:** Never exceed 10GB total
+**Fix:** Reduce num_envs; smaller batches; gradient accumulation; kill python instantly if crossed
 
 ---
 
-## 6. 48-HOUR CHECKLIST (Best Next Steps)
-
-```
-[ ] 1. pytest green
-[ ] 2. BC gate ~75% still holds
-[ ] 3. RL 100k steps TRIVIAL
-[ ] 4. Eval 50 tasks; compute success/improvement %
-[ ] 5. If ≥20%: checkpoint + commit + PR
-[ ] 6. If <20%: instrument action/token distribution + effective edits, fix collapse, re-run
-```
-
----
-
-## 7. KEY FILES
+## 6. KEY FILES
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `src/harness/expert_trajectories.py` | BC demo generation | **FIXED**: Offset centering |
-| `scripts/train_jarvis_harness.py:503` | BC accuracy calculation | **FIXED**: `% 4` → `% 3` |
-| `src/harness/actions.py:336` | TRIVIAL_VOCAB definition | 5 items (colon, paren, comma, quotes) |
-| `src/harness/env.py` | Focus initialization | Working |
-| `scripts/eval_jarvis_harness.py` | Evaluation script | Working |
-| `diagnostics/_debug_trap_*.py` | Diagnostic traps | Archived |
+| `src/harness/env.py` | Core environment with persistent mode | Updated |
+| `src/harness/actions.py` | Action definitions incl. COMPLETE_TASK | Updated |
+| `scripts/train_jarvis_harness.py` | Training script with new flags | Updated |
+| `scripts/eval_jarvis_harness.py` | Evaluation with truthful metrics | Updated |
+| `PLAN_TO_JARVIS.md` | Full implementation roadmap | Current |
 
 ---
 
-## 8. ENVIRONMENT
+## 6. ENVIRONMENT
 
 ```bash
 # GPU: NVIDIA GeForce RTX 5070 Ti, 16303 MiB
@@ -372,84 +215,57 @@ That's still a legit Jarvis-shaped beast.
 ## QUICK START FOR NEW INSTANCE
 
 ```
-Continue working on WIRED-BRAIN Jarvis Harness. Read HANDOFF.md for full context.
+Continue WIRED-BRAIN Jarvis Harness. Read HANDOFF.md.
 
-STATUS: **PHASE 7 INFRASTRUCTURE COMPLETE** (2026-01-18)
-- Phase 7 (Persistent Jarvis): Infrastructure DONE
-- Eval Truthfulness: FIXED (commit 97667ae)
-- All sanity gates: PASSED
-- All 26 harness tests: PASSING
+STATUS: Body built, nervous system needed (2026-01-18)
+- Phase 7 infrastructure: COMPLETE
+- COMPLETE_TASK reward: JUST FIXED (was broken)
+- THE GAP: Need long-horizon loops (run tests → edit → rerun → recover → finish → next task)
 
-CURRENT POSITION:
-- Phase 7 infrastructure is complete
-- Ready for Phase 7.4 training (persistent mode BC+RL)
-- Eval gates (Phase 7.5) after training
+NEXT 3 MOVES:
+1. Add BC demos with COMPLETE_TASK (expert_trajectories.py)
+2. Get BC-only persistent baseline (Gate B: tasks_completed/session ≥ 2)
+3. Only then: anchored RL (Gate C: must beat BC baseline)
 
-NEXT STEPS:
-1. Run Phase 7 training:
-   PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-     --mode v2 --timesteps 200000 --difficulty trivial \
-     --persistent --tasks-per-episode 3 --scratchpad \
-     --num-envs 16 --action-bytes 64 --force-write-focus \
-     --bc-epochs 20 --bc-demos 500 \
-     --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000
+DO NOT: Jump to Phase 6 (byte edits) or Phase 5.5 (navigation) yet.
 
-2. Evaluate checkpoint:
-   PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
-     --checkpoint results/jarvis_harness_v2_200000.pt \
-     --mode v2 --difficulty trivial --num-tasks 50 \
-     --force-write-focus --max-steps 10
-
-3. Check Phase 7.5 gates:
-   - Avg tasks completed per session >= 3
-   - Recovery success rate >= 80%
-   - No catastrophic failures (bricked repos) - ALREADY PASSED
-
-See PLAN_TO_JARVIS.md for detailed roadmap. See MISTAKES.md for failure log.
+See PLAN_TO_JARVIS.md for roadmap. See MISTAKES.md for failure log.
 ```
 
 ---
 
-## PHASE 4 FINDINGS: BC Accuracy vs Pytest Eval
+## EVAL TRUTHFULNESS (FIXED)
 
-**Critical Discovery (2026-01-17):**
+Commit 97667ae fixed eval metrics to filter "free wins" (repos where base=total):
 
-The 72.7% "success rate" is actually **BC action prediction accuracy**, not pytest eval success.
+```python
+# Truthful metrics now computed:
+eligible = (base_tests_passing < base_tests_total)  # Has a bug to fix
+solved = success AND eligible  # Actually fixed the bug
+improved = (tests_passing > base_tests_passing) AND eligible  # Made progress
 
-| Metric | What it measures | Value |
-|--------|------------------|-------|
-| BC Accuracy | Predicted action == expert action | 72.7% |
-| Pytest Eval | Tests pass after agent applies fix | ~5% |
-
-**Why the gap?**
-1. BC accuracy: "Did the model predict the correct action?"
-2. Pytest eval: "Did pytest pass after the edit?"
-
-**The hidden catch:**
-- Syntax bugs (TRIVIAL) prevent pytest from even loading test files
-- When there's a syntax error, pytest shows `tests=0/0` (collection failed)
-- The model must fix the syntax error perfectly for tests to run at all
-- A "close but wrong" edit still results in 0 tests passing
-
-**For EASY difficulty (logic bugs):**
-- Logic bugs don't prevent test collection
-- But BC has no expert trajectories for logic bug fixes
-- The model only knows TRIVIAL_VOCAB (syntax tokens), not operator replacements
-- Result: 0% success on EASY (expected behavior)
-
-**Next requirement for EASY:**
-BC expert trajectories that demonstrate fixing logic bugs (wrong_operator, off_by_one).
+# Output shows:
+# SOLVED: actually fixed eligible task
+# IMPROVED: made progress on eligible task
+# ELIGIBLE: task had a bug to fix
+# FREE_WIN: base=total (no bug, excluded from metrics)
+```
 
 ---
 
-## STALE INFO (DO NOT USE)
+## PHASE 7 ARCHITECTURE
 
-Previous documents mentioned:
-- "KL penalty will fix collapse" - **WRONG**, KL alone doesn't preserve competence
-- "BC works, RL destroys it" - **HALF-TRUE**, BC never worked on real observations
-- "75.2% BC accuracy means transfer" - **WRONG**, BC trained on empty obs, can't transfer
+### Persistent Mode Flow
+1. `reset(task_queue=[t1, t2, t3])` - Initialize with multiple tasks
+2. Agent works on first task
+3. Agent calls `COMPLETE_TASK` when done
+4. Environment validates completion, advances to next task
+5. Workspace preserved between tasks
+6. `.jarvis_notes` scratchpad persists across all tasks
+7. `GIT_RESET`/`GIT_CHECKOUT` available for recovery
 
-The real root cause was identified via /deep-debug diagnostic traps:
-- BC observations have 0% non-zero in focus region
-- RL observations have 99% non-zero in focus region
-- This is why no amount of KL penalty could help
+### New Flags
+- `--persistent`: Enable persistent mode (no reset between tasks)
+- `--tasks-per-episode N`: Number of tasks per super-episode
+- `--scratchpad`: Enable .jarvis_notes file
+- `--enable-sleep`: Enable sleep/consolidation module

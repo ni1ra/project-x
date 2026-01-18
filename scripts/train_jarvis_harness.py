@@ -53,6 +53,7 @@ from src.harness.repo_generator import (
 from src.harness.expert_trajectories import (
     create_bc_dataset,
     create_multistep_bc_dataset,
+    create_persistent_bc_dataset,
     compute_fix_offset_in_focus,
 )
 from src.utils.gpu_guard import (
@@ -411,6 +412,7 @@ class JarvisHarnessTrainer:
         jitter: int = 0,
         difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
         use_multistep: bool = False,
+        use_persistent: bool = False,
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -426,6 +428,8 @@ class JarvisHarnessTrainer:
             jitter: Focus offset jitter +/- this value (for robustness)
             difficulty: Bug difficulty level for expert trajectory generation
             use_multistep: If True, use multi-step demos with RUN_TESTS + WRITE_FOCUS
+            use_persistent: If True, use persistent mode demos with full loop
+                           (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)
 
         Returns:
             Dictionary of final BC metrics
@@ -436,13 +440,28 @@ class JarvisHarnessTrainer:
         else:
             vocab_size = len(COMBINED_VOCAB)  # 21 items (TRIVIAL + EASY)
 
-        mode_str = "multi-step (RUN_TESTS + WRITE_FOCUS)" if use_multistep else "single-step"
+        # Determine demo mode
+        if use_persistent:
+            mode_str = "persistent (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)"
+        elif use_multistep:
+            mode_str = "multi-step (RUN_TESTS + WRITE_FOCUS)"
+        else:
+            mode_str = "single-step"
+
         print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
         print(f"Generating {num_demos} expert demonstrations (difficulty={difficulty.name}, vocab_size={vocab_size}, mode={mode_str})...")
 
         # Generate expert dataset
         try:
-            if use_multistep:
+            if use_persistent:
+                # Phase 7.4a: Persistent mode demos with COMPLETE_TASK
+                dataset = create_persistent_bc_dataset(
+                    num_tasks=num_demos,
+                    difficulty=difficulty,
+                    seed=42,
+                    include_single_step=False,  # Pure persistent demos
+                )
+            elif use_multistep:
                 dataset = create_multistep_bc_dataset(
                     num_tasks=num_demos,
                     difficulty=difficulty,
@@ -462,9 +481,11 @@ class JarvisHarnessTrainer:
 
         num_samples = dataset["num_samples"]
         print(f"Generated {num_samples} valid expert trajectories")
-        if use_multistep:
+        if use_persistent or use_multistep:
             print(f"  RUN_TESTS actions: {dataset.get('num_run_tests', 0)}")
             print(f"  WRITE_FOCUS actions: {dataset.get('num_write_focus', 0)}")
+            if use_persistent:
+                print(f"  COMPLETE_TASK actions: {dataset.get('num_complete_task', 0)}")
 
         if num_samples < 10:
             print("Warning: Too few samples for BC pre-training")
@@ -473,9 +494,9 @@ class JarvisHarnessTrainer:
         # Move data to device
         observations = dataset["observations"].to(self.device)
 
-        # For multi-step BC, we have full action_bytes; for single-step, we build them
-        if use_multistep:
-            # Multi-step dataset provides full action bytes
+        # For multi-step/persistent BC, we have full action_bytes; for single-step, we build them
+        if use_persistent or use_multistep:
+            # Multi-step/persistent dataset provides full action bytes
             action_bytes_all = dataset["action_bytes"].to(self.device).long()
             has_separate_labels = False
         else:
@@ -1583,7 +1604,14 @@ def main():
         bc_metrics = None
         bc_dataset = None
         if args.bc_epochs > 0 and not args.bc_checkpoint:
-            mode_str = "multi-step" if args.bc_multistep else "single-step"
+            # Determine BC mode
+            use_persistent = getattr(args, 'persistent', False)
+            if use_persistent:
+                mode_str = "persistent (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)"
+            elif args.bc_multistep:
+                mode_str = "multi-step"
+            else:
+                mode_str = "single-step"
             print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos ({mode_str})", flush=True)
             bc_metrics = trainer.pretrain_behavioral_cloning(
                 num_demos=args.bc_demos,
@@ -1593,6 +1621,7 @@ def main():
                 jitter=args.focus_jitter,
                 difficulty=difficulty,  # Pass difficulty for correct vocab size
                 use_multistep=args.bc_multistep,
+                use_persistent=use_persistent,  # Phase 7.4a: enable persistent demos
             )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:
@@ -1608,18 +1637,29 @@ def main():
             # Generate BC dataset for anchored RL (if enabled)
             if args.bc_anchor_coef > 0:
                 print(f"Generating BC demos for anchored RL...", flush=True)
-                bc_dataset = create_bc_dataset(
-                    num_tasks=args.bc_demos,
-                    difficulty=BugDifficulty.TRIVIAL,
-                    seed=args.seed,
-                    jitter=args.focus_jitter,
-                )
-                # Build target action tensor
-                bc_actions = torch.zeros(bc_dataset['num_samples'], action_bytes, dtype=torch.long)
-                bc_actions[:, 0] = 16  # WRITE_FOCUS
-                bc_actions[:, 1] = bc_dataset['offsets']
-                bc_actions[:, 3] = bc_dataset['lengths']
-                bc_actions[:, 25] = bc_dataset['vocab_idxs']
+                if use_persistent:
+                    # Phase 7.4a: Use persistent demos for anchored RL
+                    bc_dataset = create_persistent_bc_dataset(
+                        num_tasks=args.bc_demos,
+                        difficulty=difficulty,
+                        seed=args.seed,
+                        include_single_step=False,
+                    )
+                    # Persistent dataset already has full action bytes
+                    bc_actions = bc_dataset['action_bytes'].long()
+                else:
+                    bc_dataset = create_bc_dataset(
+                        num_tasks=args.bc_demos,
+                        difficulty=BugDifficulty.TRIVIAL,
+                        seed=args.seed,
+                        jitter=args.focus_jitter,
+                    )
+                    # Build target action tensor
+                    bc_actions = torch.zeros(bc_dataset['num_samples'], action_bytes, dtype=torch.long)
+                    bc_actions[:, 0] = 16  # WRITE_FOCUS
+                    bc_actions[:, 1] = bc_dataset['offsets']
+                    bc_actions[:, 3] = bc_dataset['lengths']
+                    bc_actions[:, 25] = bc_dataset['vocab_idxs']
 
                 trainer.setup_anchored_rl(
                     bc_observations=bc_dataset['observations'],

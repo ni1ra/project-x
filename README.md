@@ -215,14 +215,15 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py \
 
 ### Jarvis Harness Training Status
 
-**CURRENT STATE (2026-01-18):** **PHASE 7 INFRASTRUCTURE COMPLETE**
+**CURRENT STATE (2026-01-18):** **BODY BUILT, NERVOUS SYSTEM NEEDED**
 
 | Metric | Value | Notes |
 |--------|-------|-------|
 | TRIVIAL Success | **25-30%** | BC-only, 1 step |
-| EASY Success | **90%** | With focus hints |
+| EASY Success | **90%** | With focus hints only |
 | BC Accuracy | 72.7% | TRIVIAL, 76.8% EASY |
 | Phase 7 Infra | **DONE** | Persistent mode ready |
+| COMPLETE_TASK Reward | **FIXED** | Was broken (PPO never saw bonus) |
 
 **Phase 7 (Persistent Jarvis) Infrastructure:**
 - Persistent mode (no reset between tasks)
@@ -232,7 +233,10 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py \
 - Recovery actions (GIT_CHECKOUT, GIT_RESET)
 - All sanity gates PASSED
 
-**Next:** Train with persistent mode settings, evaluate against Phase 7.5 gates.
+**THE GAP:** Need to train long-horizon loops (run tests → edit → rerun → recover → finish → next task).
+Body is built (actions/tools/env/reward plumbing). Nervous system needed (learned loops).
+
+**Next:** Phase 7.4a (BC demos with COMPLETE_TASK) → 7.4b (BC-only baseline) → 7.4c (anchored RL).
 
 See `HANDOFF.md` for implementation details and `diagnostics/` for debug traps.
 

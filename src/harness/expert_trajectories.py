@@ -1185,6 +1185,270 @@ def create_multistep_bc_dataset(
     }
 
 
+def create_complete_task_action() -> torch.Tensor:
+    """
+    Create a COMPLETE_TASK action for signaling task completion.
+
+    This is used after the fix is verified (RUN_TESTS shows all pass).
+    The env requires last_test_result.passed=True before COMPLETE_TASK is accepted.
+
+    Returns:
+        action_bytes: [ACTION_BYTES_V2] tensor with COMPLETE_TASK action
+    """
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.COMPLETE_TASK.value  # ActionType.COMPLETE_TASK = 18
+    return action_bytes
+
+
+def create_post_fix_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    tests_passing: int,
+    tests_total: int,
+) -> torch.Tensor:
+    """
+    Create an observation for after the fix is applied and tests pass.
+
+    This simulates the state after:
+    1. WRITE_FOCUS applied the fix
+    2. RUN_TESTS was called and tests pass
+
+    The agent should emit COMPLETE_TASK in this state.
+    """
+    jarvis_obs = JarvisObservation(
+        # Terminal: show tests passing
+        terminal_output=f"$ pytest\n{tests_passing}/{tests_total} tests passed\nOK",
+        # Goal: task description
+        goal=f"{goal[:60]}",
+        # Focus text: the fixed code
+        focus_text=focus_text[:256] if focus_text else "",
+        focus_preview=focus_text[:32] if focus_text else "",
+        focus_offset=0,
+        focus_length=len(focus_text) if focus_text else 0,
+        # File hash for identification
+        focus_file_hash=repo_name.encode('utf-8')[:16],
+        # Default values
+        energy_remaining=0.9,  # Some energy used
+        time_remaining=0.8,
+        actions_remaining=97,  # 3 actions taken (RUN_TESTS, WRITE_FOCUS, RUN_TESTS)
+        step=3,
+        last_reward=10.0,  # Reward from fixing
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+    )
+    return encode_observation(jarvis_obs)
+
+
+@dataclass
+class PersistentTrajectory:
+    """A 4-step trajectory for the persistent developer loop.
+
+    Step 1: RUN_TESTS - discover bug (triggers stacktrace)
+    Step 2: WRITE_FOCUS - apply the fix
+    Step 3: RUN_TESTS - verify fix works (tests pass)
+    Step 4: COMPLETE_TASK - mark task as done
+
+    This teaches the agent the full persistent mode loop.
+    """
+    repo_name: str
+    bug_type: str
+    fix_description: str
+
+    # List of (observation, action) pairs
+    steps: List[Tuple[torch.Tensor, torch.Tensor]]  # [(obs, action), ...]
+
+    # Final state info
+    solved: bool  # Would this trajectory solve the bug?
+
+
+def generate_persistent_trajectory(
+    repo: GeneratedRepo,
+    focus_length: int = 256,
+) -> Optional[PersistentTrajectory]:
+    """
+    Generate a 4-step trajectory for the persistent developer loop.
+
+    Step 1: RUN_TESTS - discover bug
+    Step 2: WRITE_FOCUS - apply fix
+    Step 3: RUN_TESTS - verify fix
+    Step 4: COMPLETE_TASK - mark done
+
+    Args:
+        repo: Generated repo with bugs
+        focus_length: Size of focus window
+
+    Returns:
+        PersistentTrajectory with 4 steps, or None if can't generate
+    """
+    if not repo.bugs:
+        return None
+
+    bug = repo.bugs[0]
+
+    # Get original and buggy code
+    original = repo.original_files.get(bug.file_path, "")
+    buggy = repo.files.get(bug.file_path)
+    if buggy is None:
+        return None
+    buggy_content = buggy.content
+
+    # Generate the single-step trajectory to get the correct WRITE_FOCUS action
+    single_step = generate_expert_trajectory(repo, focus_length)
+    if single_step is None:
+        return None
+
+    # Step 1: Initial observation (tests not run yet)
+    # Agent should call RUN_TESTS to discover where the bug is
+    initial_obs = create_initial_observation(
+        repo_name=repo.name,
+        goal=f"Fix bug: {repo.fix_description[:50]}",
+        focus_text="",  # Empty - haven't navigated yet
+        tests_passing=0,
+        tests_total=1,
+    )
+    run_tests_action = create_run_tests_action()
+
+    # Step 2: After RUN_TESTS, focus is set to bug location by env
+    # Agent should call WRITE_FOCUS with the correct fix
+    post_discovery_obs = single_step.observation
+    write_focus_action = single_step.correct_action.action_bytes
+
+    # Step 3: After WRITE_FOCUS, run tests again to verify
+    # Create observation showing code context (post-fix)
+    # The agent should call RUN_TESTS again to verify
+    post_fix_obs = create_post_fix_observation(
+        repo_name=repo.name,
+        goal=f"Fix bug: {repo.fix_description[:50]}",
+        focus_text=original[:focus_length],  # Now shows the fixed code
+        tests_passing=0,  # Haven't run tests yet after fix
+        tests_total=1,
+    )
+    verify_tests_action = create_run_tests_action()
+
+    # Step 4: After verification RUN_TESTS, tests pass
+    # Agent should call COMPLETE_TASK
+    post_verify_obs = create_post_fix_observation(
+        repo_name=repo.name,
+        goal=f"Fix bug: {repo.fix_description[:50]}",
+        focus_text=original[:focus_length],  # Fixed code
+        tests_passing=1,  # Tests pass now
+        tests_total=1,
+    )
+    complete_task_action = create_complete_task_action()
+
+    steps = [
+        (initial_obs, run_tests_action),        # Step 1: RUN_TESTS
+        (post_discovery_obs, write_focus_action),  # Step 2: WRITE_FOCUS
+        (post_fix_obs, verify_tests_action),     # Step 3: RUN_TESTS (verify)
+        (post_verify_obs, complete_task_action),  # Step 4: COMPLETE_TASK
+    ]
+
+    return PersistentTrajectory(
+        repo_name=repo.name,
+        bug_type=single_step.bug_type,
+        fix_description=single_step.fix_description,
+        steps=steps,
+        solved=True,
+    )
+
+
+def generate_persistent_demos(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+    seed: int = 42,
+) -> List[PersistentTrajectory]:
+    """
+    Generate persistent mode expert demonstrations.
+
+    Each demo is a 4-step trajectory:
+    RUN_TESTS → WRITE_FOCUS → RUN_TESTS → COMPLETE_TASK
+
+    Args:
+        num_tasks: Number of demonstrations to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+
+    Returns:
+        List of PersistentTrajectory objects
+    """
+    repos = generate_task_batch(
+        num_tasks=num_tasks,
+        difficulty_range=(difficulty, difficulty),
+        seed=seed,
+    )
+
+    trajectories = []
+    for repo in repos:
+        traj = generate_persistent_trajectory(repo)
+        if traj is not None:
+            trajectories.append(traj)
+
+    return trajectories
+
+
+def create_persistent_bc_dataset(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+    seed: int = 42,
+    include_single_step: bool = False,
+) -> Dict[str, torch.Tensor]:
+    """
+    Create a behavioral cloning dataset with persistent mode trajectories.
+
+    This flattens all steps into a single dataset, mixing:
+    - RUN_TESTS first moves (initial obs -> RUN_TESTS action)
+    - WRITE_FOCUS fix moves (post-discovery obs -> WRITE_FOCUS action)
+    - RUN_TESTS verify moves (post-fix obs -> RUN_TESTS action)
+    - COMPLETE_TASK moves (post-verify obs -> COMPLETE_TASK action)
+
+    Args:
+        num_tasks: Number of demonstrations to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+        include_single_step: If True, also include single-step demos (for diversity)
+
+    Returns dict with:
+        - observations: [N, 512]
+        - action_bytes: [N, 64] - full action byte sequences
+        - num_samples: int
+        - num_run_tests: int - count of RUN_TESTS actions
+        - num_write_focus: int - count of WRITE_FOCUS actions
+        - num_complete_task: int - count of COMPLETE_TASK actions
+    """
+    persistent_trajs = generate_persistent_demos(num_tasks, difficulty, seed)
+
+    all_obs = []
+    all_actions = []
+
+    for traj in persistent_trajs:
+        for obs, action in traj.steps:
+            all_obs.append(obs)
+            all_actions.append(action)
+
+    # Optionally add single-step demos for diversity
+    if include_single_step:
+        single_trajs = generate_expert_demos(num_tasks // 4, difficulty, seed + 1000)
+        for traj in single_trajs:
+            all_obs.append(traj.observation)
+            all_actions.append(traj.correct_action.action_bytes)
+
+    if not all_obs:
+        raise ValueError("No valid trajectories generated")
+
+    observations = torch.stack(all_obs)
+    action_bytes = torch.stack(all_actions)
+
+    return {
+        "observations": observations,
+        "action_bytes": action_bytes,
+        "num_samples": len(all_obs),
+        "num_run_tests": sum(1 for a in all_actions if a[0] == ActionType.RUN_TESTS.value),
+        "num_write_focus": sum(1 for a in all_actions if a[0] == ActionType.WRITE_FOCUS.value),
+        "num_complete_task": sum(1 for a in all_actions if a[0] == ActionType.COMPLETE_TASK.value),
+    }
+
+
 if __name__ == "__main__":
     # Test expert trajectory generation
     print("Generating expert demonstrations...")
@@ -1229,3 +1493,26 @@ if __name__ == "__main__":
     print(f"RUN_TESTS actions: {ms_dataset['num_run_tests']}")
     print(f"WRITE_FOCUS actions: {ms_dataset['num_write_focus']}")
     print(f"Observations shape: {ms_dataset['observations'].shape}")
+
+    # Test persistent trajectory generation (Phase 7.4a)
+    print("\n\n=== Testing Persistent Trajectories (Phase 7.4a) ===")
+    persistent_demos = generate_persistent_demos(num_tasks=10, difficulty=BugDifficulty.TRIVIAL, seed=42)
+    print(f"Generated {len(persistent_demos)} persistent trajectories")
+
+    for i, demo in enumerate(persistent_demos[:2]):
+        print(f"\n--- Persistent Demo {i+1} ---")
+        print(f"Bug type: {demo.bug_type}")
+        print(f"Fix: {demo.fix_description[:50]}...")
+        print(f"Steps: {len(demo.steps)}")
+        for j, (obs, action) in enumerate(demo.steps):
+            action_type = ActionType(action[0].item())
+            print(f"  Step {j+1}: {action_type.name} (obs shape: {obs.shape})")
+
+    # Test persistent BC dataset
+    print("\n\nCreating persistent BC dataset...")
+    p_dataset = create_persistent_bc_dataset(num_tasks=100, difficulty=BugDifficulty.TRIVIAL, seed=42)
+    print(f"Dataset size: {p_dataset['num_samples']}")
+    print(f"RUN_TESTS actions: {p_dataset['num_run_tests']}")
+    print(f"WRITE_FOCUS actions: {p_dataset['num_write_focus']}")
+    print(f"COMPLETE_TASK actions: {p_dataset['num_complete_task']}")
+    print(f"Observations shape: {p_dataset['observations'].shape}")

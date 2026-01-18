@@ -6,12 +6,14 @@
 > This document is designed to be followed by Claude autonomously.
 > Every checkbox must be checked before proceeding to the next step.
 >
-> **Current State:** ⚠️ **EVAL LYING** - Metrics polluted by free-win episodes
+> **Current State:** Body Built, Nervous System Needed
 > - **TRIVIAL BC Accuracy:** 72.7% | Pytest Success: ~25-30%
-> - **EASY BC Accuracy:** 76.8% | **Pytest Success: UNKNOWN** (eval counts base=total as success)
-> - **CRITICAL:** Agent has writes=0, run_tests=0 without focus hints = statue
+> - **EASY BC Accuracy:** 76.8% | Pytest Success: ~90% (with focus hints only)
+> - **Eval Truthfulness:** FIXED (commit 97667ae)
+> - **COMPLETE_TASK Reward:** JUST FIXED (was broken - PPO never saw bonus)
+> - **THE GAP:** Long-horizon loops (run tests → edit → rerun → recover → finish → next task)
 > **Target:** Stage F (Heterogeneous Brain) - Beyond Human Intelligence
-> **Last Updated:** 2026-01-18 (v14 - EVAL TRUTHFULNESS REQUIRED)
+> **Last Updated:** 2026-01-18 (v15 - BODY BUILT, NEEDS NERVOUS SYSTEM)
 >
 > **KEY INSIGHT (2026-01-17):** For TRIVIAL, BC-only beats unanchored RL. RL is allowed ONLY if it passes a non-regression gate.
 > **RESOLVED:** BC↔RL observation gap + v1/v2 decoder mismatch + offset aliasing + multi-bug repos + **goal bytes + focus_text missing from decoder** (critical fix today).
@@ -828,19 +830,81 @@ This requires expanding the action space beyond TRIVIAL_VOCAB.
   - [x] ActionType.GIT_RESET (value 10) exists
   - [x] _git_reset() handler in env.py
 
-### 7.4 Train Persistent ⚠️ IN PROGRESS
-- [ ] **7.4.1** Run training
+### 7.4 Train Persistent (Gated Plan) ⚠️ IN PROGRESS
+
+**STATUS (2026-01-18):** COMPLETE_TASK reward bug FIXED. BC demos with COMPLETE_TASK needed.
+
+#### 7.4a: Make Persistent Training Learnable
+**Goal:** Agent can emit COMPLETE_TASK after solving a task.
+
+- [x] **7.4a.1** Fix COMPLETE_TASK reward
+  - [x] Added `completion_bonus_pending` field to HarnessState
+  - [x] `_complete_current_task()` sets pending bonus
+  - [x] `_compute_reward()` adds it to reward and clears it
+  - [x] PPO now sees the task completion bonus
+
+- [x] **7.4a.2** Add BC demos that end tasks
+  - [x] Added `create_persistent_bc_dataset()` with 4-step loop:
+    - RUN_TESTS (discover) → WRITE_FOCUS (fix) → RUN_TESTS (verify) → COMPLETE_TASK
+  - [x] Training script uses persistent demos with `--persistent` flag
+
+**Gate A (must pass before RL):**
+- [ ] In persistent eval with 3 queued tasks, policy emits COMPLETE_TASK within N≤10 steps after tests pass
+- [ ] `tasks_completed/session > 0`
+
+**If Gate A fails:** Do NOT touch PPO. Fix BC and reward alignment first.
+
+#### 7.4b: Persistent BC-Only Baseline
+**Goal:** BC-only can complete multiple tasks in a session.
+
+**Target behavior per task:**
+1. RUN_TESTS early
+2. WRITE_FOCUS edit(s)
+3. RUN_TESTS again
+4. COMPLETE_TASK when solved
+5. Repeat for next task without reset
+
+- [x] **7.4b.1** BC dataset mix needed:
+  - [x] RUN_TESTS-first steps (implemented in `create_persistent_bc_dataset`)
+  - [x] Fix steps (WRITE_FOCUS etc.)
+  - [x] RUN_TESTS-confirm steps (verify fix)
+  - [x] COMPLETE_TASK steps (signal task done)
+
+- [ ] **7.4b.2** Train BC-only with full loop demos
   ```bash
   PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-    --mode v2 --timesteps 1000000 --difficulty medium \
-    --persistent --tasks-per-episode 5 --scratchpad
+    --mode v2 --timesteps 100000 --difficulty trivial \
+    --persistent --tasks-per-episode 3 --scratchpad \
+    --bc-epochs 50 --bc-demos 1000 --force-write-focus
   ```
-  - [ ] Training completes (requires significant compute time)
 
-- [ ] **7.4.2** Evaluate
-  - [ ] Agent completes multiple tasks back-to-back
-  - [ ] Agent recovers from mistakes
-  - [ ] Success rate >= 50% per task
+**Gate B (BC-only persistence):**
+- [ ] `tasks_completed/session ≥ 2` on TRIVIAL+EASY mixed queue
+- [ ] `run_tests_actions per task ≥ 1`
+- [ ] Catastrophic failure rate ≈ 0
+
+#### 7.4c: Anchored RL in Persistent Mode
+**Goal:** RL improves on BC baseline, not destroys it.
+
+**Non-negotiables:**
+- Keep BC anchor loss active (λ_bc not tiny at start)
+- Two-timescale optimizer (backbone LR smaller)
+- Collapse detector stays armed
+
+- [ ] **7.4c.1** Run anchored RL training
+  ```bash
+  PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+    --mode v2 --timesteps 500000 --difficulty trivial \
+    --persistent --tasks-per-episode 3 --scratchpad \
+    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 200000
+  ```
+
+**Gate C (must beat BC baseline):**
+- [ ] `solved_rate (eligible) >= BC baseline`
+- [ ] `tasks_completed/session` increases vs Gate B baseline
+- [ ] Action diversity healthy (no 95% same action)
+
+**If it regresses:** Stop RL immediately. Increase BC baseline first.
 
 ### 7.5 Final Validation
 - [ ] **7.5.1** Run on held-out repos

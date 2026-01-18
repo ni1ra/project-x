@@ -170,6 +170,7 @@ class HarnessState:
     current_task_idx: int = 0  # Index of current task in original queue
     tasks_completed: int = 0   # Number of tasks completed this super-episode
     super_episode_done: bool = False  # True when all tasks in queue are done
+    completion_bonus_pending: float = 0.0  # Bonus to add to next reward (COMPLETE_TASK fix)
 
 
 class JarvisHarnessEnv:
@@ -665,6 +666,10 @@ class JarvisHarnessEnv:
             "write_focus_actions": self.state.write_focus_actions,
             "run_tests_actions": self.state.run_tests_actions,
             "episode_return": self.state.episode_return,  # Cumulative reward for curriculum success metric
+            # Persistent mode instrumentation
+            "tasks_completed": self.state.tasks_completed,
+            "current_task_idx": self.state.current_task_idx,
+            "super_episode_done": self.state.super_episode_done,
         }
 
         return self._get_observation(), reward, done, info
@@ -1666,7 +1671,9 @@ class JarvisHarnessEnv:
 
         # Task is solved! Award completion bonus and advance
         self.state.tasks_completed += 1
-        self.state.episode_return += self.config.task_completion_bonus
+        # Set pending bonus so _compute_reward() includes it in the step reward
+        # (Previously added directly to episode_return, which PPO never saw)
+        self.state.completion_bonus_pending = self.config.task_completion_bonus
 
         # Check if there are more tasks in the queue
         if not self.state.task_queue:
@@ -1940,6 +1947,13 @@ class JarvisHarnessEnv:
             if not getattr(self.state, 'compile_bonus_given', False):
                 reward += 0.5  # +r_compile (one-time)
                 self.state.compile_bonus_given = True
+
+        # COMPLETE_TASK bonus (persistent mode)
+        # This was previously broken: bonus was added to episode_return but not
+        # returned as reward, so PPO never saw it. Now we add it to reward properly.
+        if self.state.completion_bonus_pending > 0:
+            reward += self.state.completion_bonus_pending
+            self.state.completion_bonus_pending = 0.0  # Clear after awarding
 
         return reward
 
