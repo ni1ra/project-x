@@ -632,12 +632,14 @@ This requires expanding the action space beyond TRIVIAL_VOCAB.
   - [x] `_parse_stacktrace()` extracts file:line from pytest output
   - [x] Results include relative paths
 
-### 5.3 Add Navigation Reward (TODO - NOT CRITICAL FOR BASIC FUNCTIONALITY)
-- [ ] **5.3.1** Reward for navigating to correct file
-  - [ ] Edit `env.py:_compute_reward()`
-  - [ ] If agent navigates to file containing bug: +1.0 reward
-  - [ ] One-time reward (not spammable)
-  - Note: Low priority - agent can learn from test feedback
+### 5.3 Add Navigation Reward ✅ COMPLETE (2026-01-18)
+- [x] **5.3.1** Reward for navigating to correct file
+  - [x] Edit `env.py:_compute_reward()` - Added navigation reward logic
+  - [x] If agent navigates to file containing bug: +1.0 reward
+  - [x] One-time reward (not spammable) - `navigation_bonus_given` state field
+  - [x] Added `auto_focus_target` config to control initial focus behavior
+    - True (default): Auto-focus on target file (for TRIVIAL/EASY)
+    - False: No auto-focus, agent must navigate (for multi-file training)
 
 ### 5.4 Generate Multi-File Tasks ✅ VERIFIED (2026-01-18)
 - [x] **5.4.1** Multi-file repos work
