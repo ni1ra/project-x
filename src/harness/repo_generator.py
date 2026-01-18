@@ -701,20 +701,44 @@ def inject_typo_keyword(code: str) -> Tuple[str, str, str]:
 
 
 def inject_off_by_one(code: str) -> Tuple[str, str, str]:
-    """Inject off-by-one error. Returns (buggy, hint, fix_description)."""
-    # Find range() calls and modify bounds
+    """Inject off-by-one error. Returns (buggy, hint, fix_description).
+
+    EASY_VOCAB constraint: Only create bugs fixable by INSERTION or REPLACEMENT.
+    Deletion-fixable bugs (like removing ' - 1') require empty string
+    which was removed to prevent policy collapse.
+    """
     import re
+
+    # Pattern 1: range(x, var + 1) -> range(x, var)
+    # Fix: Insert ' + 1' after var (insertion - EASY_VOCAB supports this)
     pattern = r'range\((\d+),\s*(\w+)\s*\+\s*1\)'
     match = re.search(pattern, code)
     if match:
         buggy = re.sub(pattern, r'range(\1, \2)', code, count=1)
-        return buggy, "Check loop bounds", "Add +1 to range end"
+        return buggy, "Check loop bounds", "Add + 1 to range end"
 
-    pattern2 = r'range\((\d+),\s*len\((\w+)\)\)'
-    match2 = re.search(pattern2, code)
-    if match2:
-        buggy = re.sub(pattern2, r'range(\1, len(\2) - 1)', code, count=1)
-        return buggy, "Check loop bounds", "Remove -1 from range end"
+    # Pattern 2: <= -> < (off-by-one in comparison, fixable by replacement)
+    # Fix: Replace '<' with '<=' (replacement - EASY_VOCAB supports this)
+    if '<=' in code:
+        # Find <= and replace with < to create bug
+        buggy = code.replace('<=', '<', 1)
+        return buggy, "Check comparison bounds", "Use <= instead of <"
+
+    # Pattern 3: >= -> > (off-by-one in comparison, fixable by replacement)
+    if '>=' in code:
+        buggy = code.replace('>=', '>', 1)
+        return buggy, "Check comparison bounds", "Use >= instead of >"
+
+    # Pattern 4: Simple +1/-1 in arithmetic - e.g., return x + 1 -> return x
+    # Fix: Insert ' + 1' (EASY_VOCAB supports ' + 1')
+    pattern4 = r'(\w+)\s*\+\s*1(?!\d)'  # var + 1 not followed by digit
+    match4 = re.search(pattern4, code)
+    if match4:
+        buggy = re.sub(pattern4, r'\1', code, count=1)
+        return buggy, "Check arithmetic", "Add + 1"
+
+    # NOTE: Pattern "range(x, len(arr))" -> "range(x, len(arr) - 1)" is SKIPPED
+    # because fixing it requires DELETING " - 1" which needs empty string in vocab
 
     return code, "", ""
 
@@ -904,35 +928,50 @@ def inject_data_pipeline_bug(
         )
 
     # EASY/MEDIUM: choose one bug at a test-covered site.
-    candidates = [
-        lambda: inject_fixed_string_replacement(
-            files,
-            "models.py",
-            "return self.id > 0 and len(self.name) > 0 and self.value >= 0",
-            "return self.id >= 0 and len(self.name) > 0 and self.value >= 0",
-            difficulty=difficulty,
-            hint="Check Record.is_valid() boundary conditions",
-            template_name="data_pipeline:is_valid",
-        ),
-        lambda: inject_fixed_string_replacement(
-            files,
-            "processor.py",
-            "name=record.name.upper(),",
-            "name=record.name.lower(),",
-            difficulty=difficulty,
-            hint="Check DataProcessor.transform_record() string casing",
-            template_name="data_pipeline:transform_record",
-        ),
-        lambda: inject_fixed_string_replacement(
-            files,
-            "processor.py",
-            'return Batch(records=transformed, batch_id=f"{batch.batch_id}_processed")',
-            'return Batch(records=transformed, batch_id=f"{batch.batch_id}_proc")',
-            difficulty=difficulty,
-            hint="Check DataProcessor.process_batch() batch_id formatting",
-            template_name="data_pipeline:process_batch",
-        ),
-    ]
+    # For EASY: restrict to operator bugs (fixable with EASY_VOCAB)
+    if difficulty == BugDifficulty.EASY:
+        candidates = [
+            lambda: inject_fixed_string_replacement(
+                files,
+                "models.py",
+                "return self.id > 0 and len(self.name) > 0 and self.value >= 0",
+                "return self.id >= 0 and len(self.name) > 0 and self.value >= 0",
+                difficulty=difficulty,
+                hint="Check Record.is_valid() boundary conditions",
+                template_name="data_pipeline:is_valid",
+            ),
+        ]
+    else:
+        # MEDIUM+: include string/method swap bugs too
+        candidates = [
+            lambda: inject_fixed_string_replacement(
+                files,
+                "models.py",
+                "return self.id > 0 and len(self.name) > 0 and self.value >= 0",
+                "return self.id >= 0 and len(self.name) > 0 and self.value >= 0",
+                difficulty=difficulty,
+                hint="Check Record.is_valid() boundary conditions",
+                template_name="data_pipeline:is_valid",
+            ),
+            lambda: inject_fixed_string_replacement(
+                files,
+                "processor.py",
+                "name=record.name.upper(),",
+                "name=record.name.lower(),",
+                difficulty=difficulty,
+                hint="Check DataProcessor.transform_record() string casing",
+                template_name="data_pipeline:transform_record",
+            ),
+            lambda: inject_fixed_string_replacement(
+                files,
+                "processor.py",
+                'return Batch(records=transformed, batch_id=f"{batch.batch_id}_processed")',
+                'return Batch(records=transformed, batch_id=f"{batch.batch_id}_proc")',
+                difficulty=difficulty,
+                hint="Check DataProcessor.process_batch() batch_id formatting",
+                template_name="data_pipeline:process_batch",
+            ),
+        ]
     random.shuffle(candidates)
     for make_bug in candidates:
         bug = make_bug()
@@ -996,6 +1035,14 @@ def inject_rest_api_bug(
             },
         )
 
+    # For EASY: skip rest_api template-specific bugs
+    # The available operator swaps (< → <=) are NOT caught by existing tests
+    # because tests use boundary value 0, where both 0 < 1 and 0 <= 1 are True.
+    # Fall through to generic injectors (which may also fail for this template).
+    if difficulty == BugDifficulty.EASY:
+        return None
+
+    # MEDIUM+: use template-specific bugs
     candidates = [
         lambda: inject_fixed_string_replacement(
             files,

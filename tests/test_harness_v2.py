@@ -199,12 +199,21 @@ class TestRepoGenerator:
         """Generated repos with injected bugs should fail pytest (no free-win tasks)."""
         gen = RepoGenerator(seed=42)
 
-        for template_name in ["data_pipeline", "rest_api"]:
-            repo = gen.generate(template_name=template_name, difficulty=BugDifficulty.EASY, num_bugs=1)
-            with tempfile.TemporaryDirectory() as tmpdir:
-                repo_path = gen.write_to_disk(repo, tmpdir)
-                result = run_pytest(repo_path)
-                assert not result.passed, f"{template_name} unexpectedly passed tests with injected bugs"
+        # Test data_pipeline with EASY (has test-catchable operator bugs)
+        repo = gen.generate(template_name="data_pipeline", difficulty=BugDifficulty.EASY, num_bugs=1)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = gen.write_to_disk(repo, tmpdir)
+            result = run_pytest(repo_path)
+            assert not result.passed, "data_pipeline unexpectedly passed tests with injected bugs"
+
+        # Test rest_api with MEDIUM (EASY has no test-catchable operator bugs)
+        # The rest_api tests check boundary value 0, where both 0 < 1 and 0 <= 1 are True,
+        # so operator swaps don't cause test failures at EASY level.
+        repo = gen.generate(template_name="rest_api", difficulty=BugDifficulty.MEDIUM, num_bugs=1)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_path = gen.write_to_disk(repo, tmpdir)
+            result = run_pytest(repo_path)
+            assert not result.passed, "rest_api unexpectedly passed tests with injected bugs"
 
 
 class TestExtendedActions:

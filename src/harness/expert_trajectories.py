@@ -390,6 +390,239 @@ def compute_correct_action_generic(
     )
 
 
+def compute_correct_action_for_wrong_operator(
+    original: str,
+    buggy: str,
+    focus_start: int,
+) -> Optional[ExpertAction]:
+    """
+    Compute correct action for wrong operator bug.
+
+    Handles BOTH directions of operator swaps:
+    - >= → > in original (buggy has >, need to replace with >=)
+    - > → >= in original (buggy has >=, need to replace with >)
+
+    The fix is to replace the wrong operator in buggy with the correct one from original.
+
+    EASY_VOCAB indices (in COMBINED_VOCAB):
+        5: '<=', 6: '>=', 7: '!=', 8: '==', 9: '<', 10: '>'
+    """
+    # Map operators to vocab indices
+    op_to_idx = {
+        '<=': 5, '>=': 6, '!=': 7, '==': 8,
+        '<': 9, '>': 10, '+': 11, '-': 12, '*': 13, '/': 14,
+    }
+
+    # Define operator swap pairs (both directions)
+    # Format: (original_op, buggy_op, vocab_idx_for_fix, replace_length)
+    swap_pairs = [
+        # Two-char to one-char: original has 2-char, buggy has 1-char
+        ('>=', '>', 6, 1),   # Fix: replace '>' with '>=' (vocab 6)
+        ('<=', '<', 5, 1),   # Fix: replace '<' with '<=' (vocab 5)
+        ('==', '=', 8, 1),   # Fix: replace '=' with '==' (vocab 8)
+        ('!=', '!', 7, 1),   # Fix: replace '!' with '!=' (vocab 7)
+
+        # One-char to two-char: original has 1-char, buggy has 2-char
+        ('>', '>=', 10, 2),  # Fix: replace '>=' with '>' (vocab 10)
+        ('<', '<=', 9, 2),   # Fix: replace '<=' with '<' (vocab 9)
+
+        # Same-length swaps: both are 2-char
+        ('==', '!=', 8, 2),  # Fix: replace '!=' with '==' (vocab 8)
+        ('!=', '==', 7, 2),  # Fix: replace '==' with '!=' (vocab 7)
+    ]
+
+    # Find the diff position
+    diff_pos = find_diff_position(original, buggy)
+
+    # Check each swap pair
+    for orig_op, buggy_op, vocab_idx, replace_len in swap_pairs:
+        # Check if this swap pattern matches
+        # We need to check around the diff position
+
+        # For 2-char → 1-char (e.g., >= → >)
+        # The diff_pos will be at the position of the removed char
+        # Look backwards to find the operator
+        if len(orig_op) > len(buggy_op):
+            # Search for the pattern in both strings
+            # The buggy_op should be at diff_pos - 1 or nearby
+            for search_start in range(max(0, diff_pos - 3), min(len(buggy), diff_pos + 2)):
+                buggy_slice = buggy[search_start:search_start + len(buggy_op)]
+                orig_slice = original[search_start:search_start + len(orig_op)]
+                if buggy_slice == buggy_op and orig_slice == orig_op:
+                    # Found the swap!
+                    offset_in_focus = search_start - focus_start
+                    if offset_in_focus < 0 or offset_in_focus >= 256:
+                        continue
+
+                    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+                    action_bytes[0] = ActionType.WRITE_FOCUS.value
+                    action_bytes[1] = max(0, min(255, offset_in_focus))
+                    action_bytes[3] = replace_len % 4
+                    action_bytes[25] = vocab_idx
+
+                    return ExpertAction(
+                        offset=offset_in_focus,
+                        vocab_idx=vocab_idx,
+                        length=replace_len,
+                        action_bytes=action_bytes,
+                    )
+
+        # For 1-char → 2-char (e.g., > → >=)
+        # The diff_pos will be at the position of the inserted char
+        elif len(orig_op) < len(buggy_op):
+            for search_start in range(max(0, diff_pos - 2), min(len(buggy), diff_pos + 2)):
+                buggy_slice = buggy[search_start:search_start + len(buggy_op)]
+                orig_slice = original[search_start:search_start + len(orig_op)]
+                if buggy_slice == buggy_op and orig_slice == orig_op:
+                    # Found the swap!
+                    offset_in_focus = search_start - focus_start
+                    if offset_in_focus < 0 or offset_in_focus >= 256:
+                        continue
+
+                    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+                    action_bytes[0] = ActionType.WRITE_FOCUS.value
+                    action_bytes[1] = max(0, min(255, offset_in_focus))
+                    action_bytes[3] = replace_len % 4
+                    action_bytes[25] = vocab_idx
+
+                    return ExpertAction(
+                        offset=offset_in_focus,
+                        vocab_idx=vocab_idx,
+                        length=replace_len,
+                        action_bytes=action_bytes,
+                    )
+
+        # Same-length swaps (e.g., == → !=)
+        else:
+            for search_start in range(max(0, diff_pos - 2), min(len(buggy), diff_pos + 2)):
+                buggy_slice = buggy[search_start:search_start + len(buggy_op)]
+                orig_slice = original[search_start:search_start + len(orig_op)]
+                if buggy_slice == buggy_op and orig_slice == orig_op:
+                    offset_in_focus = search_start - focus_start
+                    if offset_in_focus < 0 or offset_in_focus >= 256:
+                        continue
+
+                    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+                    action_bytes[0] = ActionType.WRITE_FOCUS.value
+                    action_bytes[1] = max(0, min(255, offset_in_focus))
+                    action_bytes[3] = replace_len % 4
+                    action_bytes[25] = vocab_idx
+
+                    return ExpertAction(
+                        offset=offset_in_focus,
+                        vocab_idx=vocab_idx,
+                        length=replace_len,
+                        action_bytes=action_bytes,
+                    )
+
+    return None  # No matching operator swap found
+
+
+def compute_correct_action_for_off_by_one(
+    original: str,
+    buggy: str,
+    focus_start: int,
+) -> Optional[ExpertAction]:
+    """
+    Compute correct action for off-by-one bug.
+
+    Handles BOTH directions:
+    1. <= -> < (original has <=, fix: replace < with <=)
+    2. < -> <= (original has <, fix: replace <= with <)
+    3. >= -> > (original has >=, fix: replace > with >=)
+    4. > -> >= (original has >, fix: replace >= with >)
+    5. var + 1 -> var (fix: insert ' + 1')
+
+    EASY_VOCAB indices (in COMBINED_VOCAB):
+        5: '<=', 6: '>=', 9: '<', 10: '>', 15: ' + 1', 16: ' - 1', 17: '+1'
+    """
+    diff_pos = find_diff_position(original, buggy)
+    offset_in_focus, removed, needed = compute_fix_offset_in_focus(
+        original, buggy, focus_start
+    )
+
+    # Case 1: <= was replaced with < (original has <=)
+    # Count occurrences to detect the swap
+    orig_le_count = original.count('<=')
+    buggy_le_count = buggy.count('<=')
+    orig_lt_count = original.count('<') - orig_le_count  # standalone <
+    buggy_lt_count = buggy.count('<') - buggy_le_count
+
+    if orig_le_count > buggy_le_count and buggy_lt_count > orig_lt_count:
+        # <= was replaced with < - fix by replacing < with <=
+        vocab_idx = 5  # '<=' in COMBINED_VOCAB
+        length = 1     # Replace 1 char '<' with 2-char '<='
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.WRITE_FOCUS.value
+        action_bytes[1] = max(0, min(255, offset_in_focus))
+        action_bytes[3] = length % 4
+        action_bytes[25] = vocab_idx
+        return ExpertAction(offset=offset_in_focus, vocab_idx=vocab_idx, length=length, action_bytes=action_bytes)
+
+    if orig_lt_count > buggy_lt_count and buggy_le_count > orig_le_count:
+        # < was replaced with <= - fix by replacing <= with <
+        vocab_idx = 9  # '<' in COMBINED_VOCAB
+        length = 2     # Replace 2 char '<=' with 1-char '<'
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.WRITE_FOCUS.value
+        action_bytes[1] = max(0, min(255, offset_in_focus))
+        action_bytes[3] = length % 4
+        action_bytes[25] = vocab_idx
+        return ExpertAction(offset=offset_in_focus, vocab_idx=vocab_idx, length=length, action_bytes=action_bytes)
+
+    # Case 2: >= and > swaps
+    orig_ge_count = original.count('>=')
+    buggy_ge_count = buggy.count('>=')
+    orig_gt_count = original.count('>') - orig_ge_count
+    buggy_gt_count = buggy.count('>') - buggy_ge_count
+
+    if orig_ge_count > buggy_ge_count and buggy_gt_count > orig_gt_count:
+        # >= was replaced with > - fix by replacing > with >=
+        vocab_idx = 6  # '>=' in COMBINED_VOCAB
+        length = 1
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.WRITE_FOCUS.value
+        action_bytes[1] = max(0, min(255, offset_in_focus))
+        action_bytes[3] = length % 4
+        action_bytes[25] = vocab_idx
+        return ExpertAction(offset=offset_in_focus, vocab_idx=vocab_idx, length=length, action_bytes=action_bytes)
+
+    if orig_gt_count > buggy_gt_count and buggy_ge_count > orig_ge_count:
+        # > was replaced with >= - fix by replacing >= with >
+        vocab_idx = 10  # '>' in COMBINED_VOCAB
+        length = 2
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.WRITE_FOCUS.value
+        action_bytes[1] = max(0, min(255, offset_in_focus))
+        action_bytes[3] = length % 4
+        action_bytes[25] = vocab_idx
+        return ExpertAction(offset=offset_in_focus, vocab_idx=vocab_idx, length=length, action_bytes=action_bytes)
+
+    # Case 3: ' + 1' was removed (insert it back)
+    if ' + 1' in original and ' + 1' not in buggy:
+        vocab_idx = 15  # ' + 1' in COMBINED_VOCAB
+        length = 0      # Insert mode
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.WRITE_FOCUS.value
+        action_bytes[1] = max(0, min(255, offset_in_focus))
+        action_bytes[3] = length % 4
+        action_bytes[25] = vocab_idx
+        return ExpertAction(offset=offset_in_focus, vocab_idx=vocab_idx, length=length, action_bytes=action_bytes)
+
+    # Case 4: '+1' was removed (insert it back)
+    if '+1' in original and '+1' not in buggy:
+        vocab_idx = 17  # '+1' in COMBINED_VOCAB
+        length = 0      # Insert mode
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.WRITE_FOCUS.value
+        action_bytes[1] = max(0, min(255, offset_in_focus))
+        action_bytes[3] = length % 4
+        action_bytes[25] = vocab_idx
+        return ExpertAction(offset=offset_in_focus, vocab_idx=vocab_idx, length=length, action_bytes=action_bytes)
+
+    return None  # Can't compute fix for this off-by-one pattern
+
+
 def generate_expert_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
@@ -427,21 +660,60 @@ def generate_expert_trajectory(
     focus_text = buggy_content[focus_start:focus_start + focus_length]
 
     # Compute correct action based on bug type
+    # Strategy: First try to detect from the actual diff, then fall back to hints
     fix_hint = repo.fix_description or bug.hint
+    fix_hint_lower = fix_hint.lower()
 
-    if "colon" in fix_hint.lower():
+    # Detect from actual code diff (more reliable than hints)
+    diff_pos = find_diff_position(original, buggy_content)
+    correct_char = original[diff_pos] if diff_pos < len(original) else ""
+    correct_two = original[diff_pos:diff_pos+2] if diff_pos+1 < len(original) else correct_char
+
+    # Operator detection: check if diff position has operator-like chars
+    operator_chars = {'<', '>', '=', '!', '+', '-', '*', '/'}
+    is_operator_fix = correct_char in operator_chars or any(c in correct_two for c in operator_chars)
+
+    action = None
+
+    # TRIVIAL bugs (syntax) - detect from hints first
+    if "colon" in fix_hint_lower or correct_char == ":":
         action = compute_correct_action_for_missing_colon(
             original, buggy_content, focus_start
         )
-    elif "paren" in fix_hint.lower() and ")" in fix_hint:
+    elif ("paren" in fix_hint_lower and ")" in fix_hint) or correct_char == ")":
         action = compute_correct_action_for_missing_paren(
             original, buggy_content, focus_start
         )
-    elif "quote" in fix_hint.lower():
+    elif "quote" in fix_hint_lower or correct_char in ("'", '"'):
         action = compute_correct_action_for_wrong_quote(
             original, buggy_content, focus_start
         )
-    else:
+
+    # EASY bugs (logic) - detect from diff
+    if action is None and is_operator_fix:
+        # Try wrong_operator first (handles ==, !=, <=, >=, <, >, +, -, etc.)
+        action = compute_correct_action_for_wrong_operator(
+            original, buggy_content, focus_start
+        )
+        if action is None:
+            # Try off_by_one (handles <= -> <, + 1 insertion, etc.)
+            action = compute_correct_action_for_off_by_one(
+                original, buggy_content, focus_start
+            )
+
+    # Fallback to hint-based detection
+    if action is None:
+        if "operator" in fix_hint_lower or "change" in fix_hint_lower:
+            action = compute_correct_action_for_wrong_operator(
+                original, buggy_content, focus_start
+            )
+        elif "off" in fix_hint_lower or "bounds" in fix_hint_lower or "boundary" in fix_hint_lower or "+ 1" in fix_hint_lower:
+            action = compute_correct_action_for_off_by_one(
+                original, buggy_content, focus_start
+            )
+
+    # Final fallback to generic
+    if action is None:
         action = compute_correct_action_generic(
             original, buggy_content, focus_start, fix_hint
         )

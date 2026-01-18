@@ -1,14 +1,16 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-18 (Updated v7 - **Metric semantics fixed, EASY unblock plan added**)
+Generated: 2026-01-18 (Updated v9 - **EASY BC gate PASSED, training script FIXED**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal was to achieve ≥70% test improvement rate on generated bug-fixing episodes for TRIVIAL difficulty.
 
-**STATUS: Stage A BC training complete** (2026-01-18)
-- BC Accuracy: 72.7% | Pytest Success: ~25-30% | EASY: blocked on expert trajectories
+**STATUS: EASY UNBLOCKED** (2026-01-18)
+- TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
+- **EASY BC Accuracy: 2.9%** (gate > 0% PASSED)
+- 70 valid EASY demos with proper EASY_VOCAB tokens (`>`: 55, `==`: 15)
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -52,8 +54,13 @@ Uncommitted changes: NO - clean state
   - Added `--force-write-focus-prob` for gradual curriculum (1.0=always, 0.0=never)
   - Added test running incentive (+0.3 reward, capped at 3 runs)
   - EASY training runs: 20k steps, avg reward 0.48→0.58
-  - **EASY: 0% success** (expected - logic bugs need BC expert trajectories)
-  - Key insight: BC only knows TRIVIAL_VOCAB syntax fixes, not logic bug fixes
+- [x] **Phase 4.5: EASY Expert Trajectories COMPLETE** ✅ (2026-01-18)
+  - EASY_VOCAB: 16 logic tokens (`<=`, `>=`, `!=`, `==`, `<`, `>`, `+`, `-`, `*`, `/`, etc.)
+  - COMBINED_VOCAB: 21 tokens (TRIVIAL + EASY)
+  - Fixed expert functions to detect BOTH directions of operator swaps
+  - data_pipeline template: has test-catchable `> 0 → >= 0` bugs
+  - rest_api template: skipped for EASY (tests don't catch operator swaps)
+  - **70/100 EASY demos generated with 100% EASY token usage** (`>`: 55, `==`: 15)
 
 ### ROOT CAUSE IDENTIFIED: BC-RL Observation Gap
 
@@ -351,22 +358,28 @@ That's still a legit Jarvis-shaped beast.
 ```
 Continue working on WIRED-BRAIN Jarvis Harness. Read HANDOFF.md for full context.
 
-STATUS: **Stage A BC training complete** (2026-01-18)
-- BC Accuracy: 72.7% | Pytest Success: ~25-30%
-- EASY: 0% (blocked - needs EASY_VOCAB + expert trajectories)
+STATUS: **EASY UNBLOCKED** (2026-01-18)
+- TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
+- EASY BC Accuracy: 2.9% (gate > 0% PASSED)
+- 70 valid EASY demos with EASY_VOCAB tokens (>, ==)
 
-NEXT STEPS (EASY UNBLOCK - see PLAN_TO_JARVIS.md 4.3.Y):
-1. Define EASY_VOCAB in actions.py (<=, >=, !=, ==, +1, -1, etc.)
-2. Restrict EASY bug injection to EASY_VOCAB-solvable patterns
-3. Implement compute_correct_action_for_wrong_operator/off_by_one
-4. Generate 500+ EASY BC demos, gate on BC accuracy > 0%
+WHAT WAS FIXED:
+1. Added EASY_VOCAB (16 logic tokens) + COMBINED_VOCAB (21 total)
+2. Fixed expert trajectory functions to detect BOTH directions of operator swaps
+3. Fixed BC accuracy calculation to use vocab_size=21 instead of hardcoded 5
+4. Added difficulty parameter to pretrain_behavioral_cloning()
+
+NEXT STEPS (PHASE 4.4 - see PLAN_TO_JARVIS.md):
+1. Run longer EASY BC training (more epochs, more demos)
+2. Run EASY eval to measure pytest success rate
+3. Validate self-correction behavior (edit -> test fail -> edit -> test pass)
 
 KEY COMMANDS:
-  # Eval TRIVIAL (should still work)
-  PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py --checkpoint results/jarvis_full_context_100.pt --mode v2 --difficulty trivial --num-tasks 20 --force-write-focus --max-steps 1 --action-bytes 64
+  # Train EASY with BC
+  PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py --mode v2 --difficulty easy --timesteps 20000 --bc-epochs 50 --bc-demos 500 --action-bytes 64 --force-write-focus --single-step --num-envs 4
 
-  # Train EASY (needs BC support first)
-  PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py --mode v2 --difficulty easy --timesteps 20000 --bc-checkpoint results/jarvis_full_context_100.pt --action-bytes 64 --gpu-burn-ms 30
+  # Eval TRIVIAL (still works)
+  PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py --checkpoint results/jarvis_full_context_100.pt --mode v2 --difficulty trivial --num-tasks 20 --force-write-focus --max-steps 1 --action-bytes 64
 
 See PLAN_TO_JARVIS.md for detailed roadmap.
 ```

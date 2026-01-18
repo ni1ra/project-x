@@ -44,6 +44,7 @@ from src.harness.env import (
 from src.harness.actions import (
     ActionType, JarvisAction, encode_action, decode_action,
     ACTION_BYTES, ACTION_BYTES_V2,
+    TRIVIAL_VOCAB, COMBINED_VOCAB,  # For BC accuracy calculation
 )
 from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.repo_generator import (
@@ -404,6 +405,7 @@ class JarvisHarnessTrainer:
         bc_batch_size: int = 128,
         bc_lr: float = 1e-3,
         jitter: int = 0,
+        difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -417,18 +419,25 @@ class JarvisHarnessTrainer:
             bc_batch_size: Batch size for BC training
             bc_lr: Learning rate for BC (higher than RL since supervised)
             jitter: Focus offset jitter +/- this value (for robustness)
+            difficulty: Bug difficulty level for expert trajectory generation
 
         Returns:
             Dictionary of final BC metrics
         """
+        # Determine vocab size based on difficulty
+        if difficulty == BugDifficulty.TRIVIAL:
+            vocab_size = len(TRIVIAL_VOCAB)  # 5 items
+        else:
+            vocab_size = len(COMBINED_VOCAB)  # 21 items (TRIVIAL + EASY)
+
         print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
-        print(f"Generating {num_demos} expert demonstrations...")
+        print(f"Generating {num_demos} expert demonstrations (difficulty={difficulty.name}, vocab_size={vocab_size})...")
 
         # Generate expert dataset
         try:
             dataset = create_bc_dataset(
                 num_tasks=num_demos,
-                difficulty=BugDifficulty.TRIVIAL,
+                difficulty=difficulty,
                 seed=42,
                 jitter=jitter,
             )
@@ -536,9 +545,9 @@ class JarvisHarnessTrainer:
                 epoch_losses.append(bc_loss.item())
 
                 # Compute accuracy using sampled actions (discrete)
-                # TRIVIAL++ has 5 vocab items: [':\n', ')', ',', "'", '"']
+                # Use vocab_size based on difficulty (TRIVIAL=5, EASY+=21)
                 pred_offset_discrete = (output.action[:, 1].long() % 64)  # Full offset range
-                pred_vocab_discrete = (output.action[:, 25].long() % 5)   # TRIVIAL++ has 5 items
+                pred_vocab_discrete = (output.action[:, 25].long() % vocab_size)
                 pred_length_discrete = (output.action[:, 3].long() % 4)
 
                 correct = (
@@ -1484,6 +1493,7 @@ def main():
                 bc_batch_size=args.bc_batch_size,
                 bc_lr=args.bc_lr,
                 jitter=args.focus_jitter,
+                difficulty=difficulty,  # Pass difficulty for correct vocab size
             )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:
