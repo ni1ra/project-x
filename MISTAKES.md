@@ -343,3 +343,111 @@
 - Test augmentations on small scale before full training
 
 ---
+
+### 2026-01-18 - CRITICAL: Trusted Lying Metrics (Free-Win Episodes)
+**What happened:** Reported "90% success" and "10% without focus hints" without noticing eval counted `base=total` episodes as successes. Lines like `success=1 base=11/11 tests=11/11 delta=+0 diff=0 writes=0` were counted as wins.
+
+**Root cause:**
+1. Didn't validate what "success" actually measured in the eval script
+2. When base=total, the task was ALREADY passing - no bug to fix
+3. Success rate was polluted by "free wins" where agent did nothing
+4. Reported inflated metrics without sanity-checking the eval logs
+
+**Score:** 200/420 (fundamental measurement error - all claims are unreliable)
+
+**Recovery taken:** RETRY - Must add `eligible = (base < total)` filter to eval
+
+**Lesson:**
+- **NEVER trust success rates without inspecting individual episodes**
+- If `writes=0` and `delta=+0` but `success=1`, something is wrong
+- Free wins (base=total) must be excluded from success rate calculations
+- Eval must report: `eligible/total`, `solved/eligible`, `improved/eligible`
+- A metric that can't fail is not a metric
+
+---
+
+### 2026-01-18 - Premature Phase Jump (Skipped to Phase 6 Without Foundation)
+**What happened:** After "90% success" on EASY, immediately planned Phase 6 (byte-level edits) without:
+1. Verifying eval was truthful
+2. Checking if EASY was actually fixable with current interface
+3. Noticing agent has NO first move (writes=0, run_tests=0 without hints)
+
+**Root cause:**
+1. Tunnel vision on "progress" - wanted to advance phases
+2. Didn't question why 90% with hints but ~10% without
+3. Ignored evidence that agent is a "statue" without hints
+4. BC demos only teach WRITE_FOCUS, never RUN_TESTS or navigation
+
+**Score:** 280/420 (wasted planning, wrong direction)
+
+**Recovery taken:** RETRY - Follow correct runbook: eval truthfulness → EASY fixable → RUN_TESTS-first BC → THEN Phase 6
+
+**Lesson:**
+- High numbers are suspicious - investigate before celebrating
+- "Works with hints" + "fails without hints" = didn't learn the task
+- The agent needs a FIRST MOVE before it can fix bugs
+- Phase progression requires foundation gates, not just metrics
+
+---
+
+### 2026-01-18 - Misdiagnosed Navigation Problem
+**What happened:** Said "navigation needs BC demos for LIST_FILES/NAVIGATE" and deferred Phase 5.5. Missed the simpler insight: agent has NO first move at all.
+
+**Root cause:**
+1. Focused on the complex solution (navigation demos) instead of the root cause
+2. Didn't notice that even TRIVIAL actions (RUN_TESTS) weren't being learned
+3. Even a single RUN_TESTS call would trigger traceback-based focus update
+4. The agent is a statue because BC only teaches WRITE_FOCUS
+
+**Score:** 320/420 (correct diagnosis, wrong scope)
+
+**Recovery taken:** ACKNOWLEDGE - Need RUN_TESTS-first BC before full navigation
+
+**Lesson:**
+- Before planning complex solutions, check if simple interventions exist
+- RUN_TESTS is the "first move" that unlocks navigation (via stacktrace)
+- Agent doesn't need to learn LIST_FILES/NAVIGATE if RUN_TESTS→focus_update works
+- Start with the minimal intervention that provides signal
+
+---
+
+### 2026-01-18 - Action Interface Still TRIVIAL-Shaped for EASY
+**What happened:** Attempted EASY training when the action interface only supports TRIVIAL_VOCAB tokens. EASY bugs need different operators (`<=`, `>=`, `!=`, etc.) but decoder can't output them.
+
+**Root cause:**
+1. Didn't verify action interface matched task requirements
+2. EASY_VOCAB was added but not integrated into training pipeline correctly
+3. Even if agent learned, it couldn't express the right fix
+4. Interface limitation makes EASY structurally impossible
+
+**Score:** 300/420 (infrastructure gap)
+
+**Recovery taken:** RETRY - Phase 5.8: verify EASY_VOCAB works, generate EASY demos
+
+**Lesson:**
+- Before training on a difficulty level, verify the action space can express solutions
+- "Pipeline works" ≠ "Task is solvable with this interface"
+- EASY_VOCAB exists but must be wired through: decoder, expert demos, training
+- Gate: a scripted oracle must be able to fix EASY bugs with the action interface
+
+---
+
+### 2026-01-18 - Incomplete Internal Todos (Short-Term Thinking)
+**What happened:** Created short todo lists covering only immediate steps, not the full path to JARVIS_HERE. This causes losing sight of the big picture and missing dependencies.
+
+**Root cause:**
+1. Default to incremental task management instead of comprehensive planning
+2. Didn't trace the full dependency chain from current state to goal
+3. Short todos = short memory = repeated mistakes
+
+**Score:** 340/420 (planning failure)
+
+**Recovery taken:** RETRY - Create granular todos from current step ALL THE WAY to JARVIS_HERE
+
+**Lesson:**
+- Internal todos must trace the FULL path to the goal
+- Every phase, sub-phase, and gate should be in the todo list
+- Granular todos prevent skipped steps
+- The todo list IS the execution plan
+
+---

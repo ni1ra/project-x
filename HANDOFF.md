@@ -1,17 +1,18 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-18 (Updated v9 - **EASY BC gate PASSED, training script FIXED**)
+Generated: 2026-01-18 (Updated v10 - **EVAL LYING - METRICS UNRELIABLE**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal was to achieve ≥70% test improvement rate on generated bug-fixing episodes for TRIVIAL difficulty.
 
-**STATUS: EASY COMPLETE** 🎉 (2026-01-18)
+**STATUS: ⚠️ EVAL UNRELIABLE** (2026-01-18)
 - TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
-- **EASY BC Accuracy: 76.8%** | **Pytest Success: 90.0%** (18/20 tasks)
-- 138 valid EASY demos from 200 (vocab: `>`, `==`)
-- Checkpoint: `results/jarvis_harness_v2_100.pt`
+- **EASY BC Accuracy: 76.8%** | **Pytest Success: UNKNOWN** (eval counts base=total as success)
+- **CRITICAL ISSUE:** Eval counts "already passing" repos as successes
+- **Agent behavior:** writes=0, run_tests=0 without focus hints (statue)
+- Must fix eval truthfulness before trusting any metrics
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -359,30 +360,38 @@ That's still a legit Jarvis-shaped beast.
 ```
 Continue working on WIRED-BRAIN Jarvis Harness. Read HANDOFF.md for full context.
 
-STATUS: **EASY UNBLOCKED** (2026-01-18)
-- TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
-- EASY BC Accuracy: 2.9% (gate > 0% PASSED)
-- 70 valid EASY demos with EASY_VOCAB tokens (>, ==)
+STATUS: **EVAL LYING** (2026-01-18)
+- Eval counts base=total as success (free wins pollute metrics)
+- Agent has writes=0, run_tests=0 without focus hints (statue)
+- Reported "90% success" is unreliable - must fix eval first
 
-WHAT WAS FIXED:
-1. Added EASY_VOCAB (16 logic tokens) + COMBINED_VOCAB (21 total)
-2. Fixed expert trajectory functions to detect BOTH directions of operator swaps
-3. Fixed BC accuracy calculation to use vocab_size=21 instead of hardcoded 5
-4. Added difficulty parameter to pretrain_behavioral_cloning()
+REQUIRED RUNBOOK (IN ORDER):
+1. Step 0: Fix eval truthfulness
+   - Add: eligible = (base < total)
+   - Track: solved/eligible, improved/eligible
+   - Print truthful metrics
 
-NEXT STEPS (PHASE 4.4 - see PLAN_TO_JARVIS.md):
-1. Run longer EASY BC training (more epochs, more demos)
-2. Run EASY eval to measure pytest success rate
-3. Validate self-correction behavior (edit -> test fail -> edit -> test pass)
+2. Step 1 (Phase 1.8): Make EASY fixable
+   - Verify EASY_VOCAB is wired through decoder + demos
+   - Gate: scripted oracle can fix EASY bugs
+
+3. Step 2: BC-only gate on EASY (with focus hints)
+   - Run BC eval with truthful metrics
+   - Gate: solved_rate > 0% on eligible tasks
+
+4. Step 3: Add RUN_TESTS-first BC
+   - Teach agent first move
+   - Gate: with --no-auto-focus, agent calls RUN_TESTS sometimes
+
+5. Step 4: Only THEN do Phase 6 (byte-level)
 
 KEY COMMANDS:
-  # Train EASY with BC
-  PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py --mode v2 --difficulty easy --timesteps 20000 --bc-epochs 50 --bc-demos 500 --action-bytes 64 --force-write-focus --single-step --num-envs 4
+  # Eval (after fixing truthfulness)
+  PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
+    --checkpoint results/jarvis_harness_v2_100.pt \
+    --mode v2 --difficulty easy --num-tasks 50 --max-steps 64
 
-  # Eval TRIVIAL (still works)
-  PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py --checkpoint results/jarvis_full_context_100.pt --mode v2 --difficulty trivial --num-tasks 20 --force-write-focus --max-steps 1 --action-bytes 64
-
-See PLAN_TO_JARVIS.md for detailed roadmap.
+See PLAN_TO_JARVIS.md for detailed roadmap. See MISTAKES.md for failure log.
 ```
 
 ---

@@ -6,12 +6,12 @@
 > This document is designed to be followed by Claude autonomously.
 > Every checkbox must be checked before proceeding to the next step.
 >
-> **Current State:** Stage A (TRIVIAL++) + Stage B (EASY) **COMPLETE** 🎉
+> **Current State:** ⚠️ **EVAL LYING** - Metrics polluted by free-win episodes
 > - **TRIVIAL BC Accuracy:** 72.7% | Pytest Success: ~25-30%
-> - **EASY BC Accuracy:** 76.8% | **Pytest Success: 90.0%** (18/20 tasks)
-> - **EASY Test Improvement:** 55.0% (11/20 tasks had failing→passing tests)
+> - **EASY BC Accuracy:** 76.8% | **Pytest Success: UNKNOWN** (eval counts base=total as success)
+> - **CRITICAL:** Agent has writes=0, run_tests=0 without focus hints = statue
 > **Target:** Stage F (Heterogeneous Brain) - Beyond Human Intelligence
-> **Last Updated:** 2026-01-18 (v13 - EASY 90% SUCCESS ACHIEVED)
+> **Last Updated:** 2026-01-18 (v14 - EVAL TRUTHFULNESS REQUIRED)
 >
 > **KEY INSIGHT (2026-01-17):** For TRIVIAL, BC-only beats unanchored RL. RL is allowed ONLY if it passes a non-regression gate.
 > **RESOLVED:** BC↔RL observation gap + v1/v2 decoder mismatch + offset aliasing + multi-bug repos + **goal bytes + focus_text missing from decoder** (critical fix today).
@@ -136,9 +136,21 @@ This is now **RESOLVED**. The new blocker is **training dynamics** (RL updates o
 
 ---
 
-## PHASE 0.5: SANITY GATES ✅ **GATES A-C PASSED, GATE D ADDED**
+## PHASE 0.5: SANITY GATES ⚠️ **GATE D BLOCKING**
 
 **Goal:** Answer critical questions before burning compute on RL.
+
+### Gate D: Eval Truthfulness ❌ **BLOCKING - DO THIS FIRST**
+- [ ] **0.5.D.1** Update eval to ignore "already passing" repos
+  - [ ] Calculate: `eligible = (base_tests_passing < base_tests_total)`
+  - [ ] Track: `solved_count`, `improved_count`, `eligible_count`
+  - [ ] Print: `solved_rate = solved/eligible`, `improved_rate = improved/eligible`
+  - [ ] If eligible is low, generator is leaking "no failing tests" cases
+
+**Definition changes (non-negotiable):**
+- "Solved" = eligible AND (final_tests == total_tests)
+- "Improved" = eligible AND (final_passing > base_passing)
+- **Never count base==total as success**
 
 ### Gate A: Does BC-only solve anything in real env? ✅ **YES - 25%**
 - [x] **0.5.A.1** Fix BC observation generation
@@ -324,6 +336,39 @@ This is now **RESOLVED**. The new blocker is **training dynamics** (RL updates o
 - Sparse reward (only +1 for test pass) doesn't provide offset gradient signal
 - Correct token but wrong offset = syntax error (0/0 tests)
 - No partial credit for "close" offsets
+
+---
+
+---
+
+## PHASE 1.8: MAKE EASY FIXABLE (NEW BRIDGE PHASE) ❌ **REQUIRED BEFORE PHASE 6**
+
+**Goal:** Before navigation or byte-level generality, ensure EASY tasks are solvable with current action interface.
+
+### 1.8.1 Verify EASY write capability
+- [ ] **Option A (faster):** EASY_VOCAB micro-set
+  - [ ] Tokens: `<=`, `>=`, `!=`, `==`, `<`, `>`, `+`, `-`, `*`, `/`, ` + 1`, ` - 1`, `+1`, `-1`
+  - [ ] Extend decoder to select from EASY_VOCAB when difficulty>=EASY
+  - [ ] Gate: scripted oracle can fix EASY bugs with action interface
+
+- [ ] **Option B (more general):** Raw payload writes
+  - [ ] Use v2 content bytes (39 bytes) as actual bytes
+  - [ ] Gate: scripted oracle can emit raw byte payload actions
+
+### 1.8.2 Generate EASY expert demos
+- [ ] Extend expert trajectories to compute (offset, length, content) from buggy_code vs fix_code
+- [ ] For each bug: find first diff span, encode as WRITE_FOCUS action
+- [ ] Gate: demo generation yields high valid rate (minimal "unfixable with vocab" rejects)
+
+### 1.8.3 BC-only gate on EASY (with focus hints)
+- [ ] Run BC-only eval on eligible EASY tasks
+- [ ] Gate: `solved_rate > 0%` (proves pipeline works)
+- [ ] Then proceed to anchored RL on EASY
+
+### 1.8.4 Add RUN_TESTS-first BC (cheap navigation bootstrap)
+- [ ] Create demos: RUN_TESTS → (env updates focus from stacktrace) → WRITE_FOCUS
+- [ ] This teaches agent a "first move" without needing LIST_FILES/NAVIGATE demos
+- [ ] Gate: with `--no-auto-focus`, policy sometimes calls RUN_TESTS early
 
 ---
 
@@ -682,9 +727,14 @@ This requires expanding the action space beyond TRIVIAL_VOCAB.
 
 ---
 
-## PHASE 6: STAGE D - GENERAL EDITS (Byte-Level)
+## PHASE 6: STAGE D - GENERAL EDITS (Byte-Level) ❌ **DO NOT START UNTIL GATES PASS**
 
 **Goal:** Remove TRIVIAL_VOCAB training wheels. Agent outputs raw bytes.
+
+### ENTRY GATES (All must pass before starting Phase 6)
+- [ ] **Gate 6.0.1** Eval truthfulness gate passes (no free-win episodes in metrics)
+- [ ] **Gate 6.0.2** EASY is solvable with focus hints (Phase 1.8 complete)
+- [ ] **Gate 6.0.3** Agent has a first move: `--no-auto-focus` shows RUN_TESTS behavior
 
 ### 6.1 Implement Micro-Vocab
 - [ ] **6.1.1** Create BPE-style vocabulary

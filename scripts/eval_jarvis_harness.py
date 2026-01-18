@@ -53,6 +53,10 @@ class EpisodeResult:
     write_focus_actions: int
     run_tests_actions: int
     done_reason: str
+    # Truthful metrics (2026-01-18)
+    eligible: bool  # True if task had a bug to fix (base < total)
+    solved: bool    # True if solved AND eligible
+    improved: bool  # True if improved AND eligible
 
 
 def run_episode(
@@ -115,6 +119,12 @@ def run_episode(
     write_file_actions = env.state.write_file_actions if env.state is not None else 0
     write_focus_actions = env.state.write_focus_actions if env.state is not None else 0
     run_tests_actions = env.state.run_tests_actions if env.state is not None else 0
+
+    # Truthful metrics (2026-01-18): Filter out "free wins" where base=total
+    eligible = int(baseline_passing) < int(baseline_total)  # Task had a bug to fix
+    solved = success and eligible  # Actually fixed the bug (not a free win)
+    improved = (delta_tests_passing > 0) and eligible  # Made progress on a real task
+
     return EpisodeResult(
         success=success,
         steps=steps,
@@ -129,6 +139,9 @@ def run_episode(
         write_focus_actions=int(write_focus_actions),
         run_tests_actions=int(run_tests_actions),
         done_reason=done_reason,
+        eligible=eligible,
+        solved=solved,
+        improved=improved,
     )
 
 
@@ -246,14 +259,16 @@ def main():
             r = run_episode(brain, env, device, max_steps=args.max_steps, step_sleep_s=float(args.step_sleep_s))
             results.append(r)
             writes = r.write_file_actions + r.write_focus_actions
+            # Show eligible/solved status for truthful tracking
+            status = "SOLVED" if r.solved else ("IMPROVED" if r.improved else ("ELIGIBLE" if r.eligible else "FREE_WIN"))
             print(
                 f"[{i+1:03d}/{len(tasks):03d}] "
-                f"success={int(r.success)} steps={r.steps} "
+                f"{status:8s} "
                 f"base={r.baseline_tests_passing}/{r.baseline_tests_total} "
                 f"tests={r.tests_passing}/{r.tests_total} "
                 f"delta={r.delta_tests_passing:+d} "
                 f"diff={r.diff_lines} writes={writes} run_tests={r.run_tests_actions} "
-                f"done={r.done_reason or 'n/a'} reward={r.total_reward:.2f}"
+                f"done={r.done_reason or 'n/a'}"
             )
     finally:
         env.close()
@@ -262,20 +277,36 @@ def main():
     if not results:
         raise SystemExit("No results")
 
+    # Legacy metrics (for comparison)
     success_rate = sum(1 for r in results if r.success) / len(results)
-    improved_rate = sum(1 for r in results if r.delta_tests_passing > 0) / len(results)
+    improved_rate_legacy = sum(1 for r in results if r.delta_tests_passing > 0) / len(results)
     wrote_rate = sum(1 for r in results if (r.write_file_actions + r.write_focus_actions) > 0) / len(results)
     diff_rate = sum(1 for r in results if r.diff_lines > 0) / len(results)
     avg_steps = sum(r.steps for r in results) / len(results)
     avg_diff = sum(r.diff_lines for r in results) / len(results)
     avg_writes = sum((r.write_file_actions + r.write_focus_actions) for r in results) / len(results)
+
+    # TRUTHFUL METRICS (2026-01-18): Filter out free wins
+    eligible_count = sum(1 for r in results if r.eligible)
+    solved_count = sum(1 for r in results if r.solved)
+    improved_count = sum(1 for r in results if r.improved)
+    free_win_count = sum(1 for r in results if not r.eligible)
+
+    # Compute truthful rates (avoid division by zero)
+    solved_rate = solved_count / eligible_count if eligible_count > 0 else 0.0
+    improved_rate = improved_count / eligible_count if eligible_count > 0 else 0.0
+
     print("\n=== JARVIS HARNESS EVAL ===")
     print(f"Tasks: {len(results)} | Mode: {args.mode} | Difficulty: {args.difficulty}")
-    print(f"Success rate: {success_rate:.1%}")
-    print(f"Improved tests: {improved_rate:.1%}")
+    print(f"\n--- TRUTHFUL METRICS (excludes free wins) ---")
+    print(f"Eligible tasks: {eligible_count}/{len(results)} ({eligible_count/len(results):.1%}) | Free wins: {free_win_count}")
+    print(f"SOLVED rate: {solved_rate:.1%} ({solved_count}/{eligible_count} eligible)")
+    print(f"IMPROVED rate: {improved_rate:.1%} ({improved_count}/{eligible_count} eligible)")
+    print(f"\n--- Legacy metrics (may include free wins) ---")
+    print(f"Success rate (raw): {success_rate:.1%}")
+    print(f"Improved tests (raw): {improved_rate_legacy:.1%}")
     print(f"Wrote any: {wrote_rate:.1%} | Diff>0: {diff_rate:.1%} | Avg writes: {avg_writes:.1f}")
-    print(f"Avg steps: {avg_steps:.1f}")
-    print(f"Avg diff lines: {avg_diff:.1f}")
+    print(f"Avg steps: {avg_steps:.1f} | Avg diff lines: {avg_diff:.1f}")
 
 
 if __name__ == "__main__":
