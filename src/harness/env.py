@@ -94,6 +94,12 @@ class HarnessConfig:
     kappa_F: float = 1e-9             # J/FLOP
     kappa_M: float = 5e-11            # J/Byte
 
+    # Persistent mode (v3): Agent operates across multiple tasks without full reset
+    persistent_mode: bool = False     # If True, don't reset workspace between tasks
+    tasks_per_episode: int = 1        # Number of tasks in a "super-episode"
+    task_completion_bonus: float = 5.0  # Reward for completing a task (COMPLETE_TASK)
+    scratchpad_enabled: bool = False  # If True, allow .jarvis_notes scratchpad file
+
 
 @dataclass
 class Task:
@@ -159,6 +165,12 @@ class HarnessState:
     target_offset: Optional[int] = None  # Expected edit offset within focus (from Task)
     last_edit_offset: int = -1  # Offset of last WRITE_FOCUS action
 
+    # Persistent mode state (v3)
+    task_queue: List[Any] = field(default_factory=list)  # Remaining tasks in super-episode
+    current_task_idx: int = 0  # Index of current task in original queue
+    tasks_completed: int = 0   # Number of tasks completed this super-episode
+    super_episode_done: bool = False  # True when all tasks in queue are done
+
 
 class JarvisHarnessEnv:
     """
@@ -189,6 +201,8 @@ class JarvisHarnessEnv:
         self._original_files: Dict[str, str] = {}
         # Cached filesystem snapshot (avoid per-step disk hashing).
         self._fs_snapshot_cache: Dict[str, str] = {}
+        # Task queue for persistent mode (populated in reset())
+        self._pending_task_queue: List[Task] = []
 
     @property
     def observation_space_dim(self) -> int:
@@ -204,12 +218,14 @@ class JarvisHarnessEnv:
         """Set the current task."""
         self.task = task
 
-    def reset(self, task: Optional[Task] = None) -> torch.Tensor:
+    def reset(self, task: Optional[Task] = None, task_queue: Optional[List[Task]] = None) -> torch.Tensor:
         """
         Reset environment for new episode.
 
         Args:
             task: Optional new task. If None, uses current task.
+            task_queue: Optional list of additional tasks for persistent mode.
+                        In persistent mode, these tasks are queued after the initial task.
 
         Returns:
             Initial observation bytes [obs_bytes]
@@ -219,6 +235,9 @@ class JarvisHarnessEnv:
 
         if self.task is None:
             raise ValueError("No task set. Call set_task() first.")
+
+        # Store task queue for persistent mode
+        self._pending_task_queue = task_queue or []
 
         # Ensure no verifier subprocess is still running from a previous episode.
         if self.state is not None and self.state.test_process is not None:
@@ -302,6 +321,18 @@ class JarvisHarnessEnv:
             last_syntax_result=None,
             last_syntax_step=-1,
         )
+
+        # Initialize task queue for persistent mode
+        if self.config.persistent_mode:
+            self.state.task_queue = list(self._pending_task_queue)  # Copy the queue
+            self.state.current_task_idx = 0
+            self.state.tasks_completed = 0
+            self.state.super_episode_done = False
+            # Show task queue info in terminal
+            queue_info = f"[persistent mode] Task 1/{len(self.state.task_queue) + 1}"
+            if self.state.task_queue:
+                queue_info += f" (+ {len(self.state.task_queue)} queued)"
+            self.state.terminal_buffer += queue_info + "\n"
 
         # Initialize focus to the task's target file so WRITE_FOCUS is immediately usable.
         # If bug_line is provided, focus directly on the bug location for faster learning.
@@ -399,6 +430,17 @@ class JarvisHarnessEnv:
                                 self._set_focus_from_location(rel, line=line)
                                 self.state.terminal_buffer += f"[auto-focus] {rel}:{line}\n"
                                 break
+
+        # Initialize scratchpad file for persistent mode
+        if self.config.scratchpad_enabled and self.temp_dir:
+            scratchpad_path = os.path.join(self.temp_dir, ".jarvis_notes")
+            if not os.path.exists(scratchpad_path):
+                try:
+                    with open(scratchpad_path, "w") as f:
+                        f.write("# Jarvis Scratchpad\n# Notes persist across tasks\n\n")
+                    self.state.terminal_buffer += "[scratchpad] .jarvis_notes created\n"
+                except Exception:
+                    pass
 
         return self._get_observation()
 
@@ -722,7 +764,16 @@ class JarvisHarnessEnv:
 
         elif action.action_type == ActionType.READ_FILE:
             # SIMPLIFIED: Always read from focus file (which defaults to task target).
+            # EXCEPTION: If scratchpad_enabled and target contains "jarvis_notes",
+            # read from the scratchpad file.
             target_path = self.state.focus_file or (self.task.target_file if self.task else "")
+
+            # Check for scratchpad read
+            if self.config.scratchpad_enabled and action.target:
+                target_lower = action.target.lower()
+                if "jarvis_notes" in target_lower or target_lower.startswith(".jarvis"):
+                    target_path = ".jarvis_notes"
+
             if not target_path:
                 return False, "No target file specified"
             fpath = os.path.join(self.temp_dir, target_path)
@@ -747,7 +798,17 @@ class JarvisHarnessEnv:
             # SIMPLIFIED: Always write to task target file.
             # The model's 20-byte target field outputs garbage (random bytes).
             # Until the model learns valid ASCII, we ignore action.target and use task target.
+            #
+            # EXCEPTION: If scratchpad_enabled and target contains "jarvis_notes",
+            # allow writing to the scratchpad file for persistent memory.
             target_path = self.task.target_file if self.task else ""
+
+            # Check for scratchpad write
+            if self.config.scratchpad_enabled and action.target:
+                target_lower = action.target.lower()
+                if "jarvis_notes" in target_lower or target_lower.startswith(".jarvis"):
+                    target_path = ".jarvis_notes"
+
             if not target_path:
                 return False, "No target file specified"
             fpath = os.path.join(self.temp_dir, target_path)
@@ -1094,6 +1155,12 @@ class JarvisHarnessEnv:
 
         elif action.action_type == ActionType.STACKTRACE:
             return self._parse_stacktrace()
+
+        # =================================================================
+        # Persistent mode operations (v3)
+        # =================================================================
+        elif action.action_type == ActionType.COMPLETE_TASK:
+            return self._complete_current_task()
 
         return False, f"Unknown action type: {action.action_type}"
 
@@ -1564,6 +1631,149 @@ class JarvisHarnessEnv:
             results.append(label)
 
         return True, "Stacktrace:\n" + "\n".join(results[-5:])
+
+    # =================================================================
+    # Persistent Mode Operations (v3)
+    # =================================================================
+
+    def _complete_current_task(self) -> Tuple[bool, str]:
+        """
+        Handle COMPLETE_TASK action in persistent mode.
+
+        In persistent mode:
+        - Checks if current task is actually solved (tests pass)
+        - If solved, advances to next task in queue
+        - If not solved, returns failure (agent should keep working)
+
+        In non-persistent mode:
+        - Acts like SUBMIT (ends episode)
+        """
+        if self.state is None:
+            return False, "No state"
+
+        # Non-persistent mode: COMPLETE_TASK acts like SUBMIT
+        if not self.config.persistent_mode:
+            self.state.done = True
+            return True, "Task marked complete (episode end)"
+
+        # Persistent mode: verify task is actually solved
+        if self.state.last_test_result is None:
+            return False, "No test results - run tests first"
+
+        if not self.state.last_test_result.passed:
+            # Task not solved, agent should keep working
+            return False, f"Task not complete: {self.state.last_test_result.tests_passing}/{self.state.last_test_result.tests_total} passing"
+
+        # Task is solved! Award completion bonus and advance
+        self.state.tasks_completed += 1
+        self.state.episode_return += self.config.task_completion_bonus
+
+        # Check if there are more tasks in the queue
+        if not self.state.task_queue:
+            # No more tasks - super-episode complete
+            self.state.super_episode_done = True
+            self.state.done = True
+            return True, f"All tasks complete! ({self.state.tasks_completed} total)"
+
+        # Advance to next task
+        return self._advance_to_next_task()
+
+    def _advance_to_next_task(self) -> Tuple[bool, str]:
+        """
+        Advance to the next task in the queue without resetting workspace.
+
+        This is the key difference in persistent mode:
+        - Workspace (temp_dir) is NOT reset
+        - Agent's edits persist across tasks
+        - Focus is updated to new task's target file
+        - State counters are reset for new task tracking
+        """
+        if self.state is None or not self.state.task_queue:
+            return False, "No tasks in queue"
+
+        # Pop the next task from queue
+        next_task = self.state.task_queue.pop(0)
+        self.task = next_task
+        self.state.current_task_idx += 1
+
+        # Reset per-task state but preserve persistent state
+        self.state.step = 0
+        self.state.actions_taken = 0
+        self.state.time_start = time.time()
+        self.state.last_test_result = None
+        self.state.last_test_step = -1
+        self.state.prev_tests_passing = 0
+        self.state.prev_tests_total = 0
+        self.state.has_test_baseline = False
+        self.state.last_tests_delta_passing = 0
+        self.state.last_tests_delta_total = 0
+        self.state.last_reward = 0.0
+        self.state.last_action_type = -1
+        self.state.write_file_actions = 0
+        self.state.write_focus_actions = 0
+        self.state.run_tests_actions = 0
+        self.state.effective_edits = 0
+        self.state.last_syntax_result = None
+        self.state.last_syntax_step = -1
+        self.state.action_history = []
+        self.state.consecutive_same_action = 0
+        self.state.compile_bonus_given = False
+        self.state.navigation_bonus_given = False
+        self.state.last_edit_offset = -1
+
+        # Note: We DON'T reset:
+        # - file_changes, per_file_diff_lines, total_diff_lines (persistent across tasks)
+        # - energy_used (cumulative for super-episode)
+        # - episode_return (cumulative for super-episode)
+        # - tasks_completed (count of completed tasks)
+
+        # Update terminal buffer with new task info
+        self.state.terminal_buffer = f"=== Task {self.state.current_task_idx + 1} ===\n"
+        self.state.terminal_buffer += f"Task: {next_task.description}\n"
+
+        # Update focus to new task's target file
+        if self.config.auto_focus_target and next_task.target_file:
+            try:
+                fpath = os.path.join(self.temp_dir, next_task.target_file)
+                if os.path.exists(fpath):
+                    if next_task.bug_line is not None:
+                        self._set_focus_from_location(next_task.target_file, line=next_task.bug_line)
+                    else:
+                        with open(fpath, "r") as f:
+                            content = f.read()
+                        self.state.focus_file = next_task.target_file
+                        self.state.focus_offset = 0
+                        self.state.focus_text = content[:256]
+            except Exception:
+                pass
+
+        # Run initial tests for the new task (async if configured)
+        if self.config.run_tests_on_reset:
+            if self.config.async_tests:
+                self._start_pytest_process(fast=bool(self.config.run_fast_tests))
+            else:
+                if self.config.run_fast_tests:
+                    self.state.last_test_result = run_pytest_fast(
+                        self.temp_dir,
+                        timeout=self.config.fast_test_timeout_seconds,
+                        maxfail=1,
+                    )
+                else:
+                    self.state.last_test_result = run_pytest(
+                        self.temp_dir,
+                        timeout=self.config.test_timeout_seconds,
+                    )
+                self.state.last_test_step = 0
+                self.state.initial_tests_passing = self.state.last_test_result.tests_passing
+                self.state.prev_tests_passing = self.state.last_test_result.tests_passing
+                self.state.prev_tests_total = self.state.last_test_result.tests_total
+                self.state.has_test_baseline = True
+                self.state.terminal_buffer += (
+                    f"Tests: {self.state.last_test_result.tests_passing}/"
+                    f"{self.state.last_test_result.tests_total} passing\n"
+                )
+
+        return True, f"Advanced to task {self.state.current_task_idx + 1}: {next_task.description}"
 
     def _estimate_action_energy(self, action: JarvisAction) -> float:
         """Estimate energy cost of an action."""

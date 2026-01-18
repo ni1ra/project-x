@@ -50,6 +50,10 @@ class ActionType(IntEnum):
     WRITE_FOCUS = 16   # Write/patch relative to current focus buffer
     REPLACE_FOCUS = 17 # Find/replace within the current focus buffer
 
+    # Persistent mode operations (v3)
+    COMPLETE_TASK = 18 # Mark current task complete, move to next task in queue
+                       # In persistent mode, this doesn't end episode - just advances the task
+
 
 # Shell command grammar (constrained for safety)
 ALLOWED_SHELL_COMMANDS = [
@@ -331,6 +335,9 @@ def action_to_string(action: JarvisAction) -> str:
         return f"NAVIGATE: {action.target}"
     elif action.action_type == ActionType.STACKTRACE:
         return "STACKTRACE"
+    # Persistent mode operations (v3)
+    elif action.action_type == ActionType.COMPLETE_TASK:
+        return "COMPLETE_TASK"
     else:
         return f"UNKNOWN({action.action_type})"
 

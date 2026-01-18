@@ -1337,6 +1337,16 @@ def main():
                         help="Steps to freeze backbone (only train heads)")
     parser.add_argument("--bc-checkpoint", type=str, default=None,
                         help="Load BC-pretrained checkpoint instead of training from scratch")
+    # Persistent mode (Phase 7)
+    parser.add_argument("--persistent", action="store_true",
+                       help="Enable persistent mode (no reset between tasks)")
+    parser.add_argument("--tasks-per-episode", type=int, default=1,
+                       help="Number of tasks per super-episode in persistent mode")
+    parser.add_argument("--scratchpad", action="store_true",
+                       help="Enable .jarvis_notes scratchpad file")
+    parser.add_argument("--enable-sleep", action="store_true",
+                       help="Enable sleep/consolidation module")
+
     # GPU guardrails (hard safety + utilization floor)
     parser.add_argument("--no-gpu-guard", action="store_true", help="Disable GPU guardrails (not recommended)")
     parser.add_argument("--gpu-index", type=int, default=None, help="GPU index for nvidia-smi sampling (default: auto)")
@@ -1431,6 +1441,10 @@ def main():
             focus_jitter=args.focus_jitter,
             # Navigation training: disable auto-focus on target file
             auto_focus_target=not getattr(args, 'no_auto_focus', False),
+            # Persistent mode (Phase 7)
+            persistent_mode=getattr(args, 'persistent', False),
+            tasks_per_episode=getattr(args, 'tasks_per_episode', 1),
+            scratchpad_enabled=getattr(args, 'scratchpad', False),
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
@@ -1507,7 +1521,7 @@ def main():
             action_bytes=action_bytes,
             hidden_dim=int(args.hidden_dim),
             enable_plasticity=False,  # Disable for initial training
-            enable_sleep=False,       # Disable for initial training
+            enable_sleep=getattr(args, 'enable_sleep', False),
         ).to(device)
 
         param_count = sum(p.numel() for p in brain.parameters())
