@@ -14,6 +14,7 @@ This allows supervised pre-training on expert demonstrations.
 
 from __future__ import annotations
 
+import random
 import re
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict
@@ -1385,6 +1386,126 @@ def generate_persistent_demos(
             trajectories.append(traj)
 
     return trajectories
+
+
+def create_sequential_bc_dataset(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+    seed: int = 42,
+    seq_len: int = 4,
+    include_closer_demos: bool = True,
+    closer_ratio: float = 0.05,
+) -> Dict[str, torch.Tensor]:
+    """
+    Create a behavioral cloning dataset that preserves trajectory structure.
+
+    This is critical for training RNNs: the model must learn to use its hidden
+    state to track where it is in the 4-step loop:
+    RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK
+
+    Unlike create_persistent_bc_dataset which flattens to individual samples,
+    this returns padded sequences grouped by trajectory.
+
+    ORACLE FIX (420 score): Includes "Closer Demos" - 1-step trajectories where
+    OBS[tests_passing=tests_total] -> COMPLETE_TASK. This teaches the model to
+    recognize the completion condition from fresh hidden state (h_0), decoupling
+    it from sequence position. Without this, COMPLETE_TASK only appears at step 4
+    and the model learns it as "what to do after long sequence" rather than
+    "what to do when tests pass".
+
+    Args:
+        num_tasks: Number of trajectories to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+        seq_len: Sequence length (default 4 for persistent loop)
+        include_closer_demos: If True, add 1-step COMPLETE_TASK demos (Oracle 420 fix)
+        closer_ratio: Ratio of closer demos to add (default 0.05 = 1:20 ratio)
+
+    Returns dict with:
+        - observations: [num_traj, seq_len, 512] - padded sequences
+        - action_bytes: [num_traj, seq_len, 64] - padded action sequences
+        - masks: [num_traj, seq_len] - boolean mask (True = valid step)
+        - num_trajectories: int
+        - num_run_tests: int
+        - num_write_focus: int
+        - num_complete_task: int
+    """
+    persistent_trajs = generate_persistent_demos(num_tasks, difficulty, seed)
+
+    if not persistent_trajs:
+        raise ValueError("No valid trajectories generated")
+
+    # Calculate total trajectories including closer demos
+    num_full_traj = len(persistent_trajs)
+    num_closer_traj = int(num_full_traj * closer_ratio) if include_closer_demos else 0
+    num_traj = num_full_traj + num_closer_traj
+
+    # Pre-allocate tensors
+    observations = torch.zeros(num_traj, seq_len, OBS_TOTAL_BYTES, dtype=torch.uint8)
+    action_bytes = torch.zeros(num_traj, seq_len, ACTION_BYTES_V2, dtype=torch.long)
+    masks = torch.zeros(num_traj, seq_len, dtype=torch.bool)
+
+    num_run_tests = 0
+    num_write_focus = 0
+    num_complete_task = 0
+
+    # Add full 4-step trajectories
+    for i, traj in enumerate(persistent_trajs):
+        for step_idx, (obs, action) in enumerate(traj.steps):
+            if step_idx >= seq_len:
+                break
+            observations[i, step_idx] = obs
+            action_bytes[i, step_idx] = action
+            masks[i, step_idx] = True
+
+            # Count action types
+            action_type = action[0].item()
+            if action_type == ActionType.RUN_TESTS.value:
+                num_run_tests += 1
+            elif action_type == ActionType.WRITE_FOCUS.value:
+                num_write_focus += 1
+            elif action_type == ActionType.COMPLETE_TASK.value:
+                num_complete_task += 1
+
+    # Add "Closer Demos" - 1-step COMPLETE_TASK trajectories from fresh h_0
+    # These teach the model: "when tests pass, emit COMPLETE_TASK" as a reflex
+    if include_closer_demos and num_closer_traj > 0:
+        # Extract step 4 (COMPLETE_TASK) observations and actions from full trajectories
+        closer_obs_list = []
+        closer_action_list = []
+        for traj in persistent_trajs:
+            if len(traj.steps) >= 4:
+                # Step 4 is index 3 (0-indexed): the COMPLETE_TASK step
+                obs, action = traj.steps[3]
+                closer_obs_list.append(obs)
+                closer_action_list.append(action)
+
+        # Add closer demos (sample with replacement if needed)
+        random.seed(seed + 9999)  # Different seed for closer sampling
+        for i in range(num_closer_traj):
+            traj_idx = num_full_traj + i
+            # Sample from available closer demos
+            src_idx = i % len(closer_obs_list)
+
+            # 1-step trajectory: only step 0 is valid
+            observations[traj_idx, 0] = closer_obs_list[src_idx]
+            action_bytes[traj_idx, 0] = closer_action_list[src_idx]
+            masks[traj_idx, 0] = True
+
+            num_complete_task += 1  # Count the closer demo
+
+    return {
+        "observations": observations,  # [N, seq_len, 512]
+        "action_bytes": action_bytes,  # [N, seq_len, 64]
+        "masks": masks,                # [N, seq_len]
+        "num_trajectories": num_traj,
+        "num_full_trajectories": num_full_traj,
+        "num_closer_demos": num_closer_traj,
+        "num_samples": masks.sum().item(),  # Total valid steps
+        "num_run_tests": num_run_tests,
+        "num_write_focus": num_write_focus,
+        "num_complete_task": num_complete_task,
+    }
 
 
 def create_persistent_bc_dataset(

@@ -451,3 +451,26 @@
 - The todo list IS the execution plan
 
 ---
+
+### 2026-01-18 - Ignored Ralph Loop, Skipped Doc Sync After Context Compaction
+**What happened:** After context compaction, immediately jumped to checking training status instead of:
+1. Reading ALL .md files in repo root
+2. Following ralph-loop.local.md prompt
+3. Syncing docs before implementation
+
+**Root cause:**
+1. Summary said "training in progress" - tunnel-visioned on checking it
+2. Ignored explicit ralph loop instructions in favor of "continuing work"
+3. Context compaction = MUST re-establish context from docs
+
+**Score:** 320/420 (protocol violation, could cause drift)
+
+**Recovery taken:** RETRY - Reading all docs, logging this mistake, syncing state
+
+**Lesson:**
+- Ralph Loop prompt is NON-NEGOTIABLE after context compaction
+- READ DOCS FIRST - training can wait
+- "Continue where left off" requires knowing where that actually is
+- Context compaction = context LOSS - must re-read everything
+
+---

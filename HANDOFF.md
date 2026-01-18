@@ -1,18 +1,18 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-18 (Updated v12 - **BODY BUILT, NEEDS NERVOUS SYSTEM**)
+Generated: 2026-01-18 (Updated v14 - **PHASE 7.4g: REDUCED CLOSER RATIO**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal is to achieve persistent autonomous operation (Jarvis-Operator mode).
 
-**STATUS: Body Built, Nervous System Needed** (2026-01-18)
-- Phase 7 infrastructure: COMPLETE (actions/tools/env/reward plumbing)
-- All sanity gates: PASSED
-- **THE GAP:** Need to train long-horizon loops (run tests → edit → rerun → recover → finish → next task)
-- TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
-- EASY BC Accuracy: 76.8% | Pytest Success: 90% (**with focus hints only**)
+**STATUS: Phase 7.4g IN PROGRESS - Reduced Closer Ratio** (2026-01-18)
+- Phase 7.4d Sequential BC: COMPLETE (entropy 0.4171, no mode collapse)
+- Phase 7.4e/f: FAILED (25% Closer Demos caused entropy collapse 0.23→0.10)
+- **THE FIX:** Reduced `closer_ratio` from 0.25 to 0.05 (Oracle 415 score)
+- Checkpoint: `results/jarvis_harness_v2_50000.pt` (7.4d backup)
+- Training: IN PROGRESS - waiting for BC training then RL entropy check at 10k steps
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -75,55 +75,39 @@ PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
 
 ## 3. IMMEDIATE MOVES (Gated Plan)
 
-### Phase 7.4a: Make Persistent Training Learnable (1-2 days)
+### Phase 7.4d: Sequential BC ✅ COMPLETE (2026-01-18)
+**Solution:** Sequential BC (maintains h_t across steps)
+**Results:** Best Accuracy 63.7%, RL Entropy 0.4171 (healthy)
+**Gate A:** PARTIAL PASS (RUN_TESTS 67%, WRITE_FOCUS 33%, COMPLETE_TASK 0%)
 
-**Step 1: COMPLETE_TASK reward** ✅ FIXED
-- Bonus now returned as step reward, not hidden in episode_return
+### Phase 7.4e: Closer Demos (25%) ❌ FAILED (2026-01-18)
+**Attempt:** Add 1-step trajectories: OBS[tests_pass] → COMPLETE_TASK
+**Result:** Entropy collapsed 0.23 → 0.10 at 10k steps
 
-**Step 2: Add BC demos that end tasks** ✅ COMPLETE
-- Added `create_persistent_bc_dataset()` with 4-step loop:
-  - RUN_TESTS (discover) → WRITE_FOCUS (fix) → RUN_TESTS (verify) → COMPLETE_TASK
-- Training script updated to use persistent demos with `--persistent` flag
+### Phase 7.4f: Relaxed Anchor ❌ FAILED (2026-01-18)
+**Attempt:** Reduce anchor 0.5→0.2, increase entropy-coef 0.03→0.05
+**Result:** Same entropy collapse 0.24 → 0.10 at 10k steps
 
-**Gate A (must pass before RL):**
-- [ ] In persistent eval with 3 queued tasks, policy emits COMPLETE_TASK within N≤10 steps after tests pass
-- [ ] `tasks_completed/session > 0`
+### Phase 7.4g: Reduced Closer Ratio 🔄 IN PROGRESS (2026-01-18)
+**Problem:** 25% Closer Demos = "Toxic Attractor"
+- Over-indexed BC on "Fresh State (h=0) → COMPLETE_TASK"
+- When RL starts with h=0 but tests failing: massive conflict
+- Agent collapses to "Safe Mode"
 
-**If Gate A fails:** Do NOT touch PPO. Fix BC and reward alignment first.
+**Solution (Oracle 415 score):** Reduce `closer_ratio` from 0.25 to 0.05
 
-### Phase 7.4b: Persistent BC-Only Baseline (2-4 days)
+**Implementation:**
+1. ✅ Edit `expert_trajectories.py`: Change `closer_ratio=0.05`
+2. ✅ Keep `--entropy-coef 0.05`
+3. ✅ Restore `--bc-anchor-coef 0.5`
+4. 🔄 Run training, verify entropy > 0.15 at 10k steps
 
-**Target behavior per task:**
-1. RUN_TESTS early
-2. WRITE_FOCUS edit(s)
-3. RUN_TESTS again
-4. COMPLETE_TASK when solved
-5. Repeat for next task without reset
+**WARNING:** Attempt 3/4. If this fails, SLINGSHOT to new approach.
 
-**BC dataset mix needed:**
-- RUN_TESTS-first steps (already implemented)
-- Fix steps (WRITE_FOCUS etc.)
-- RUN_TESTS-confirm steps (new)
-- COMPLETE_TASK steps (new)
-
-**Gate B (BC-only persistence):**
-- [ ] `tasks_completed/session ≥ 2` on TRIVIAL+EASY mixed queue
-- [ ] `run_tests_actions per task ≥ 1`
-- [ ] Catastrophic failure rate ≈ 0
-
-### Phase 7.4c: Anchored RL in Persistent Mode (1-2 weeks)
-
-**Non-negotiables:**
-- Keep BC anchor loss active (λ_bc not tiny at start)
-- Two-timescale optimizer (backbone LR smaller)
-- Collapse detector stays armed
-
-**Gate C (must beat BC baseline):**
-- [ ] `solved_rate (eligible) >= BC baseline`
+### Phase 7.5: Final Validation (After Gate A passes)
+- [ ] Entropy > 0.15 at 10k steps
+- [ ] COMPLETE_TASK > 10%
 - [ ] `tasks_completed/session` increases
-- [ ] Action diversity healthy (no 95% same action)
-
-**If it regresses:** Stop RL immediately. Increase BC baseline first.
 
 ---
 
@@ -217,15 +201,20 @@ See `PLAN_TO_JARVIS.md` for detailed roadmap.
 ```
 Continue WIRED-BRAIN Jarvis Harness. Read HANDOFF.md.
 
-STATUS: Body built, nervous system needed (2026-01-18)
-- Phase 7 infrastructure: COMPLETE
-- COMPLETE_TASK reward: JUST FIXED (was broken)
-- THE GAP: Need long-horizon loops (run tests → edit → rerun → recover → finish → next task)
+STATUS: Phase 7.4e IN PROGRESS (2026-01-18)
+- Phase 7.4d Sequential BC: COMPLETE (entropy 0.4171, no mode collapse)
+- Gate A: PARTIAL PASS (RUN_TESTS 67%, WRITE_FOCUS 33%, COMPLETE_TASK 0%)
+- THE GAP: COMPLETE_TASK learned as step-position, not observation-condition
+
+CURRENT:
+- Phase 7.4e training with "Closer Demos" (Oracle 420 fix)
+- Closer Demos = 1-step OBS[tests_pass] → COMPLETE_TASK from fresh h_0
+- Verified: COMPLETE_TASK predictions now 29.4%
 
 NEXT 3 MOVES:
-1. Add BC demos with COMPLETE_TASK (expert_trajectories.py)
-2. Get BC-only persistent baseline (Gate B: tasks_completed/session ≥ 2)
-3. Only then: anchored RL (Gate C: must beat BC baseline)
+1. Wait for 7.4e training to complete
+2. Re-run Gate A: verify COMPLETE_TASK > 10%
+3. Run persistent eval (Gate C: tasks_completed/session)
 
 DO NOT: Jump to Phase 6 (byte edits) or Phase 5.5 (navigation) yet.
 

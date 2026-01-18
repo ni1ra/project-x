@@ -54,6 +54,7 @@ from src.harness.expert_trajectories import (
     create_bc_dataset,
     create_multistep_bc_dataset,
     create_persistent_bc_dataset,
+    create_sequential_bc_dataset,
     compute_fix_offset_in_focus,
 )
 from src.utils.gpu_guard import (
@@ -545,8 +546,8 @@ class JarvisHarnessTrainer:
                 output = self.brain(obs_batch, h, g, a, training=True)
 
                 # BC loss: maximize log probability of target actions
-                if use_multistep:
-                    # Multi-step: use full action bytes from dataset
+                if use_persistent or use_multistep:
+                    # Multi-step/persistent: use full action bytes from dataset
                     target_actions = action_bytes_all[batch_idx]
                 else:
                     # Single-step: build from separate labels
@@ -576,9 +577,9 @@ class JarvisHarnessTrainer:
                 )
 
                 # BC loss = negative log probability of correct actions
-                if use_multistep:
-                    # Multi-step: train on ALL bytes (includes action type byte 0)
-                    # Weight byte 0 (action type) heavily since RUN_TESTS vs WRITE_FOCUS is critical
+                if use_persistent or use_multistep:
+                    # Multi-step/persistent: train on ALL bytes (includes action type byte 0)
+                    # Weight byte 0 (action type) heavily since RUN_TESTS vs WRITE_FOCUS vs COMPLETE_TASK is critical
                     action_type_log_prob = log_probs[:, 0]
                     offset_log_prob = log_probs[:, 1]
                     length_log_prob = log_probs[:, 3]
@@ -605,8 +606,8 @@ class JarvisHarnessTrainer:
                 epoch_losses.append(bc_loss.item())
 
                 # Compute accuracy using sampled actions (discrete)
-                if use_multistep:
-                    # Multi-step: check action type + offset + vocab + length
+                if use_persistent or use_multistep:
+                    # Multi-step/persistent: check action type + offset + vocab + length
                     pred_action_type = output.action[:, 0].long()
                     pred_offset = output.action[:, 1].long() % 64
                     pred_vocab = output.action[:, 25].long() % vocab_size
@@ -661,6 +662,196 @@ class JarvisHarnessTrainer:
         return {
             "bc_loss": best_loss,
             "bc_accuracy": best_accuracy,
+        }
+
+    def pretrain_behavioral_cloning_sequential(
+        self,
+        num_demos: int = 1000,
+        bc_epochs: int = 100,
+        bc_batch_size: int = 32,
+        bc_lr: float = 1e-3,
+        difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+        seq_len: int = 4,
+    ) -> Dict[str, Any]:
+        """
+        Sequential BC pre-training for RNNs.
+
+        Unlike standard BC which shuffles samples (breaking temporal coherence),
+        this processes complete trajectories sequentially, allowing the GRU to
+        learn the 4-step loop: RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK
+
+        The key insight (from Oracle consultation):
+        - Standard BC trains on shuffled (obs, action) pairs with zeroed h_t
+        - The model never learns to use its GRU memory
+        - Sequential BC processes trajectories in order, maintaining hidden state
+
+        Args:
+            num_demos: Number of trajectories to generate
+            bc_epochs: Number of epochs
+            bc_batch_size: Batch size (number of trajectories per batch)
+            bc_lr: Learning rate
+            difficulty: Bug difficulty level
+            seq_len: Sequence length per trajectory (default 4)
+
+        Returns:
+            Dictionary of BC metrics
+        """
+        from src.harness.actions import TRIVIAL_VOCAB, COMBINED_VOCAB
+
+        vocab_size = len(TRIVIAL_VOCAB) if difficulty == BugDifficulty.TRIVIAL else len(COMBINED_VOCAB)
+
+        print(f"\n=== SEQUENTIAL BC PRE-TRAINING ===")
+        print(f"Generating {num_demos} sequential trajectories (seq_len={seq_len})...")
+
+        # Generate sequential dataset
+        dataset = create_sequential_bc_dataset(
+            num_tasks=num_demos,
+            difficulty=difficulty,
+            seed=42,
+            seq_len=seq_len,
+        )
+
+        num_traj = dataset["num_trajectories"]
+        num_samples = dataset["num_samples"]
+        print(f"Generated {num_traj} trajectories ({num_samples} total steps)")
+        print(f"  RUN_TESTS actions: {dataset['num_run_tests']}")
+        print(f"  WRITE_FOCUS actions: {dataset['num_write_focus']}")
+        print(f"  COMPLETE_TASK actions: {dataset['num_complete_task']}")
+
+        # Move data to device - shape: [num_traj, seq_len, ...]
+        observations = dataset["observations"].to(self.device)  # [N, S, 512]
+        action_bytes = dataset["action_bytes"].to(self.device).long()  # [N, S, 64]
+        masks = dataset["masks"].to(self.device)  # [N, S]
+
+        # Create BC optimizer
+        bc_optimizer = Adam(self.brain.parameters(), lr=bc_lr)
+
+        best_loss = float("inf")
+        best_accuracy = 0.0
+
+        for epoch in range(bc_epochs):
+            # Shuffle trajectory order (but keep steps within trajectory in order!)
+            perm = torch.randperm(num_traj, device=self.device)
+            epoch_losses = []
+            epoch_correct = 0
+            epoch_total = 0
+
+            for start in range(0, num_traj, bc_batch_size):
+                end = min(start + bc_batch_size, num_traj)
+                batch_idx = perm[start:end]
+                batch_size = len(batch_idx)
+
+                # Get batch: [batch_size, seq_len, ...]
+                obs_seq = observations[batch_idx]  # [B, S, 512]
+                action_seq = action_bytes[batch_idx]  # [B, S, 64]
+                mask_seq = masks[batch_idx]  # [B, S]
+
+                # Initialize hidden state ONCE per trajectory
+                h, g = self.brain.init_state(batch_size, self.device)
+                a_prev = torch.zeros((batch_size, self.brain.config.action_bytes),
+                                    dtype=torch.long, device=self.device)
+
+                # Process sequence step by step, maintaining hidden state
+                seq_losses = []
+                for step in range(seq_len):
+                    # Get this step's data
+                    obs_step = obs_seq[:, step]  # [B, 512]
+                    target_action = action_seq[:, step]  # [B, 64]
+                    step_mask = mask_seq[:, step]  # [B]
+
+                    if not step_mask.any():
+                        continue
+
+                    # Forward pass with carried hidden state
+                    output = self.brain(obs_step, h, g, a_prev, training=True)
+
+                    # Update hidden state for next step
+                    h = output.h_next.detach()
+                    g = output.g_t.detach()
+                    a_prev = output.action.long().detach()
+
+                    # Compute loss only for valid steps
+                    log_probs, entropy, values, _, _, _ = self.brain.evaluate_actions(
+                        obs_bytes=obs_step,
+                        prev_h=output.h_next,  # Use updated h for consistency
+                        prev_g=output.g_t,
+                        prev_a=a_prev,
+                        actions=target_action,
+                        z_t=output.z_t,
+                    )
+
+                    # Weight action type heavily (byte 0 determines the action class)
+                    action_type_log_prob = log_probs[:, 0]
+                    offset_log_prob = log_probs[:, 1]
+                    length_log_prob = log_probs[:, 3]
+                    vocab_log_prob = log_probs[:, 25]
+
+                    step_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob +
+                                  vocab_log_prob + 0.5 * length_log_prob)
+
+                    # GPU burn during step loop to maintain utilization
+                    self._gpu_burn(sync=False)
+
+                    # Mask out invalid steps
+                    masked_loss = (step_loss * step_mask.float()).sum() / step_mask.sum()
+                    seq_losses.append(masked_loss)
+
+                    # Compute accuracy for this step
+                    pred_action_type = output.action[:, 0].long()
+                    pred_offset = output.action[:, 1].long() % 64
+                    pred_vocab = output.action[:, 25].long() % vocab_size
+                    pred_length = output.action[:, 3].long() % 4
+
+                    correct = (
+                        (pred_action_type == target_action[:, 0]) &
+                        (pred_offset == target_action[:, 1]) &
+                        (pred_vocab == target_action[:, 25]) &
+                        (pred_length == target_action[:, 3]) &
+                        step_mask
+                    ).sum().item()
+
+                    epoch_correct += correct
+                    epoch_total += step_mask.sum().item()
+
+                if seq_losses:
+                    # Average loss across sequence
+                    batch_loss = torch.stack(seq_losses).mean()
+
+                    bc_optimizer.zero_grad()
+                    batch_loss.backward()
+                    nn.utils.clip_grad_norm_(self.brain.parameters(), self.max_grad_norm)
+                    bc_optimizer.step()
+
+                    epoch_losses.append(batch_loss.item())
+
+                    # Keep GPU busy - need more burns for sequential processing
+                    for _ in range(5):
+                        self._gpu_burn(sync=False)
+
+            avg_loss = sum(epoch_losses) / len(epoch_losses) if epoch_losses else float("nan")
+            accuracy = epoch_correct / epoch_total if epoch_total > 0 else 0.0
+
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+
+            if (epoch + 1) % 10 == 0 or epoch == 0:
+                print(f"  SeqBC Epoch {epoch+1}/{bc_epochs}: Loss={avg_loss:.4f}, Accuracy={accuracy:.1%}")
+
+        print(f"\nSequential BC Pre-training complete:")
+        print(f"  Best Loss: {best_loss:.4f}")
+        print(f"  Best Accuracy: {best_accuracy:.1%}")
+        print(f"  GPU burns during BC: executed={self._burn_call_count}, skipped={self._burn_skip_count}")
+        print()
+
+        self._burn_call_count = 0
+        self._burn_skip_count = 0
+
+        return {
+            "bc_loss": best_loss,
+            "bc_accuracy": best_accuracy,
+            "dataset": dataset,  # Return for anchored RL setup
         }
 
     def save_bc_reference_policy(self):
@@ -1329,6 +1520,8 @@ def main():
                         help="Number of expert demos for BC pre-training")
     parser.add_argument("--bc-multistep", action="store_true",
                         help="Use multi-step BC demos (RUN_TESTS + WRITE_FOCUS)")
+    parser.add_argument("--bc-sequential", action="store_true",
+                        help="Use sequential BC training (maintains h_t across trajectory, critical for RNNs)")
     parser.add_argument("--bc-batch-size", type=int, default=128,
                         help="Batch size for BC pre-training")
     parser.add_argument("--bc-lr", type=float, default=1e-3,
@@ -1606,23 +1799,41 @@ def main():
         if args.bc_epochs > 0 and not args.bc_checkpoint:
             # Determine BC mode
             use_persistent = getattr(args, 'persistent', False)
-            if use_persistent:
-                mode_str = "persistent (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)"
-            elif args.bc_multistep:
-                mode_str = "multi-step"
+            use_sequential = getattr(args, 'bc_sequential', False)
+
+            if use_sequential:
+                # Phase 7.4d: Sequential BC for RNN temporal learning
+                # Oracle score 420: This fixes the training-inference mismatch
+                mode_str = "SEQUENTIAL (maintains h_t across 4-step loop)"
+                print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos ({mode_str})", flush=True)
+                bc_result = trainer.pretrain_behavioral_cloning_sequential(
+                    num_demos=args.bc_demos,
+                    bc_epochs=args.bc_epochs,
+                    bc_batch_size=args.bc_batch_size,
+                    bc_lr=args.bc_lr,
+                    difficulty=difficulty,
+                    seq_len=4,  # 4-step persistent loop
+                )
+                bc_metrics = {"bc_loss": bc_result["bc_loss"], "bc_accuracy": bc_result["bc_accuracy"]}
             else:
-                mode_str = "single-step"
-            print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos ({mode_str})", flush=True)
-            bc_metrics = trainer.pretrain_behavioral_cloning(
-                num_demos=args.bc_demos,
-                bc_epochs=args.bc_epochs,
-                bc_batch_size=args.bc_batch_size,
-                bc_lr=args.bc_lr,
-                jitter=args.focus_jitter,
-                difficulty=difficulty,  # Pass difficulty for correct vocab size
-                use_multistep=args.bc_multistep,
-                use_persistent=use_persistent,  # Phase 7.4a: enable persistent demos
-            )
+                # Original BC modes (shuffled samples)
+                if use_persistent:
+                    mode_str = "persistent (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)"
+                elif args.bc_multistep:
+                    mode_str = "multi-step"
+                else:
+                    mode_str = "single-step"
+                print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos ({mode_str})", flush=True)
+                bc_metrics = trainer.pretrain_behavioral_cloning(
+                    num_demos=args.bc_demos,
+                    bc_epochs=args.bc_epochs,
+                    bc_batch_size=args.bc_batch_size,
+                    bc_lr=args.bc_lr,
+                    jitter=args.focus_jitter,
+                    difficulty=difficulty,  # Pass difficulty for correct vocab size
+                    use_multistep=args.bc_multistep,
+                    use_persistent=use_persistent,  # Phase 7.4a: enable persistent demos
+                )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:
                 print("\n" + "=" * 60)
