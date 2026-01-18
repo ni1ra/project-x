@@ -789,47 +789,53 @@ This requires expanding the action space beyond TRIVIAL_VOCAB.
 ## PHASE 7: STAGE E - PERSISTENT JARVIS
 
 **Goal:** Continuous operation. No resets between tasks.
+**Status (2026-01-18):** Infrastructure COMPLETE. Training required.
 
-### 7.1 Implement Persistent Mode
-- [ ] **7.1.1** Add workspace persistence
-  - [ ] Edit `env.py` to not reset between episodes
-  - [ ] Add `--persistent` flag
+### 7.1 Implement Persistent Mode ✅ COMPLETE
+- [x] **7.1.1** Add workspace persistence
+  - [x] Edit `env.py` to not reset between episodes
+  - [x] Add `--persistent` flag
+  - [x] Add `persistent_mode` config in HarnessConfig
 
-- [ ] **7.1.2** Add COMPLETE_TASK action
-  - [ ] Agent signals when it thinks task is done
-  - [ ] Triggers external validation
+- [x] **7.1.2** Add COMPLETE_TASK action
+  - [x] ActionType.COMPLETE_TASK (value 18) in actions.py
+  - [x] _complete_current_task() handler in env.py
+  - [x] Validates task completion before advancing
 
-- [ ] **7.1.3** Add task queue
-  - [ ] Multiple tasks per "super-episode"
-  - [ ] Agent must complete one before getting next
+- [x] **7.1.3** Add task queue
+  - [x] reset() accepts task_queue parameter
+  - [x] HarnessState.task_queue for pending tasks
+  - [x] _advance_to_next_task() preserves workspace state
 
-### 7.2 Add Memory/Scratchpad
-- [ ] **7.2.1** Add scratchpad file
-  - [ ] Agent can write notes to `.jarvis_notes`
-  - [ ] Persists across tasks
-  - [ ] Visible in observation
+### 7.2 Add Memory/Scratchpad ✅ COMPLETE
+- [x] **7.2.1** Add scratchpad file
+  - [x] .jarvis_notes created on reset when scratchpad_enabled=True
+  - [x] READ_FILE supports reading scratchpad
+  - [x] WRITE_FILE supports writing to scratchpad
+  - [x] --scratchpad flag added to training script
 
-- [ ] **7.2.2** Enable sleep module
-  - [ ] Activate `src/core/sleep.py`
-  - [ ] Offline consolidation between tasks
+- [x] **7.2.2** Enable sleep module
+  - [x] src/core/sleep.py already implemented
+  - [x] --enable-sleep flag added to training script
+  - [x] enable_sleep wired through to brain config
 
-### 7.3 Add Recovery Actions
-- [ ] **7.3.1** Implement GIT_CHECKOUT
-  - [ ] Agent can undo changes
-  - [ ] Critical for recovery from mistakes
+### 7.3 Add Recovery Actions ✅ ALREADY EXISTED
+- [x] **7.3.1** Implement GIT_CHECKOUT
+  - [x] ActionType.GIT_CHECKOUT (value 11) exists
+  - [x] _git_checkout() handler in env.py
 
-- [ ] **7.3.2** Implement GIT_RESET
-  - [ ] Hard reset to clean state
-  - [ ] Emergency recovery
+- [x] **7.3.2** Implement GIT_RESET
+  - [x] ActionType.GIT_RESET (value 10) exists
+  - [x] _git_reset() handler in env.py
 
-### 7.4 Train Persistent
+### 7.4 Train Persistent ⚠️ IN PROGRESS
 - [ ] **7.4.1** Run training
   ```bash
   PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
     --mode v2 --timesteps 1000000 --difficulty medium \
-    --persistent --tasks-per-episode 5
+    --persistent --tasks-per-episode 5 --scratchpad
   ```
-  - [ ] Training completes
+  - [ ] Training completes (requires significant compute time)
 
 - [ ] **7.4.2** Evaluate
   - [ ] Agent completes multiple tasks back-to-back
