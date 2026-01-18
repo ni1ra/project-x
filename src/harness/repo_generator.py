@@ -1035,11 +1035,26 @@ def inject_rest_api_bug(
             },
         )
 
-    # For EASY: skip rest_api template-specific bugs
-    # The available operator swaps (< → <=) are NOT caught by existing tests
-    # because tests use boundary value 0, where both 0 < 1 and 0 <= 1 are True.
-    # Fall through to generic injectors (which may also fail for this template).
+    # EASY: use port validation bug (IS test-covered)
+    # test_invalid_port uses port=0, expects validate()=False
+    # Buggy: 0 < 0 = False, skips early return, returns True → TEST FAILS
     if difficulty == BugDifficulty.EASY:
+        candidates = [
+            lambda: inject_fixed_string_replacement(
+                files,
+                "config.py",
+                "if self.port < 1 or self.port > 65535:",
+                "if self.port < 0 or self.port > 65535:",
+                difficulty=difficulty,
+                hint="Check Config.validate() port bounds",
+                template_name="rest_api:config_validate",
+            ),
+        ]
+        random.shuffle(candidates)
+        for make_bug in candidates:
+            bug = make_bug()
+            if bug is not None:
+                return bug
         return None
 
     # MEDIUM+: use template-specific bugs

@@ -364,6 +364,20 @@ class JarvisHarnessEnv:
             self.state.has_test_baseline = False
             self.state.terminal_buffer += "Initial tests: (skipped)\n"
 
+        # DEFAULT FOCUS ON FIRST SOURCE FILE (Phase 5.5 fallback)
+        # When auto_focus_target is disabled, the agent has empty focus (all zeros).
+        # This gives the agent at least SOME code context to work with.
+        if not self.config.auto_focus_target and not self.state.focus_file and self.temp_dir:
+            # Find first non-test Python file
+            try:
+                for fname in sorted(os.listdir(self.temp_dir)):
+                    if fname.endswith('.py') and not fname.startswith('test_') and fname != 'conftest.py':
+                        self._set_focus_from_location(fname, line=1)
+                        self.state.terminal_buffer += f"[default-focus] {fname}\n"
+                        break
+            except Exception:
+                pass
+
         # STACKTRACE-BASED AUTO-FOCUS (Phase 5.5 bridge)
         # If tests failed and auto_focus_from_stacktrace is enabled,
         # parse the stacktrace to find the failing location and set focus there.
