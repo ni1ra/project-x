@@ -1,13 +1,14 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-17 (Updated v6 - **72.7% BC, Phase 4 EASY infrastructure done**)
+Generated: 2026-01-18 (Updated v7 - **Metric semantics fixed, EASY unblock plan added**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal was to achieve ≥70% test improvement rate on generated bug-fixing episodes for TRIVIAL difficulty.
 
-**STATUS: 72.7% SUCCESS RATE ACHIEVED - STAGE A COMPLETE!** (2026-01-17)
+**STATUS: Stage A BC training complete** (2026-01-18)
+- BC Accuracy: 72.7% | Pytest Success: ~25-30% | EASY: blocked on expert trajectories
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -350,15 +351,15 @@ That's still a legit Jarvis-shaped beast.
 ```
 Continue working on WIRED-BRAIN Jarvis Harness. Read HANDOFF.md for full context.
 
-STATUS: **STAGE A COMPLETE - 72.7% BC accuracy on TRIVIAL** (2026-01-17)
-- Phase 4 EASY infrastructure complete
-- EASY difficulty: 0% success (expected - needs BC expert trajectories for logic bugs)
-- Key discovery: BC accuracy ≠ pytest eval success (methodology difference)
+STATUS: **Stage A BC training complete** (2026-01-18)
+- BC Accuracy: 72.7% | Pytest Success: ~25-30%
+- EASY: 0% (blocked - needs EASY_VOCAB + expert trajectories)
 
-NEXT STEPS:
-1. Implement BC expert trajectories for EASY difficulty (logic bugs)
-2. Train with EASY-aware BC demos
-3. Gradually reduce force_write_focus_prob (1.0→0.5→0.0)
+NEXT STEPS (EASY UNBLOCK - see PLAN_TO_JARVIS.md 4.3.Y):
+1. Define EASY_VOCAB in actions.py (<=, >=, !=, ==, +1, -1, etc.)
+2. Restrict EASY bug injection to EASY_VOCAB-solvable patterns
+3. Implement compute_correct_action_for_wrong_operator/off_by_one
+4. Generate 500+ EASY BC demos, gate on BC accuracy > 0%
 
 KEY COMMANDS:
   # Eval TRIVIAL (should still work)

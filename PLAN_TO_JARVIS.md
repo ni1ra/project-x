@@ -6,9 +6,12 @@
 > This document is designed to be followed by Claude autonomously.
 > Every checkbox must be checked before proceeding to the next step.
 >
-> **Current State:** Stage A (TRIVIAL++) **COMPLETE** | **72.7% success** (BC-only) | 🎉 70% GATE PASSED!
+> **Current State:** Stage A (TRIVIAL++) BC training complete. Metrics:
+> - **BC Accuracy:** 72.7% (predicted action == expert action)
+> - **Pytest Success:** ~25-30% single-shot (tests pass after edit)
+> - Stage B (EASY) blocked on missing expert trajectories for logic bugs
 > **Target:** Stage F (Heterogeneous Brain) - Beyond Human Intelligence
-> **Last Updated:** 2026-01-17 (v10 - Stage A COMPLETE → 72.7% generalization)
+> **Last Updated:** 2026-01-18 (v11 - Fixed metric semantics, added EASY unblock plan)
 >
 > **KEY INSIGHT (2026-01-17):** For TRIVIAL, BC-only beats unanchored RL. RL is allowed ONLY if it passes a non-regression gate.
 > **RESOLVED:** BC↔RL observation gap + v1/v2 decoder mismatch + offset aliasing + multi-bug repos + **goal bytes + focus_text missing from decoder** (critical fix today).
@@ -35,6 +38,20 @@
 
 ### Jarvis-Beyond (Research Track, optional)
 - Heterogeneous brain search, scaling laws, cross-domain transfer
+
+---
+
+## 0.2 METRIC DEFINITIONS (NON-NEGOTIABLE)
+
+Always track and report these three metrics separately:
+
+| Metric | Definition | When It Matters |
+|--------|------------|-----------------|
+| **BC Accuracy** | `predicted_action == expert_action` | Training convergence |
+| **Pytest Success Rate** | `tests_all_pass_after_agent` | Real evaluation |
+| **Improvement Rate** | `tests_passed_after > tests_passed_before` | Stage B+ (developer loop) |
+
+**Rule:** Never conflate these. "72.7% success" is meaningless without specifying which metric.
 
 ---
 
@@ -537,6 +554,29 @@ When re-adding:
 **Next requirement:**
 Implement BC expert trajectories that demonstrate fixing logic bugs.
 This requires expanding the action space beyond TRIVIAL_VOCAB.
+
+### 4.3.Y MINIMUM UNBLOCK PLAN (DO THIS NEXT)
+
+- [ ] **4.3.Y.1** Define EASY_VOCAB in `actions.py`
+  ```python
+  EASY_VOCAB = [
+      '<=', '>=', '!=', '==',  # comparison operators
+      '<', '>',                 # single char comparisons
+      '+', '-',                 # arithmetic operators
+      '+1', '-1',               # off-by-one fixes
+      ' + 1', ' - 1',           # spaced variants
+  ]
+  ```
+- [ ] **4.3.Y.2** Restrict EASY bug injection to EASY_VOCAB-solvable patterns
+  - `wrong_operator`: Only inject bugs that swap tokens within EASY_VOCAB
+  - `off_by_one`: Only inject `< n` ↔ `<= n` or `i` ↔ `i+1` patterns
+- [ ] **4.3.Y.3** Implement expert trajectory functions
+  - [ ] `compute_correct_action_for_wrong_operator()`
+  - [ ] `compute_correct_action_for_off_by_one()`
+- [ ] **4.3.Y.4** Generate EASY BC demos and validate
+  - [ ] Generate 500+ demos
+  - [ ] Reject unfixable patterns (like TRIVIAL does)
+  - [ ] **Gate:** EASY BC accuracy > 0% before running PPO
 
 ### 4.4 Validate The Loop (BLOCKED)
 - [ ] **4.4.1** Check for self-correction behavior
