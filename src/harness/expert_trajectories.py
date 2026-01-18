@@ -67,6 +67,26 @@ class ExpertTrajectory:
     observation: torch.Tensor
 
 
+@dataclass
+class MultiStepTrajectory:
+    """A multi-step trajectory for navigation + fix.
+
+    Step 1: RUN_TESTS - triggers stacktrace, env updates focus to bug location
+    Step 2: WRITE_FOCUS - applies the fix at the correct position
+
+    This teaches the agent a "first move" pattern for navigation.
+    """
+    repo_name: str
+    bug_type: str
+    fix_description: str
+
+    # List of (observation, action) pairs
+    steps: List[Tuple[torch.Tensor, torch.Tensor]]  # [(obs, action), ...]
+
+    # Final state info
+    solved: bool  # Would this trajectory solve the bug?
+
+
 def find_diff_position(original: str, buggy: str) -> int:
     """Find the global position of the first difference between original and buggy."""
     min_len = min(len(original), len(buggy))
@@ -623,6 +643,77 @@ def compute_correct_action_for_off_by_one(
     return None  # Can't compute fix for this off-by-one pattern
 
 
+def compute_correct_action_for_typo(
+    original: str,
+    buggy: str,
+    focus_start: int,
+) -> Optional[ExpertAction]:
+    """
+    Compute correct action for typo keyword bugs.
+
+    Requires MICRO_VOCAB to fix (vocab_mode=1) since the correct keywords
+    like 'return', 'import', etc. are multi-character tokens.
+
+    Examples:
+    - 'retrun' -> 'return' (MICRO_VOCAB index for 'return')
+    - 'improt' -> 'import' (MICRO_VOCAB index for 'import')
+    """
+    from src.harness.actions import MICRO_VOCAB
+
+    # Known typo pairs (buggy -> correct)
+    typo_pairs = [
+        ('retrun', 'return'),
+        ('improt', 'import'),
+        ('form', 'from'),
+        ('calss', 'class'),
+        ('elfi', 'elif'),
+        ('Ture', 'True'),
+        ('Flase', 'False'),
+        ('Nonee', 'None'),
+        ('slef', 'self'),
+        ('defitn', 'define'),
+    ]
+
+    # Find which typo is present
+    for typo, correct in typo_pairs:
+        if typo in buggy and correct in original:
+            # Find the typo position in buggy code
+            typo_pos = buggy.find(typo)
+            if typo_pos < 0:
+                continue
+
+            # Compute offset relative to focus start
+            offset_in_focus = typo_pos - focus_start
+            if offset_in_focus < 0 or offset_in_focus >= 256:
+                continue
+
+            # Find the correct token in MICRO_VOCAB
+            if correct not in MICRO_VOCAB:
+                continue
+
+            vocab_idx = MICRO_VOCAB.index(correct)
+
+            # Replace the typo with correct token
+            # Length = len(typo) to replace the entire typo
+            length = min(len(typo), 3)  # Constrained to 0-3
+
+            action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+            action_bytes[0] = ActionType.WRITE_FOCUS.value
+            action_bytes[1] = max(0, min(255, offset_in_focus))
+            action_bytes[3] = length % 4
+            action_bytes[25] = vocab_idx
+            action_bytes[26] = 1  # MICRO_VOCAB mode
+
+            return ExpertAction(
+                offset=offset_in_focus,
+                vocab_idx=vocab_idx,
+                length=length,
+                action_bytes=action_bytes,
+            )
+
+    return None
+
+
 def generate_expert_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
@@ -711,6 +802,17 @@ def generate_expert_trajectory(
             action = compute_correct_action_for_off_by_one(
                 original, buggy_content, focus_start
             )
+        elif "typo" in fix_hint_lower:
+            # Typo bugs require MICRO_VOCAB (vocab_mode=1)
+            action = compute_correct_action_for_typo(
+                original, buggy_content, focus_start
+            )
+
+    # Try typo detection as fallback (for EASY bugs with typo injector)
+    if action is None:
+        action = compute_correct_action_for_typo(
+            original, buggy_content, focus_start
+        )
 
     # Final fallback to generic
     if action is None:
@@ -865,6 +967,224 @@ def create_bc_dataset(
     }
 
 
+def create_run_tests_action() -> torch.Tensor:
+    """
+    Create a RUN_TESTS action as the first move.
+
+    This teaches the agent to call RUN_TESTS first, which:
+    1. Triggers pytest/unittest
+    2. Produces a stacktrace (if there are bugs)
+    3. The env's auto_focus_from_stacktrace updates focus to bug location
+
+    Returns:
+        action_bytes: [ACTION_BYTES_V2] tensor with RUN_TESTS action
+    """
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.RUN_TESTS.value  # ActionType.RUN_TESTS = 3
+    # Other bytes can stay 0 - RUN_TESTS doesn't need offset/length/target/content
+    return action_bytes
+
+
+def create_initial_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str = "",
+    tests_passing: int = 0,
+    tests_total: int = 1,
+) -> torch.Tensor:
+    """
+    Create an initial observation for a task (before RUN_TESTS is called).
+
+    The focus_text is intentionally empty or minimal to simulate:
+    - Agent starts with no knowledge of where the bug is
+    - Must run tests first to discover bug location
+
+    Args:
+        repo_name: Name of the repo
+        goal: Task description
+        focus_text: Initial focus text (can be empty)
+        tests_passing: Number of passing tests
+        tests_total: Total tests
+
+    Returns:
+        observation: [OBS_TOTAL_BYTES] tensor
+    """
+    jarvis_obs = JarvisObservation(
+        # Terminal: empty (haven't run any commands yet)
+        terminal_output="$ ",
+        # Goal: task description
+        goal=f"{goal[:60]}",
+        # Focus text: empty or minimal (don't know where bug is yet)
+        focus_text=focus_text[:256] if focus_text else "",
+        focus_preview=focus_text[:32] if focus_text else "",
+        focus_offset=0,
+        focus_length=len(focus_text) if focus_text else 0,
+        # File hash for identification
+        focus_file_hash=repo_name.encode('utf-8')[:16],
+        # Default values
+        energy_remaining=1.0,
+        time_remaining=1.0,
+        actions_remaining=100,
+        step=0,
+        last_reward=0.0,
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+    )
+    return encode_observation(jarvis_obs)
+
+
+def generate_multistep_trajectory(
+    repo: GeneratedRepo,
+    focus_length: int = 256,
+) -> Optional[MultiStepTrajectory]:
+    """
+    Generate a multi-step trajectory with RUN_TESTS as first action.
+
+    Step 1: RUN_TESTS - triggers stacktrace, env updates focus
+    Step 2: WRITE_FOCUS - applies the fix
+
+    Args:
+        repo: Generated repo with bugs
+        focus_length: Size of focus window
+
+    Returns:
+        MultiStepTrajectory with 2 steps, or None if can't generate
+    """
+    if not repo.bugs:
+        return None
+
+    bug = repo.bugs[0]
+
+    # Get original and buggy code
+    original = repo.original_files.get(bug.file_path, "")
+    buggy = repo.files.get(bug.file_path)
+    if buggy is None:
+        return None
+    buggy_content = buggy.content
+
+    # Generate the single-step trajectory to get the correct WRITE_FOCUS action
+    single_step = generate_expert_trajectory(repo, focus_length)
+    if single_step is None:
+        return None
+
+    # Step 1: Initial observation (focus not set, tests not run yet)
+    # Agent should call RUN_TESTS to discover where the bug is
+    initial_obs = create_initial_observation(
+        repo_name=repo.name,
+        goal=f"Fix bug: {repo.fix_description[:50]}",
+        focus_text="",  # Empty - haven't navigated yet
+        tests_passing=0,
+        tests_total=1,
+    )
+    run_tests_action = create_run_tests_action()
+
+    # Step 2: After RUN_TESTS, focus is set to bug location by env
+    # Agent should call WRITE_FOCUS with the correct fix
+    # Use the observation and action from the single-step trajectory
+    post_tests_obs = single_step.observation
+    write_focus_action = single_step.correct_action.action_bytes
+
+    steps = [
+        (initial_obs, run_tests_action),
+        (post_tests_obs, write_focus_action),
+    ]
+
+    return MultiStepTrajectory(
+        repo_name=repo.name,
+        bug_type=single_step.bug_type,
+        fix_description=single_step.fix_description,
+        steps=steps,
+        solved=True,
+    )
+
+
+def generate_multistep_demos(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+    seed: int = 42,
+) -> List[MultiStepTrajectory]:
+    """
+    Generate multi-step expert demonstrations for navigation + fix.
+
+    Args:
+        num_tasks: Number of demonstrations to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+
+    Returns:
+        List of MultiStepTrajectory objects
+    """
+    repos = generate_task_batch(
+        num_tasks=num_tasks,
+        difficulty_range=(difficulty, difficulty),
+        seed=seed,
+    )
+
+    trajectories = []
+    for repo in repos:
+        traj = generate_multistep_trajectory(repo)
+        if traj is not None:
+            trajectories.append(traj)
+
+    return trajectories
+
+
+def create_multistep_bc_dataset(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+    seed: int = 42,
+    include_single_step: bool = True,
+) -> Dict[str, torch.Tensor]:
+    """
+    Create a behavioral cloning dataset with multi-step trajectories.
+
+    This flattens all steps into a single dataset, mixing:
+    - RUN_TESTS first moves (initial obs -> RUN_TESTS action)
+    - WRITE_FOCUS fix moves (post-tests obs -> WRITE_FOCUS action)
+
+    Args:
+        num_tasks: Number of demonstrations to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+        include_single_step: If True, also include single-step demos (for diversity)
+
+    Returns dict with:
+        - observations: [N, 512]
+        - action_bytes: [N, 64] - full action byte sequences
+        - num_samples: int
+    """
+    multistep_trajs = generate_multistep_demos(num_tasks, difficulty, seed)
+
+    all_obs = []
+    all_actions = []
+
+    for traj in multistep_trajs:
+        for obs, action in traj.steps:
+            all_obs.append(obs)
+            all_actions.append(action)
+
+    # Optionally add single-step demos for diversity
+    if include_single_step:
+        single_trajs = generate_expert_demos(num_tasks // 2, difficulty, seed + 1000)
+        for traj in single_trajs:
+            all_obs.append(traj.observation)
+            all_actions.append(traj.correct_action.action_bytes)
+
+    if not all_obs:
+        raise ValueError("No valid trajectories generated")
+
+    observations = torch.stack(all_obs)
+    action_bytes = torch.stack(all_actions)
+
+    return {
+        "observations": observations,
+        "action_bytes": action_bytes,
+        "num_samples": len(all_obs),
+        "num_run_tests": sum(1 for a in all_actions if a[0] == ActionType.RUN_TESTS.value),
+        "num_write_focus": sum(1 for a in all_actions if a[0] == ActionType.WRITE_FOCUS.value),
+    }
+
+
 if __name__ == "__main__":
     # Test expert trajectory generation
     print("Generating expert demonstrations...")
@@ -887,3 +1207,25 @@ if __name__ == "__main__":
     print(f"Observations shape: {dataset['observations'].shape}")
     print(f"Offset distribution: {dataset['offsets'].float().mean():.1f} +/- {dataset['offsets'].float().std():.1f}")
     print(f"Vocab distribution: {[(v, (dataset['vocab_idxs'] == v).sum().item()) for v in range(8)]}")
+
+    # Test multi-step trajectory generation
+    print("\n\n=== Testing Multi-Step Trajectories ===")
+    multistep_demos = generate_multistep_demos(num_tasks=10, difficulty=BugDifficulty.EASY, seed=42)
+    print(f"Generated {len(multistep_demos)} multi-step trajectories")
+
+    for i, demo in enumerate(multistep_demos[:3]):
+        print(f"\n--- MultiStep Demo {i+1} ---")
+        print(f"Bug type: {demo.bug_type}")
+        print(f"Fix: {demo.fix_description[:50]}...")
+        print(f"Steps: {len(demo.steps)}")
+        for j, (obs, action) in enumerate(demo.steps):
+            action_type = ActionType(action[0].item())
+            print(f"  Step {j+1}: {action_type.name} (obs shape: {obs.shape})")
+
+    # Test multi-step BC dataset
+    print("\n\nCreating multi-step BC dataset...")
+    ms_dataset = create_multistep_bc_dataset(num_tasks=100, difficulty=BugDifficulty.EASY, seed=42)
+    print(f"Dataset size: {ms_dataset['num_samples']}")
+    print(f"RUN_TESTS actions: {ms_dataset['num_run_tests']}")
+    print(f"WRITE_FOCUS actions: {ms_dataset['num_write_focus']}")
+    print(f"Observations shape: {ms_dataset['observations'].shape}")

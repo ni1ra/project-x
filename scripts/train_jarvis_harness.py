@@ -50,7 +50,11 @@ from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.repo_generator import (
     RepoGenerator, GeneratedRepo, BugDifficulty, generate_task_batch,
 )
-from src.harness.expert_trajectories import create_bc_dataset, compute_fix_offset_in_focus
+from src.harness.expert_trajectories import (
+    create_bc_dataset,
+    create_multistep_bc_dataset,
+    compute_fix_offset_in_focus,
+)
 from src.utils.gpu_guard import (
     GPUGuard,
     GPUGuardConfig,
@@ -406,6 +410,7 @@ class JarvisHarnessTrainer:
         bc_lr: float = 1e-3,
         jitter: int = 0,
         difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+        use_multistep: bool = False,
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -420,6 +425,7 @@ class JarvisHarnessTrainer:
             bc_lr: Learning rate for BC (higher than RL since supervised)
             jitter: Focus offset jitter +/- this value (for robustness)
             difficulty: Bug difficulty level for expert trajectory generation
+            use_multistep: If True, use multi-step demos with RUN_TESTS + WRITE_FOCUS
 
         Returns:
             Dictionary of final BC metrics
@@ -430,23 +436,35 @@ class JarvisHarnessTrainer:
         else:
             vocab_size = len(COMBINED_VOCAB)  # 21 items (TRIVIAL + EASY)
 
+        mode_str = "multi-step (RUN_TESTS + WRITE_FOCUS)" if use_multistep else "single-step"
         print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
-        print(f"Generating {num_demos} expert demonstrations (difficulty={difficulty.name}, vocab_size={vocab_size})...")
+        print(f"Generating {num_demos} expert demonstrations (difficulty={difficulty.name}, vocab_size={vocab_size}, mode={mode_str})...")
 
         # Generate expert dataset
         try:
-            dataset = create_bc_dataset(
-                num_tasks=num_demos,
-                difficulty=difficulty,
-                seed=42,
-                jitter=jitter,
-            )
+            if use_multistep:
+                dataset = create_multistep_bc_dataset(
+                    num_tasks=num_demos,
+                    difficulty=difficulty,
+                    seed=42,
+                    include_single_step=True,  # Mix both for diversity
+                )
+            else:
+                dataset = create_bc_dataset(
+                    num_tasks=num_demos,
+                    difficulty=difficulty,
+                    seed=42,
+                    jitter=jitter,
+                )
         except ValueError as e:
             print(f"Warning: Could not generate BC dataset: {e}")
             return {"bc_loss": float("nan"), "bc_accuracy": 0.0}
 
         num_samples = dataset["num_samples"]
         print(f"Generated {num_samples} valid expert trajectories")
+        if use_multistep:
+            print(f"  RUN_TESTS actions: {dataset.get('num_run_tests', 0)}")
+            print(f"  WRITE_FOCUS actions: {dataset.get('num_write_focus', 0)}")
 
         if num_samples < 10:
             print("Warning: Too few samples for BC pre-training")
@@ -454,9 +472,18 @@ class JarvisHarnessTrainer:
 
         # Move data to device
         observations = dataset["observations"].to(self.device)
-        offsets = dataset["offsets"].to(self.device)
-        vocab_idxs = dataset["vocab_idxs"].to(self.device)
-        lengths = dataset["lengths"].to(self.device)
+
+        # For multi-step BC, we have full action_bytes; for single-step, we build them
+        if use_multistep:
+            # Multi-step dataset provides full action bytes
+            action_bytes_all = dataset["action_bytes"].to(self.device).long()
+            has_separate_labels = False
+        else:
+            # Single-step dataset has separate offset/vocab/length labels
+            offsets = dataset["offsets"].to(self.device)
+            vocab_idxs = dataset["vocab_idxs"].to(self.device)
+            lengths = dataset["lengths"].to(self.device)
+            has_separate_labels = True
 
         # Create BC-specific optimizer (higher LR for supervised learning)
         bc_optimizer = Adam(self.brain.parameters(), lr=bc_lr)
@@ -483,9 +510,6 @@ class JarvisHarnessTrainer:
 
                 # Get batch data
                 obs_batch = observations[batch_idx]
-                offset_targets = offsets[batch_idx]
-                vocab_targets = vocab_idxs[batch_idx]
-                length_targets = lengths[batch_idx]
 
                 # Resize hidden states if needed
                 if actual_batch != bc_batch_size:
@@ -500,17 +524,25 @@ class JarvisHarnessTrainer:
                 output = self.brain(obs_batch, h, g, a, training=True)
 
                 # BC loss: maximize log probability of target actions
-                # Build target action tensor from (offset, vocab, length)
-                target_actions = torch.zeros(actual_batch, self.brain.config.action_bytes,
-                                            dtype=torch.long, device=self.device)
-                # Byte 0: action type = WRITE_FOCUS (16)
-                target_actions[:, 0] = 16
-                # Byte 1: offset (0-31)
-                target_actions[:, 1] = offset_targets
-                # Byte 3: length (0-3)
-                target_actions[:, 3] = length_targets
-                # Byte 25: vocab_idx (0-3)
-                target_actions[:, 25] = vocab_targets
+                if use_multistep:
+                    # Multi-step: use full action bytes from dataset
+                    target_actions = action_bytes_all[batch_idx]
+                else:
+                    # Single-step: build from separate labels
+                    offset_targets = offsets[batch_idx]
+                    vocab_targets = vocab_idxs[batch_idx]
+                    length_targets = lengths[batch_idx]
+
+                    target_actions = torch.zeros(actual_batch, self.brain.config.action_bytes,
+                                                dtype=torch.long, device=self.device)
+                    # Byte 0: action type = WRITE_FOCUS (16)
+                    target_actions[:, 0] = 16
+                    # Byte 1: offset (0-31)
+                    target_actions[:, 1] = offset_targets
+                    # Byte 3: length (0-3)
+                    target_actions[:, 3] = length_targets
+                    # Byte 25: vocab_idx (0-3)
+                    target_actions[:, 25] = vocab_targets
 
                 # Use evaluate_actions to get log probs of target actions
                 log_probs, entropy, values, _, _, _ = self.brain.evaluate_actions(
@@ -522,15 +554,22 @@ class JarvisHarnessTrainer:
                     z_t=output.z_t,
                 )
 
-                # BC loss = negative log probability of correct actions (sum over bytes)
-                # Focus on the important bytes (1, 3, 25) rather than all 64
-                # Weight offset and vocab more heavily
-                offset_log_prob = log_probs[:, 1]
-                length_log_prob = log_probs[:, 3]
-                vocab_log_prob = log_probs[:, 25]
-
-                # Original weights (reverted from 3.0 vocab experiment)
-                bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+                # BC loss = negative log probability of correct actions
+                if use_multistep:
+                    # Multi-step: train on ALL bytes (includes action type byte 0)
+                    # Weight byte 0 (action type) heavily since RUN_TESTS vs WRITE_FOCUS is critical
+                    action_type_log_prob = log_probs[:, 0]
+                    offset_log_prob = log_probs[:, 1]
+                    length_log_prob = log_probs[:, 3]
+                    vocab_log_prob = log_probs[:, 25]
+                    # Heavily weight action type since it determines everything else
+                    bc_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+                else:
+                    # Single-step: focus on important bytes (1, 3, 25)
+                    offset_log_prob = log_probs[:, 1]
+                    length_log_prob = log_probs[:, 3]
+                    vocab_log_prob = log_probs[:, 25]
+                    bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
 
                 bc_optimizer.zero_grad()
                 bc_loss.backward()
@@ -545,16 +584,35 @@ class JarvisHarnessTrainer:
                 epoch_losses.append(bc_loss.item())
 
                 # Compute accuracy using sampled actions (discrete)
-                # Use vocab_size based on difficulty (TRIVIAL=5, EASY+=21)
-                pred_offset_discrete = (output.action[:, 1].long() % 64)  # Full offset range
-                pred_vocab_discrete = (output.action[:, 25].long() % vocab_size)
-                pred_length_discrete = (output.action[:, 3].long() % 4)
+                if use_multistep:
+                    # Multi-step: check action type + offset + vocab + length
+                    pred_action_type = output.action[:, 0].long()
+                    pred_offset = output.action[:, 1].long() % 64
+                    pred_vocab = output.action[:, 25].long() % vocab_size
+                    pred_length = output.action[:, 3].long() % 4
 
-                correct = (
-                    (pred_offset_discrete == offset_targets) &
-                    (pred_vocab_discrete == vocab_targets) &
-                    (pred_length_discrete == length_targets)
-                ).sum().item()
+                    target_action_type = target_actions[:, 0]
+                    target_offset = target_actions[:, 1]
+                    target_vocab = target_actions[:, 25]
+                    target_length = target_actions[:, 3]
+
+                    correct = (
+                        (pred_action_type == target_action_type) &
+                        (pred_offset == target_offset) &
+                        (pred_vocab == target_vocab) &
+                        (pred_length == target_length)
+                    ).sum().item()
+                else:
+                    # Single-step: check offset + vocab + length only
+                    pred_offset_discrete = (output.action[:, 1].long() % 64)  # Full offset range
+                    pred_vocab_discrete = (output.action[:, 25].long() % vocab_size)
+                    pred_length_discrete = (output.action[:, 3].long() % 4)
+
+                    correct = (
+                        (pred_offset_discrete == offset_targets) &
+                        (pred_vocab_discrete == vocab_targets) &
+                        (pred_length_discrete == length_targets)
+                    ).sum().item()
                 epoch_correct += correct
                 epoch_total += actual_batch
 
@@ -1248,6 +1306,8 @@ def main():
                         help="Number of BC pre-training epochs (0 = skip BC)")
     parser.add_argument("--bc-demos", type=int, default=1000,
                         help="Number of expert demos for BC pre-training")
+    parser.add_argument("--bc-multistep", action="store_true",
+                        help="Use multi-step BC demos (RUN_TESTS + WRITE_FOCUS)")
     parser.add_argument("--bc-batch-size", type=int, default=128,
                         help="Batch size for BC pre-training")
     parser.add_argument("--bc-lr", type=float, default=1e-3,
@@ -1509,7 +1569,8 @@ def main():
         bc_metrics = None
         bc_dataset = None
         if args.bc_epochs > 0 and not args.bc_checkpoint:
-            print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos", flush=True)
+            mode_str = "multi-step" if args.bc_multistep else "single-step"
+            print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos ({mode_str})", flush=True)
             bc_metrics = trainer.pretrain_behavioral_cloning(
                 num_demos=args.bc_demos,
                 bc_epochs=args.bc_epochs,
@@ -1517,6 +1578,7 @@ def main():
                 bc_lr=args.bc_lr,
                 jitter=args.focus_jitter,
                 difficulty=difficulty,  # Pass difficulty for correct vocab size
+                use_multistep=args.bc_multistep,
             )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:

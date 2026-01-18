@@ -1307,8 +1307,10 @@ class RepoGenerator:
                 inject_wrong_quote,  # Re-enabled with TRIVIAL++ quote support
             ]
         elif difficulty == BugDifficulty.EASY:
-            # EASY: simple logic bugs (wrong operator, off-by-one)
-            injectors = [inject_wrong_operator, inject_off_by_one]
+            # EASY: simple logic bugs (wrong operator, off-by-one) + typos
+            # NOTE: inject_typo_keyword requires MICRO_VOCAB (219 tokens)
+            # to fix (e.g., 'retrun' -> 'return')
+            injectors = [inject_wrong_operator, inject_off_by_one, inject_typo_keyword]
         elif difficulty.value <= BugDifficulty.MEDIUM.value:
             injectors = [inject_wrong_operator, inject_off_by_one, inject_wrong_return]
         else:

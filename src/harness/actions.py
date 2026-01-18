@@ -88,6 +88,86 @@ EASY_VOCAB = [
 # Combined vocab for training that can handle both TRIVIAL and EASY
 COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB  # 21 items total
 
+# MICRO_VOCAB: Comprehensive vocabulary for byte-level edits
+# Designed based on frequency analysis of generated Python repos
+# Total: ~256 tokens for efficient byte prediction
+
+# ASCII printable characters (32-126 = 95 chars)
+ASCII_PRINTABLE = [chr(i) for i in range(32, 127)]  # 95 items
+
+# Common 2-character operators and sequences
+COMMON_DIGRAPHS = [
+    # Comparison operators
+    '==', '!=', '<=', '>=', '<>',
+    # Assignment operators
+    '+=', '-=', '*=', '/=', '%=', '//=', '**=', '&=', '|=', '^=',
+    # Arrow operators
+    '->', ':=',
+    # Double punctuation
+    '""', "''", '()', '[]', '{}', '::', '..', '//',
+    # Newline combinations
+    ':\n', ')\n', ']\n', '}\n', ',\n', '\n\n',
+    # Common spacing patterns
+    '  ', '\n ', ' =', '= ', ', ', ': ',
+]  # ~32 items
+
+# Common Python keywords and builtins
+PYTHON_KEYWORDS = [
+    'def', 'class', 'if', 'elif', 'else', 'for', 'while', 'try', 'except',
+    'finally', 'with', 'return', 'yield', 'import', 'from', 'as', 'is',
+    'in', 'not', 'and', 'or', 'True', 'False', 'None', 'self', 'pass',
+    'break', 'continue', 'raise', 'assert', 'lambda', 'async', 'await',
+]  # 35 items
+
+# Common Python builtins
+PYTHON_BUILTINS = [
+    'int', 'str', 'float', 'bool', 'list', 'dict', 'set', 'tuple',
+    'len', 'range', 'print', 'type', 'open', 'isinstance', 'hasattr',
+    'getattr', 'setattr', 'enumerate', 'zip', 'map', 'filter', 'sorted',
+]  # 23 items
+
+# Common identifier fragments (for completion/typo fixes)
+COMMON_FRAGMENTS = [
+    'self.', 'cls.', '__init__', '__name__', '__main__',
+    'def ', 'class ', 'import ', 'from ', 'return ',
+    'if ', 'for ', 'while ', 'with ', 'try:', 'except:',
+    '(self', ', self', 'self)', 'self,',
+    '    ', '        ',  # 4 and 8 space indents
+]  # ~20 items
+
+# Numeric literals
+COMMON_NUMBERS = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    '10', '100', '1000', '0.0', '1.0', '0.5',
+    ' + 1', ' - 1', ' * 2', ' / 2',
+]  # 20 items
+
+# Common typo fixes (pairs: wrong -> correct)
+TYPO_FIXES = [
+    # Common Python typos
+    'retrun', 'return',  # These are separate - use position
+    'improt', 'import',
+    'defitn', 'define',
+    'fucntion', 'function',
+    'calss', 'class',
+    'slef', 'self',
+    'treu', 'true',
+    'fasle', 'false',
+    'nonee', 'None',
+]  # These are examples - vocab just contains the correct versions
+
+# Build MICRO_VOCAB from components (deduplicated)
+_micro_vocab_set = set()
+_micro_vocab_set.update(ASCII_PRINTABLE)
+_micro_vocab_set.update(COMMON_DIGRAPHS)
+_micro_vocab_set.update(PYTHON_KEYWORDS)
+_micro_vocab_set.update(PYTHON_BUILTINS)
+_micro_vocab_set.update(COMMON_FRAGMENTS)
+_micro_vocab_set.update(COMMON_NUMBERS)
+
+# Sort by length (shorter first) then alphabetically for determinism
+MICRO_VOCAB = sorted(list(_micro_vocab_set), key=lambda x: (len(x), x))  # ~230 items
+
 
 @dataclass
 class JarvisAction:
@@ -307,6 +387,43 @@ def encode_action_v2(action: JarvisAction, max_bytes: int = ACTION_BYTES_V2) -> 
     return result
 
 
+def encode_action_v2_vocab(
+    action_type: ActionType,
+    offset: int,
+    length: int,
+    vocab_idx: int,
+    vocab_mode: int = 0,
+    max_bytes: int = ACTION_BYTES_V2,
+) -> torch.Tensor:
+    """
+    Encode action using vocabulary index (for BC training).
+
+    Args:
+        action_type: ActionType enum value
+        offset: Byte offset for edit (0-255)
+        length: Replacement length (0-3)
+        vocab_idx: Index into vocabulary
+        vocab_mode: 0=COMBINED_VOCAB, 1=MICRO_VOCAB
+        max_bytes: Action byte size (default 64)
+
+    Returns:
+        Tensor of shape [max_bytes]
+    """
+    result = torch.zeros(max_bytes, dtype=torch.uint8)
+
+    result[0] = action_type.value
+    result[1] = offset & 0xFF
+    result[2] = (offset >> 8) & 0xFF
+    result[3] = length & 0xFF
+    result[4] = (length >> 8) & 0xFF
+
+    # Vocab index and mode
+    result[25] = vocab_idx & 0xFF
+    result[26] = vocab_mode & 0xFF
+
+    return result
+
+
 def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     """
     Decode v2 action bytes.
@@ -344,16 +461,27 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     # Content (bytes 25-63)
     # Vocabulary-based content: Map first content byte to a fix vocabulary.
     # This lets the model learn "which fix to apply" instead of raw bytes.
-    # Vocabulary selection based on difficulty:
-    #   - TRIVIAL: 5 syntax tokens (colon, paren, comma, quotes)
-    #   - EASY: 21 tokens (TRIVIAL + operators for logic bugs)
+    #
+    # Vocabulary selection strategy:
+    #   - Byte 25: vocab index (primary token selector)
+    #   - Byte 26: vocab mode (0=COMBINED_VOCAB/legacy, 1=MICRO_VOCAB)
+    #
+    # For backwards compatibility:
+    #   - If byte 26 is 0 or unset, use COMBINED_VOCAB (21 items)
+    #   - If byte 26 is 1, use MICRO_VOCAB (219 items)
     content_raw = action_bytes[25:].cpu().numpy()
     if len(content_raw) > 0:
-        # Use COMBINED_VOCAB for all difficulties - this allows the model to
-        # learn which tokens to select based on goal bytes. The same checkpoint
-        # can then work for both TRIVIAL and EASY bugs.
-        vocab_idx = int(content_raw[0]) % len(COMBINED_VOCAB)
-        content = COMBINED_VOCAB[vocab_idx]
+        vocab_idx = int(content_raw[0])
+        vocab_mode = int(content_raw[1]) if len(content_raw) > 1 else 0
+
+        if vocab_mode == 1:
+            # MICRO_VOCAB mode: 219 tokens for byte-level edits
+            vocab_idx = vocab_idx % len(MICRO_VOCAB)
+            content = MICRO_VOCAB[vocab_idx]
+        else:
+            # Legacy COMBINED_VOCAB mode: 21 tokens (TRIVIAL + EASY)
+            vocab_idx = vocab_idx % len(COMBINED_VOCAB)
+            content = COMBINED_VOCAB[vocab_idx]
     else:
         content = ''
 
