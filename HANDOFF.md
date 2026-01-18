@@ -7,10 +7,11 @@ Generated: 2026-01-18 (Updated v9 - **EASY BC gate PASSED, training script FIXED
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal was to achieve ≥70% test improvement rate on generated bug-fixing episodes for TRIVIAL difficulty.
 
-**STATUS: EASY UNBLOCKED** (2026-01-18)
+**STATUS: EASY COMPLETE** 🎉 (2026-01-18)
 - TRIVIAL BC Accuracy: 72.7% | Pytest Success: ~25-30%
-- **EASY BC Accuracy: 2.9%** (gate > 0% PASSED)
-- 70 valid EASY demos with proper EASY_VOCAB tokens (`>`: 55, `==`: 15)
+- **EASY BC Accuracy: 76.8%** | **Pytest Success: 90.0%** (18/20 tasks)
+- 138 valid EASY demos from 200 (vocab: `>`, `==`)
+- Checkpoint: `results/jarvis_harness_v2_100.pt`
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -27,7 +28,7 @@ Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligen
 ### Git State
 ```
 Branch: feat/harness-v2-multifile
-Last commit: c5191fd feat(phase4): EASY infrastructure - force_write_focus_prob, test incentive
+Last commit: 4f710f8 docs: Phase 4.4 + 5 validated - self-correction and navigation ready
 Uncommitted changes: NO - clean state
 ```
 

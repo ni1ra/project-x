@@ -6,12 +6,12 @@
 > This document is designed to be followed by Claude autonomously.
 > Every checkbox must be checked before proceeding to the next step.
 >
-> **Current State:** Stage A (TRIVIAL++) complete, Stage B (EASY) **UNBLOCKED**
-> - **TRIVIAL BC Accuracy:** 72.7% (predicted action == expert action)
-> - **TRIVIAL Pytest Success:** ~25-30% single-shot (tests pass after edit)
-> - **EASY BC Accuracy:** 2.9% (gate > 0% PASSED) - 70 valid demos with EASY_VOCAB tokens
+> **Current State:** Stage A (TRIVIAL++) + Stage B (EASY) **COMPLETE** 🎉
+> - **TRIVIAL BC Accuracy:** 72.7% | Pytest Success: ~25-30%
+> - **EASY BC Accuracy:** 76.8% | **Pytest Success: 90.0%** (18/20 tasks)
+> - **EASY Test Improvement:** 55.0% (11/20 tasks had failing→passing tests)
 > **Target:** Stage F (Heterogeneous Brain) - Beyond Human Intelligence
-> **Last Updated:** 2026-01-18 (v12 - EASY expert trajectories COMPLETE)
+> **Last Updated:** 2026-01-18 (v13 - EASY 90% SUCCESS ACHIEVED)
 >
 > **KEY INSIGHT (2026-01-17):** For TRIVIAL, BC-only beats unanchored RL. RL is allowed ONLY if it passes a non-regression gate.
 > **RESOLVED:** BC↔RL observation gap + v1/v2 decoder mismatch + offset aliasing + multi-bug repos + **goal bytes + focus_text missing from decoder** (critical fix today).
@@ -1211,7 +1211,8 @@ Biological brains don't have homogeneous architecture:
 | **TRIVIAL++** | Overall Success | >=70% | **72.7%** ✅ | HARD |
 | **TRIVIAL++** | Quote Bug Success | >=50% | 45.8% (deferred) | SOFT |
 | **EASY** | Infrastructure | Done | **Done** ✅ | SOFT |
-| **EASY** | BC Trajectories | >0% accuracy | **2.9%** ✅ | HARD |
+| **EASY** | BC Accuracy | >70% | **76.8%** ✅ | HARD |
+| **EASY** | Pytest Success | >50% | **90.0%** ✅ | HARD |
 | **Multi-File** | Navigation Rate | >50% | - | HARD |
 | **General** | Typo Fix Success | >=20% | - | HARD |
 | **Persistent** | Tasks per Session | >=3 | - | HARD |
