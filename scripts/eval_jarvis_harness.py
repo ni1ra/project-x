@@ -120,10 +120,21 @@ def run_episode(
     write_focus_actions = env.state.write_focus_actions if env.state is not None else 0
     run_tests_actions = env.state.run_tests_actions if env.state is not None else 0
 
-    # Truthful metrics (2026-01-18): Filter out "free wins" where base=total
-    eligible = int(baseline_passing) < int(baseline_total)  # Task had a bug to fix
-    solved = success and eligible  # Actually fixed the bug (not a free win)
-    improved = (delta_tests_passing > 0) and eligible  # Made progress on a real task
+    # Truthful metrics (2026-01-18, updated 2026-01-19): Filter out "free wins"
+    # A task is eligible if there was a bug to fix:
+    # 1. base_passing < base_total (some tests fail)
+    # 2. base_total == 0 BUT tests_total > 0 (syntax error blocked tests, agent fixed it)
+    # A "free win" is ONLY when baseline tests all pass AND final tests all pass
+    baseline_was_broken = int(baseline_total) == 0 and tests_total > 0  # Syntax error case
+    baseline_had_failures = int(baseline_passing) < int(baseline_total)  # Test failure case
+    eligible = baseline_was_broken or baseline_had_failures
+
+    # Free win = baseline was already perfect (all tests passed from the start)
+    # This means base_passing == base_total > 0
+    is_free_win = (int(baseline_passing) == int(baseline_total)) and (int(baseline_total) > 0)
+
+    solved = success and eligible  # Actually fixed the bug
+    improved = (tests_passing > int(baseline_passing)) and eligible  # Made progress
 
     return EpisodeResult(
         success=success,
