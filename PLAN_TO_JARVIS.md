@@ -1121,16 +1121,20 @@ PYTHONPATH=. python scripts/train_jarvis_harness.py \
 | Recovery Rate | ≥80% on wrong edits | PENDING EVAL | ⚠️ NEXT |
 | Catastrophic Failures | ~0% | PENDING EVAL | ⚠️ NEXT |
 
-**Eval Results (2026-01-19, FIXED METRICS):**
-| Metric | 30 tasks | 100 tasks (held-out) |
-|--------|----------|---------------------|
-| Eligible tasks | 8/30 (26.7%) | 23/100 (23.0%) |
-| **SOLVED rate** | **100.0%** (8/8) | **100.0%** (23/23) |
-| **IMPROVED rate** | **100.0%** (8/8) | **100.0%** (23/23) |
+**Eval Results (2026-01-19, TRUTHFUL METRICS v2):**
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Eligible tasks | 100/100 (100%) | All tasks have syntax errors (base=0/0) |
+| **SOLVED rate** | **23.0%** (23/100) | Actually fixed the bug |
+| **IMPROVED rate** | **23.0%** (23/100) | Made code compile |
+| Free wins | 0 | No pre-passing tasks |
 
-**Key Finding:** Model achieves 100% success on tasks where fix results in runnable code!
-The remaining "FREE_WIN" cases (77/100) are tasks where agent wrote changes but code still has errors.
-This is a fix targeting problem, not a learning problem.
+**Key Finding:** Model achieves 23% success rate on TRIVIAL syntax error bugs.
+77/100 tasks either:
+- Hit action limit (11 tasks - stuck in loop)
+- Wrote changes but didn't fix the bug (66 tasks - targeting problem)
+
+**IMPORTANT:** Do NOT use `--force-write-focus` in eval! It converts COMPLETE_TASK to WRITE_FOCUS, corrupting files.
 
 #### 7.5.0 Fix Toxic Attractor (CRITICAL - 2-Step Closer Demos) ✅ IMPLEMENTED
 The 1-step closer demos (`h=0 → COMPLETE_TASK`) created a toxic attractor:

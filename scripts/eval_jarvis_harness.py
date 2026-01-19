@@ -122,12 +122,12 @@ def run_episode(
 
     # Truthful metrics (2026-01-18, updated 2026-01-19): Filter out "free wins"
     # A task is eligible if there was a bug to fix:
-    # 1. base_passing < base_total (some tests fail)
-    # 2. base_total == 0 BUT tests_total > 0 (syntax error blocked tests, agent fixed it)
-    # A "free win" is ONLY when baseline tests all pass AND final tests all pass
-    baseline_was_broken = int(baseline_total) == 0 and tests_total > 0  # Syntax error case
-    baseline_had_failures = int(baseline_passing) < int(baseline_total)  # Test failure case
-    eligible = baseline_was_broken or baseline_had_failures
+    # 1. base_total == 0 (syntax error blocked test collection - definitely has bug)
+    # 2. base_passing < base_total (some tests fail - has bug)
+    # A "free win" is ONLY when baseline tests all pass (base_passing == base_total > 0)
+    baseline_has_syntax_error = int(baseline_total) == 0  # Can't run tests = syntax error
+    baseline_had_failures = int(baseline_passing) < int(baseline_total)  # Some tests fail
+    eligible = baseline_has_syntax_error or baseline_had_failures
 
     # Free win = baseline was already perfect (all tests passed from the start)
     # This means base_passing == base_total > 0

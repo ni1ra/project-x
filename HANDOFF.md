@@ -1,18 +1,20 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-19 (v18 - **PHASE 7.5: 50k TRAINING COMPLETE**)
+Generated: 2026-01-19 (v19 - **PHASE 7.5: TRUTHFUL METRICS FIXED**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal is to achieve persistent autonomous operation (Jarvis-Operator mode).
 
-**STATUS: Phase 7.5 COMPLETE - 100% SOLVED ON ELIGIBLE TASKS** (2026-01-19)
+**STATUS: Phase 7.5 - 23% SOLVED ON 100 TRIVIAL TASKS** (2026-01-19)
 - **50k STEPS COMPLETED:** Entropy 0.28, Action diversity balanced
 - **FINAL DISTRIBUTION:** RT=28.3%, WF=33.9%, CT=36.2% (all > 10%)
 - **CHECKPOINT:** `results/jarvis_harness_v2_50000.pt`
-- **EVAL RESULT (100 tasks, held-out):** 100% solved on 23/100 eligible tasks!
-- **NEXT:** Fix targeting accuracy (77/100 writes didn't fix syntax errors)
+- **EVAL RESULT (100 tasks):** 23% solved (23/100 eligible) - TRUTHFUL METRICS
+- **CRITICAL FIX:** Eval eligible logic corrected (base=0/0 = syntax error, not free win)
+- **IMPORTANT:** Do NOT use `--force-write-focus` in eval (corrupts files via COMPLETE_TASK→WRITE_FOCUS)
+- **NEXT:** Improve targeting accuracy (77/100 writes didn't fix syntax errors)
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -30,14 +32,12 @@ Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligen
 
 ### Git State
 ```
-Branch: feat/harness-v2-multifile (12 commits ahead of origin)
-Last commit: bf11a0d fix(phase7.4g): reduce closer_ratio 0.25->0.05 to prevent entropy collapse
+Branch: feat/harness-v2-multifile
+Last commit: 6189c54 feat(phase7.5): 100% success on eligible tasks - final validation
 
-Uncommitted changes (PHASE 7.5 FIXES):
+Uncommitted changes (PHASE 7.5 TRUTHFUL METRICS FIX):
   - HANDOFF.md (this file)
-  - PLAN_TO_JARVIS.md (updated roadmap)
-  - scripts/train_jarvis_harness.py (+67 lines: action histogram logging)
-  - src/harness/expert_trajectories.py (+49 lines: 2-step closer demos)
+  - scripts/eval_jarvis_harness.py (fixed eligible logic)
 ```
 
 ### Environment Checkpoint
@@ -228,7 +228,7 @@ Order:
 | `src/harness/actions.py` | Action definitions incl. COMPLETE_TASK | Stable |
 | `src/harness/expert_trajectories.py` | BC demo generation | **MODIFIED** (2-step closers) |
 | `scripts/train_jarvis_harness.py` | Training script | **MODIFIED** (action histogram) |
-| `scripts/eval_jarvis_harness.py` | Evaluation with truthful metrics | Stable |
+| `scripts/eval_jarvis_harness.py` | Evaluation with truthful metrics | **MODIFIED** (fixed eligible logic) |
 | `PLAN_TO_JARVIS.md` | Full implementation roadmap | Updated |
 
 ---
@@ -251,10 +251,10 @@ PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py
     --bc-epochs 20 --bc-demos 500 \
     --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000
 
-# Run evaluation
+# Run evaluation (IMPORTANT: NO --force-write-focus flag!)
 PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
     --checkpoint results/jarvis_harness_v2_50000.pt \
-    --mode v2 --difficulty trivial --episodes 50 --persistent
+    --mode v2 --difficulty trivial --num-tasks 100 --seed 999
 ```
 
 ### Git
@@ -274,21 +274,21 @@ git push origin feat/harness-v2-multifile
 ```
 Continue WIRED-BRAIN Jarvis Harness. Read HANDOFF.md.
 
-STATUS: Phase 7.5 STABILIZATION READY (2026-01-19)
-- Phase 7.4g: Entropy 0.0999->0.1207 at 10k steps (RECOVERING, not collapsing!)
-- 4 files with Phase 7.5 fixes are UNCOMMITTED and ready to test
-- Key fix: 2-step closer demos to avoid h=0 toxic attractor
+STATUS: Phase 7.5 - 23% SOLVED ON 100 TRIVIAL TASKS (2026-01-19)
+- 50k training complete, entropy 0.28, action diversity balanced
+- Checkpoint: results/jarvis_harness_v2_50000.pt
+- Eval result: 23/100 tasks solved (TRUTHFUL METRICS)
 
-NEXT ACTION: Run Phase 7.5 training
-  PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-      --mode v2 --timesteps 200000 --difficulty trivial \
-      --persistent --tasks-per-episode 3 --scratchpad \
-      --num-envs 16 --action-bytes 64 --force-write-focus \
-      --bc-epochs 20 --bc-demos 500 \
-      --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000 \
-      2>&1 | tee /tmp/phase7_5_training.log
+IMPORTANT EVAL NOTES:
+- Do NOT use --force-write-focus in eval (corrupts files via COMPLETE_TASK→WRITE_FOCUS)
+- All 100 tasks are eligible (base=0/0 means syntax error, not free win)
 
-GATES: Entropy > 0.15 at 10k+, no action > 85%, COMPLETE_TASK > 10%
+NEXT ACTION: Run eval to verify
+  PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
+      --checkpoint results/jarvis_harness_v2_50000.pt \
+      --mode v2 --difficulty trivial --num-tasks 100 --seed 999
+
+NEXT IMPROVEMENT: Fix targeting accuracy (77/100 writes didn't fix bugs)
 
 DO NOT: Jump to Phase 6 (byte edits) or Phase 5.5 (navigation) yet.
 
@@ -297,15 +297,17 @@ See PLAN_TO_JARVIS.md for full roadmap. See MISTAKES.md for failure log.
 
 ---
 
-## EVAL TRUTHFULNESS (FIXED)
+## EVAL TRUTHFULNESS (FIXED - v2)
 
-Commit 97667ae fixed eval metrics to filter "free wins" (repos where base=total):
+Updated 2026-01-19: Fixed eligible logic. base=0/0 means SYNTAX ERROR (eligible), not free win.
 
 ```python
 # Truthful metrics now computed:
-eligible = (base_tests_passing < base_tests_total)  # Has a bug to fix
+baseline_has_syntax_error = (base_total == 0)  # Can't run tests = syntax error = has bug
+baseline_had_failures = (base_passing < base_total)  # Some tests fail = has bug
+eligible = baseline_has_syntax_error OR baseline_had_failures
 solved = success AND eligible  # Actually fixed the bug
-improved = (tests_passing > base_tests_passing) AND eligible  # Made progress
+improved = (tests_passing > base_passing) AND eligible  # Made progress
 
 # Output shows:
 # SOLVED: actually fixed eligible task
