@@ -474,3 +474,22 @@
 - Context compaction = context LOSS - must re-read everything
 
 ---
+
+## 2026-01-19 - Deep-Debug Should Have Been Used Earlier
+
+**What happened:** 
+Spent significant time running training with `--single-step` flag combined with `--bc-sequential`, which is fundamentally incompatible. The policy collapsed to 96.7% WRITE_FOCUS.
+
+**Root cause:** 
+Did not apply the deep-debug protocol early enough. Instead of hypothesizing and testing, I ran multiple training attempts hoping the issue would resolve itself.
+
+**The triple mismatch discovered via DEEP-DEBUG:**
+1. Single-step mismatch: BC teaches 4-step sequences, RL only allows 1 step
+2. Reward asymmetry: WRITE_FOCUS has dense reward, RUN_TESTS is sparse in single-step
+3. Observation shift: BC step 1 has 83% filled obs vs step 0's 13% - RL never reaches step 1
+
+**Lesson learned:**
+- USE DEEP-DEBUG MUCH MORE, EARLIER in the debugging process
+- When a training run shows unexpected behavior, don't retry with minor tweaks
+- Create diagnostic traps to isolate hypotheses before running expensive training
+- The DEEP-DEBUG protocol would have identified the root cause in minutes, not hours

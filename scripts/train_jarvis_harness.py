@@ -1318,17 +1318,45 @@ class JarvisHarnessTrainer:
             "total_loss": mean(total_losses),
         }
 
-    def train(self, total_timesteps: int, log_interval: int = 1000):
-        """Main training loop."""
+    def train(self, total_timesteps: int, log_interval: int = 1000, checkpoint_interval: int = 2000):
+        """Main training loop with action histogram tracking.
+
+        Phase 7.5: Added action histogram logging for diagnosing collapse patterns.
+        """
         print(f"=== RL TRAINING STARTED ===", flush=True)
         print(f"  Total timesteps: {total_timesteps:,}", flush=True)
         print(f"  Log interval: {log_interval}", flush=True)
+        print(f"  Checkpoint interval: {checkpoint_interval}", flush=True)
         start_time = time.time()
         updates = 0
+
+        # Action histogram tracking (Phase 7.5)
+        action_counts = {
+            "RUN_TESTS": 0,
+            "WRITE_FOCUS": 0,
+            "COMPLETE_TASK": 0,
+            "OTHER": 0,
+        }
+        last_histogram_step = 0
 
         while self.total_steps < total_timesteps:
             # Collect rollout
             rollout = self.collect_rollout()
+
+            # Track action histogram (Phase 7.5)
+            # Action type is byte 0 of action_bytes (matches ActionType enum values)
+            # ActionType.RUN_TESTS = 3, ActionType.WRITE_FOCUS = 16, ActionType.COMPLETE_TASK = 18
+            actions = rollout["actions"]  # [T, B, action_bytes]
+            action_types = actions[:, :, 0].cpu().numpy().flatten()  # Get first byte
+            for at in action_types:
+                if at == 3:  # RUN_TESTS (ActionType.RUN_TESTS.value)
+                    action_counts["RUN_TESTS"] += 1
+                elif at == 16:  # WRITE_FOCUS (ActionType.WRITE_FOCUS.value)
+                    action_counts["WRITE_FOCUS"] += 1
+                elif at == 18:  # COMPLETE_TASK (ActionType.COMPLETE_TASK.value)
+                    action_counts["COMPLETE_TASK"] += 1
+                else:
+                    action_counts["OTHER"] += 1
 
             # PPO update
             metrics = self.update(rollout)
@@ -1354,9 +1382,45 @@ class JarvisHarnessTrainer:
                 print(f"  Avg Reward: {avg_reward:.2f}", flush=True)
                 print(f"  Avg Length: {avg_length:.1f}", flush=True)
                 print(f"  GPU burns: exec={self._burn_call_count}, skip={self._burn_skip_count}", flush=True)
+
+                # Action histogram (Phase 7.5)
+                total_actions = sum(action_counts.values())
+                if total_actions > 0:
+                    rt_pct = 100 * action_counts["RUN_TESTS"] / total_actions
+                    wf_pct = 100 * action_counts["WRITE_FOCUS"] / total_actions
+                    ct_pct = 100 * action_counts["COMPLETE_TASK"] / total_actions
+                    ot_pct = 100 * action_counts["OTHER"] / total_actions
+                    print(f"  Action Histogram: RT={rt_pct:.1f}% WF={wf_pct:.1f}% CT={ct_pct:.1f}% Other={ot_pct:.1f}%", flush=True)
+
+                    # Collapse warning (Phase 7.5)
+                    max_pct = max(rt_pct, wf_pct, ct_pct, ot_pct)
+                    if max_pct > 85:
+                        print(f"  ⚠️ COLLAPSE WARNING: Single action > 85%!", flush=True)
+
                 print(flush=True)
 
+            # Checkpoint saving (Phase 7.5)
+            if checkpoint_interval > 0 and self.total_steps >= last_histogram_step + checkpoint_interval:
+                ckpt_path = f"results/jarvis_ckpt_{self.total_steps}.pt"
+                import os
+                os.makedirs("results", exist_ok=True)
+                torch.save({
+                    "brain_state_dict": self.brain.state_dict(),
+                    "total_steps": self.total_steps,
+                    "entropy": metrics.get("entropy", 0),
+                    "action_counts": dict(action_counts),
+                }, ckpt_path)
+                print(f"  Checkpoint saved: {ckpt_path}", flush=True)
+                last_histogram_step = self.total_steps
+
         print(f"Training complete: {self.total_steps:,} steps in {time.time() - start_time:.1f}s", flush=True)
+
+        # Final action histogram summary
+        total_actions = sum(action_counts.values())
+        if total_actions > 0:
+            print(f"Final Action Distribution:", flush=True)
+            for action_name, count in action_counts.items():
+                print(f"  {action_name}: {count:,} ({100*count/total_actions:.1f}%)", flush=True)
 
     def train_with_curriculum(
         self,
