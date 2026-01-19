@@ -1,18 +1,18 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-19 (v17 - **PHASE 7.5: READY TO RUN**)
+Generated: 2026-01-19 (v18 - **PHASE 7.5: 50k TRAINING COMPLETE**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal is to achieve persistent autonomous operation (Jarvis-Operator mode).
 
-**STATUS: Phase 7.5 STABILIZATION READY** (2026-01-19)
-- Phase 7.4g: Entropy recovered 0.0999 -> 0.1207 (below 0.15 but IMPROVING)
-- **THE FIX (Phase 7.5):** 2-step closer demos (RUN_TESTS -> COMPLETE_TASK) to avoid h=0 toxic attractor
-- **BC RESULTS:** Best Accuracy 67.0%, COMPLETE_TASK now 26% (was 0% in 7.4d!)
-- **IMPLEMENTED:** Action histogram logging + frequent checkpoints for real-time monitoring
-- **UNCOMMITTED:** 4 files with Phase 7.5 fixes ready to test
+**STATUS: Phase 7.5 TRAINING COMPLETE** (2026-01-19)
+- **50k STEPS COMPLETED:** Entropy 0.28, Action diversity balanced
+- **FINAL DISTRIBUTION:** RT=28.3%, WF=33.9%, CT=36.2% (all > 10%)
+- **CHECKPOINT:** `results/jarvis_harness_v2_50000.pt`
+- **EVAL RESULT:** 26.7% raw success, 76.7% wrote changes (baseline calc broken)
+- **NEXT:** Fix eval baseline calculation, run persistent eval with 3 tasks/session
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
