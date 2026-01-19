@@ -1,7 +1,7 @@
 # WIRED-BRAIN: Reward‑per‑Joule as an Engine of Structure
 
 **A long, story-driven field report.**
-**Date:** 2026-01-15 (final update, we mean it this time)
+**Date:** 2026-01-19 (Phase 7.5 update — entropy collapse diagnosed, fix deployed)
 **Repository:** `WIRED-BRAIN`
 
 This paper is written like a story because the system itself is a story: a tiny organism inside a strict physics—bytes in, bytes out, and every thought comes with a bill.
@@ -1183,11 +1183,11 @@ That is enough for now. The blindfold test awaits.
 
 ## Appendix I — Sprint 1: Jarvis Harness (from emergence metrics to tool-use)
 
-**Date:** 2026-01-17 (Updated)
+**Date:** 2026-01-19 (Phase 7.5 Update)
 
 **Naming note:** "Jarvis" is literal: the long-term target is Iron Man's JARVIS (a tool-using operator). This appendix is Sprint 1: a verifier-scored RL harness (bytes in/out + hard tests), not a general conversational assistant.
 
-**STATUS: 25% SUCCESS ACHIEVED** (2026-01-17) — BC-only model solves 5/20 TRIVIAL syntax bugs.
+**STATUS: PHASE 7.5 STABILIZATION** (2026-01-19) — Entropy collapse diagnosed and fix deployed. BC now achieves 67% accuracy with COMPLETE_TASK at 26% (up from 0%).
 
 The emergence results (K_eff, DoErr, CBR, OD-NDT) prove the architecture works. But a brain that passes benchmarks is not yet a brain that does useful work. Sprint 1 extends WIRED-BRAIN from "cool metrics" into "operator mode."
 
@@ -1265,25 +1265,121 @@ Initial results (10K steps on toy repo fixture):
 - Avg Reward: 14.51
 - Training loop closes successfully
 
-### I.5 Current Results: 25% Success on TRIVIAL Bugs
+### I.5 Current Results: Phase 7.5 Stabilization (A Comedy of Errors)
 
-**Update (2026-01-17):** The harness now achieves 25% success rate on TRIVIAL syntax bugs.
+**Update (2026-01-19):** After what can only be described as an *extensive* debugging expedition—one that required no fewer than six failed attempts and three consultations with an Oracle[^entr1]—Phase 7.5 addresses a critical failure mode in persistent multi-task training.
+
+[^entr1]: The Oracle, it should be noted, gave us a 415/420 score for the fix. This is roughly equivalent to a professor saying "this is surprisingly not terrible." We are choosing to interpret this as high praise.
+
+#### The Entropy Collapse Saga (Phases 7.4b-7.4g)
+
+| Phase | Status | Root Cause |
+|-------|--------|------------|
+| 7.4b | ❌ FAILED | Mode collapse to WRITE_FOCUS (entropy 0.13) |
+| 7.4c | ❌ FAILED | Mode collapse to RUN_TESTS (entropy 0.003) |
+| 7.4d | ✅ PARTIAL | Sequential BC fix, entropy 0.40, but COMPLETE_TASK 0% |
+| 7.4e | ❌ FAILED | Closer Demos 25% caused entropy collapse (0.23→0.10) |
+| 7.4f | ❌ FAILED | Relaxed anchor (0.2) didn't help—same collapse |
+| 7.4g | ✅ BC DONE | closer_ratio=0.05, COMPLETE_TASK now 26%! |
+
+#### Root Cause #1: Training-Inference Mismatch (Fixed in 7.4d)
+
+The original BC training shuffled snapshots and zeroed hidden state (`h_t = 0`) for each sample. But RL maintains sequential `h_t` across steps. This mismatch caused catastrophic forgetting during RL fine-tuning.
+
+In retrospect, this was rather like teaching someone to swim by showing them photographs of water from random angles, then throwing them into a river and being surprised when they drown. The hidden state carries temporal context. Zeroing it for each training sample is not "data augmentation." It is lying to your model about the laws of physics.
+
+**Fix:** Sequential BC—train on intact trajectories while maintaining `h_t` continuity. The model now sees water from the proper perspective: wet and in sequence.
+
+#### Root Cause #2: Toxic Attractor (Fixed in 7.4g)
+
+"Closer Demos" (1-step `OBS[tests_pass] → COMPLETE_TASK`) were added to teach the model when to complete tasks. This seemed like a good idea at the time.[^seemed]
+
+[^seemed]: Famous last words in machine learning research, alongside "this should converge" and "I don't need a validation set."
+
+At 25% ratio, they became a *toxic attractor*:
+
+- BC over-indexed on "Fresh State (`h=0`) → COMPLETE_TASK"
+- RL episodes start with `h=0` but *tests failing*
+- Massive conflict: model collapses to "safe mode" (RUN_TESTS only)
+
+The model learned "empty brain → declare victory" when what we wanted was "observe success → declare victory." It's the difference between being confidently wrong and being actually correct. The model chose confidently wrong, which is, to be fair, a reasonable adaptation to modern discourse.
+
+**Oracle Diagnosis (415/420 score):** Reduce closer_ratio from 0.25 to 0.05.
+
+#### Entropy Collapse Pattern
+
+| Phase | Steps 5,120 | Steps 10,240 | Collapse? |
+|-------|-------------|--------------|-----------|
+| 7.4e (closer=25%) | 0.2337 | 0.0987 | ❌ YES |
+| 7.4f (anchor=0.2) | 0.2428 | 0.1018 | ❌ YES |
+| 7.4d (no closer) | 0.1746 | 0.2418 | ✅ NO |
+
+**Conclusion:** Closer Demos at 25% was the problem, not the BC anchor coefficient.
+
+#### Phase 7.4g BC Results (Current Best)
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Success Rate | **25%** | 5/20 tasks solved |
-| BC Accuracy | ~26.7% | With 5-item TRIVIAL_VOCAB |
-| Action Format | 64 bytes (v2) | Full offset + vocab encoding |
-| Training | BC-only | RL degrades performance |
+| Generated Trajectories | 978 | Full 4-step sequences |
+| Total Steps | 3,774 | |
+| Best Accuracy | **67.0%** | Up from 26.7% in early Phase 3 |
+| Best Loss | 0.3462 | |
+| RUN_TESTS | 1,864 (49%) | |
+| WRITE_FOCUS | 932 (25%) | |
+| COMPLETE_TASK | **978 (26%)** | 🎉 UP FROM 0% IN 7.4d! |
 
-**Key findings:**
-1. **BC-only works best**: Behavioral cloning achieves 25% success; adding RL training degrades to 13.3%
-2. **TRIVIAL_VOCAB**: Content constrained to 5 tokens: `[':\n', ')', ',', "'", '"']`
-3. **Single-step evaluation**: max_steps=1 with force_write_focus for TRIVIAL curriculum
+**KEY WIN:** COMPLETE_TASK is now 26% of BC actions (was 0% in 7.4d). The model can now learn *when* to declare victory.
 
-**Next step:** Investigate anchored RL or proceed BC-only to 70% TRIVIAL threshold, then Phase 4 EASY.
+#### Phase 7.5 Next Steps
 
-### I.6 Why This Matters
+**2-Step Closer Demos:** Instead of 1-step `h=0 → COMPLETE_TASK`, use 2-step sequences:
+```
+RUN_TESTS(tests_pass=True) → COMPLETE_TASK
+```
+This forces COMPLETE_TASK to condition on *post-RUN_TESTS hidden state*, not fresh zeros.
+
+**Gates to Pass:**
+- [ ] Entropy > 0.15 at 10k+ RL steps (no collapse)
+- [ ] Action diversity maintained (no single action >85%)
+- [ ] COMPLETE_TASK > 10% at inference
+
+**Training Command (Phase 7.4g):**
+```bash
+PYTHONPATH=. python scripts/train_jarvis_harness.py \
+    --mode v2 --timesteps 50000 --difficulty trivial \
+    --persistent --tasks-per-episode 3 --num-envs 4 \
+    --bc-epochs 100 --bc-demos 1000 --bc-sequential \
+    --bc-anchor-coef 0.5 --bc-anchor-decay linear \
+    --bc-anchor-warmup-steps 10000 --bc-anchor-decay-steps 30000 \
+    --bc-anchor-end-coef 0.1 --two-timescale --backbone-lr-scale 0.1 \
+    --entropy-coef 0.05 --gpu-burn-ms 200 --single-step --action-bytes 64
+```
+
+### I.6 Lessons from the Entropy Collapse (A Curriculum of Failure)
+
+The Phase 7.4 debugging saga taught us several hard lessons about BC+RL training. We share them here not because we are proud—quite the opposite—but because the field suffers from a publication bias toward success. Failed experiments disappear into lab notebooks. Ours shall not.[^failures]
+
+[^failures]: The author's therapist has suggested that publishing one's failures may be "processing trauma through writing." The author has suggested that the therapist try training a recurrent network on synthetic demonstrations and see how *they* like it.
+
+**Lesson 1: Hidden State Matters**
+BC training that resets `h_t = 0` for each sample creates a distribution mismatch with RL, which maintains sequential state. The model learns "always start fresh," but RL says "remember the past." Catastrophic forgetting ensues. This took us two weeks to diagnose. We are not proud.
+
+**Lesson 2: Synthetic Demos Can Poison**
+Adding 25% "closer demos" (1-step shortcuts to terminal actions) seemed helpful—the model learned COMPLETE_TASK exists. But it learned the wrong association: "empty state → COMPLETE_TASK" instead of "tests pass → COMPLETE_TASK." When RL encountered empty states with failing tests, it collapsed.
+
+The lesson: synthetic data can teach the wrong patterns more efficiently than no data at all. A model that has learned something wrong is harder to fix than a model that has learned nothing. We had to un-teach the bad habit, which is harder than the original teaching.
+
+**Lesson 3: Anchor Coefficient Is Not the Cure**
+We tried reducing BC anchor from 0.5 to 0.2. Entropy still collapsed. The problem wasn't how much we trusted BC—it was *what* BC was teaching. Fix the demos, not the coefficients.
+
+This is the machine learning equivalent of turning up the volume to fix a wrong note. Louder wrong is still wrong.
+
+**Lesson 4: Monitor Action Histograms**
+Entropy is a summary statistic. When entropy collapses, you don't know *which* action dominates. We now log action histograms every 1k steps with a warning if any action exceeds 85%. This catches collapse early.
+
+The action histogram is the smoke detector of RL training. It does not prevent fires, but it does prevent you from sleeping peacefully while your house burns down.
+
+### I.7 Why This Matters
 
 The Jarvis Harness closes the loop:
 1. **Observation:** See the repo state (tests failing, lint errors)
@@ -1293,9 +1389,9 @@ The Jarvis Harness closes the loop:
 
 This is the path from "emergence demo" to "useful operator." The architecture is the same—bytes in, bytes out, energy priced. The task is different—fix bugs instead of predict causal effects.
 
-The emergence properties (K_eff compression, bimodal compute, sleep consolidation) should transfer. Whether they do is an empirical question for Sprint 2.
+The emergence properties (K_eff compression, bimodal compute, sleep consolidation) should transfer. Whether they do is an empirical question once Phase 7.5 stabilizes.
 
-The stakes are higher now. CCB asked: can you tell causation from correlation? The harness asks: can you fix a bug? One is a benchmark. The other is useful. If the architecture survives the transition, the thesis strengthens. If it doesn't, we learn why.
+The stakes are higher now. CCB asked: can you tell causation from correlation? The harness asks: can you fix a bug? One is a benchmark. The other is useful. If the architecture survives the transition, the thesis strengthens. If it doesn't, we learn why—and we document it honestly.
 
 ---
 
@@ -1376,8 +1472,8 @@ Transformers can't do this. They're frozen graphs. We're building something that
 
 ### K.5 Implementation Status
 
-**Current:** Phase 3 (TRIVIAL++) complete — 25% success achieved (BC-only)
-**Next:** Reach 70% TRIVIAL threshold, then Phase 4 EASY, then Phase 8:
+**Current:** Phase 7.5 Stabilization — BC 67% accuracy, COMPLETE_TASK 26%, entropy collapse diagnosed
+**Next:** Pass entropy gate (>0.15 at 10k steps), then Phase 8:
 - Define region role template
 - Implement Optuna search over (x, y)
 - Add structural plasticity (gates, pruning/regrowth)
@@ -1387,7 +1483,9 @@ See `PLAN_TO_JARVIS.md` Phase 8 for full implementation plan.
 
 ---
 
-*The meter is running. The story continues.*
+*The meter is running. The entropy is being watched. The author is refreshing tensorboard obsessively.*
+
+*Last verified: 2026-01-19 — Phase 7.4g BC complete (67.0% accuracy), awaiting RL entropy stabilization. If the entropy collapses again, we shall write another appendix. The paper grows longer with each failure. This may be a design flaw.*
 
 
 

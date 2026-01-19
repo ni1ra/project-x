@@ -1,18 +1,18 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-18 (Updated v14 - **PHASE 7.4g: REDUCED CLOSER RATIO**)
+Generated: 2026-01-19 (v17 - **PHASE 7.5: READY TO RUN**)
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
 WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal is to achieve persistent autonomous operation (Jarvis-Operator mode).
 
-**STATUS: Phase 7.4g IN PROGRESS - Reduced Closer Ratio** (2026-01-18)
-- Phase 7.4d Sequential BC: COMPLETE (entropy 0.4171, no mode collapse)
-- Phase 7.4e/f: FAILED (25% Closer Demos caused entropy collapse 0.23→0.10)
-- **THE FIX:** Reduced `closer_ratio` from 0.25 to 0.05 (Oracle 415 score)
-- Checkpoint: `results/jarvis_harness_v2_50000.pt` (7.4d backup)
-- Training: IN PROGRESS - waiting for BC training then RL entropy check at 10k steps
+**STATUS: Phase 7.5 STABILIZATION READY** (2026-01-19)
+- Phase 7.4g: Entropy recovered 0.0999 -> 0.1207 (below 0.15 but IMPROVING)
+- **THE FIX (Phase 7.5):** 2-step closer demos (RUN_TESTS -> COMPLETE_TASK) to avoid h=0 toxic attractor
+- **BC RESULTS:** Best Accuracy 67.0%, COMPLETE_TASK now 26% (was 0% in 7.4d!)
+- **IMPLEMENTED:** Action histogram logging + frequent checkpoints for real-time monitoring
+- **UNCOMMITTED:** 4 files with Phase 7.5 fixes ready to test
 
 ### What Problem Does It Solve?
 Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
@@ -24,13 +24,34 @@ Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligen
 - **Verifier:** pytest (ground-truth test pass/fail)
 - **GPU Guard:** Enforces >80% GPU utilization during training
 
+---
+
 ## 2. CURRENT STATUS
 
 ### Git State
 ```
-Branch: feat/harness-v2-multifile
-Last commit: c666171 docs: update PLAN_TO_JARVIS.md - mark all Gate D gates as COMPLETE
-Uncommitted changes: NO - clean state
+Branch: feat/harness-v2-multifile (12 commits ahead of origin)
+Last commit: bf11a0d fix(phase7.4g): reduce closer_ratio 0.25->0.05 to prevent entropy collapse
+
+Uncommitted changes (PHASE 7.5 FIXES):
+  - HANDOFF.md (this file)
+  - PLAN_TO_JARVIS.md (updated roadmap)
+  - scripts/train_jarvis_harness.py (+67 lines: action histogram logging)
+  - src/harness/expert_trajectories.py (+49 lines: 2-step closer demos)
+```
+
+### Environment Checkpoint
+```bash
+# GPU: NVIDIA GeForce RTX 5070 Ti, 16303 MiB (2254 MiB used)
+# Python: 3.12.3 (.venv/bin/python)
+# CWD: /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
+```
+
+### Key Checkpoints Available
+```
+results/jarvis_harness_v2_50000.pt  - Phase 7.4d backup (best so far)
+results/jarvis_harness_v2_500.pt   - Early checkpoint
+results/baseline_trivial_20pct.pt  - Baseline comparison
 ```
 
 ### Phase 7 Infrastructure (COMPLETE)
@@ -39,19 +60,11 @@ Uncommitted changes: NO - clean state
 | Persistent mode | DONE | `env.py` - `persistent_mode` config |
 | Task queue | DONE | `env.py` - `reset(task_queue=...)` |
 | COMPLETE_TASK action | DONE | `actions.py:18`, `env.py:1590` |
-| COMPLETE_TASK reward | **JUST FIXED** | Was broken: bonus went to episode_return, not step reward |
+| COMPLETE_TASK reward | **FIXED** | Was broken: bonus went to episode_return, not step reward |
 | Scratchpad (.jarvis_notes) | DONE | `env.py` - `scratchpad_enabled` |
 | GIT_CHECKOUT | DONE | `actions.py:11`, `env.py` |
 | GIT_RESET | DONE | `actions.py:10`, `env.py` |
 | Sleep module | DONE | `src/core/sleep.py`, `--enable-sleep` flag |
-
-### Critical Bug Fixed: COMPLETE_TASK Reward
-**Problem:** `_complete_current_task()` added bonus to `episode_return`, but `_compute_reward()` didn't return it. PPO never saw the bonus → agents loiter forever after solving.
-
-**Fix Applied:**
-- Added `completion_bonus_pending` field to HarnessState
-- `_complete_current_task()` sets pending bonus
-- `_compute_reward()` adds it to reward and clears it
 
 ### All Gates PASSED
 | Gate | Status | Evidence |
@@ -61,84 +74,116 @@ Uncommitted changes: NO - clean state
 | Gate 3: No bricked repos | PASS | Previous eval showed no crashes |
 | All 26 harness tests | PASS | `pytest tests/` passes |
 
-### Training In Progress
+---
+
+## 3. IMMEDIATE MOVES (What to Do Next)
+
+### The Entropy Problem
+**Root Cause Identified:** 1-step closer demos created a "toxic attractor"
+- BC over-indexed on "Fresh State (h=0) -> COMPLETE_TASK"
+- When RL starts with h=0 but tests failing: massive conflict
+- Agent collapses to single action ("safe mode")
+
+### Phase 7.5 Fixes IMPLEMENTED (Uncommitted)
+
+**1. 2-step closer demos** - `src/harness/expert_trajectories.py:1470-1509`
+```python
+# OLD (toxic): OBS[tests_pass, h=0] -> COMPLETE_TASK
+# NEW (safe): RUN_TESTS -> COMPLETE_TASK (h is post-RUN_TESTS, not h=0)
+```
+Forces COMPLETE_TASK to condition on post-RUN_TESTS hidden state, not fresh h=0.
+
+**2. Action histogram logging** - `scripts/train_jarvis_harness.py:1333-1422`
+- Tracks RT/WF/CT/OTHER percentages every 1k steps
+- Collapse warning if any action > 85%
+- Frequent checkpoints every 2k steps
+
+### NEXT ACTION: Run Phase 7.5 Training
 ```bash
-PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+cd /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
+
+# Run with PYTHONUNBUFFERED for real-time logs
+PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
     --mode v2 --timesteps 200000 --difficulty trivial \
     --persistent --tasks-per-episode 3 --scratchpad \
     --num-envs 16 --action-bytes 64 --force-write-focus \
     --bc-epochs 20 --bc-demos 500 \
-    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000
+    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000 \
+    2>&1 | tee /tmp/phase7_5_training.log
 ```
 
+### Gates to Pass
+- [ ] **Entropy > 0.15** at 10k+ RL steps
+- [ ] **No single action > 85%** over 1k window
+- [ ] **COMPLETE_TASK > 10%** at inference
+
+### If Training Succeeds (entropy > 0.15 at 20k)
+1. Commit Phase 7.5 changes
+2. Run full 200k training
+3. Run eval with `--checkpoint results/jarvis_harness_v2_latest.pt`
+
+### If Entropy Still Collapses
+Try these in order:
+1. Extend BC warmup to 20k steps (modify `--bc-anchor-decay-steps 120000`)
+2. Add -1.0 penalty for premature COMPLETE_TASK
+3. Try `--tasks-per-episode 1` to isolate multi-task issues
+
 ---
 
-## 3. IMMEDIATE MOVES (Gated Plan)
+## 4. PHASE HISTORY (What Worked, What Failed)
 
-### Phase 7.4d: Sequential BC ✅ COMPLETE (2026-01-18)
+### Phase 7.4d: Sequential BC - PASS (2026-01-18)
 **Solution:** Sequential BC (maintains h_t across steps)
 **Results:** Best Accuracy 63.7%, RL Entropy 0.4171 (healthy)
-**Gate A:** PARTIAL PASS (RUN_TESTS 67%, WRITE_FOCUS 33%, COMPLETE_TASK 0%)
+**Gate A:** PARTIAL (RUN_TESTS 67%, WRITE_FOCUS 33%, COMPLETE_TASK 0%)
 
-### Phase 7.4e: Closer Demos (25%) ❌ FAILED (2026-01-18)
-**Attempt:** Add 1-step trajectories: OBS[tests_pass] → COMPLETE_TASK
-**Result:** Entropy collapsed 0.23 → 0.10 at 10k steps
+### Phase 7.4e: Closer Demos (25%) - FAILED (2026-01-18)
+**Attempt:** Add 1-step trajectories: OBS[tests_pass] -> COMPLETE_TASK
+**Result:** Entropy collapsed 0.23 -> 0.10 at 10k steps
 
-### Phase 7.4f: Relaxed Anchor ❌ FAILED (2026-01-18)
-**Attempt:** Reduce anchor 0.5→0.2, increase entropy-coef 0.03→0.05
-**Result:** Same entropy collapse 0.24 → 0.10 at 10k steps
+### Phase 7.4f: Relaxed Anchor - FAILED (2026-01-18)
+**Attempt:** Reduce anchor 0.5->0.2, increase entropy-coef 0.03->0.05
+**Result:** Same entropy collapse 0.24 -> 0.10 at 10k steps
 
-### Phase 7.4g: Reduced Closer Ratio 🔄 IN PROGRESS (2026-01-18)
-**Problem:** 25% Closer Demos = "Toxic Attractor"
-- Over-indexed BC on "Fresh State (h=0) → COMPLETE_TASK"
-- When RL starts with h=0 but tests failing: massive conflict
-- Agent collapses to "Safe Mode"
+### Phase 7.4g: Reduced Closer Ratio - PARTIAL (2026-01-19)
+**Attempt:** Reduce `closer_ratio` from 0.25 to 0.05
+**BC Results:** 67.0% accuracy, COMPLETE_TASK 26% (was 0%!)
+**RL Results:**
+| Step | Entropy | Status |
+|------|---------|--------|
+| 5,120 | 0.0999 | Below 0.15 |
+| 10,240 | 0.1207 | RECOVERING (not collapsing!) |
 
-**Solution (Oracle 415 score):** Reduce `closer_ratio` from 0.25 to 0.05
-
-**Implementation:**
-1. ✅ Edit `expert_trajectories.py`: Change `closer_ratio=0.05`
-2. ✅ Keep `--entropy-coef 0.05`
-3. ✅ Restore `--bc-anchor-coef 0.5`
-4. 🔄 Run training, verify entropy > 0.15 at 10k steps
-
-**WARNING:** Attempt 3/4. If this fails, SLINGSHOT to new approach.
-
-### Phase 7.5: Final Validation (After Gate A passes)
-- [ ] Entropy > 0.15 at 10k steps
-- [ ] COMPLETE_TASK > 10%
-- [ ] `tasks_completed/session` increases
+**Key Insight:** Entropy is recovering, not collapsing like 7.4e/f. The 5% ratio helps but 2-step demos needed.
 
 ---
 
-## 4. STAGED ROADMAP TO JARVIS
+## 5. STAGED ROADMAP TO JARVIS
 
-See `PLAN_TO_JARVIS.md` for detailed roadmap.
+See `PLAN_TO_JARVIS.md` for full details.
 
 ### Completed Phases
-- Phase 0: Validate Current State - DONE
-- Phase 0.5: Sanity Gates - DONE (all passed)
-- Phase 1: Anchored RL Training - DONE
-- Phase 2: Commit and Establish Baseline - DONE
-- Phase 2.5: Offset Encoding Fix - DONE
-- Phase 3: Stage A - TRIVIAL++ - DONE (72.7%)
-- Phase 4: Stage B - EASY - DONE (90% with hints)
-- Phase 5: Navigation Infrastructure - DONE
+- Phase 0-2.5: Foundation (validation, sanity gates, baseline)
+- Phase 3: Stage A - TRIVIAL++ (72.7%)
+- Phase 4: Stage B - EASY (90% with hints)
+- Phase 5: Navigation Infrastructure
 
 ### Current Phase
 - **Phase 7: Stage E - Persistent Jarvis** - IN PROGRESS
   - 7.1-7.3 Infrastructure - COMPLETE
-  - 7.4 Training - IN PROGRESS
-  - 7.5 Evaluation - PENDING
+  - 7.4 Training - IN PROGRESS (entropy recovering)
+  - 7.5 Stabilization - READY TO RUN
 
 ### Future Phases
+- Phase 6: MICRO_VOCAB byte edits (AFTER Phase 7)
 - Phase 8: Heterogeneous Brain (Research Track)
 - Phase 9-12: Desktop, UI, Personal Jarvis
 
-### Phase Sequencing (Correct Order)
+### Phase Sequencing (IMPORTANT)
 **DO NOT chase "general byte edits" or "full navigation" yet.**
 
-1. **Persistence + developer loop** (Phase 7.4) ← YOU ARE HERE
+Order:
+1. Persistence + developer loop (Phase 7.4) <- YOU ARE HERE
 2. General edits via MICRO_VOCAB expansion (Phase 6)
 3. Navigation without auto-focus (Phase 5.5)
 4. Multi-file "real repos" as default
@@ -147,7 +192,7 @@ See `PLAN_TO_JARVIS.md` for detailed roadmap.
 
 ---
 
-## 5. "IF THINGS GO WRONG" PLAYBOOK
+## 6. "IF THINGS GO WRONG" PLAYBOOK
 
 ### Symptom: Policy does nothing (writes=0, run_tests=0)
 **Causes:** BC dataset missing "first move" states; action entropy collapsed
@@ -158,15 +203,16 @@ See `PLAN_TO_JARVIS.md` for detailed roadmap.
 **Fixes:** Log focus_file, focus_offset, len(focus_text); clamp offsets; temporarily force auto_focus_target=True
 
 ### Symptom: Solves tests but never calls COMPLETE_TASK
-**Cause:** No reward for COMPLETE_TASK ← **NOW FIXED**; No BC examples
-**Fix:** Patch reward ✅ DONE; Add BC steps with COMPLETE_TASK
+**Cause:** No reward for COMPLETE_TASK (NOW FIXED); No BC examples
+**Fix:** Patch reward - DONE; Add BC steps with COMPLETE_TASK - DONE
 
-### Symptom: RL regresses (BC 30% → RL 10-15%)
+### Symptom: RL regresses (BC 30% -> RL 10-15%)
 **Cause:** Anchor too weak, LR too high, PPO too aggressive
-**Fix:** Raise λ_bc; shorten rollouts; reduce LR (especially backbone); hard-stop on non-regression gate fail
+**Fix:** Raise bc-anchor-coef; shorten rollouts; reduce LR (especially backbone); hard-stop on non-regression gate fail
 
-### Symptom: Eval painfully slow / GPU bored
-**Fix:** Vectorize eval; async tests; cache repo generation
+### Symptom: Entropy collapses (<0.15)
+**Cause:** BC created toxic attractor (h=0 + COMPLETE_TASK)
+**Fix:** 2-step closer demos (Phase 7.5) - IMPLEMENTED
 
 ### Symptom: VRAM spikes / instability
 **Rule:** Never exceed 10GB total
@@ -174,24 +220,51 @@ See `PLAN_TO_JARVIS.md` for detailed roadmap.
 
 ---
 
-## 6. KEY FILES
+## 7. KEY FILES
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `src/harness/env.py` | Core environment with persistent mode | Updated |
-| `src/harness/actions.py` | Action definitions incl. COMPLETE_TASK | Updated |
-| `scripts/train_jarvis_harness.py` | Training script with new flags | Updated |
-| `scripts/eval_jarvis_harness.py` | Evaluation with truthful metrics | Updated |
-| `PLAN_TO_JARVIS.md` | Full implementation roadmap | Current |
+| `src/harness/env.py` | Core environment with persistent mode | Stable |
+| `src/harness/actions.py` | Action definitions incl. COMPLETE_TASK | Stable |
+| `src/harness/expert_trajectories.py` | BC demo generation | **MODIFIED** (2-step closers) |
+| `scripts/train_jarvis_harness.py` | Training script | **MODIFIED** (action histogram) |
+| `scripts/eval_jarvis_harness.py` | Evaluation with truthful metrics | Stable |
+| `PLAN_TO_JARVIS.md` | Full implementation roadmap | Updated |
 
 ---
 
-## 6. ENVIRONMENT
+## 8. COMMANDS
 
+### Development
 ```bash
-# GPU: NVIDIA GeForce RTX 5070 Ti, 16303 MiB
-# Python: 3.12.3 (.venv/bin/python)
-# CWD: /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
+# Activate environment
+cd /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
+
+# Run tests
+PYTHONPATH=. .venv/bin/python -m pytest tests/
+
+# Run training (Phase 7.5)
+PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+    --mode v2 --timesteps 200000 --difficulty trivial \
+    --persistent --tasks-per-episode 3 --scratchpad \
+    --num-envs 16 --action-bytes 64 --force-write-focus \
+    --bc-epochs 20 --bc-demos 500 \
+    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000
+
+# Run evaluation
+PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
+    --checkpoint results/jarvis_harness_v2_50000.pt \
+    --mode v2 --difficulty trivial --episodes 50 --persistent
+```
+
+### Git
+```bash
+# Check status
+git status
+
+# Commit Phase 7.5 changes (AFTER training succeeds)
+git add -A && git commit -m "feat(phase7.5): 2-step closer demos + action histogram logging"
+git push origin feat/harness-v2-multifile
 ```
 
 ---
@@ -201,24 +274,25 @@ See `PLAN_TO_JARVIS.md` for detailed roadmap.
 ```
 Continue WIRED-BRAIN Jarvis Harness. Read HANDOFF.md.
 
-STATUS: Phase 7.4e IN PROGRESS (2026-01-18)
-- Phase 7.4d Sequential BC: COMPLETE (entropy 0.4171, no mode collapse)
-- Gate A: PARTIAL PASS (RUN_TESTS 67%, WRITE_FOCUS 33%, COMPLETE_TASK 0%)
-- THE GAP: COMPLETE_TASK learned as step-position, not observation-condition
+STATUS: Phase 7.5 STABILIZATION READY (2026-01-19)
+- Phase 7.4g: Entropy 0.0999->0.1207 at 10k steps (RECOVERING, not collapsing!)
+- 4 files with Phase 7.5 fixes are UNCOMMITTED and ready to test
+- Key fix: 2-step closer demos to avoid h=0 toxic attractor
 
-CURRENT:
-- Phase 7.4e training with "Closer Demos" (Oracle 420 fix)
-- Closer Demos = 1-step OBS[tests_pass] → COMPLETE_TASK from fresh h_0
-- Verified: COMPLETE_TASK predictions now 29.4%
+NEXT ACTION: Run Phase 7.5 training
+  PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+      --mode v2 --timesteps 200000 --difficulty trivial \
+      --persistent --tasks-per-episode 3 --scratchpad \
+      --num-envs 16 --action-bytes 64 --force-write-focus \
+      --bc-epochs 20 --bc-demos 500 \
+      --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000 \
+      2>&1 | tee /tmp/phase7_5_training.log
 
-NEXT 3 MOVES:
-1. Wait for 7.4e training to complete
-2. Re-run Gate A: verify COMPLETE_TASK > 10%
-3. Run persistent eval (Gate C: tasks_completed/session)
+GATES: Entropy > 0.15 at 10k+, no action > 85%, COMPLETE_TASK > 10%
 
 DO NOT: Jump to Phase 6 (byte edits) or Phase 5.5 (navigation) yet.
 
-See PLAN_TO_JARVIS.md for roadmap. See MISTAKES.md for failure log.
+See PLAN_TO_JARVIS.md for full roadmap. See MISTAKES.md for failure log.
 ```
 
 ---

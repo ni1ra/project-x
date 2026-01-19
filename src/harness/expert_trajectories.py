@@ -1418,7 +1418,8 @@ def create_sequential_bc_dataset(
         difficulty: Bug difficulty level
         seed: Random seed
         seq_len: Sequence length (default 4 for persistent loop)
-        include_closer_demos: If True, add 1-step COMPLETE_TASK demos (Oracle 420 fix)
+        include_closer_demos: If True, add 2-step (RUN_TESTS→COMPLETE_TASK) demos
+            Phase 7.5 fix: 2-step avoids h=0 toxic attractor from original 1-step demos
         closer_ratio: Ratio of closer demos to add (default 0.05 = 1:20 ratio)
 
     Returns dict with:
@@ -1467,32 +1468,46 @@ def create_sequential_bc_dataset(
             elif action_type == ActionType.COMPLETE_TASK.value:
                 num_complete_task += 1
 
-    # Add "Closer Demos" - 1-step COMPLETE_TASK trajectories from fresh h_0
-    # These teach the model: "when tests pass, emit COMPLETE_TASK" as a reflex
+    # Add "Closer Demos" - 2-step (RUN_TESTS → COMPLETE_TASK) trajectories
+    # Phase 7.5 fix: Use 2-step instead of 1-step to avoid h=0 toxic attractor.
+    # This forces COMPLETE_TASK to be conditioned on post-RUN_TESTS hidden state,
+    # not fresh h=0. Keeps the benefit (learning completion reflex) without
+    # poisoning the episode start state.
     if include_closer_demos and num_closer_traj > 0:
-        # Extract step 4 (COMPLETE_TASK) observations and actions from full trajectories
-        closer_obs_list = []
-        closer_action_list = []
+        # Extract steps 3 and 4 (RUN_TESTS → COMPLETE_TASK) from full trajectories
+        # In a 4-step loop: step 2 is RUN_TESTS (verify), step 3 is COMPLETE_TASK
+        closer_run_tests_list = []  # Step 2: RUN_TESTS after fix
+        closer_complete_task_list = []  # Step 3: COMPLETE_TASK
         for traj in persistent_trajs:
             if len(traj.steps) >= 4:
-                # Step 4 is index 3 (0-indexed): the COMPLETE_TASK step
-                obs, action = traj.steps[3]
-                closer_obs_list.append(obs)
-                closer_action_list.append(action)
+                # Step 2 (index 2): RUN_TESTS to verify fix
+                obs_rt, action_rt = traj.steps[2]
+                # Step 3 (index 3): COMPLETE_TASK
+                obs_ct, action_ct = traj.steps[3]
+                closer_run_tests_list.append((obs_rt, action_rt))
+                closer_complete_task_list.append((obs_ct, action_ct))
 
-        # Add closer demos (sample with replacement if needed)
+        # Add 2-step closer demos (sample with replacement if needed)
         random.seed(seed + 9999)  # Different seed for closer sampling
         for i in range(num_closer_traj):
             traj_idx = num_full_traj + i
             # Sample from available closer demos
-            src_idx = i % len(closer_obs_list)
+            src_idx = i % len(closer_run_tests_list)
 
-            # 1-step trajectory: only step 0 is valid
-            observations[traj_idx, 0] = closer_obs_list[src_idx]
-            action_bytes[traj_idx, 0] = closer_action_list[src_idx]
+            # 2-step trajectory: step 0 = RUN_TESTS, step 1 = COMPLETE_TASK
+            obs_rt, action_rt = closer_run_tests_list[src_idx]
+            obs_ct, action_ct = closer_complete_task_list[src_idx]
+
+            observations[traj_idx, 0] = obs_rt
+            action_bytes[traj_idx, 0] = action_rt
             masks[traj_idx, 0] = True
 
-            num_complete_task += 1  # Count the closer demo
+            observations[traj_idx, 1] = obs_ct
+            action_bytes[traj_idx, 1] = action_ct
+            masks[traj_idx, 1] = True
+
+            num_run_tests += 1  # Count the RUN_TESTS step
+            num_complete_task += 1  # Count the COMPLETE_TASK step
 
     return {
         "observations": observations,  # [N, seq_len, 512]
