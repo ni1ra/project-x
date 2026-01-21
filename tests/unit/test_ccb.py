@@ -13,44 +13,32 @@ from src.benchmarks.ccb import (
     CCBEnvironment,
     CCBScorer,
     SCMParams,
-    float_to_bytes,
-    bytes_to_float,
-    array_to_bytes,
-    bytes_to_array,
+    float_to_byte_quantized,
+    byte_to_float_quantized,
     create_ccb_linear,
     create_ccb_nonlinear,
 )
 
 
-class TestByteConversion:
-    """Test byte conversion utilities."""
+class TestQuantization:
+    """Test quantized byte conversion utilities."""
 
     def test_float_round_trip(self):
-        """Test float → bytes → float conversion."""
-        values = [0.0, 1.0, -1.0, 3.14159, -2.71828]
+        """Test float → byte → float conversion (with quantization error)."""
+        values = [-2.0, -1.0, 0.0, 0.5, 1.0, 2.0]
 
         for val in values:
-            b = float_to_bytes(val)
-            recovered = bytes_to_float(b)
-            assert recovered == pytest.approx(val)
+            b = float_to_byte_quantized(val, min_val=-2.0, max_val=2.0)
+            recovered = byte_to_float_quantized(b, min_val=-2.0, max_val=2.0)
+            assert recovered == pytest.approx(val, abs=0.05)
 
-    def test_array_round_trip(self):
-        """Test array → bytes → array conversion."""
-        arr = np.array([0.0, 1.0, -1.0, 3.14], dtype=np.float32)
+    def test_clipping(self):
+        """Test that quantization clips out-of-range values."""
+        b_low = float_to_byte_quantized(-999.0, min_val=-2.0, max_val=2.0)
+        b_high = float_to_byte_quantized(999.0, min_val=-2.0, max_val=2.0)
 
-        byte_arr = array_to_bytes(arr)
-        recovered = bytes_to_array(byte_arr, arr.shape)
-
-        np.testing.assert_array_almost_equal(recovered, arr)
-
-    def test_array_to_bytes_shape(self):
-        """Test that array_to_bytes produces correct byte count."""
-        arr = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-
-        byte_arr = array_to_bytes(arr)
-
-        # Each float32 is 4 bytes
-        assert len(byte_arr) == 12
+        assert b_low == 0
+        assert b_high == 255
 
 
 class TestCCBEnvironmentByteOutput:
@@ -72,16 +60,17 @@ class TestCCBEnvironmentByteOutput:
         env = create_ccb_linear(seed=42)
         obs, info = env.reset()
 
-        # Decode Z and target_X from bytes
-        z_float = bytes_to_array(obs[:4], (1,))[0]
-        target_x_float = bytes_to_array(obs[4:8], (1,))[0]
+        # Decode Z and target_X from quantized bytes (2-byte observation)
+        z_float = byte_to_float_quantized(int(obs[0]), min_val=-2.0, max_val=2.0)
+        target_x_float = byte_to_float_quantized(int(obs[1]), min_val=-2.0, max_val=2.0)
 
         # Should be reasonable values
-        assert -10 < z_float < 10
+        assert -2 <= z_float <= 2
         assert -2 <= target_x_float <= 2
 
         # target_X should match info
-        assert target_x_float == pytest.approx(info["target_X"], abs=1e-6)
+        # Quantization introduces ~4/255 ≈ 0.016 error; allow a small tolerance.
+        assert target_x_float == pytest.approx(info["target_X"], abs=0.05)
 
     def test_step_returns_bytes(self):
         """Test that step returns byte observation."""

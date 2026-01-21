@@ -119,6 +119,12 @@ class TestRPJRolloutBuffer:
             "sigma": torch.rand(latent_dim) + 0.1,
             "g_t": torch.sigmoid(torch.randn(k_max)),
             "c_t": torch.rand(1),
+            # Stored compute decisions and previous states (TRUNCATED BPTT(1))
+            "k_r": 1,
+            "n_t": 0,
+            "prev_h": torch.randn(hidden_dim),
+            "prev_g": torch.sigmoid(torch.randn(k_max)),
+            "prev_a": torch.randint(0, 256, (1,), dtype=torch.long),
         }
 
     def test_add_and_position(self, buffer):
@@ -341,6 +347,11 @@ class TestTrainerUpdate:
                 sigma=torch.rand(latent_dim) + 0.1,
                 g_t=torch.sigmoid(torch.randn(k_max)),
                 c_t=torch.rand(1),
+                k_r=1,
+                n_t=0,
+                prev_h=torch.randn(hidden_dim),
+                prev_g=torch.sigmoid(torch.randn(k_max)),
+                prev_a=torch.randint(0, 256, (1,), dtype=torch.long),
             )
         trainer.buffer.compute_returns_and_advantages(last_value=0.0)
 
@@ -452,8 +463,8 @@ class TestIntegrationWithEnv:
         """Test collecting a single rollout."""
         from src.benchmarks.ccb import CCBEnvironment
 
-        brain, trainer = create_trainer(obs_dim=8, action_bytes=1, device="cpu")
         env = CCBEnvironment()
+        brain, trainer = create_trainer(obs_dim=env.observation_space_bytes, action_bytes=1, device="cpu")
 
         # Collect rollout
         stats = trainer.collect_rollout(env, num_steps=50)
@@ -467,8 +478,8 @@ class TestIntegrationWithEnv:
         """Test full training loop runs."""
         from src.benchmarks.ccb import CCBEnvironment
 
-        brain, trainer = create_trainer(obs_dim=8, action_bytes=1, device="cpu")
         env = CCBEnvironment()
+        brain, trainer = create_trainer(obs_dim=env.observation_space_bytes, action_bytes=1, device="cpu")
 
         # Train for 1 update
         config = PPOConfig(num_steps_per_update=64)
@@ -538,6 +549,11 @@ class TestComputeDecisionLearning:
                 sigma=torch.rand(latent_dim) + 0.1,
                 g_t=torch.sigmoid(torch.randn(k_max)),
                 c_t=torch.rand(1),
+                k_r=1,
+                n_t=0,
+                prev_h=torch.randn(hidden_dim),
+                prev_g=torch.sigmoid(torch.randn(k_max)),
+                prev_a=torch.randint(0, 256, (1,), dtype=torch.long),
             )
         trainer.buffer.compute_returns_and_advantages(last_value=0.0)
 

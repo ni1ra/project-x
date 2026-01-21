@@ -126,6 +126,29 @@ class TestSparseRouter:
             assert num_ones == k_r[i].item(), \
                 f"Sample {i}: expected {k_r[i].item()} active blocks, got {num_ones}"
 
+    def test_invalid_mask_does_not_corrupt_block0(self, router):
+        """
+        Regression test for CRITICAL bug:
+        invalid TopK positions must not zero out block 0 when k_r < k_max_batch.
+        """
+        batch_size = 2
+        h = torch.zeros(batch_size, HIDDEN_DIM)
+        k_r = torch.tensor([1, K_R_MAX])  # k_max_batch=4, sample 0 has invalid positions
+
+        # Force deterministic TopK indices [0, 1, 2, 3, ...] via router bias.
+        with torch.no_grad():
+            router.router.weight.zero_()
+            router.router.bias.copy_(torch.arange(NUM_BLOCKS, 0, -1, dtype=torch.float32))
+
+        _, hard = router(h, k_r, training=False)
+
+        # Sample 0 should keep block 0 active (not corrupted) and have exactly 1 routed block.
+        assert hard[0, 0].item() == 1.0
+        assert hard[0].sum().item() == 1.0
+
+        # Sample 1 should have exactly K_R_MAX routed blocks.
+        assert hard[1].sum().item() == float(K_R_MAX)
+
     def test_soft_weights_sum_to_one(self, router):
         """Soft weights should sum to 1 (softmax/Gumbel-softmax)."""
         batch_size = 4
@@ -319,6 +342,27 @@ class TestRPJSubstrate:
         assert output.routing_mask.shape == (batch_size, NUM_BLOCKS)
         assert output.cbr_t.shape == (batch_size,)
         assert output.bi_t.shape == (batch_size,)
+
+    def test_forward_pass_shapes_multibyte_prev_action(self):
+        """Substrate must support 32-byte previous-action context (Jarvis harness)."""
+        batch_size = 4
+        obs_dim = 64
+        action_bytes = 32
+
+        substrate = RPJSubstrate(obs_dim=obs_dim, action_bytes=action_bytes)
+        assert substrate.input_dim == obs_dim + LATENT_DIM + action_bytes + K_MAX
+
+        h = substrate.init_hidden(batch_size, torch.device("cpu"))
+        g = substrate.init_global_scalars(batch_size, torch.device("cpu"))
+
+        phi_obs = torch.randn(batch_size, obs_dim)
+        z_t = torch.randn(batch_size, LATENT_DIM)
+        a_prev = torch.randint(0, 256, (batch_size, action_bytes))
+
+        output = substrate(phi_obs, z_t, a_prev, h, g, training=True)
+
+        assert output.h_next.shape == (batch_size, HIDDEN_DIM)
+        assert output.g_t.shape == (batch_size, K_MAX)
 
     def test_output_type(self, substrate):
         batch_size = 2

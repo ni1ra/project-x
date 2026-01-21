@@ -5,19 +5,9 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 
 # Virtual environments
@@ -26,7 +16,7 @@ venv/
 ENV/
 env/
 
-# IDE
+# IDE/editor
 .idea/
 .vscode/
 *.swp
@@ -44,25 +34,30 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Local development
-*.log
 *.local
 .env
-.env.local
+.env.*
+*.log
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Project-specific
-*_SUMMARY.md
-HANDOFF.md
-diagnostics/
-
-# Training outputs
+# Training outputs / artifacts
+results/
+checkpoint_*.pt
 ccb_training_*.json
+emergence_analysis_*.json
+benchmark_scores_*.json
+training_*.log
 
-# Internal tracking (not for repo)
-CURR_WORK.md
-memory.md
+# Local/internal notes (kept out of git)
+*_SUMMARY.md
 ALL_WORK.md
+CURR_WORK.md
+HANDOFF.md
 MISTAKES.md
+memory.md
+diagnostics/
+.claude/
+.playwright-mcp/

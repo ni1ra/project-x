@@ -74,6 +74,7 @@ class Transition(NamedTuple):
     energy: float            # E_t
     code_len: float          # CodeLen_t
     z_t: torch.Tensor        # Latent z_t [latent_dim]
+    h_t: torch.Tensor        # Hidden state for encoding next_obs [hidden_dim]
 
 
 class SleepTrigger(nn.Module):
@@ -272,6 +273,80 @@ class PrioritizedReplayBuffer:
 
         return transitions, weights, indices
 
+    def sample_sequences(
+        self,
+        sequence_length: int,
+        batch_size: int,
+        beta: float = PRIORITY_BETA_START,
+    ) -> Tuple[List[List[Transition]], torch.Tensor, np.ndarray]:
+        """
+        Sample contiguous sequences in chronological order.
+
+        This is used for multi-step sleep dynamics training:
+            z_{t+i+1} targets are obtained by encoding each transition's next_obs.
+
+        Notes:
+        - Sequences never wrap past the newest transition.
+        - Sequences never cross an episode boundary (no done=True in the first
+          sequence_length-1 transitions).
+        """
+        if sequence_length < 1:
+            raise ValueError("sequence_length must be >= 1")
+
+        if self.size < sequence_length or batch_size <= 0:
+            return [], torch.empty(0), np.array([], dtype=np.int64)
+
+        # Indices in chronological (oldest -> newest) order.
+        if self.size < self.capacity:
+            time_indices = np.arange(self.size, dtype=np.int64)
+        else:
+            time_indices = (self.position + np.arange(self.size, dtype=np.int64)) % self.capacity
+
+        max_start_rank = self.size - sequence_length
+        candidate_ranks = np.arange(max_start_rank + 1, dtype=np.int64)
+
+        # Filter out sequences that cross episode boundaries.
+        if sequence_length > 1:
+            done_flags = np.fromiter(
+                (1 if self.buffer[i].done else 0 for i in time_indices),
+                dtype=np.int32,
+                count=self.size,
+            )
+            prefix = np.concatenate([[0], np.cumsum(done_flags, dtype=np.int32)])
+            end_exclusive = candidate_ranks + (sequence_length - 1)
+            window_sums = prefix[end_exclusive] - prefix[candidate_ranks]
+            eligible_ranks = candidate_ranks[window_sums == 0]
+        else:
+            eligible_ranks = candidate_ranks
+
+        if eligible_ranks.size == 0:
+            return [], torch.empty(0), np.array([], dtype=np.int64)
+
+        start_indices = time_indices[eligible_ranks]
+
+        # Priorities/probabilities for start indices.
+        priorities = self.priorities[start_indices]
+        probs = priorities / priorities.sum()
+
+        sample_size = min(batch_size, start_indices.shape[0])
+        chosen = np.random.choice(start_indices.shape[0], size=sample_size, p=probs, replace=False)
+
+        chosen_ranks = eligible_ranks[chosen]
+        chosen_start_indices = start_indices[chosen]
+        chosen_probs = probs[chosen]
+
+        # Importance sampling weights (normalized).
+        weights = (start_indices.shape[0] * chosen_probs) ** (-beta)
+        weights = weights / weights.max()
+        weights = torch.tensor(weights, dtype=torch.float32)
+
+        sequences: List[List[Transition]] = []
+        for rank in chosen_ranks:
+            seq_time_indices = time_indices[rank:rank + sequence_length]
+            sequences.append([self.buffer[i] for i in seq_time_indices])
+
+        return sequences, weights, chosen_start_indices
+
     def update_priorities(self, indices: np.ndarray, td_errors: np.ndarray):
         """Update priorities after learning."""
         for idx, td_error in zip(indices, td_errors):
@@ -357,9 +432,12 @@ class SleepModule(nn.Module):
         energy: float,
         code_len: float,
         z_t: torch.Tensor,
+        h_t: Optional[torch.Tensor] = None,
         td_error: Optional[float] = None,
     ):
         """Add experience to replay buffer."""
+        if h_t is None:
+            h_t = torch.zeros(self.config.hidden_dim, device=obs.device)
         transition = Transition(
             obs=obs.detach().cpu(),
             action=action.detach().cpu(),
@@ -369,6 +447,7 @@ class SleepModule(nn.Module):
             energy=energy,
             code_len=code_len,
             z_t=z_t.detach().cpu(),
+            h_t=h_t.detach().cpu(),
         )
         self.replay_buffer.add(transition, td_error)
 
@@ -390,6 +469,7 @@ class SleepModule(nn.Module):
         next_obs = torch.stack([t.next_obs for t in transitions])
         dones = torch.tensor([t.done for t in transitions], dtype=torch.float32)
         z_t = torch.stack([t.z_t for t in transitions])
+        h_t = torch.stack([t.h_t for t in transitions])
 
         batch = {
             'obs': obs,
@@ -398,6 +478,7 @@ class SleepModule(nn.Module):
             'next_obs': next_obs,
             'dones': dones,
             'z_t': z_t,
+            'h_t': h_t,
         }
 
         return batch, weights, indices

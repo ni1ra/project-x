@@ -238,7 +238,7 @@ class TestPipelineIntegration:
     def test_byte_interface_preserved(self):
         """Test that byte interface is used correctly throughout."""
         env = create_ccb_linear(seed=42, num_interventions=3)
-        agent = MF1Agent(obs_bytes=8, action_bytes=1)
+        agent = MF1Agent(obs_bytes=env.observation_space_bytes, action_bytes=1)
 
         obs, _ = env.reset()
 

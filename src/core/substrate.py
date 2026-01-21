@@ -44,6 +44,7 @@ class SubstrateOutput(NamedTuple):
     g_t: torch.Tensor             # Global scalars [batch, K_max]
     c_t: torch.Tensor             # Compute allocation [batch, 1]
     k_r: torch.Tensor             # Routed blocks count [batch]
+    n_t: torch.Tensor             # Rollout step count [batch] - for PPO stored decisions
     routing_mask: torch.Tensor    # Block routing mask [batch, B]
     cbr_t: torch.Tensor           # Compute burst ratio [batch]
     bi_t: torch.Tensor            # Broadcast index [batch]
@@ -88,7 +89,9 @@ class LNGRUCell(nn.Module):
     def forward(
         self,
         x_t: torch.Tensor,
-        h_t: torch.Tensor
+        h_t: torch.Tensor,
+        recurrent_A: Optional[torch.Tensor] = None,
+        recurrent_B: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Single GRU step with LayerNorm.
@@ -96,10 +99,47 @@ class LNGRUCell(nn.Module):
         Args:
             x_t: Input [batch, input_dim]
             h_t: Previous hidden state [batch, hidden_dim]
+            recurrent_A: Optional low-rank adapter A factors for the recurrent projection.
+                         Shapes:
+                           - [3*hidden_dim, rank] (non-batched)
+                           - [batch, 3*hidden_dim, rank] (batched per-env)
+            recurrent_B: Optional low-rank adapter B factors for the recurrent projection.
+                         Shapes:
+                           - [hidden_dim, rank] (non-batched)
+                           - [batch, hidden_dim, rank] (batched per-env)
 
         Returns:
             h_next: Next hidden state [batch, hidden_dim]
         """
+        def _apply_recurrent_adapter(x: torch.Tensor) -> torch.Tensor:
+            if recurrent_A is None or recurrent_B is None:
+                return torch.zeros(x.size(0), 3 * self.hidden_dim, device=x.device, dtype=x.dtype)
+
+            A = recurrent_A
+            B = recurrent_B
+
+            if A.dim() != B.dim():
+                raise ValueError(f"recurrent_A and recurrent_B must have same rank, got {A.dim()} and {B.dim()}")
+
+            if A.dim() == 3:
+                if A.size(0) != x.size(0) or B.size(0) != x.size(0):
+                    raise ValueError(
+                        f"batched recurrent adapter requires batch match: "
+                        f"A[0]={A.size(0)} B[0]={B.size(0)} batch={x.size(0)}"
+                    )
+                # x: [B, hidden], B: [B, hidden, r] -> [B, r]
+                x_B = torch.bmm(x.unsqueeze(1), B).squeeze(1)
+                # x_B: [B, r], A^T: [B, r, 3h] -> [B, 3h]
+                return torch.bmm(x_B.unsqueeze(1), A.transpose(1, 2)).squeeze(1)
+
+            if A.dim() == 2:
+                # x: [B, hidden], B: [hidden, r] -> [B, r]
+                x_B = x @ B
+                # x_B: [B, r], A^T: [r, 3h] -> [B, 3h]
+                return x_B @ A.t()
+
+            raise ValueError(f"unsupported adapter rank for recurrent_A/recurrent_B: {A.dim()}")
+
         # Pre-activation LayerNorm
         h_bar = self.ln_h(h_t)
 
@@ -107,8 +147,8 @@ class LNGRUCell(nn.Module):
         input_proj = self.W_input(x_t)
         W_z, W_r, W_h = input_proj.chunk(3, dim=-1)
 
-        # Compute all hidden projections at once
-        hidden_proj = self.U_hidden(h_bar)
+        # Compute all hidden projections at once (+ optional fast adapter)
+        hidden_proj = self.U_hidden(h_bar) + _apply_recurrent_adapter(h_bar)
         U_z, U_r, U_h = hidden_proj.chunk(3, dim=-1)
 
         # Update gate: z = σ(W_z x + U_z h̄)
@@ -119,7 +159,9 @@ class LNGRUCell(nn.Module):
 
         # Candidate: h̃ = tanh(W_h x + U_h LN(r ⊙ h̄))
         reset_h = self.ln_reset(r * h_bar)
-        h_tilde = torch.tanh(W_h + self.U_hidden(reset_h).chunk(3, dim=-1)[2])
+        hidden_proj_reset = self.U_hidden(reset_h) + _apply_recurrent_adapter(reset_h)
+        U_h_reset = hidden_proj_reset.chunk(3, dim=-1)[2]
+        h_tilde = torch.tanh(W_h + U_h_reset)
 
         # Output: h' = (1-z) ⊙ h + z ⊙ h̃
         h_next = (1 - z) * h_t + z * h_tilde
@@ -189,14 +231,39 @@ class SparseRouter(nn.Module):
             soft_weights = F.softmax(scores, dim=-1)
 
         # Hard TopK mask (straight-through)
-        # Handle variable k_r per sample
-        hard_mask = torch.zeros_like(soft_weights)
+        # JARVIS 420 FIX: Vectorized TopK - no Python loop, no .item() calls
+        # This enables torch.compile and removes CPU-GPU sync bottleneck
 
-        for i in range(batch_size):
-            k = int(k_r[i].item())
-            if k > 0:
-                _, topk_indices = torch.topk(scores[i], k)
-                hard_mask[i, topk_indices] = 1.0
+        # Use max k_r across batch for consistent TopK, then mask by actual k_r
+        k_max_batch = k_r.max().clamp(min=1, max=self.num_blocks).int()
+
+        # Get top-k indices for all samples at once
+        _, topk_indices = torch.topk(scores, k_max_batch, dim=-1)  # [B, k_max]
+
+        # Create hard mask using scatter
+        hard_mask = torch.zeros_like(soft_weights)
+        hard_mask.scatter_(1, topk_indices, 1.0)
+
+        # Mask out indices beyond each sample's k_r
+        # Create range tensor [0, 1, 2, ..., k_max-1] and compare with k_r
+        k_range = torch.arange(k_max_batch, device=k_r.device).unsqueeze(0)  # [1, k_max]
+        k_r_expanded = k_r.unsqueeze(1)  # [B, 1]
+        valid_mask = k_range < k_r_expanded  # [B, k_max] (bool)
+
+        # IMPORTANT: Do not scatter zeros for invalid positions.
+        # Invalid positions previously mapped to index 0, corrupting block 0.
+        # Route invalid positions into a sentinel column, then drop it.
+        sentinel = self.num_blocks  # one past the last valid block index
+        indices_for_scatter = topk_indices.clone()
+        indices_for_scatter[~valid_mask] = sentinel
+        hard_mask_ext = torch.zeros(
+            batch_size,
+            self.num_blocks + 1,
+            device=soft_weights.device,
+            dtype=soft_weights.dtype,
+        )
+        hard_mask_ext.scatter_(1, indices_for_scatter, 1.0)
+        hard_mask = hard_mask_ext[:, :self.num_blocks]
 
         # Straight-through: hard forward, soft backward
         if training:
@@ -325,6 +392,49 @@ class ComputeAllocator(nn.Module):
 
         return c_t, k_r, n_t, log_prob
 
+    def get_log_prob(
+        self,
+        h_t: torch.Tensor,
+        k_r: torch.Tensor,
+        n_t: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute log probability of given (k_r, n_t) decisions.
+
+        Used by PPO to compute importance ratio without resampling.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            k_r: Stored routed block count [batch]
+            n_t: Stored rollout step count [batch]
+
+        Returns:
+            log_prob: Log probability of (k_r, n_t) [batch]
+        """
+        # Compute c_t from current params
+        c_t = torch.sigmoid(self.w_c(h_t))  # [batch, 1]
+        c_t_squeezed = c_t.squeeze(-1).clamp(1e-6, 1 - 1e-6)  # [batch]
+
+        # k_r was stored as 1 + sample, so k_r_sample = k_r - 1
+        k_r_sample = (k_r - 1).float().clamp(0, self.k_r_max - 1)
+
+        # Create distributions with current c_t
+        k_r_dist = Binomial(
+            total_count=self.k_r_max - 1,
+            probs=c_t_squeezed
+        )
+        n_dist = Binomial(
+            total_count=self.n_max,
+            probs=c_t_squeezed
+        )
+
+        # Compute log probs of the stored values
+        log_prob_k = k_r_dist.log_prob(k_r_sample)
+        log_prob_n = n_dist.log_prob(n_t.float().clamp(0, self.n_max))
+        log_prob = log_prob_k + log_prob_n
+
+        return log_prob
+
 
 class GlobalScalarBroadcast(nn.Module):
     """
@@ -347,6 +457,13 @@ class GlobalScalarBroadcast(nn.Module):
         self.k_max = k_max
 
         self.W_g = nn.Linear(hidden_dim, k_max)
+
+        # K_eff COMPRESSION FIX: Bias Staggering
+        # Force ordered recruitment: Unit 0 is 'cheapest' to activate, Unit K is hardest
+        # Biases range from -1.0 (sigmoid~0.27) to -4.0 (sigmoid~0.02)
+        # This ensures first ~4-6 scalars can be used, rest are expensive
+        with torch.no_grad():
+            self.W_g.bias.data = torch.linspace(-1.0, -4.0, k_max)
 
     def forward(self, h_t: torch.Tensor) -> torch.Tensor:
         """
@@ -416,6 +533,7 @@ class RPJSubstrate(nn.Module):
         obs_dim: int,
         latent_dim: int = LATENT_DIM,
         hidden_dim: int = HIDDEN_DIM,
+        action_bytes: int = 1,
         num_blocks: int = NUM_BLOCKS,
         k_r_max: int = K_R_MAX,
         n_max: int = N_MAX,
@@ -426,15 +544,15 @@ class RPJSubstrate(nn.Module):
         self.obs_dim = obs_dim
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
+        self.action_bytes = action_bytes
         self.num_blocks = num_blocks
         self.k_r_max = k_r_max
         self.n_max = n_max
         self.k_max = k_max
 
-        # Input: [φ(o_t) || z_t || a_t || g_t]
-        # Note: a_t size depends on action space, assume 1 byte for now
-        # g_t from previous step (or zeros initially)
-        self.input_dim = obs_dim + latent_dim + 1 + k_max
+        # Input: [φ(o_t) || z_t || a_prev || g_prev]
+        # a_prev is byte-encoded with length = action_bytes.
+        self.input_dim = obs_dim + latent_dim + action_bytes + k_max
 
         # Core recurrent unit
         self.gru_cell = LNGRUCell(self.input_dim, hidden_dim)
@@ -448,8 +566,8 @@ class RPJSubstrate(nn.Module):
         # Global scalar broadcast
         self.global_broadcast = GlobalScalarBroadcast(hidden_dim, k_max)
 
-        # Value head: V(h_t) = w_V^T h_t + b_V (linear)
-        self.value_head = nn.Linear(hidden_dim, 1)
+        # Value head: V([h_t || g_t]) - conditions on g_t for K_eff gradient flow
+        self.value_head = nn.Linear(hidden_dim + k_max, 1)
 
         # Running statistics for CBR computation
         self.register_buffer('c_running_mean', torch.tensor(0.5))
@@ -470,7 +588,9 @@ class RPJSubstrate(nn.Module):
         a_prev: torch.Tensor,
         h_t: torch.Tensor,
         g_prev: torch.Tensor,
-        training: bool = True
+        training: bool = True,
+        recurrent_A: Optional[torch.Tensor] = None,
+        recurrent_B: Optional[torch.Tensor] = None,
     ) -> SubstrateOutput:
         """
         Single substrate step.
@@ -482,6 +602,8 @@ class RPJSubstrate(nn.Module):
             h_t: Current hidden state [batch, hidden_dim]
             g_prev: Previous global scalars [batch, k_max]
             training: Whether in training mode
+            recurrent_A: Optional low-rank adapter A factors [3*hidden, rank] or [batch, 3*hidden, rank]
+            recurrent_B: Optional low-rank adapter B factors [hidden, rank] or [batch, hidden, rank]
 
         Returns:
             SubstrateOutput containing next state and metrics
@@ -503,8 +625,8 @@ class RPJSubstrate(nn.Module):
         # Get routing mask
         soft_weights, hard_mask = self.router(h_t, k_r, training)
 
-        # GRU step (candidate next state)
-        h_candidate = self.gru_cell(x_t, h_t)
+        # GRU step (candidate next state) - with optional fast-weight adaptation
+        h_candidate = self.gru_cell(x_t, h_t, recurrent_A, recurrent_B)
 
         # Apply blockwise routing
         h_next = self.router.apply_routing(h_t, h_candidate, hard_mask)
@@ -517,12 +639,16 @@ class RPJSubstrate(nn.Module):
         cbr_t = c_t.squeeze(-1) / (self.c_running_mean + 1e-8)
 
         # Update running mean of c_t
+        # JARVIS 420 FIX: Clone tensors to avoid CUDAGraphs overwrite error
+        # In-place buffer updates break torch.compile graph capture
         if training:
             with torch.no_grad():
-                batch_mean = c_t.mean()
-                self.c_running_count += batch_size
-                alpha = min(0.01, batch_size / self.c_running_count)
-                self.c_running_mean = (1 - alpha) * self.c_running_mean + alpha * batch_mean
+                batch_mean = c_t.mean().clone()
+                new_count = self.c_running_count + batch_size
+                alpha = min(0.01, batch_size / (new_count + 1e-8))
+                new_mean = (1 - alpha) * self.c_running_mean.clone() + alpha * batch_mean
+                self.c_running_count.copy_(new_count)
+                self.c_running_mean.copy_(new_mean)
 
         # BI_t (Broadcast Index) - participation ratio over unit activations
         # BI_t = (Σ|u_i|)² / (d * Σu_i² + ε)
@@ -531,20 +657,26 @@ class RPJSubstrate(nn.Module):
         sum_sq = (u_t ** 2).sum(dim=-1)   # [batch]
         bi_t = (sum_abs ** 2) / (self.hidden_dim * sum_sq + 1e-8)
 
+        # Clone all tensors to avoid CUDAGraphs tensor overwrite error with torch.compile
         return SubstrateOutput(
-            h_next=h_next,
-            g_t=g_t,
-            c_t=c_t,
-            k_r=k_r,
-            routing_mask=hard_mask,
-            cbr_t=cbr_t,
-            bi_t=bi_t,
-            compute_log_prob=compute_log_prob,
+            h_next=h_next.clone(),
+            g_t=g_t.clone(),
+            c_t=c_t.clone(),
+            k_r=k_r.clone(),
+            n_t=n_t.clone(),
+            routing_mask=hard_mask.clone(),
+            cbr_t=cbr_t.clone(),
+            bi_t=bi_t.clone(),
+            compute_log_prob=compute_log_prob.clone() if compute_log_prob is not None else None,
         )
 
-    def get_value(self, h_t: torch.Tensor) -> torch.Tensor:
-        """Get value estimate from hidden state."""
-        return self.value_head(h_t).squeeze(-1)
+    def get_value(self, h_t: torch.Tensor, g_t: torch.Tensor = None) -> torch.Tensor:
+        """Get value estimate from [h_t || g_t] for K_eff gradient flow."""
+        if g_t is None:
+            g_t = torch.zeros(h_t.size(0), self.k_max, device=h_t.device)
+        context = torch.cat([h_t, g_t], dim=-1)
+        # Clone to avoid CUDAGraphs tensor overwrite error
+        return self.value_head(context).squeeze(-1).clone()
 
     def count_parameters(self) -> int:
         """Count total trainable parameters."""
@@ -594,6 +726,6 @@ if __name__ == "__main__":
     print(f"Routed blocks: {output.k_r.tolist()}")
     print(f"CBR: {output.cbr_t.tolist()}")
     print(f"BI: {output.bi_t.tolist()}")
-    print(f"Value: {substrate.get_value(output.h_next).tolist()}")
+    print(f"Value: {substrate.get_value(output.h_next, output.g_t).tolist()}")
 
     print("\n✓ Substrate forward pass works!")

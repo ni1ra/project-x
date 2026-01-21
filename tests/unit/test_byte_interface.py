@@ -101,7 +101,7 @@ class TestAutoregressiveActionDecoder:
         batch_size = 8
         h_t = torch.randn(batch_size, 512)
 
-        actions, log_probs = decoder(h_t)
+        actions, log_probs, action_mu = decoder(h_t)
 
         # Actions should be byte indices [0, 255]
         assert actions.shape == (batch_size, 4)
@@ -112,6 +112,7 @@ class TestAutoregressiveActionDecoder:
         # Log probs should be negative
         assert log_probs.shape == (batch_size, 4)
         assert (log_probs <= 0).all()
+        assert action_mu is None
 
     def test_greedy_decoding(self):
         """Test greedy decoding is deterministic."""
@@ -119,8 +120,8 @@ class TestAutoregressiveActionDecoder:
         h_t = torch.randn(1, 512)
 
         # Greedy should be deterministic
-        actions1, _ = decoder(h_t, greedy=True)
-        actions2, _ = decoder(h_t, greedy=True)
+        actions1, _, _ = decoder(h_t, greedy=True)
+        actions2, _, _ = decoder(h_t, greedy=True)
 
         assert torch.equal(actions1, actions2)
 
@@ -131,10 +132,10 @@ class TestAutoregressiveActionDecoder:
 
         # Sampling should occasionally differ
         torch.manual_seed(42)
-        actions1, _ = decoder(h_t, greedy=False)
+        actions1, _, _ = decoder(h_t, greedy=False)
 
         torch.manual_seed(123)
-        actions2, _ = decoder(h_t, greedy=False)
+        actions2, _, _ = decoder(h_t, greedy=False)
 
         # Not guaranteed but highly likely to differ
         # (if they're identical something might be wrong)
@@ -170,12 +171,12 @@ class TestAutoregressiveActionDecoder:
 
     def test_variable_action_length(self):
         """Test decoder works with different action lengths."""
-        decoder = AutoregressiveActionDecoder(hidden_dim=512, num_action_bytes=1)
+        decoder = AutoregressiveActionDecoder(hidden_dim=512, num_action_bytes=1, use_gaussian=False)
         h_t = torch.randn(4, 512)
 
         # Override with different lengths
-        actions_1, _ = decoder(h_t, num_bytes=1)
-        actions_8, _ = decoder(h_t, num_bytes=8)
+        actions_1, _, _ = decoder(h_t, num_bytes=1)
+        actions_8, _, _ = decoder(h_t, num_bytes=8)
 
         assert actions_1.shape == (4, 1)
         assert actions_8.shape == (4, 8)
