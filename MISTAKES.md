@@ -477,10 +477,10 @@
 
 ## 2026-01-19 - Deep-Debug Should Have Been Used Earlier
 
-**What happened:** 
+**What happened:**
 Spent significant time running training with `--single-step` flag combined with `--bc-sequential`, which is fundamentally incompatible. The policy collapsed to 96.7% WRITE_FOCUS.
 
-**Root cause:** 
+**Root cause:**
 Did not apply the deep-debug protocol early enough. Instead of hypothesizing and testing, I ran multiple training attempts hoping the issue would resolve itself.
 
 **The triple mismatch discovered via DEEP-DEBUG:**
@@ -493,3 +493,250 @@ Did not apply the deep-debug protocol early enough. Instead of hypothesizing and
 - When a training run shows unexpected behavior, don't retry with minor tweaks
 - Create diagnostic traps to isolate hypotheses before running expensive training
 - The DEEP-DEBUG protocol would have identified the root cause in minutes, not hours
+
+---
+
+### 2026-01-19 - CRITICAL: vocab_class_loss on Garbage Targets (75% of Samples)
+
+**What happened:**
+Added VocabClassificationHead to improve TRIVIAL_VOCAB token prediction. Applied vocab_class_loss to ALL BC samples. Result: model collapsed to 82% RUN_TESTS, SOLVED rate dropped from 23% to 12%.
+
+**Root cause:**
+1. vocab_class_loss used `target_actions[:, 25]` as the target (vocab_idx byte)
+2. Byte 25 ONLY has meaning for WRITE_FOCUS actions (action_type == 16)
+3. For RUN_TESTS (type 3) and COMPLETE_TASK (type 5), byte 25 is GARBAGE
+4. BC distribution: ~50% RUN_TESTS, ~25% WRITE_FOCUS, ~25% COMPLETE_TASK
+5. Training vocab loss on 75% garbage targets taught the model nonsense
+6. Model learned to spam RUN_TESTS to minimize the garbage loss
+
+**Score:** 250/420 (GRAVEYARD - actively hurt the model)
+
+**Recovery taken:** FIXED - Added mask to only compute vocab_class_loss when action_type == 16
+
+**Lesson:**
+- When adding auxiliary losses, verify the TARGET is meaningful for ALL samples
+- For action-byte losses, ALWAYS check which action types the byte applies to
+- Action encoding: byte 0 = action_type, byte 1 = offset, byte 25 = vocab_idx (WRITE_FOCUS ONLY)
+- A "helpful" auxiliary loss can DESTROY performance if applied to wrong data
+
+---
+
+### 2026-01-19 - Resumed Training Without BC Anchor (Policy Drift)
+
+**What happened:**
+After fixing vocab_class_loss masking, resumed training from a checkpoint. Training showed balanced action distribution (33% each for RT/WF/CT). But eval showed 0% SOLVED - model either does all-writes OR all-run_tests per episode.
+
+**Root cause:**
+1. Resumed training used `--bc-checkpoint` which loaded weights BUT set `bc_anchor_coef=0.0`
+2. Without BC anchor during RL, policy drifted away from expert behavior
+3. Balanced training distribution doesn't guarantee useful policy
+4. The model learned something, but not the correct state→action mapping
+
+**Score:** 300/420 (training was pointless - no BC anchor = no learning signal preservation)
+
+**Recovery taken:** RETRY - Fresh training with `--bc-anchor-coef 0.1` explicitly set
+
+**Lesson:**
+- When resuming training, VERIFY all critical hyperparameters are preserved
+- BC anchor is ESSENTIAL during RL for TRIVIAL tasks (sparse reward)
+- Balanced action distribution ≠ correct policy
+- Always check the training log for "bc_anchor_coef" when debugging RL issues
+
+---
+
+### 2026-01-19 - CRITICAL: "Lying Environment" Bug (PPO Sees Wrong Action-Reward Pairs)
+
+**What happened:**
+With env-side `--force-write-focus`, model trained to output 80% RUN_TESTS but eval showed 0% SOLVED. JARVIS Oracle diagnosed the root cause: PPO buffer recorded (original_action, forced_reward), creating a fundamental train/eval mismatch.
+
+**Root cause:**
+1. Agent outputs RUN_TESTS (Action 3)
+2. Environment secretly swaps to WRITE_FOCUS (Action 16) and returns positive reward
+3. PPO Buffer records: (Action=3, Reward=+1) ← **THE BUG**
+4. Gradient update MAXIMIZES probability of RUN_TESTS (wrong!)
+5. Result: Model outputs 80% RUN_TESTS, 15% WRITE_FOCUS during training
+6. At eval WITHOUT forcing: Model outputs RUN_TESTS only, never writes code
+
+**The fix (Upstream Teacher Forcing):**
+```python
+# BEFORE storing to PPO buffer:
+if self.upstream_teacher_forcing and random.random() < self.force_write_focus_prob:
+    action_to_store[:, 0] = 16  # Force WRITE_FOCUS
+    # Recompute log_prob for forced action
+    forced_log_prob = self.brain.action_decoder.get_log_prob(h_t, action_to_store, ...)
+    log_prob_to_store = forced_log_prob
+# Now PPO sees (forced_action, forced_log_prob, forced_reward) ← CORRECT
+```
+
+**Score:** 200/420 (GRAVEYARD - fundamental RL bug, wasted multiple training runs)
+
+**Recovery taken:** RETRY - Implemented upstream teacher forcing with calibrated probability
+
+**Lesson:**
+- **NEVER let environment silently transform actions** - PPO must see what actually happened
+- If you force an action, the forcing must happen BEFORE storing to PPO buffer
+- The action and log_prob stored must MATCH what the environment actually executes
+- "Forcing" that happens in env is LYING - PPO learns wrong associations
+- When debugging RL, trace the full path: model output → buffer storage → gradient update
+
+---
+
+### 2026-01-20 - CRITICAL: Trained with --single-step But Evaluated Multi-Step
+
+**What happened:**
+Fix 10 (Corrective Imitation) showed excellent training metrics - WF chosen rate went from 14% → 41%, CI mismatch dropped from 86% → 40%. But evaluation showed 0% SOLVED because training used `--single-step` flag. Model learned to write OR run_tests, but not the sequence: write → run_tests → verify.
+
+**Root cause:**
+1. Training with `--single-step` teaches single-action behavior only
+2. Model learned to output WRITE_FOCUS correctly when it saw a bug
+3. But it never learned to RUN_TESTS after writing to verify the fix
+4. Episodes in eval hit action_limit with either writes=5/run_tests=0 OR writes=0/run_tests=5
+5. Model learned two "modes" not a coherent workflow
+
+**Score:** 300/420 (correct approach, wrong hyperparameter - wasted training cycle)
+
+**Recovery taken:** RETRY - Running training WITHOUT `--single-step` to teach full sequence
+
+**Lesson:**
+- **Eval settings must match training settings** - if you train single-step, you can't expect multi-step behavior
+- Before running long training, verify the task structure matches desired eval behavior
+- Single-step training teaches "what action to take" but NOT "when to sequence actions"
+- For TRIVIAL bugs: need the loop WRITE → RUN_TESTS → (if pass) COMPLETE_TASK
+- The CI approach works - but only teaches action SELECTION, not action SEQUENCING
+
+---
+
+### 2026-01-20 - Fix 10 Multi-Step Training with --force-write-focus Still Has h_t Mismatch
+
+**What happened:**
+Fix 10 multi-step training showed good metrics: WF chosen 25%, RT 62% during training. But eval showed WF 6.7%, RT 100%. Model spammed RUN_TESTS at eval, rarely writing.
+
+**Root cause:**
+1. Training used `--force-write-focus` which forces env to execute WRITE_FOCUS
+2. CI loss teaches "output WRITE_FOCUS when oracle says so" - this worked
+3. BUT the h_t trajectory during training was based on forced WRITE_FOCUS actions
+4. At eval: no forcing → model outputs RUN_TESTS → different h_t → model keeps outputting RT
+5. The train/eval h_t mismatch persists even with CI because forcing still happens
+
+**Score:** 320/420 (CI works but --force-write-focus invalidates h_t trajectory)
+
+**Recovery taken:** RETRY - Train without --force-write-focus. Let CI correct the model on its natural trajectory.
+
+**Lesson:**
+- **CI needs to operate on the model's natural h_t trajectory**
+- If you force actions, CI learns "correct action GIVEN forced h_t" not "correct action GIVEN my h_t"
+- The fix: Remove --force-write-focus entirely, let model explore, use CI to correct
+- This is the same train/eval h_t mismatch that killed Fix 5-9 - forcing is the root cause
+
+---
+
+### 2026-01-20 - Fix 10b: Pure CI Alone Doesn't Transfer to Eval
+
+**What happened:**
+Fix 10b (pure CI, no --force-write-focus) showed excellent training metrics: WF 26%, RT 52%, CI mismatch dropping from 77% → 52%. But eval showed 0% writes and 100% RUN_TESTS in ALL 30 episodes.
+
+**Root cause:**
+1. CI teaches the model "output WRITE_FOCUS when oracle says so" during training
+2. But at eval, the model starts with initial h_t and outputs RUN_TESTS
+3. Once it outputs RUN_TESTS, h_t evolves into "RT mode" - an attractor state
+4. The model never escapes the RT attractor because CI only provides supervision, no penalty for bad behavior
+5. Training exploration (CI loss) happens, but the RL reward signal for RT is not sufficiently negative
+6. RUN_TESTS gives small positive reward (seeing test output), creating a local optimum
+
+**Score:** 300/420 (correct approach but missing negative signal for RT spam)
+
+**Recovery taken:** RETRY - Fix 10c: Add RT streak penalty (-0.1 per RT after 2 consecutive)
+
+**Lesson:**
+- **CI provides positive guidance but no negative signal for exploitable behaviors**
+- If an action has a local positive reward (RT shows test results), agent may spam it
+- Need explicit penalty to break RT attractor: "after 2 consecutive RTs, penalty kicks in"
+- The combination CI + RT penalty should work: CI teaches what to do, penalty teaches what NOT to do
+- Pure supervised learning (CI) isn't enough when RL rewards create attractors
+
+---
+
+### 2026-01-21 - CRITICAL: Environment Checkpoint Violation (Used Wrong Python)
+
+**What happened:**
+Ran `nvidia-smi` and saw GPU available. Ran `python3 --version` and saw Python 3.12.3. Assumed CUDA was available. Started training - it ran on CPU with 0% GPU utilization.
+
+**Root cause:**
+1. `nvidia-smi` shows GPU exists but doesn't verify PyTorch can use it
+2. System `python3` is NOT the venv Python with CUDA-enabled PyTorch
+3. Should have run `python3 -c "import torch; print(torch.cuda.is_available())"`
+4. **Violated ENVIRONMENT CHECKPOINT protocol** - checked hardware but not software
+
+**Score:** 200/420 (L100 violation - wasted time, wrong environment)
+
+**Recovery taken:** ABORT - Kill CPU training, use correct venv Python
+
+**Lesson:**
+- **ENVIRONMENT CHECKPOINT must verify CUDA IN PYTHON, not just nvidia-smi**
+- The command is: `.venv/bin/python -c "import torch; print(torch.cuda.is_available())"`
+- If CUDA=False, training WILL run on CPU and waste time
+- "GPU exists" ≠ "PyTorch can use GPU"
+- Always use `.venv/bin/python` not system `python3`
+
+---
+
+### 2026-01-21 - CRITICAL: No First Output After 7+ Minutes (Silent Training)
+
+**What happened:**
+Started self-paced smoke test. GPU showed 99% utilization. Waited 7+ minutes for first log output. Never came. Training was either stuck or output was completely buffered with no feedback.
+
+**Root cause:**
+1. Python stdout is BLOCK-BUFFERED when redirected to file (not line-buffered)
+2. Did not use `python -u` for unbuffered output
+3. Did not set a timeout for first output (should be <30 seconds)
+4. Assumed "GPU busy = training working" without verifying output
+5. v2 harness with pytest calls is SLOW - but 7 minutes for first output is unacceptable
+
+**Score:** 150/420 (L100 violation - wasted 7+ minutes of GPU time without feedback)
+
+**Recovery taken:** ABORT - Kill training, fix output buffering
+
+**Lesson:**
+- **ALWAYS use `python -u` for unbuffered output during training**
+- **First log output MUST appear within 30 seconds** - if not, something is wrong
+- **Set explicit timeout**: `timeout 60 python -u script.py || echo "STUCK"`
+- "GPU busy" does NOT mean "training is progressing correctly"
+- Silent training = blind training = waste of resources
+- The command should be: `PYTHONPATH=. .venv/bin/python -u scripts/train_jarvis_harness.py ...`
+
+---
+
+### 2026-01-21 - CRITICAL: GPU Burn Same-Stream Blocking Caused 30x Slowdown
+
+**What happened:**
+Self-paced training hung after "Patience episodes: 1" with no output. Deep-debug found that `collect_rollout()` took 16.3s when it should take 0.5s - a 30x slowdown.
+
+**Root cause:**
+GPU burn in `collect_rollout()` queued 2000+ matmuls on the default CUDA stream BEFORE the brain forward pass:
+```python
+# Lines 1162-1164: Queue 10 burns before reset
+for _ in range(10):
+    self._gpu_burn(sync=False)  # 10 * 100 = 1000 matmuls
+
+# Lines 1171-1172: Queue 10 MORE burns after reset
+for _ in range(10):
+    self._gpu_burn(sync=False)  # Another 1000 matmuls
+
+# Line 1182: Brain forward - BLOCKS waiting for 2000 matmuls!
+output = self.brain(obs, h, g, a_prev, training=True)
+```
+
+Even though `sync=False`, all ops on the same CUDA stream are serialized. The brain forward pass had to wait for 10+ seconds of GPU burn garbage math to complete first.
+
+**Score:** 420/420 diagnosis (JARVIS confirmed)
+
+**Recovery taken:** FIXED - Removed all GPU burns from `collect_rollout()`. Result: 74x speedup (16.3s → 0.22s).
+
+**Lesson:**
+- **GPU "async" operations are only async to the CPU, not to each other on the same stream**
+- **Burns intended to "keep GPU busy during CPU ops" actually BLOCK subsequent GPU ops**
+- With `async_tests=True`, env ops are already fast - burns solve a non-problem while creating a real one
+- **Before adding GPU optimization hacks, verify they actually help** - don't assume
+- The intention (keep GPU utilization high) was good, but the implementation (same-stream burn) was catastrophic
+- **Deep-debug diagnostic traps are invaluable** - trap #6 (manual rollouts) vs trap #7 (trainer rollouts) isolated the exact cause
+
