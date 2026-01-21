@@ -30,6 +30,7 @@ class BoredomConfig:
     novelty_target: float = 0.3       # R* - target RND error
     variance_target: float = 0.2      # sigma* - target reward variance
     performance_window: int = 100     # Episodes for delta_perf
+    stagnation_threshold: float = 0.05  # Consider stalled if |delta| < this
 
     # Component weights (must sum to ~1.0 for interpretability)
     w_novelty: float = 0.4            # Weight for novelty component
@@ -85,8 +86,7 @@ def compute_boredom(
     # Component 3: Learning plateau (stalled, NOT regressing)
     # Boredom rises when |delta| is near zero (stagnation), not when declining
     # Decline is a stress signal, not boredom
-    stagnation_threshold = 0.05  # Consider stalled if |delta| < 5%
-    plateau_term = max(0.0, stagnation_threshold - abs(performance_delta))
+    plateau_term = max(0.0, config.stagnation_threshold - abs(performance_delta))
 
     B = (
         config.w_novelty * novelty_term +
