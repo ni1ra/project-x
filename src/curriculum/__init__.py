@@ -21,7 +21,11 @@ from .controller import (
 )
 from .difficulty_mapping import (
     DifficultyParams,
+    SampledEpisodeParams,
     map_difficulty_to_params,
+    sample_episode_params,
+    stochastic_round,
+    describe_difficulty,
 )
 
 __all__ = [
@@ -36,5 +40,9 @@ __all__ = [
     "SelfPacedController",
     # Mapping
     "DifficultyParams",
+    "SampledEpisodeParams",
     "map_difficulty_to_params",
+    "sample_episode_params",
+    "stochastic_round",
+    "describe_difficulty",
 ]

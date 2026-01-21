@@ -6,35 +6,59 @@ Uses smooth interpolation so adjacent difficulties are nearly imperceptible.
 
 d=30 to d=31 is imperceptible.
 d=10 to d=50 is substantial but gradual.
+
+All discrete parameters use PROBABILISTIC scaffolding:
+- Boolean flags → probabilities, sampled per episode
+- Integer counts → stochastic rounding for smooth transitions
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
+
 
 @dataclass
 class DifficultyParams:
     """Task parameters derived from continuous difficulty d."""
-    # Code complexity
+    # Code complexity (use stochastic_round for actual values)
     min_lines: int
     max_lines: int
-    min_files: int
-    max_files: int
+    min_files_expected: float  # Expected value, use stochastic_round()
+    max_files_expected: float  # Expected value, use stochastic_round()
 
     # Bug characteristics
     bug_difficulty: int  # 1-5 mapping to BugDifficulty enum
 
-    # Scaffolding (hints and assistance)
-    provide_bug_line: bool       # Give the agent the bug location
-    auto_focus_target: bool      # Automatically focus on target file
-    force_write_focus_prob: float  # Probability to force WRITE_FOCUS action
-    use_trivial_vocab: bool      # Restrict to simple action vocabulary
+    # Scaffolding PROBABILITIES (sample per episode)
+    provide_bug_line_prob: float    # Probability to give bug location
+    auto_focus_target_prob: float   # Probability to auto-focus on target
+    force_write_focus_prob: float   # Probability to force WRITE_FOCUS action
+    use_trivial_vocab_prob: float   # Probability to use simple vocab
+
+
+def stochastic_round(x: float) -> int:
+    """
+    Stochastic rounding: floor(x) + Bernoulli(frac(x)).
+
+    This makes integer parameters smooth in expectation.
+    E.g., x=1.7 returns 1 with prob 0.3, 2 with prob 0.7.
+    """
+    floor_x = int(np.floor(x))
+    frac = x - floor_x
+    if np.random.random() < frac:
+        return floor_x + 1
+    return floor_x
 
 
 def map_difficulty_to_params(d: int) -> DifficultyParams:
     """
     Map continuous difficulty to task parameters with smooth interpolation.
+
+    All parameters are now SMOOTH:
+    - Integer counts use expected values (apply stochastic_round when sampling)
+    - Boolean flags are now probabilities (sample per episode)
 
     Anchor points:
     - d=1-10: Trivial (10-50 lines, 1 file, syntax bugs, full hints)
@@ -51,34 +75,34 @@ def map_difficulty_to_params(d: int) -> DifficultyParams:
     """
     d = max(1, min(100, d))
 
-    # Code complexity (linear interpolation between anchor points)
+    # Code complexity (linear interpolation - SMOOTH expected values)
     if d <= 10:
         min_lines, max_lines = 10, 50
-        min_files, max_files = 1, 1
+        min_files_exp, max_files_exp = 1.0, 1.0
     elif d <= 30:
         t = (d - 10) / 20
         min_lines = int(10 + t * 40)
         max_lines = int(50 + t * 50)
-        min_files = 1
-        max_files = 1 + int(t)  # 1-2 files
+        min_files_exp = 1.0
+        max_files_exp = 1.0 + t  # Smooth 1.0 → 2.0
     elif d <= 50:
         t = (d - 30) / 20
         min_lines = int(50 + t * 50)
         max_lines = int(100 + t * 100)
-        min_files = 1 + int(t)  # 1-2 files
-        max_files = 2 + int(t * 3)  # 2-5 files
+        min_files_exp = 1.0 + t  # Smooth 1.0 → 2.0
+        max_files_exp = 2.0 + t * 3  # Smooth 2.0 → 5.0
     elif d <= 70:
         t = (d - 50) / 20
         min_lines = int(100 + t * 100)
         max_lines = int(200 + t * 300)
-        min_files = 2 + int(t * 3)  # 2-5 files
-        max_files = 5 + int(t * 5)  # 5-10 files
+        min_files_exp = 2.0 + t * 3  # Smooth 2.0 → 5.0
+        max_files_exp = 5.0 + t * 5  # Smooth 5.0 → 10.0
     else:  # d > 70
         t = (d - 70) / 30
         min_lines = int(200 + t * 300)
         max_lines = int(500 + t * 500)
-        min_files = 5 + int(t * 5)  # 5-10 files
-        max_files = 10 + int(t * 10)  # 10-20 files
+        min_files_exp = 5.0 + t * 5  # Smooth 5.0 → 10.0
+        max_files_exp = 10.0 + t * 10  # Smooth 10.0 → 20.0
 
     # Bug difficulty mapping (1-5 enum values)
     if d <= 10:
@@ -92,22 +116,70 @@ def map_difficulty_to_params(d: int) -> DifficultyParams:
     else:
         bug_difficulty = 5  # EXPERT
 
-    # Scaffolding (gradual removal)
-    provide_bug_line = d <= 15      # Full hints only for very easy
-    auto_focus_target = d <= 25     # Auto-focus for easy
-    force_write_focus_prob = max(0.0, 1.0 - (d - 1) / 30)  # Fades to 0 by d=31
-    use_trivial_vocab = d <= 10     # Simple vocab for trivial only
+    # Scaffolding PROBABILITIES (smooth linear decay)
+    # provide_bug_line: 100% at d=1, 0% at d=20
+    provide_bug_line_prob = max(0.0, min(1.0, 1.0 - (d - 1) / 19))
+
+    # auto_focus_target: 100% at d=1, 0% at d=30
+    auto_focus_target_prob = max(0.0, min(1.0, 1.0 - (d - 1) / 29))
+
+    # force_write_focus: 100% at d=1, 0% at d=35
+    force_write_focus_prob = max(0.0, min(1.0, 1.0 - (d - 1) / 34))
+
+    # use_trivial_vocab: 100% at d=1, 0% at d=15
+    use_trivial_vocab_prob = max(0.0, min(1.0, 1.0 - (d - 1) / 14))
 
     return DifficultyParams(
         min_lines=min_lines,
         max_lines=max_lines,
-        min_files=min_files,
-        max_files=max_files,
+        min_files_expected=min_files_exp,
+        max_files_expected=max_files_exp,
         bug_difficulty=bug_difficulty,
-        provide_bug_line=provide_bug_line,
-        auto_focus_target=auto_focus_target,
+        provide_bug_line_prob=provide_bug_line_prob,
+        auto_focus_target_prob=auto_focus_target_prob,
         force_write_focus_prob=force_write_focus_prob,
-        use_trivial_vocab=use_trivial_vocab,
+        use_trivial_vocab_prob=use_trivial_vocab_prob,
+    )
+
+
+@dataclass
+class SampledEpisodeParams:
+    """Concrete parameters sampled for a single episode."""
+    min_lines: int
+    max_lines: int
+    min_files: int
+    max_files: int
+    bug_difficulty: int
+    provide_bug_line: bool
+    auto_focus_target: bool
+    force_write_focus: bool
+    use_trivial_vocab: bool
+
+
+def sample_episode_params(params: DifficultyParams) -> SampledEpisodeParams:
+    """
+    Sample concrete episode parameters from probabilistic DifficultyParams.
+
+    Use this to get actual values for a single episode:
+    - Expected file counts → stochastic rounded integers
+    - Probabilities → sampled booleans
+
+    Args:
+        params: DifficultyParams with expected values and probabilities
+
+    Returns:
+        SampledEpisodeParams with concrete values for this episode
+    """
+    return SampledEpisodeParams(
+        min_lines=params.min_lines,
+        max_lines=params.max_lines,
+        min_files=max(1, stochastic_round(params.min_files_expected)),
+        max_files=max(1, stochastic_round(params.max_files_expected)),
+        bug_difficulty=params.bug_difficulty,
+        provide_bug_line=np.random.random() < params.provide_bug_line_prob,
+        auto_focus_target=np.random.random() < params.auto_focus_target_prob,
+        force_write_focus=np.random.random() < params.force_write_focus_prob,
+        use_trivial_vocab=np.random.random() < params.use_trivial_vocab_prob,
     )
 
 
@@ -129,15 +201,24 @@ def describe_difficulty(d: int) -> str:
         d: Difficulty in [1, 100]
 
     Returns:
-        Description string
+        Description string with probabilistic scaffolding info
     """
+    params = map_difficulty_to_params(d)
+
     if d <= 10:
-        return f"d={d}: TRIVIAL - Single file, syntax bugs, full hints"
+        tier = "TRIVIAL"
     elif d <= 30:
-        return f"d={d}: EASY - 1-2 files, syntax/logic bugs, partial hints"
+        tier = "EASY"
     elif d <= 50:
-        return f"d={d}: MEDIUM - 2-5 files, logic/type bugs, no hints"
+        tier = "MEDIUM"
     elif d <= 70:
-        return f"d={d}: HARD - 5-10 files, state/import bugs, no hints"
+        tier = "HARD"
     else:
-        return f"d={d}: EXPERT - 10+ files, design bugs, no hints"
+        tier = "EXPERT"
+
+    return (
+        f"d={d}: {tier} - "
+        f"files={params.min_files_expected:.1f}-{params.max_files_expected:.1f}, "
+        f"bug_line={params.provide_bug_line_prob:.0%}, "
+        f"focus={params.auto_focus_target_prob:.0%}"
+    )

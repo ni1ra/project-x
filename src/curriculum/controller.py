@@ -30,6 +30,7 @@ class ControllerConfig:
     hysteresis_margin: float = 0.1     # Dead-band width (no adjustment if |B-S| < margin)
     min_patience_episodes: int = 30    # Cooldown after difficulty change
     difficulty_jitter_std: float = 5.0 # Gaussian noise for sampling
+    max_step_per_adjust: float = 3.0   # Cap on difficulty change per adjustment
 
     # Thresholds for triggering adjustment
     boredom_threshold: float = 0.3     # B must exceed this to increase difficulty
@@ -98,6 +99,8 @@ class SelfPacedController:
         if delta > 0 and boredom > self.config.boredom_threshold:
             # Boredom dominates - increase difficulty
             delta_d = self.config.k_boredom * boredom
+            # Cap step size to prevent overshooting into stress cliff
+            delta_d = min(delta_d, self.config.max_step_per_adjust)
             self.difficulty_target = min(
                 self.config.max_difficulty,
                 self.difficulty_target + delta_d
@@ -108,6 +111,8 @@ class SelfPacedController:
         elif delta < 0 and stress > self.config.stress_threshold:
             # Stress dominates - decrease difficulty
             delta_d = self.config.k_stress * stress
+            # Cap step size to prevent overshooting
+            delta_d = min(delta_d, self.config.max_step_per_adjust)
             self.difficulty_target = max(
                 self.config.min_difficulty,
                 self.difficulty_target - delta_d

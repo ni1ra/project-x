@@ -57,13 +57,18 @@ def compute_boredom(
     reward_variance: float,
     performance_delta: float,
     config: BoredomConfig,
+    success_rate_ema: float = 1.0,
+    competence_gate: float = 0.3,
 ) -> float:
     """
     Compute boredom signal from agent metrics.
 
-    B = w1 * max(0, R* - R_mean) +      # Novelty too low
-        w2 * max(0, sigma* - sigma(rewards)) +  # Variance too low
-        w3 * max(0, plateau_threshold - |delta_perf|)  # Learning stalled (NOT regressing)
+    Each component is NORMALIZED to [0,1] before weighting:
+    B = w1 * clamp((R* - R) / R*, 0, 1) +      # Novelty deficit ratio
+        w2 * clamp((σ* - σ) / σ*, 0, 1) +      # Variance deficit ratio
+        w3 * clamp((τ - |Δ|) / τ, 0, 1)        # Stagnation ratio
+
+    Then gated by competence to prevent "bored but failing" spiral.
 
     Args:
         novelty_ema: EMA of RND prediction error (lower = more predictable)
@@ -73,26 +78,50 @@ def compute_boredom(
             - near-zero = stalled (bored)
             - negative = regressing (NOT bored - this is stress territory)
         config: Boredom signal configuration
+        success_rate_ema: Current success rate for competence gating
+        competence_gate: Minimum success rate before boredom can rise
 
     Returns:
         Boredom signal in [0, 1]
     """
-    # Component 1: Low novelty (environment too predictable)
-    novelty_term = max(0.0, config.novelty_target - novelty_ema)
+    # Component 1: Low novelty - NORMALIZED to [0,1]
+    if config.novelty_target > 0:
+        novelty_term = max(0.0, min(1.0,
+            (config.novelty_target - novelty_ema) / config.novelty_target
+        ))
+    else:
+        novelty_term = 0.0
 
-    # Component 2: Low variance (outcomes too stable)
-    variance_term = max(0.0, config.variance_target - reward_variance)
+    # Component 2: Low variance - NORMALIZED to [0,1]
+    if config.variance_target > 0:
+        variance_term = max(0.0, min(1.0,
+            (config.variance_target - reward_variance) / config.variance_target
+        ))
+    else:
+        variance_term = 0.0
 
-    # Component 3: Learning plateau (stalled, NOT regressing)
+    # Component 3: Learning plateau - NORMALIZED to [0,1]
     # Boredom rises when |delta| is near zero (stagnation), not when declining
-    # Decline is a stress signal, not boredom
-    plateau_term = max(0.0, config.stagnation_threshold - abs(performance_delta))
+    if config.stagnation_threshold > 0:
+        plateau_term = max(0.0, min(1.0,
+            (config.stagnation_threshold - abs(performance_delta)) / config.stagnation_threshold
+        ))
+    else:
+        plateau_term = 0.0
 
     B = (
         config.w_novelty * novelty_term +
         config.w_variance * variance_term +
         config.w_plateau * plateau_term
     )
+
+    # Competence gate: prevent "bored but failing" spiral
+    # Only allow boredom if agent is actually succeeding
+    if competence_gate < 1.0:
+        competence = max(0.0, min(1.0,
+            (success_rate_ema - competence_gate) / (1.0 - competence_gate)
+        ))
+        B *= competence
 
     return min(1.0, B)  # Clamp to [0, 1]
 
@@ -106,9 +135,10 @@ def compute_stress(
     """
     Compute stress signal from agent metrics.
 
-    S = v1 * max(0, E_pred - E*) +      # Prediction error too high
-        v2 * max(0, P* - P_success) +   # Success rate too low
-        v3 * max(0, H* - H)             # Entropy collapsed
+    Each component is NORMALIZED to [0,1] before weighting:
+    S = v1 * clamp((E - E*) / (1 - E*), 0, 1) +   # Prediction error excess ratio
+        v2 * clamp((P* - P) / P*, 0, 1) +          # Success deficit ratio
+        v3 * clamp((H* - H) / H*, 0, 1)            # Entropy deficit ratio
 
     Args:
         pred_error_ema: EMA of RND prediction error (higher = more overwhelmed)
@@ -119,14 +149,31 @@ def compute_stress(
     Returns:
         Stress signal in [0, 1]
     """
-    # Component 1: High prediction error (overwhelmed)
-    pred_error_term = max(0.0, pred_error_ema - config.pred_error_threshold)
+    # Component 1: High prediction error - NORMALIZED to [0,1]
+    # How much above threshold, as fraction of remaining headroom
+    headroom = 1.0 - config.pred_error_threshold
+    if headroom > 0:
+        pred_error_term = max(0.0, min(1.0,
+            (pred_error_ema - config.pred_error_threshold) / headroom
+        ))
+    else:
+        pred_error_term = 0.0
 
-    # Component 2: Low success rate (failing repeatedly)
-    success_term = max(0.0, config.success_target - success_rate_ema)
+    # Component 2: Low success rate - NORMALIZED to [0,1]
+    if config.success_target > 0:
+        success_term = max(0.0, min(1.0,
+            (config.success_target - success_rate_ema) / config.success_target
+        ))
+    else:
+        success_term = 0.0
 
-    # Component 3: Entropy collapse (giving up)
-    entropy_term = max(0.0, config.entropy_target - entropy_ema)
+    # Component 3: Entropy collapse - NORMALIZED to [0,1]
+    if config.entropy_target > 0:
+        entropy_term = max(0.0, min(1.0,
+            (config.entropy_target - entropy_ema) / config.entropy_target
+        ))
+    else:
+        entropy_term = 0.0
 
     S = (
         config.v_pred_error * pred_error_term +
@@ -236,9 +283,15 @@ class SignalTracker:
         self,
         boredom_config: BoredomConfig,
         stress_config: StressConfig,
+        competence_gate: float = 0.3,
     ) -> tuple[float, float]:
         """
         Compute both boredom and stress signals.
+
+        Args:
+            boredom_config: Configuration for boredom computation
+            stress_config: Configuration for stress computation
+            competence_gate: Minimum success rate before boredom can rise
 
         Returns:
             Tuple of (boredom, stress) in [0, 1]
@@ -248,6 +301,8 @@ class SignalTracker:
             reward_variance=self.get_reward_variance(),
             performance_delta=self.get_performance_delta(),
             config=boredom_config,
+            success_rate_ema=self.success_rate_ema,
+            competence_gate=competence_gate,
         )
 
         stress = compute_stress(
