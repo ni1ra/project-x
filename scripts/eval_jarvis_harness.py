@@ -66,6 +66,7 @@ def run_episode(
     max_steps: int,
     *,
     step_sleep_s: float = 0.0,
+    stochastic: bool = False,
 ) -> EpisodeResult:
     obs = env.reset()
 
@@ -84,7 +85,8 @@ def run_episode(
     for _ in range(max_steps):
         obs_b = obs.unsqueeze(0).to(device)
         with torch.no_grad():
-            out = brain(obs_b, h, g, a_prev, training=False)
+            # stochastic=True enables sampling (exploration), False uses greedy argmax
+            out = brain(obs_b, h, g, a_prev, training=stochastic)
 
         action_bytes = out.action.clamp(0, 255).to(torch.uint8).squeeze(0).cpu()
         obs, reward, done, info = env.step(action_bytes)
@@ -171,6 +173,8 @@ def main():
     parser.add_argument("--seed", type=int, default=123, help="RNG seed")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--max-steps", type=int, default=100, help="Max tool actions per episode")
+    parser.add_argument("--stochastic", action="store_true",
+                        help="Use stochastic sampling instead of greedy argmax (test exploration)")
     parser.add_argument(
         "--step-sleep-s",
         type=float,
@@ -267,7 +271,7 @@ def main():
     try:
         for i, task in enumerate(tasks):
             env.set_task(task)
-            r = run_episode(brain, env, device, max_steps=args.max_steps, step_sleep_s=float(args.step_sleep_s))
+            r = run_episode(brain, env, device, max_steps=args.max_steps, step_sleep_s=float(args.step_sleep_s), stochastic=args.stochastic)
             results.append(r)
             writes = r.write_file_actions + r.write_focus_actions
             # Show eligible/solved status for truthful tracking

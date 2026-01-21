@@ -100,6 +100,33 @@ class HarnessConfig:
     task_completion_bonus: float = 5.0  # Reward for completing a task (COMPLETE_TASK)
     scratchpad_enabled: bool = False  # If True, allow .jarvis_notes scratchpad file
 
+    # FIX 10d: RT incentive control (reward landscape fix)
+    # The +0.3 RT bonus creates a local optimum for TRIVIAL tasks where RT spam is rewarded.
+    # For TRIVIAL: agent knows bug location, RT is verification not discovery. Disable bonus.
+    # For EASY+: RT discovers bugs, bonus may be useful. Enable if needed.
+    rt_incentive_enabled: bool = False  # If True, give +0.3 for first 3 RTs. Default OFF for TRIVIAL.
+
+    # FIX 10d.2: Verification loop incentive
+    # Reward RT AFTER at least one write (encourages write → test → repeat loop)
+    # Increased to 1.0 to strongly dominate over implicit WRITE rewards
+    rt_after_write_bonus: float = 1.0  # Bonus for RT when writes > 0 (verification, not spam)
+
+    # FIX 10d: RT spam termination (fail-fast rule)
+    # If agent runs tests 4+ times without ever writing, it's stuck. Terminate with penalty.
+    rt_spam_termination: bool = True   # If True, terminate when run_tests >= 4 and writes == 0
+    rt_spam_penalty: float = -1.0      # Penalty applied when terminated for RT spam
+
+    # FIX 10d.3: Unverified work penalty
+    # If agent writes but never runs tests, penalize (encourages verification loop)
+    # Increased to -2.0 to strongly discourage write-only episodes
+    unverified_work_penalty: float = -2.0  # Applied at episode end if writes > 0 and run_tests == 0
+
+    # FIX 10d.4: Consecutive write penalty
+    # Penalize writing without testing in between (encourages write → test → write pattern)
+    # Increased to -1.0 to strongly force alternation
+    consecutive_write_penalty: float = -1.0  # Applied on 2nd+ consecutive write without RT
+    consecutive_write_threshold: int = 1  # Allow 1 write before penalty starts
+
 
 @dataclass
 class Task:
@@ -164,6 +191,8 @@ class HarnessState:
     # Reward shaping for offset learning
     target_offset: Optional[int] = None  # Expected edit offset within focus (from Task)
     last_edit_offset: int = -1  # Offset of last WRITE_FOCUS action
+    # FIX 10d.4: Consecutive write tracking
+    writes_since_last_rt: int = 0  # Reset on RT, increment on write
 
     # Persistent mode state (v3)
     task_queue: List[Any] = field(default_factory=list)  # Remaining tasks in super-episode
@@ -559,10 +588,13 @@ class JarvisHarnessEnv:
 
         if action.action_type == ActionType.WRITE_FILE:
             self.state.write_file_actions += 1
+            self.state.writes_since_last_rt += 1  # FIX 10d.4
         elif action.action_type == ActionType.WRITE_FOCUS:
             self.state.write_focus_actions += 1
+            self.state.writes_since_last_rt += 1  # FIX 10d.4
         elif action.action_type == ActionType.RUN_TESTS:
             self.state.run_tests_actions += 1
+            self.state.writes_since_last_rt = 0  # FIX 10d.4: Reset on test
 
         if self.state.action_history and self.state.action_history[-1] == action_type:
             self.state.consecutive_same_action += 1
@@ -617,6 +649,14 @@ class JarvisHarnessEnv:
             done = True
             reason = "action_limit"
 
+        # FIX 10d: RT spam termination (fail-fast rule)
+        # If agent runs tests 4+ times without ever writing, it's stuck in RT attractor
+        if self.config.rt_spam_termination and not done:
+            total_writes = self.state.write_focus_actions + self.state.write_file_actions
+            if self.state.run_tests_actions >= 4 and total_writes == 0:
+                done = True
+                reason = "rt_spam_no_write"
+
         if not self.config.async_tests and action.action_type == ActionType.SUBMIT:
             done = True
             reason = "submitted"
@@ -636,6 +676,18 @@ class JarvisHarnessEnv:
 
         # Compute reward
         reward = self._compute_reward()
+
+        # FIX 10d: Apply RT spam penalty when terminated for RT spam
+        if reason == "rt_spam_no_write":
+            reward += self.config.rt_spam_penalty  # -1.0 default
+
+        # FIX 10d.3: Apply unverified work penalty at episode end
+        # Penalize writing without testing - encourages verification loop
+        if done and self.config.unverified_work_penalty != 0:
+            total_writes = self.state.write_focus_actions + self.state.write_file_actions
+            if total_writes > 0 and self.state.run_tests_actions == 0:
+                reward += self.config.unverified_work_penalty  # -0.5 default
+
         self.state.last_reward = reward
         self.state.episode_return += reward
 
@@ -1903,11 +1955,31 @@ class JarvisHarnessEnv:
                 # Stronger penalty for no-op writes (tried to write but nothing changed)
                 reward -= 0.2  # -r_noop (was -0.05)
 
-        # TEST RUNNING INCENTIVE (Stage B - EASY)
+        # TEST RUNNING INCENTIVE (Stage B - EASY+)
         # Small reward for running tests (encourages the developer loop)
         # Capped at 3 runs per episode to prevent farming
-        if at == ActionType.RUN_TESTS and self.state.run_tests_actions <= 3:
-            reward += 0.3  # Small incentive for test-driven development
+        # FIX 10d: Disabled by default for TRIVIAL. RT is verification, not discovery.
+        # Enable via rt_incentive_enabled=True for EASY+ where RT discovers bugs.
+        if self.config.rt_incentive_enabled:
+            if at == ActionType.RUN_TESTS and self.state.run_tests_actions <= 3:
+                reward += 0.3  # Small incentive for test-driven development
+
+        # FIX 10d.2: Verification loop incentive
+        # Reward RT AFTER the agent has written something (encourages write → test loop)
+        # Only applies when rt_incentive_enabled is False (TRIVIAL mode)
+        # Capped at 3 verification runs to prevent RT spam after writes
+        if not self.config.rt_incentive_enabled and self.config.rt_after_write_bonus > 0:
+            total_writes = self.state.write_focus_actions + self.state.write_file_actions
+            if at == ActionType.RUN_TESTS and total_writes > 0 and self.state.run_tests_actions <= 3:
+                reward += self.config.rt_after_write_bonus  # +1.0 for verification
+
+        # FIX 10d.4: Consecutive write penalty
+        # Penalize multiple writes without testing in between (encourages write → test pattern)
+        if self.config.consecutive_write_penalty != 0:
+            if at in (ActionType.WRITE_FOCUS, ActionType.WRITE_FILE):
+                excess_writes = self.state.writes_since_last_rt - self.config.consecutive_write_threshold
+                if excess_writes > 0:
+                    reward += self.config.consecutive_write_penalty  # -0.2 per extra write
 
         # NAVIGATION REWARD (Phase 5.3 - Multi-file)
         # One-time reward for navigating to the file containing the bug.

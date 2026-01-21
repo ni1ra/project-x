@@ -1585,6 +1585,278 @@ def create_persistent_bc_dataset(
     }
 
 
+@dataclass
+class OracleAction:
+    """Result from the oracle function.
+
+    For on-policy corrective imitation, we need:
+    - action_type: What action the expert recommends
+    - offset: For WRITE_FOCUS, where to edit (in focus window)
+    - vocab_idx: For WRITE_FOCUS, what character to insert
+    - action_bytes: Full encoded action for loss computation
+    - confidence: How confident the oracle is (1.0 = perfect knowledge)
+    """
+    action_type: ActionType
+    offset: int = 0
+    vocab_idx: int = 0
+    length: int = 0
+    action_bytes: torch.Tensor = None
+    confidence: float = 1.0
+
+    def __post_init__(self):
+        if self.action_bytes is None:
+            self.action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+            self.action_bytes[0] = self.action_type.value
+            if self.action_type == ActionType.WRITE_FOCUS:
+                self.action_bytes[1] = max(0, min(255, self.offset))
+                self.action_bytes[3] = self.length % 4
+                self.action_bytes[25] = self.vocab_idx
+
+
+def get_oracle_action(
+    obs_bytes: torch.Tensor,
+    original_code: str = None,
+    buggy_code: str = None,
+    bug_line: int = None,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+) -> OracleAction:
+    """
+    Compute the expert action for a given observation.
+
+    This is the core function for on-policy corrective imitation (Fix 10).
+    Unlike teacher forcing which overrides actions, this provides a supervised
+    signal that the model learns from while following its own h_t trajectory.
+
+    Decision logic:
+    1. If tests_passing == tests_total > 0: COMPLETE_TASK
+    2. If focus_text is empty or no bug visible: RUN_TESTS
+    3. If bug is visible in focus_text: WRITE_FOCUS with correct (offset, vocab_idx)
+
+    Args:
+        obs_bytes: [512] observation tensor
+        original_code: The correct/fixed code (for computing the fix)
+        buggy_code: The buggy code (for computing the fix)
+        bug_line: Line number where bug is located (1-indexed)
+        difficulty: Bug difficulty level (for vocab selection)
+
+    Returns:
+        OracleAction with recommended action and parameters
+    """
+    from src.harness.observations import (
+        TERMINAL_BYTES, GOAL_BYTES, FS_BYTES,
+        decode_observation,
+    )
+
+    # Decode observation to extract key fields
+    if obs_bytes.dim() == 2:
+        obs_bytes = obs_bytes[0]
+
+    # Extract metadata directly
+    meta_offset = TERMINAL_BYTES + GOAL_BYTES + FS_BYTES  # 448
+    tests_passing = int(obs_bytes[meta_offset + 10].item())
+    tests_total = int(obs_bytes[meta_offset + 11].item())
+
+    # Extract focus text
+    fs_offset = TERMINAL_BYTES + GOAL_BYTES  # 320
+    focus_bytes = obs_bytes[fs_offset:fs_offset + FS_BYTES].cpu().numpy().tobytes()
+    focus_text = focus_bytes.rstrip(b'\x00').decode('utf-8', errors='replace')
+
+    # Case 1: Tests pass -> COMPLETE_TASK
+    if tests_passing > 0 and tests_passing == tests_total:
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.COMPLETE_TASK.value
+        return OracleAction(
+            action_type=ActionType.COMPLETE_TASK,
+            action_bytes=action_bytes,
+            confidence=1.0,
+        )
+
+    # Case 2: No focus text or no code context -> RUN_TESTS to discover bug
+    if not focus_text or len(focus_text.strip()) < 5:
+        action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+        action_bytes[0] = ActionType.RUN_TESTS.value
+        return OracleAction(
+            action_type=ActionType.RUN_TESTS,
+            action_bytes=action_bytes,
+            confidence=1.0,
+        )
+
+    # Case 3: Bug visible - compute WRITE_FOCUS action
+    # We need original_code and buggy_code to compute the fix
+    if original_code is not None and buggy_code is not None:
+        # Compute where the bug is in the focus window
+        diff_pos = find_diff_position(original_code, buggy_code)
+
+        # Compute focus_start from bug_line if provided
+        if bug_line is not None:
+            focus_start = compute_focus_start_line_based(buggy_code, bug_line)
+        else:
+            # Estimate focus_start - assume focus_text starts at diff position
+            focus_start = max(0, diff_pos - 16)
+
+        # Try to compute the correct action
+        action = compute_correct_action_generic(
+            original_code, buggy_code, focus_start
+        )
+
+        if action is not None:
+            return OracleAction(
+                action_type=ActionType.WRITE_FOCUS,
+                offset=action.offset,
+                vocab_idx=action.vocab_idx,
+                length=action.length,
+                action_bytes=action.action_bytes,
+                confidence=1.0,
+            )
+
+    # Case 4: Focus text present but can't compute fix
+    # Heuristic: Look for common TRIVIAL bug patterns in focus_text
+    expert_action = _detect_bug_from_focus_text(focus_text, difficulty)
+    if expert_action is not None:
+        return expert_action
+
+    # Fallback: RUN_TESTS if we can't figure out what to do
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.RUN_TESTS.value
+    return OracleAction(
+        action_type=ActionType.RUN_TESTS,
+        action_bytes=action_bytes,
+        confidence=0.5,  # Low confidence fallback
+    )
+
+
+def _detect_bug_from_focus_text(
+    focus_text: str,
+    difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
+) -> Optional[OracleAction]:
+    """
+    Heuristic bug detection from focus text alone.
+
+    For TRIVIAL bugs, we look for patterns like:
+    - 'def foo()' without colon -> need ':'
+    - Mismatched quotes
+    - Missing closing parens
+
+    This is used when we don't have ground truth original_code/buggy_code,
+    such as during on-policy rollouts where we only have the observation.
+
+    Returns OracleAction if a bug pattern is detected, None otherwise.
+    """
+    if difficulty not in (BugDifficulty.TRIVIAL,):
+        # For now, only handle TRIVIAL bugs
+        return None
+
+    # Pattern 1: Missing colon after 'def' or 'if' or 'for' etc.
+    # Look for 'def foo()' or 'if x' without ':'
+    import re
+
+    # Match 'def name(...)'  without colon at end of line
+    def_pattern = r'def\s+\w+\s*\([^)]*\)\s*(?!\s*:)'
+    for match in re.finditer(def_pattern, focus_text):
+        # Found a 'def foo()' without colon
+        offset = match.end()
+        if offset < len(focus_text) and focus_text[offset] != ':':
+            action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+            action_bytes[0] = ActionType.WRITE_FOCUS.value
+            action_bytes[1] = max(0, min(255, offset))
+            action_bytes[3] = 0  # Insert mode
+            action_bytes[25] = 0  # ':\n' in TRIVIAL_VOCAB
+            return OracleAction(
+                action_type=ActionType.WRITE_FOCUS,
+                offset=offset,
+                vocab_idx=0,  # ':\n'
+                length=0,
+                action_bytes=action_bytes,
+                confidence=0.8,
+            )
+
+    # Pattern 2: Missing closing paren
+    open_parens = focus_text.count('(')
+    close_parens = focus_text.count(')')
+    if open_parens > close_parens:
+        # Find where to insert the missing ')'
+        # Simple heuristic: look for 'foo(x' patterns
+        paren_pattern = r'\([^)]*$'  # Open paren without close at end
+        match = re.search(paren_pattern, focus_text)
+        if match:
+            offset = match.end()
+            action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+            action_bytes[0] = ActionType.WRITE_FOCUS.value
+            action_bytes[1] = max(0, min(255, offset))
+            action_bytes[3] = 0  # Insert mode
+            action_bytes[25] = 1  # ')' in TRIVIAL_VOCAB
+            return OracleAction(
+                action_type=ActionType.WRITE_FOCUS,
+                offset=offset,
+                vocab_idx=1,  # ')'
+                length=0,
+                action_bytes=action_bytes,
+                confidence=0.7,
+            )
+
+    return None
+
+
+def get_oracle_action_from_env(
+    env,
+    obs_bytes: torch.Tensor,
+) -> OracleAction:
+    """
+    Get oracle action using full environment context.
+
+    This is the preferred method during training rollouts where we have
+    access to the environment's internal state.
+
+    Args:
+        env: JarvisHarnessEnv instance with current_task, etc.
+        obs_bytes: Current observation
+
+    Returns:
+        OracleAction with expert recommendation
+    """
+    # Extract env state
+    original_code = None
+    buggy_code = None
+    bug_line = None
+    difficulty = BugDifficulty.TRIVIAL
+
+    # Try to get ground truth from env
+    if hasattr(env, 'current_task') and env.current_task is not None:
+        task = env.current_task
+        if hasattr(task, 'original_files'):
+            # Get the buggy file
+            if hasattr(task, 'bugs') and task.bugs:
+                bug = task.bugs[0]
+                original_code = task.original_files.get(bug.file_path, "")
+                if hasattr(task, 'files') and bug.file_path in task.files:
+                    buggy_code = task.files[bug.file_path].content
+                bug_line = bug.line_number
+
+        if hasattr(task, 'difficulty'):
+            difficulty = task.difficulty
+
+    # Also check last_test_result for test status
+    if hasattr(env, 'last_test_result') and env.last_test_result is not None:
+        result = env.last_test_result
+        if result.passed:
+            # Tests pass - COMPLETE_TASK
+            action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+            action_bytes[0] = ActionType.COMPLETE_TASK.value
+            return OracleAction(
+                action_type=ActionType.COMPLETE_TASK,
+                action_bytes=action_bytes,
+                confidence=1.0,
+            )
+
+    return get_oracle_action(
+        obs_bytes,
+        original_code=original_code,
+        buggy_code=buggy_code,
+        bug_line=bug_line,
+        difficulty=difficulty,
+    )
+
+
 if __name__ == "__main__":
     # Test expert trajectory generation
     print("Generating expert demonstrations...")

@@ -59,20 +59,28 @@ def run_pytest(repo_path: str, timeout: int = 30, python_path: str = None) -> Ve
         output = result.stdout + result.stderr
 
         # Parse pytest output for pass/fail counts
-        # Format: "X passed, Y failed" or "X passed"
+        # Format: "X passed, Y failed" or "X passed" or "X error" (collection errors)
+        import re
         tests_passing = 0
         tests_total = 0
 
-        if 'passed' in output:
-            import re
-            passed_match = re.search(r'(\d+) passed', output)
-            if passed_match:
-                tests_passing = int(passed_match.group(1))
-                tests_total = tests_passing
+        # Check for passed tests
+        passed_match = re.search(r'(\d+) passed', output)
+        if passed_match:
+            tests_passing = int(passed_match.group(1))
+            tests_total = tests_passing
 
-            failed_match = re.search(r'(\d+) failed', output)
-            if failed_match:
-                tests_total += int(failed_match.group(1))
+        # Check for failed tests
+        failed_match = re.search(r'(\d+) failed', output)
+        if failed_match:
+            tests_total += int(failed_match.group(1))
+
+        # Check for collection errors (e.g., import errors)
+        # When pytest shows "X error", tests couldn't be collected
+        error_match = re.search(r'(\d+) error', output)
+        if error_match:
+            # At minimum 1 test was attempted but errored during collection
+            tests_total = max(tests_total, int(error_match.group(1)))
 
         passed = result.returncode == 0
         score = tests_passing / tests_total if tests_total > 0 else 0.0
@@ -129,19 +137,25 @@ def run_pytest_fast(
 
         output = result.stdout + result.stderr
 
+        import re
         tests_passing = 0
         tests_total = 0
-        if "passed" in output:
-            import re
 
-            passed_match = re.search(r"(\d+) passed", output)
-            if passed_match:
-                tests_passing = int(passed_match.group(1))
-                tests_total = tests_passing
+        # Check for passed tests
+        passed_match = re.search(r"(\d+) passed", output)
+        if passed_match:
+            tests_passing = int(passed_match.group(1))
+            tests_total = tests_passing
 
-            failed_match = re.search(r"(\d+) failed", output)
-            if failed_match:
-                tests_total += int(failed_match.group(1))
+        # Check for failed tests
+        failed_match = re.search(r"(\d+) failed", output)
+        if failed_match:
+            tests_total += int(failed_match.group(1))
+
+        # Check for collection errors (e.g., import errors)
+        error_match = re.search(r"(\d+) error", output)
+        if error_match:
+            tests_total = max(tests_total, int(error_match.group(1)))
 
         passed = result.returncode == 0
         score = tests_passing / tests_total if tests_total > 0 else 0.0

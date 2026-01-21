@@ -35,6 +35,8 @@ from src.harness.expert_trajectories import (
     compute_fix_offset_in_focus, get_vocab_idx_for_fix,
     compute_correct_action_for_missing_colon,
     generate_expert_demos, create_bc_dataset,
+    # Oracle functions for Fix 10 corrective imitation
+    OracleAction, get_oracle_action, get_oracle_action_from_env,
 )
 
 
@@ -550,3 +552,116 @@ class TestExpertTrajectories:
 
         # Byte 25 should be vocab_idx
         assert action.action_bytes[25] == action.vocab_idx
+
+    def test_oracle_action_complete_task_when_tests_pass(self):
+        """Oracle should return COMPLETE_TASK when tests_passing == tests_total > 0."""
+        from src.harness.observations import encode_observation, JarvisObservation
+
+        # Create observation where tests pass
+        obs = JarvisObservation(
+            terminal_output="$ pytest\n1/1 tests passed\nOK",
+            goal="Fix bug",
+            focus_text="def foo():\n    pass",
+            tests_passing=1,
+            tests_total=1,
+        )
+        obs_bytes = encode_observation(obs)
+
+        oracle = get_oracle_action(obs_bytes)
+
+        assert isinstance(oracle, OracleAction)
+        assert oracle.action_type == ActionType.COMPLETE_TASK
+        assert oracle.confidence == 1.0
+
+    def test_oracle_action_run_tests_when_no_focus(self):
+        """Oracle should return RUN_TESTS when focus text is empty."""
+        from src.harness.observations import encode_observation, JarvisObservation
+
+        # Create observation with empty focus
+        obs = JarvisObservation(
+            terminal_output="$ ",
+            goal="Fix bug",
+            focus_text="",  # No focus yet
+            tests_passing=0,
+            tests_total=1,
+        )
+        obs_bytes = encode_observation(obs)
+
+        oracle = get_oracle_action(obs_bytes)
+
+        assert isinstance(oracle, OracleAction)
+        assert oracle.action_type == ActionType.RUN_TESTS
+        assert oracle.confidence >= 0.5
+
+    def test_oracle_action_write_focus_with_ground_truth(self):
+        """Oracle should return WRITE_FOCUS with correct offset when bug is visible."""
+        from src.harness.observations import encode_observation, JarvisObservation
+
+        # Create buggy code (missing colon)
+        original = "def foo():\n    pass"
+        buggy = "def foo()\n    pass"  # Missing colon at position 9
+
+        # Create observation showing the buggy code in focus
+        obs = JarvisObservation(
+            terminal_output="$ pytest\nSyntaxError",
+            goal="Fix bug: missing colon",
+            focus_text=buggy,
+            tests_passing=0,
+            tests_total=1,
+        )
+        obs_bytes = encode_observation(obs)
+
+        # Call oracle with ground truth
+        oracle = get_oracle_action(
+            obs_bytes,
+            original_code=original,
+            buggy_code=buggy,
+            bug_line=1,
+        )
+
+        assert isinstance(oracle, OracleAction)
+        assert oracle.action_type == ActionType.WRITE_FOCUS
+        assert oracle.vocab_idx == 0  # ':\n' in TRIVIAL_VOCAB
+        assert oracle.offset >= 0
+        assert oracle.confidence == 1.0
+
+    def test_oracle_action_dataclass_post_init(self):
+        """OracleAction should auto-generate action_bytes in __post_init__."""
+        # Create action without explicit action_bytes
+        oracle = OracleAction(
+            action_type=ActionType.WRITE_FOCUS,
+            offset=10,
+            vocab_idx=0,
+            length=0,
+        )
+
+        # Should have auto-generated action_bytes
+        assert oracle.action_bytes is not None
+        assert oracle.action_bytes[0] == ActionType.WRITE_FOCUS.value
+        assert oracle.action_bytes[1] == 10  # offset
+        assert oracle.action_bytes[25] == 0  # vocab_idx
+
+    def test_oracle_action_heuristic_detection(self):
+        """Oracle should detect missing colon from focus text heuristics."""
+        from src.harness.observations import encode_observation, JarvisObservation
+
+        # Focus text with missing colon (def without :)
+        buggy_focus = "def process_data(x, y)\n    return x + y"
+
+        obs = JarvisObservation(
+            terminal_output="$ pytest\nSyntaxError",
+            goal="Fix syntax error",
+            focus_text=buggy_focus,
+            tests_passing=0,
+            tests_total=1,
+        )
+        obs_bytes = encode_observation(obs)
+
+        # Call without ground truth - should use heuristic detection
+        oracle = get_oracle_action(obs_bytes)
+
+        assert isinstance(oracle, OracleAction)
+        # Should detect missing colon and return WRITE_FOCUS
+        assert oracle.action_type == ActionType.WRITE_FOCUS
+        assert oracle.vocab_idx == 0  # ':\n'
+        assert oracle.confidence <= 1.0  # Heuristic has lower confidence

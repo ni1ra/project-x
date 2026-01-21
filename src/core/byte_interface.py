@@ -296,6 +296,124 @@ class GaussianActionHead(nn.Module):
         return entropy.clone()
 
 
+class VocabClassificationHead(nn.Module):
+    """
+    Vocab Classification Head for TRIVIAL bug fixes.
+
+    JARVIS VOCAB FIX: The autoregressive decoder collapses to always predicting
+    vocab_idx=0 (':\\n') regardless of bug type. This is because byte 25 is
+    generated at step 25 of the GRU loop, losing gradient signal.
+
+    This head directly classifies which vocab token to use based on:
+    - Goal bytes (256-320): Contains "Missing colon", "Missing paren", etc.
+    - Focus text (320-448): Contains the actual buggy code
+    - Hidden state h_t: Accumulated context
+
+    The output is a 5-class softmax over TRIVIAL_VOCAB:
+    - 0: ':\\n' (missing colon)
+    - 1: ')' (missing paren)
+    - 2: ',' (missing comma)
+    - 3: "'" (wrong single quote)
+    - 4: '"' (wrong double quote)
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int = 512,
+        decoder_hidden: int = 128,
+        vocab_size: int = 5,  # TRIVIAL_VOCAB size
+        goal_dim: int = 64,  # Goal bytes (256-320)
+        focus_text_dim: int = 128,  # Focus text (320-448)
+    ):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.goal_dim = goal_dim
+        self.focus_text_dim = focus_text_dim
+
+        # Project context to vocab logits
+        # Input: [h_t || goal_bytes || focus_text]
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_dim + goal_dim + focus_text_dim, decoder_hidden),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(decoder_hidden, decoder_hidden),
+            nn.ReLU(),
+            nn.Linear(decoder_hidden, vocab_size),
+        )
+
+    def forward(
+        self,
+        h_t: torch.Tensor,
+        goal_bytes: torch.Tensor,
+        focus_text: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Compute vocab classification logits.
+
+        Args:
+            h_t: Hidden state [batch, hidden_dim]
+            goal_bytes: Goal bytes [batch, goal_dim] (normalized)
+            focus_text: Focus text [batch, focus_text_dim] (normalized)
+
+        Returns:
+            logits: Vocab logits [batch, vocab_size]
+        """
+        context = torch.cat([h_t, goal_bytes, focus_text], dim=-1)
+        return self.classifier(context)
+
+    def sample(
+        self,
+        h_t: torch.Tensor,
+        goal_bytes: torch.Tensor,
+        focus_text: torch.Tensor,
+        greedy: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Sample vocab index from distribution.
+
+        Returns:
+            vocab_idx: Selected vocab index [batch]
+            log_prob: Log probability [batch]
+        """
+        logits = self.forward(h_t, goal_bytes, focus_text)
+        probs = F.softmax(logits, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+
+        if greedy:
+            vocab_idx = logits.argmax(dim=-1)
+        else:
+            vocab_idx = torch.multinomial(probs, 1).squeeze(-1)
+
+        action_log_prob = log_probs.gather(1, vocab_idx.unsqueeze(-1)).squeeze(-1)
+        return vocab_idx, action_log_prob
+
+    def get_log_prob(
+        self,
+        h_t: torch.Tensor,
+        goal_bytes: torch.Tensor,
+        focus_text: torch.Tensor,
+        vocab_idx: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute log probability of given vocab index."""
+        logits = self.forward(h_t, goal_bytes, focus_text)
+        log_probs = F.log_softmax(logits, dim=-1)
+        if vocab_idx.dim() == 2:
+            vocab_idx = vocab_idx[:, 0]
+        return log_probs.gather(1, vocab_idx.unsqueeze(-1)).squeeze(-1)
+
+    def get_entropy(
+        self,
+        h_t: torch.Tensor,
+        goal_bytes: torch.Tensor,
+        focus_text: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute entropy of vocab distribution."""
+        logits = self.forward(h_t, goal_bytes, focus_text)
+        probs = F.softmax(logits, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+        return -(probs * log_probs).sum(dim=-1)
+
+
 class AutoregressiveActionDecoder(nn.Module):
     """
     Autoregressive action decoder using GRU(128).
@@ -314,6 +432,9 @@ class AutoregressiveActionDecoder(nn.Module):
 
     JARVIS 420 FIX (DoErr): When use_gaussian=True, replaces the flat categorical
     head with a Gaussian head that provides ordinal gradient flow.
+
+    JARVIS VOCAB FIX: Adds parallel VocabClassificationHead for byte 25 (vocab_idx)
+    to prevent collapse to single token during autoregressive decoding.
     """
 
     def __init__(
@@ -325,6 +446,7 @@ class AutoregressiveActionDecoder(nn.Module):
         k_max: int = 16,  # Global scalar dimension (for g_t conditioning)
         use_gaussian: bool = True,  # JARVIS 420 FIX: Use Gaussian head for ordinal outputs
         obs_dim: int = 2,  # Observation dimension for direct input path
+        use_vocab_head: bool = True,  # JARVIS VOCAB FIX: Use parallel vocab classification
     ):
         super().__init__()
 
@@ -335,6 +457,7 @@ class AutoregressiveActionDecoder(nn.Module):
         self.k_max = k_max
         self.use_gaussian = use_gaussian
         self.obs_dim = obs_dim
+        self.use_vocab_head = use_vocab_head
 
         # JARVIS 420 FIX: Use Gaussian head for single-byte ordinal outputs (like CCB)
         # This provides smooth gradients between adjacent byte values
@@ -352,6 +475,7 @@ class AutoregressiveActionDecoder(nn.Module):
             self.gru = None
             self.output_head = None
             self.start_embed = None
+            self.vocab_head = None  # Not needed for single-byte
         else:
             # Original categorical decoder for multi-byte actions
             self.gaussian_head = None
@@ -386,6 +510,20 @@ class AutoregressiveActionDecoder(nn.Module):
 
             # Start token embedding (for first byte)
             self.start_embed = nn.Parameter(torch.randn(byte_embed_dim))
+
+            # JARVIS VOCAB FIX: Parallel vocab classification head for byte 25
+            # This directly classifies which TRIVIAL_VOCAB token to use
+            # instead of relying on autoregressive generation which collapses
+            if use_vocab_head and obs_dim >= 448:
+                self.vocab_head = VocabClassificationHead(
+                    hidden_dim=hidden_dim,
+                    decoder_hidden=decoder_hidden,
+                    vocab_size=5,  # TRIVIAL_VOCAB: [':\n', ')', ',', "'", '"']
+                    goal_dim=self.goal_dim,
+                    focus_text_dim=self.focus_text_dim,
+                )
+            else:
+                self.vocab_head = None
 
     def forward(
         self,
@@ -451,7 +589,16 @@ class AutoregressiveActionDecoder(nn.Module):
         actions = []
         log_probs = []
 
-        for _ in range(num_bytes):
+        # JARVIS VOCAB FIX: Pre-compute vocab_idx using parallel head if available
+        # This will be used to override byte 25 (content_raw[0] in decode_action_v2)
+        vocab_idx = None
+        vocab_log_prob = None
+        if self.vocab_head is not None:
+            vocab_idx, vocab_log_prob = self.vocab_head.sample(
+                h_t, goal_bytes, focus_text, greedy=greedy
+            )
+
+        for byte_idx in range(num_bytes):
             # GRU step
             current_embed = current_embed.unsqueeze(1)  # [batch, 1, embed]
             gru_out, decoder_h = self.gru(current_embed, decoder_h)
@@ -473,6 +620,12 @@ class AutoregressiveActionDecoder(nn.Module):
             # Compute log probability
             log_prob = F.log_softmax(logits, dim=-1)
             action_log_prob = log_prob.gather(1, action.unsqueeze(-1)).squeeze(-1)
+
+            # JARVIS VOCAB FIX: Override byte 25 with vocab_head output
+            # Byte 25 is the vocab index in action encoding (content_raw[0])
+            if byte_idx == 25 and vocab_idx is not None:
+                action = vocab_idx
+                action_log_prob = vocab_log_prob
 
             actions.append(action)
             log_probs.append(action_log_prob)
@@ -539,6 +692,14 @@ class AutoregressiveActionDecoder(nn.Module):
 
         log_probs = []
 
+        # JARVIS VOCAB FIX: Pre-compute vocab log prob for byte 25
+        vocab_log_prob_byte25 = None
+        if self.vocab_head is not None and num_bytes > 25:
+            vocab_idx_actual = actions[:, 25]
+            vocab_log_prob_byte25 = self.vocab_head.get_log_prob(
+                h_t, goal_bytes, focus_text, vocab_idx_actual
+            )
+
         for i in range(num_bytes):
             # GRU step
             current_embed = current_embed.unsqueeze(1)
@@ -551,6 +712,11 @@ class AutoregressiveActionDecoder(nn.Module):
             # Get log prob for actual action
             action = actions[:, i]
             action_log_prob = log_prob.gather(1, action.unsqueeze(-1)).squeeze(-1)
+
+            # JARVIS VOCAB FIX: Use vocab_head log prob for byte 25
+            if i == 25 and vocab_log_prob_byte25 is not None:
+                action_log_prob = vocab_log_prob_byte25
+
             log_probs.append(action_log_prob)
 
             # Embed actual action for next step (teacher forcing)
@@ -606,7 +772,12 @@ class AutoregressiveActionDecoder(nn.Module):
 
         entropies = []
 
-        for _ in range(num_bytes):
+        # JARVIS VOCAB FIX: Pre-compute vocab entropy for byte 25
+        vocab_entropy_byte25 = None
+        if self.vocab_head is not None and num_bytes > 25:
+            vocab_entropy_byte25 = self.vocab_head.get_entropy(h_t, goal_bytes, focus_text)
+
+        for byte_idx in range(num_bytes):
             current_embed = current_embed.unsqueeze(1)
             gru_out, decoder_h = self.gru(current_embed, decoder_h)
 
@@ -616,6 +787,11 @@ class AutoregressiveActionDecoder(nn.Module):
 
             # Entropy: -sum(p * log(p))
             entropy = -(probs * log_probs).sum(dim=-1)
+
+            # JARVIS VOCAB FIX: Use vocab_head entropy for byte 25
+            if byte_idx == 25 and vocab_entropy_byte25 is not None:
+                entropy = vocab_entropy_byte25
+
             entropies.append(entropy)
 
             # Sample for next step (need some action to continue)
