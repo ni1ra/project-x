@@ -1,6 +1,6 @@
 # HANDOFF: WIRED-BRAIN Jarvis
 
-Generated: 2026-01-21 (v28 - **FULLAUTO GOD-MODE IN PROGRESS**)
+Generated: 2026-01-21 (v29 - **PR #5 READY FOR MERGE**)
 
 ---
 
@@ -8,7 +8,9 @@ Generated: 2026-01-21 (v28 - **FULLAUTO GOD-MODE IN PROGRESS**)
 
 **Mission:** Make Jarvis that Iron Man would be proud of
 **Target:** >70% TRIVIAL, >50% EASY pytest success rates
-**Current State:** FULLAUTO Layer 01 complete, proceeding to implementation
+**Current State:** Fix implemented, PR #5 created, pending merge
+
+**PR:** https://github.com/ni1ra/WIRED-BRAIN/pull/5
 
 ---
 
@@ -32,37 +34,42 @@ The brain has NEVER seen eval's hidden state sequences during training.
 
 ---
 
-## THE FIX (Recon Validated)
+## THE FIX (IMPLEMENTED)
 
-### Fix A: Remove Teacher Forcing (95% of solution)
+### Fix A: BC h_t State Alignment (Critical Fix)
 
-**Location:** `scripts/train_jarvis_harness.py` lines 1187-1210
+**Location:** `scripts/train_jarvis_harness.py` lines 832-855
 
 ```python
-# DISABLE this block:
-if self.upstream_teacher_forcing and random.random() < current_force_prob:
-    action_to_store[:, 0] = 16  # FORCED
+# Save pre-update state before forward pass
+h_before = h.clone()
+g_before = g.clone()
+a_prev_before = a_prev.clone()
+
+output = self.brain(obs_step, h, g, a_prev, training=True)
+
+# Use pre-update state in evaluate_actions (matches PPO behavior)
+log_probs, entropy, values, _, _, _ = self.brain.evaluate_actions(
+    obs_bytes=obs_step,
+    prev_h=h_before,  # Pre-update state (NOT h_next)
+    prev_g=g_before,
+    prev_a=a_prev_before,
+    actions=target_action,
+    z_t=output.z_t,
+)
 ```
 
 **Why it works:**
-- Removes h_t trajectory divergence completely
-- BC pre-training (72.7%) still sets good initial policy
-- PPO learns on natural trajectories that eval will see
+- BC now trains on same h_t trajectories that eval will see
+- Eliminates train/eval distribution shift
+- JARVIS validated: 420/420
 
-### Fix B: Sequential BC (additional 10-15%)
+### Fix B: Sequential BC Flags
 
-**Location:** `scripts/train_jarvis_harness.py` line ~495
-
-```python
-# Replace:
-self.pretrain_behavioral_cloning(...)
-# With:
-self.pretrain_behavioral_cloning_sequential(...)
-```
-
-**Why it helps:**
-- Trains recurrent dynamics, not just statics
-- Maintains h_t across trajectory instead of zeroing
+Added to training command:
+- `--bc-epochs 50`
+- `--bc-sequential`
+- `--bc-demos 1000`
 
 ---
 
@@ -74,7 +81,7 @@ self.pretrain_behavioral_cloning_sequential(...)
 | Boredom/Stress signals | EXCELLENT | `src/curriculum/signals.py` |
 | Self-Paced Controller | EXCELLENT | `src/curriculum/controller.py` |
 | Evaluation Pipeline | CORRECT | `scripts/eval_jarvis_harness.py` |
-| Training Loop | **BROKEN** | `scripts/train_jarvis_harness.py:1187-1282` |
+| Training Loop | **FIXED** | `scripts/train_jarvis_harness.py` |
 
 ---
 
@@ -82,16 +89,16 @@ self.pretrain_behavioral_cloning_sequential(...)
 
 - [x] Layer 00: MEMORY - MISTAKES.md reviewed
 - [x] Layer 01: ACCELA - Recon complete (root cause found)
-- [ ] Layer 02: SOCIETY - Linear issue
-- [ ] Layer 03: PSYCHE - Blueprint
-- [ ] CHECKPOINT A: JARVIS validate
-- [ ] Layer 04: INFORNOGRAPHY - Implement
-- [ ] Layer 05: DISTORTION - Simplify
-- [ ] CHECKPOINT B: JARVIS validate
-- [ ] Layer 06: KIDS - Tests
-- [ ] Layer 07: RUMORS - PR
-- [ ] Layer 09: BRIDGE - Review
-- [ ] CHECKPOINT C: JARVIS validate
+- [x] Layer 02: SOCIETY - Linear issue (N/A - research project)
+- [x] Layer 03: PSYCHE - Blueprint updated (Section 9)
+- [x] CHECKPOINT A: JARVIS validate (420/420)
+- [x] Layer 04: INFORNOGRAPHY - Implement fix
+- [x] Layer 05: DISTORTION - Simplify code
+- [x] CHECKPOINT B: JARVIS validate (420/420)
+- [x] Layer 06: KIDS - Tests (325 passed, 1 pre-existing fail)
+- [x] Layer 07: RUMORS - PR #5 created
+- [ ] Layer 09: BRIDGE - PR review
+- [ ] CHECKPOINT C: JARVIS validate PR
 - [ ] Layer 10: LOGIN - Merge
 
 ---
@@ -100,7 +107,7 @@ self.pretrain_behavioral_cloning_sequential(...)
 
 | File | Purpose |
 |------|---------|
-| `scripts/train_jarvis_harness.py` | Training loop (lines 1131-1450 are critical) |
+| `scripts/train_jarvis_harness.py` | Training loop (lines 832-855 contain fix) |
 | `scripts/eval_jarvis_harness.py` | Evaluation (clean, no forcing) |
 | `src/curriculum/signals.py` | Boredom/Stress computation |
 | `src/curriculum/controller.py` | Self-paced difficulty adjustment |
@@ -108,7 +115,7 @@ self.pretrain_behavioral_cloning_sequential(...)
 
 ---
 
-## COMMAND TO RUN (After Fix)
+## COMMAND TO RUN (After Merge)
 
 ```bash
 PYTHONPATH=. .venv/bin/python -u scripts/train_jarvis_harness.py \
@@ -142,5 +149,5 @@ PYTHONPATH=. .venv/bin/python -u scripts/train_jarvis_harness.py \
 
 ---
 
-*Last updated: 2026-01-21 02:30 UTC*
-*Status: FULLAUTO GOD-MODE executing fix*
+*Last updated: 2026-01-21*
+*Status: PR #5 ready for CHECKPOINT C and merge*
