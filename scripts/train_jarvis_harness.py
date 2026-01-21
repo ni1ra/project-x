@@ -1159,17 +1159,13 @@ class JarvisHarnessTrainer:
         h, g = self.brain.init_state(batch_size, self.device)
         a_prev = torch.zeros((batch_size, self.brain.config.action_bytes), dtype=torch.long, device=self.device)
 
-        # GPU burn before reset - keep GPU busy during CPU-bound env reset
-        for _ in range(10):
-            self._gpu_burn(sync=False)
+        # NOTE: GPU burns removed from rollout collection (FIX: same-stream blocking)
+        # Burns queued on the default stream would block brain forward pass, causing 30x slowdown.
+        # With async_tests=True, env ops are already fast - burns solve a problem that doesn't exist.
 
         # Get initial observation (CPU-bound reset of all environments)
         obs = self.envs.reset()
         obs = obs.to(self.device)
-
-        # GPU burn after reset - ensure we're back to high GPU utilization
-        for _ in range(10):
-            self._gpu_burn(sync=False)
 
         for step in range(self.rollout_steps):
             # Store pre-step state for BPTT
@@ -1214,16 +1210,11 @@ class JarvisHarnessTrainer:
                 log_prob_to_store = forced_log_prob
 
             # Use the brain's full action bytes directly (32-byte tool-action policy).
-            #
-            # Important: convert actions to CPU *before* stepping the env so we can overlap optional
-            # GPU padding (burn) with the CPU-bound env step.
             action_bytes = action_to_store.clamp(0, 255).to(torch.uint8).cpu()
 
-            # Keep GPU busy while the env step runs on CPU.
-            # NOTE: Reduced from 5 to 1 burn per side (was 10 total = 5s/step, now 2 = 1s/step)
-            self._gpu_burn(sync=False)
+            # NOTE: GPU burns removed (FIX: same-stream blocking causes 30x slowdown)
 
-            # Step environments (CPU-bound)
+            # Step environments (CPU-bound with async_tests=True, already fast)
             next_obs, rewards, dones, infos = self.envs.step(action_bytes)
             next_obs = next_obs.to(self.device)
             rewards = rewards.to(self.device)
@@ -1248,9 +1239,6 @@ class JarvisHarnessTrainer:
 
                 # Reset counters on episode done
                 self.rt_streak_counters = torch.where(dones.to(self.device), torch.zeros_like(self.rt_streak_counters), self.rt_streak_counters)
-
-            # One more burn after env step
-            self._gpu_burn(sync=False)
 
             # Fix 10: Compute expert actions for corrective imitation
             # This runs on the model's own observations/trajectory, not forced states
