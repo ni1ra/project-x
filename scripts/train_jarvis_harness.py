@@ -56,6 +56,8 @@ from src.harness.expert_trajectories import (
     create_persistent_bc_dataset,
     create_sequential_bc_dataset,
     compute_fix_offset_in_focus,
+    # Fix 10: Oracle functions for on-policy corrective imitation
+    OracleAction, get_oracle_action, get_oracle_action_from_env,
 )
 from src.utils.gpu_guard import (
     GPUGuard,
@@ -63,6 +65,17 @@ from src.utils.gpu_guard import (
     ExclusiveGPULock,
     default_gpu_index,
     query_gpu_sample,
+)
+
+# Self-Paced Difficulty Control (intrinsic Boredom/Stress signals)
+from src.curriculum import (
+    BoredomConfig,
+    StressConfig,
+    SignalTracker,
+    ControllerConfig,
+    SelfPacedController,
+    DifficultyParams,
+    map_difficulty_to_params,
 )
 
 
@@ -350,9 +363,38 @@ class JarvisHarnessTrainer:
         self.bc_demo_actions = None  # BC demo action targets
         self.backbone_freeze_steps = 0  # Steps to freeze backbone
 
+        # UPSTREAM TEACHER FORCING (Fix 6): Apply forcing in training loop BEFORE PPO buffer
+        # This fixes the "Lying Environment" bug where PPO sees (original_action, forced_reward)
+        self.upstream_teacher_forcing = False  # Set via configure_upstream_forcing()
+        self.force_write_focus_prob = 0.0  # Probability of forcing WRITE_FOCUS
+        # Fix 9: Decaying forcing schedule to reduce train/eval distribution shift
+        self.force_prob_start = 0.0  # Starting forcing probability
+        self.force_prob_end = 0.0  # Ending forcing probability
+        self.force_decay_steps = 0  # Steps over which to decay
+
+        # FIX 10: On-Policy Corrective Imitation (DAgger-lite for recurrent policy)
+        # Unlike forcing which overrides actions, CI adds supervised loss on expert action
+        # while model follows its own h_t trajectory. Model learns to CHOOSE correct actions.
+        self.corrective_imitation = False  # Enable CI loss during RL
+        self.lambda_ci = 0.0  # CI loss coefficient
+        self.lambda_ci_start = 1.0  # Initial CI coefficient
+        self.lambda_ci_end = 0.2  # Final CI coefficient
+        self.lambda_ci_decay_steps = 50000  # Steps to decay CI coefficient
+        # Statistics for CI
+        self.ci_mismatch_count = 0  # Count of policy != expert
+        self.ci_total_count = 0  # Total CI evaluations
+        self.ci_writes_chosen = 0  # Count of WRITE_FOCUS chosen by policy (not oracle)
+        self.ci_writes_made_diff = 0  # Count of WRITE_FOCUS that made a change
+
         # Optimizer (will be overwritten if two-timescale)
         self.optimizer = Adam(brain.parameters(), lr=lr)
         self.use_two_timescale = False
+
+        # FIX 10c: RT streak penalty to prevent RUN_TESTS spam at eval
+        # After more than threshold consecutive RT actions, apply penalty
+        self.rt_streak_penalty = 0.0  # Penalty per extra RT after threshold (e.g., -0.1)
+        self.rt_streak_threshold = 2  # Allow up to 2 consecutive RTs before penalty
+        self.rt_streak_counters = None  # Will init in collect_rollout
 
         # Statistics
         self.total_steps = 0
@@ -592,6 +634,31 @@ class JarvisHarnessTrainer:
                     length_log_prob = log_probs[:, 3]
                     vocab_log_prob = log_probs[:, 25]
                     bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+
+                # JARVIS VOCAB FIX: Add direct vocab classification loss
+                # The vocab_head needs explicit cross-entropy supervision to prevent collapse
+                vocab_logits = self.brain.get_vocab_logits(
+                    obs_bytes=obs_batch,  # Use batch, not full dataset
+                    prev_h=h,
+                    prev_g=g,
+                    prev_a=a,  # Use batch action, not persistent a_prev
+                    z_t=output.z_t,
+                )
+                if vocab_logits is not None:
+                    # CRITICAL FIX: Only apply vocab loss to WRITE_FOCUS actions
+                    # For RUN_TESTS (3) and COMPLETE_TASK (5), byte 25 is meaningless.
+                    # Training on garbage targets caused the model to collapse to RUN_TESTS.
+                    action_types = target_actions[:, 0]  # byte 0 = action type
+                    write_focus_mask = (action_types == 16)  # ActionType.WRITE_FOCUS = 16
+
+                    if write_focus_mask.any():
+                        vocab_targets_for_head = target_actions[:, 25].clamp(0, 4).long()
+                        # Masked loss - only compute for WRITE_FOCUS samples
+                        vocab_logits_masked = vocab_logits[write_focus_mask]
+                        vocab_targets_masked = vocab_targets_for_head[write_focus_mask]
+                        vocab_class_loss = F.cross_entropy(vocab_logits_masked, vocab_targets_masked)
+                        # Reduced weight from 2.0 to 0.5 to be conservative
+                        bc_loss = bc_loss + 0.5 * vocab_class_loss
 
                 bc_optimizer.zero_grad()
                 bc_loss.backward()
@@ -1024,6 +1091,43 @@ class JarvisHarnessTrainer:
 
         return bc_loss
 
+    def configure_corrective_imitation(
+        self,
+        lambda_ci_start: float = 1.0,
+        lambda_ci_end: float = 0.2,
+        decay_steps: int = 50000,
+    ) -> None:
+        """
+        Configure Fix 10: On-Policy Corrective Imitation.
+
+        CI adds supervised loss on expert action while model follows its own h_t.
+        Unlike forcing which overrides actions, CI lets model make its own choices
+        but penalizes when those choices differ from expert.
+
+        Args:
+            lambda_ci_start: Initial CI coefficient (high = strong supervision)
+            lambda_ci_end: Final CI coefficient (low = mostly RL)
+            decay_steps: Steps to linearly decay from start to end
+        """
+        self.corrective_imitation = True
+        self.lambda_ci_start = lambda_ci_start
+        self.lambda_ci_end = lambda_ci_end
+        self.lambda_ci_decay_steps = decay_steps
+        print(f"[Fix 10] Corrective Imitation enabled: λ_ci {lambda_ci_start}→{lambda_ci_end} over {decay_steps} steps")
+
+    def get_current_ci_coef(self) -> float:
+        """Get current λ_ci based on linear decay schedule."""
+        if not self.corrective_imitation:
+            return 0.0
+
+        steps = self.total_steps
+        if self.lambda_ci_decay_steps <= 0:
+            return self.lambda_ci_start
+
+        progress = min(1.0, steps / self.lambda_ci_decay_steps)
+        coef = self.lambda_ci_start + progress * (self.lambda_ci_end - self.lambda_ci_start)
+        return coef
+
     def collect_rollout(self) -> Dict[str, torch.Tensor]:
         """
         Collect rollout data from all environments.
@@ -1046,6 +1150,9 @@ class JarvisHarnessTrainer:
 
         # Episode completion tracking for curriculum learning
         episode_returns = []  # List of (timestep, batch_idx, episode_return)
+
+        # Fix 10: Expert action storage for corrective imitation
+        expert_action_types_buffer = []  # [T, B] - expert recommended action type
 
         # Initialize hidden states
         batch_size = self.num_envs
@@ -1077,11 +1184,40 @@ class JarvisHarnessTrainer:
             # Store latent for evaluate_actions
             z_buffer.append(output.z_t.clone())
 
+            # Get action and log_prob from brain output
+            action_to_store = output.action.clone()
+            log_prob_to_store = output.action_log_prob.clone()
+
+            # UPSTREAM TEACHER FORCING (Fix 6): Apply forcing BEFORE storing to PPO buffer
+            # This fixes the "Lying Environment" bug where PPO sees (original_action, forced_reward)
+            # By forcing here, PPO correctly sees (forced_action, forced_log_prob, forced_reward)
+            # Fix 9: Compute current forcing probability with decay
+            if self.force_decay_steps > 0:
+                # Linear decay from force_prob_start to force_prob_end over force_decay_steps
+                progress = min(1.0, self.total_steps / self.force_decay_steps)
+                current_force_prob = self.force_prob_start + progress * (self.force_prob_end - self.force_prob_start)
+            else:
+                current_force_prob = self.force_write_focus_prob
+            if self.upstream_teacher_forcing and random.random() < current_force_prob:
+                # Force byte 0 to WRITE_FOCUS (ActionType.WRITE_FOCUS = 16)
+                action_to_store[:, 0] = 16
+
+                # Recompute log_prob for the forced action using the brain's policy
+                # This ensures PPO sees the correct probability for the action we're actually taking
+                with torch.no_grad():
+                    forced_log_prob = self.brain.action_decoder.get_log_prob(
+                        output.h_next,      # Same h_t used for original action generation
+                        action_to_store,    # Forced action with byte 0 = 16
+                        g_t=output.g_t,     # Same g_t used for original action
+                        phi_obs=phi(obs),   # Normalized observation
+                    )
+                log_prob_to_store = forced_log_prob
+
             # Use the brain's full action bytes directly (32-byte tool-action policy).
             #
             # Important: convert actions to CPU *before* stepping the env so we can overlap optional
             # GPU padding (burn) with the CPU-bound env step.
-            action_bytes = output.action.clamp(0, 255).to(torch.uint8).cpu()
+            action_bytes = action_to_store.clamp(0, 255).to(torch.uint8).cpu()
 
             # Keep GPU busy while the env step runs on CPU.
             # NOTE: Reduced from 5 to 1 burn per side (was 10 total = 5s/step, now 2 = 1s/step)
@@ -1092,13 +1228,62 @@ class JarvisHarnessTrainer:
             next_obs = next_obs.to(self.device)
             rewards = rewards.to(self.device)
 
+            # FIX 10c: Apply RT streak penalty to discourage RUN_TESTS spam
+            if self.rt_streak_penalty != 0.0:
+                # Initialize streak counters on first call
+                if self.rt_streak_counters is None:
+                    self.rt_streak_counters = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+
+                # Check action type for each env (byte 0 = action_type)
+                action_types = action_to_store[:, 0]  # [batch_size]
+                is_rt = (action_types == 3)  # ActionType.RUN_TESTS = 3
+
+                # Update streak counters
+                self.rt_streak_counters = torch.where(is_rt, self.rt_streak_counters + 1, torch.zeros_like(self.rt_streak_counters))
+
+                # Apply penalty when streak exceeds threshold
+                excess_rt = (self.rt_streak_counters - self.rt_streak_threshold).clamp(min=0).float()
+                rt_penalty = excess_rt * self.rt_streak_penalty  # Negative penalty
+                rewards = rewards + rt_penalty
+
+                # Reset counters on episode done
+                self.rt_streak_counters = torch.where(dones.to(self.device), torch.zeros_like(self.rt_streak_counters), self.rt_streak_counters)
+
             # One more burn after env step
             self._gpu_burn(sync=False)
 
-            # Store data
+            # Fix 10: Compute expert actions for corrective imitation
+            # This runs on the model's own observations/trajectory, not forced states
+            if self.corrective_imitation:
+                expert_types_batch = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+                # Compute oracle action for each env
+                for env_idx in range(batch_size):
+                    # Get oracle recommendation for this observation
+                    # Note: Using obs (current obs before step) to match what policy saw
+                    env_obs = obs[env_idx:env_idx+1]  # Keep batch dim
+                    oracle_result = get_oracle_action(env_obs.squeeze(0))
+                    expert_types_batch[env_idx] = oracle_result.action_type.value
+
+                    # Track CI statistics
+                    policy_type = action_to_store[env_idx, 0].item()
+                    self.ci_total_count += 1
+                    if policy_type != oracle_result.action_type.value:
+                        self.ci_mismatch_count += 1
+                    # Track chosen writes (not forced)
+                    if policy_type == 16:  # WRITE_FOCUS
+                        self.ci_writes_chosen += 1
+
+                expert_action_types_buffer.append(expert_types_batch)
+            else:
+                # Placeholder when CI disabled
+                expert_action_types_buffer.append(
+                    torch.zeros(batch_size, dtype=torch.long, device=self.device)
+                )
+
+            # Store data (using potentially forced action and log_prob)
             obs_buffer.append(obs.clone())
-            actions_buffer.append(output.action.clone())
-            log_probs_buffer.append(output.action_log_prob.clone())
+            actions_buffer.append(action_to_store)  # Forced action (if upstream forcing enabled)
+            log_probs_buffer.append(log_prob_to_store)  # Correct log_prob for stored action
             rewards_buffer.append(rewards)
             dones_buffer.append(dones.to(self.device))
             values_buffer.append(output.value.clone())
@@ -1106,7 +1291,7 @@ class JarvisHarnessTrainer:
             # Update state
             h = output.h_next
             g = output.g_t
-            a_prev = output.action
+            a_prev = action_to_store  # Use stored action (possibly forced) for next step
             obs = next_obs
 
             self.total_steps += self.num_envs
@@ -1140,6 +1325,8 @@ class JarvisHarnessTrainer:
             "prev_a": torch.stack(prev_a_buffer),  # [T, B, action_bytes]
             "z_t": torch.stack(z_buffer),  # [T, B, latent_dim]
             "episode_returns": episode_returns,  # List of (timestep, batch_idx, episode_return)
+            # Fix 10: Expert action types for corrective imitation
+            "expert_action_types": torch.stack(expert_action_types_buffer),  # [T, B]
         }
 
     def compute_gae(self, rollout: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -1195,6 +1382,8 @@ class JarvisHarnessTrainer:
         prev_g_flat = rollout["prev_g"].view(T * B, -1)
         prev_a_flat = rollout["prev_a"].view(T * B, -1)
         z_flat = rollout["z_t"].view(T * B, -1)
+        # Fix 10: Expert action types for CI loss
+        expert_types_flat = rollout["expert_action_types"].view(T * B)
 
         batch_size = T * B
         minibatch = max(1, min(self.minibatch_size, batch_size))
@@ -1204,10 +1393,13 @@ class JarvisHarnessTrainer:
         entropies = []
         kl_losses = []
         bc_anchor_losses = []
+        ci_losses = []  # Fix 10: Track CI losses
         total_losses = []
 
         # Get current BC anchor coefficient (with decay schedule)
         current_bc_anchor_coef = self.get_current_bc_anchor_coef()
+        # Fix 10: Get current CI coefficient
+        current_ci_coef = self.get_current_ci_coef()
 
         # Load BC reference policy for KL computation (if enabled)
         bc_brain = None
@@ -1282,13 +1474,57 @@ class JarvisHarnessTrainer:
                 if current_bc_anchor_coef > 0 and self.bc_demo_observations is not None:
                     bc_anchor_loss = self.compute_bc_anchor_loss(len(mb_idx))
 
-                # Total loss (maximize entropy_bonus, minimize kl_loss and bc_anchor_loss)
+                # Fix 10: Corrective Imitation loss
+                # L_type = CE(policy_type_logits, expert_type) for mismatched actions only
+                ci_loss = torch.tensor(0.0, device=self.device)
+                if current_ci_coef > 0 and self.corrective_imitation:
+                    # Get policy's action type logits (byte 0)
+                    # new_log_probs is [mb, action_bytes] - need logits for byte 0
+                    # We need to get the action type distribution from the brain
+                    # For now, use cross-entropy on the action type byte
+
+                    # Policy's predicted action types (byte 0)
+                    policy_types = actions_flat[mb_idx, 0]  # [mb]
+                    expert_types = expert_types_flat[mb_idx]  # [mb]
+
+                    # Compute mask: only correct when policy != expert (correct-only training)
+                    # This prevents CI from fighting already-correct behavior
+                    mismatch_mask = policy_types != expert_types  # [mb]
+
+                    if mismatch_mask.any():
+                        # Cross-entropy loss on action type byte
+                        # The brain's log_prob for byte 0 gives us the logits implicitly
+                        # We need to compute -log P(expert_type | state)
+                        # This requires getting the full distribution, not just the sampled action
+
+                        # Approximate: Use negative log probability of expert action type
+                        # Create expert action tensor matching shape of actions_flat
+                        mb_expert_actions = actions_flat[mb_idx].clone()
+                        mb_expert_actions[:, 0] = expert_types  # Set byte 0 to expert type
+
+                        # Get log prob of expert action
+                        expert_log_probs, _, _, _, _, _ = self.brain.evaluate_actions(
+                            obs_bytes=obs_flat[mb_idx][mismatch_mask],
+                            prev_h=prev_h_flat[mb_idx][mismatch_mask],
+                            prev_g=prev_g_flat[mb_idx][mismatch_mask],
+                            prev_a=prev_a_flat[mb_idx][mismatch_mask],
+                            actions=mb_expert_actions[mismatch_mask],
+                            z_t=z_flat[mb_idx][mismatch_mask],
+                        )
+
+                        # CI loss: negative log prob of expert action type (byte 0 only)
+                        ci_loss = -expert_log_probs[:, 0].mean()
+
+                ci_losses.append(ci_loss.detach())
+
+                # Total loss (maximize entropy_bonus, minimize kl_loss, bc_anchor_loss, ci_loss)
                 loss = (
                     policy_loss
                     + self.value_coef * value_loss
                     - self.entropy_coef * entropy_bonus
                     + self.kl_coef * kl_loss
                     + current_bc_anchor_coef * bc_anchor_loss
+                    + current_ci_coef * ci_loss
                 )
 
                 self.optimizer.zero_grad()
@@ -1315,6 +1551,9 @@ class JarvisHarnessTrainer:
             "kl_loss": mean(kl_losses),
             "bc_anchor_loss": mean(bc_anchor_losses),
             "bc_anchor_coef": current_bc_anchor_coef,
+            # Fix 10: CI metrics
+            "ci_loss": mean(ci_losses),
+            "ci_coef": current_ci_coef,
             "total_loss": mean(total_losses),
         }
 
@@ -1379,6 +1618,14 @@ class JarvisHarnessTrainer:
                     print(f"  KL Loss: {metrics['kl_loss']:.4f}", flush=True)
                 if metrics.get('bc_anchor_coef', 0) > 0:
                     print(f"  BC Anchor Loss: {metrics['bc_anchor_loss']:.4f} (λ={metrics['bc_anchor_coef']:.3f})", flush=True)
+                # Fix 10: CI metrics
+                if metrics.get('ci_coef', 0) > 0:
+                    print(f"  CI Loss: {metrics['ci_loss']:.4f} (λ={metrics['ci_coef']:.3f})", flush=True)
+                    # CI statistics
+                    if self.ci_total_count > 0:
+                        mismatch_rate = 100 * self.ci_mismatch_count / self.ci_total_count
+                        chosen_write_rate = 100 * self.ci_writes_chosen / self.ci_total_count
+                        print(f"  CI Mismatch Rate: {mismatch_rate:.1f}%  Chosen Write Rate: {chosen_write_rate:.1f}%", flush=True)
                 print(f"  Avg Reward: {avg_reward:.2f}", flush=True)
                 print(f"  Avg Length: {avg_length:.1f}", flush=True)
                 print(f"  GPU burns: exec={self._burn_call_count}, skip={self._burn_skip_count}", flush=True)
@@ -1522,6 +1769,131 @@ class JarvisHarnessTrainer:
         print(f"Total promotions: {curriculum.total_promotions}")
         print(f"Total demotions: {curriculum.total_demotions}")
 
+    def train_with_self_paced(
+        self,
+        total_timesteps: int,
+        signal_tracker: SignalTracker,
+        controller: SelfPacedController,
+        boredom_config: BoredomConfig,
+        stress_config: StressConfig,
+        task_regenerator: callable,
+        log_interval: int = 1000,
+    ):
+        """
+        Training loop with Self-Paced Difficulty Control.
+
+        Uses intrinsic Boredom/Stress signals instead of external thresholds.
+
+        Args:
+            total_timesteps: Total training timesteps
+            signal_tracker: SignalTracker for computing B/S signals
+            controller: SelfPacedController for difficulty adjustment
+            boredom_config: Configuration for boredom signal
+            stress_config: Configuration for stress signal
+            task_regenerator: Function(difficulty_d) -> (tasks, repos)
+            log_interval: How often to log
+        """
+        start_time = time.time()
+        updates = 0
+        total_increases = 0
+        total_decreases = 0
+        last_difficulty = controller.current_difficulty
+
+        print(f"\n=== SELF-PACED DIFFICULTY TRAINING ===")
+        print(f"Starting at: d={controller.current_difficulty}")
+        print(f"Boredom/Stress coefficients: K_b={controller.config.k_boredom}, K_s={controller.config.k_stress}")
+        print(f"Hysteresis margin: {controller.config.hysteresis_margin}")
+        print(f"Patience episodes: {controller.config.min_patience_episodes}")
+
+        while self.total_steps < total_timesteps:
+            # Collect rollout
+            rollout = self.collect_rollout()
+
+            # Extract episode-level metrics for signal tracking
+            # Each completed episode contributes to the signal computation
+            for (timestep, batch_idx, ep_return) in rollout["episode_returns"]:
+                # Success if cumulative episode return > 5.0 (same as curriculum mode)
+                success = ep_return > 5.0
+
+                # Extract RND novelty from the last observation's brain output
+                # Note: We use the stored rnd_error from the rollout if available
+                # Otherwise default to a neutral value
+                novelty = 0.3  # Default neutral novelty
+
+                # Extract entropy from the rollout metrics
+                # Note: This is computed per-step but we use the mean
+                entropy = 0.3  # Default neutral entropy
+
+                # Update signal tracker
+                signal_tracker.update(
+                    success=success,
+                    reward=ep_return,
+                    novelty=novelty,
+                    entropy=entropy,
+                )
+
+            # Compute Boredom and Stress signals
+            boredom, stress = signal_tracker.compute_signals(boredom_config, stress_config)
+
+            # Update difficulty controller
+            sampled_d = controller.update(boredom, stress)
+
+            # Check for difficulty changes
+            current_d = controller.current_difficulty
+            if current_d != last_difficulty:
+                if current_d > last_difficulty:
+                    total_increases += 1
+                    print(f"\n📈 DIFFICULTY INCREASED: d={last_difficulty} → d={current_d}")
+                    print(f"   Boredom={boredom:.3f}, Stress={stress:.3f}")
+                    print(f"   Total increases: {total_increases}")
+                else:
+                    total_decreases += 1
+                    print(f"\n📉 DIFFICULTY DECREASED: d={last_difficulty} → d={current_d}")
+                    print(f"   Boredom={boredom:.3f}, Stress={stress:.3f}")
+                    print(f"   Total decreases: {total_decreases}")
+
+                # Regenerate tasks at new difficulty
+                params = map_difficulty_to_params(sampled_d)
+                new_tasks, new_repos = task_regenerator(params.bug_difficulty)
+                self.envs.set_tasks(new_tasks)
+                from src.curriculum.difficulty_mapping import describe_difficulty
+                print(f"   Regenerated {len(new_tasks)} tasks: {describe_difficulty(sampled_d)}")
+
+                last_difficulty = current_d
+
+            # Check for thrashing warning
+            warning = controller.get_warning()
+            if warning:
+                print(f"\n⚠️  {warning}")
+
+            # PPO update
+            metrics = self.update(rollout)
+
+            updates += 1
+
+            # Logging
+            if updates % log_interval == 0:
+                elapsed = time.time() - start_time
+                fps = self.total_steps / elapsed
+
+                avg_reward = sum(self.episode_rewards[-100:]) / max(len(self.episode_rewards[-100:]), 1)
+                avg_length = sum(self.episode_lengths[-100:]) / max(len(self.episode_lengths[-100:]), 1)
+
+                print(f"Steps: {self.total_steps:,} | FPS: {fps:.0f} | d={controller.current_difficulty} (target={controller.difficulty_target:.1f})")
+                print(f"  Policy Loss: {metrics['policy_loss']:.4f}")
+                print(f"  Value Loss: {metrics['value_loss']:.4f}")
+                print(f"  Entropy: {metrics['entropy']:.4f}")
+                print(f"  Avg Reward: {avg_reward:.2f}")
+                print(f"  Avg Length: {avg_length:.1f}")
+                print(f"  Self-Paced: B={boredom:.3f}, S={stress:.3f}, SR={signal_tracker.success_rate_ema:.1%}")
+                print(f"  Adjustments: ↑{total_increases} ↓{total_decreases}")
+                print()
+
+        print(f"\nTraining complete: {self.total_steps:,} steps in {time.time() - start_time:.1f}s")
+        print(f"Final difficulty: d={controller.current_difficulty} (target={controller.difficulty_target:.1f})")
+        print(f"Total increases: {total_increases}")
+        print(f"Total decreases: {total_decreases}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Train Jarvis Harness")
@@ -1556,25 +1928,51 @@ def main():
     parser.add_argument("--repo-path", type=str, default="fixtures/toy_repo", help="Path to toy repo (v1 mode)")
 
     # v2 options
-    parser.add_argument("--mode", type=str, choices=["v1", "v2", "curriculum"], default="v1",
-                        help="Training mode: v1 (toy repo), v2 (multi-file), or curriculum (progressive)")
+    parser.add_argument("--mode", type=str, choices=["v1", "v2", "curriculum", "self-paced"], default="v1",
+                        help="Training mode: v1 (toy repo), v2 (multi-file), curriculum (threshold-based), or self-paced (intrinsic drives)")
     parser.add_argument("--difficulty", type=str, choices=["trivial", "easy", "medium", "hard"], default="medium",
                         help="Bug difficulty for v2 mode (starting difficulty for curriculum)")
     parser.add_argument("--action-bytes", type=int, choices=[32, 64], default=32,
                         help="Action space size (32 for v1, 64 for v2)")
-    # Curriculum options
+    # Curriculum options (threshold-based, legacy)
     parser.add_argument("--promote-threshold", type=float, default=0.70,
                         help="Success rate threshold for promotion (curriculum mode)")
     parser.add_argument("--demote-threshold", type=float, default=0.30,
                         help="Success rate threshold for demotion (curriculum mode)")
     parser.add_argument("--min-episodes", type=int, default=50,
                         help="Minimum episodes before promotion/demotion decision")
+
+    # Self-Paced Difficulty Control options (intrinsic drives)
+    parser.add_argument("--boredom-coef", type=float, default=5.0,
+                        help="Boredom sensitivity K_b (self-paced mode)")
+    parser.add_argument("--stress-coef", type=float, default=5.0,
+                        help="Stress sensitivity K_s (self-paced mode)")
+    parser.add_argument("--boredom-threshold", type=float, default=0.3,
+                        help="Boredom signal threshold for difficulty increase (self-paced mode)")
+    parser.add_argument("--stress-threshold", type=float, default=0.3,
+                        help="Stress signal threshold for difficulty decrease (self-paced mode)")
+    parser.add_argument("--hysteresis-margin", type=float, default=0.1,
+                        help="Dead-band margin to prevent oscillation (self-paced mode)")
+    parser.add_argument("--min-patience-episodes", type=int, default=30,
+                        help="Cooldown episodes after difficulty adjustment (self-paced mode)")
+    parser.add_argument("--difficulty-jitter", type=float, default=5.0,
+                        help="Std dev for sampling difficulty around target (self-paced mode)")
+    parser.add_argument("--initial-difficulty", type=int, default=5,
+                        help="Starting difficulty d (1-100) for self-paced mode")
     parser.add_argument("--force-write-focus", action="store_true",
                         help="Force all actions to WRITE_FOCUS (simplified curriculum for TRIVIAL)")
     parser.add_argument("--no-auto-focus", action="store_true",
                         help="Disable auto-focus on target file (for navigation training)")
     parser.add_argument("--force-write-focus-prob", type=float, default=1.0,
                         help="Probability of forcing WRITE_FOCUS (1.0=always, 0.0=never, for gradual curriculum)")
+    parser.add_argument("--upstream-teacher-forcing", action="store_true",
+                        help="Apply forcing in training loop BEFORE storing to PPO buffer (Fix 6 architectural fix)")
+    parser.add_argument("--force-prob-start", type=float, default=None,
+                        help="Starting forcing probability for decay schedule (Fix 9)")
+    parser.add_argument("--force-prob-end", type=float, default=None,
+                        help="Ending forcing probability for decay schedule (Fix 9)")
+    parser.add_argument("--force-decay-steps", type=int, default=0,
+                        help="Steps over which to decay forcing probability (Fix 9, 0=no decay)")
     parser.add_argument("--single-step", action="store_true",
                         help="Use max_steps=1 (aligns RL training with BC and evaluation)")
     # Behavioral cloning pre-training
@@ -1624,6 +2022,22 @@ def main():
                        help="Enable .jarvis_notes scratchpad file")
     parser.add_argument("--enable-sleep", action="store_true",
                        help="Enable sleep/consolidation module")
+
+    # Fix 10: Corrective Imitation (DAgger-lite)
+    parser.add_argument("--corrective-imitation", action="store_true",
+                       help="Enable on-policy corrective imitation (Fix 10)")
+    parser.add_argument("--ci-lambda-start", type=float, default=1.0,
+                       help="Initial CI coefficient (default 1.0)")
+    parser.add_argument("--ci-lambda-end", type=float, default=0.2,
+                       help="Final CI coefficient after decay (default 0.2)")
+    parser.add_argument("--ci-decay-steps", type=int, default=50000,
+                       help="Steps to decay CI coefficient (default 50000)")
+
+    # Fix 10c: RT streak penalty to discourage RUN_TESTS spam at eval
+    parser.add_argument("--rt-streak-penalty", type=float, default=0.0,
+                       help="Penalty per extra RUN_TESTS after threshold (e.g., -0.1)")
+    parser.add_argument("--rt-streak-threshold", type=int, default=2,
+                       help="Allow up to N consecutive RTs before penalty (default 2)")
 
     # GPU guardrails (hard safety + utilization floor)
     parser.add_argument("--no-gpu-guard", action="store_true", help="Disable GPU guardrails (not recommended)")
@@ -1729,6 +2143,7 @@ def main():
         # Create tasks based on mode
         repos = None
         curriculum_state = None
+        self_paced_state = None  # (signal_tracker, controller, boredom_config, stress_config)
 
         if args.mode == "v1":
             repo_path = os.path.join(os.path.dirname(__file__), "..", args.repo_path)
@@ -1754,6 +2169,42 @@ def main():
             print(f"Promotion threshold: {curriculum_state.promote_threshold:.0%}")
             print(f"Demotion threshold: {curriculum_state.demote_threshold:.0%}")
             print(f"Min episodes before change: {curriculum_state.min_episodes}")
+            print(f"Temp directory: {temp_dir}")
+
+        elif args.mode == "self-paced":
+            # Self-Paced Difficulty Control (intrinsic Boredom/Stress signals)
+            boredom_config = BoredomConfig()
+            stress_config = StressConfig()
+            controller_config = ControllerConfig(
+                k_boredom=args.boredom_coef,
+                k_stress=args.stress_coef,
+                boredom_threshold=args.boredom_threshold,
+                stress_threshold=args.stress_threshold,
+                hysteresis_margin=args.hysteresis_margin,
+                min_patience_episodes=args.min_patience_episodes,
+                difficulty_jitter_std=args.difficulty_jitter,
+            )
+            signal_tracker = SignalTracker()
+            controller = SelfPacedController(controller_config, initial_difficulty=float(args.initial_difficulty))
+            self_paced_state = (signal_tracker, controller, boredom_config, stress_config)
+
+            # Get initial difficulty params and create tasks
+            initial_params = map_difficulty_to_params(args.initial_difficulty)
+            temp_dir = tempfile.mkdtemp(prefix="jarvis_self_paced_")
+            tasks, repos = create_tasks_v2(
+                num_tasks=args.num_envs,
+                difficulty=BugDifficulty(initial_params.bug_difficulty),
+                temp_base=temp_dir,
+                seed=args.seed,
+                difficulty_span=0,
+            )
+            from src.curriculum.difficulty_mapping import describe_difficulty
+            print("SELF-PACED mode: Intrinsic Boredom/Stress signals")
+            print(f"Starting difficulty: {describe_difficulty(args.initial_difficulty)}")
+            print(f"Boredom coef (K_b): {args.boredom_coef}")
+            print(f"Stress coef (K_s): {args.stress_coef}")
+            print(f"Hysteresis margin: {args.hysteresis_margin}")
+            print(f"Patience episodes: {args.min_patience_episodes}")
             print(f"Temp directory: {temp_dir}")
 
         else:
@@ -1954,6 +2405,36 @@ def main():
         if args.backbone_freeze_steps > 0:
             trainer.set_backbone_freeze_steps(args.backbone_freeze_steps)
 
+        # UPSTREAM TEACHER FORCING (Fix 6): Apply forcing in training loop BEFORE PPO buffer
+        # This fixes the "Lying Environment" bug where env forces action but PPO records original
+        if getattr(args, 'upstream_teacher_forcing', False):
+            trainer.upstream_teacher_forcing = True
+            # Fix 9: Support decaying forcing probability
+            if args.force_decay_steps > 0:
+                trainer.force_prob_start = args.force_prob_start if args.force_prob_start is not None else args.force_write_focus_prob
+                trainer.force_prob_end = args.force_prob_end if args.force_prob_end is not None else 0.0
+                trainer.force_decay_steps = args.force_decay_steps
+                print(f"Upstream Teacher Forcing ENABLED (prob={trainer.force_prob_start} -> {trainer.force_prob_end} over {trainer.force_decay_steps} steps)")
+            else:
+                trainer.force_write_focus_prob = args.force_write_focus_prob
+                print(f"Upstream Teacher Forcing ENABLED (prob={args.force_write_focus_prob})")
+            print("  - Forcing applied in training loop BEFORE storing to PPO buffer")
+            print("  - Env-side forcing will be disabled to avoid double-forcing")
+
+        # Fix 10: Configure Corrective Imitation (DAgger-lite)
+        if getattr(args, 'corrective_imitation', False):
+            trainer.configure_corrective_imitation(
+                lambda_ci_start=args.ci_lambda_start,
+                lambda_ci_end=args.ci_lambda_end,
+                decay_steps=args.ci_decay_steps,
+            )
+
+        # Fix 10c: Configure RT streak penalty
+        if getattr(args, 'rt_streak_penalty', 0.0) != 0.0:
+            trainer.rt_streak_penalty = args.rt_streak_penalty
+            trainer.rt_streak_threshold = getattr(args, 'rt_streak_threshold', 2)
+            print(f"[Fix 10c] RT streak penalty enabled: {trainer.rt_streak_penalty} after {trainer.rt_streak_threshold}+ consecutive RTs")
+
         # Determine actual RL timesteps
         rl_timesteps = args.rl_timesteps if args.rl_timesteps is not None else args.timesteps
         if args.rl_timesteps is not None:
@@ -1982,6 +2463,38 @@ def main():
                     regenerate_tasks,
                     log_interval=10,
                 )
+            elif self_paced_state is not None:
+                # Self-Paced Difficulty Control training
+                signal_tracker, controller, boredom_config, stress_config = self_paced_state
+
+                def regenerate_tasks_self_paced(bug_difficulty_value):
+                    """Regenerate tasks for a given bug difficulty value (1-5)."""
+                    nonlocal repos
+                    if repos is not None:
+                        for repo in repos:
+                            if hasattr(repo, 'temp_path') and os.path.exists(repo.temp_path):
+                                shutil.rmtree(repo.temp_path, ignore_errors=True)
+
+                    difficulty = BugDifficulty(bug_difficulty_value)
+                    new_tasks, new_repos = create_tasks_v2(
+                        num_tasks=args.num_envs,
+                        difficulty=difficulty,
+                        temp_base=temp_dir,
+                        seed=random.randint(0, 2**31),
+                        difficulty_span=0,
+                    )
+                    repos = new_repos
+                    return new_tasks, new_repos
+
+                trainer.train_with_self_paced(
+                    rl_timesteps,
+                    signal_tracker,
+                    controller,
+                    boredom_config,
+                    stress_config,
+                    regenerate_tasks_self_paced,
+                    log_interval=10,
+                )
             else:
                 trainer.train(rl_timesteps, log_interval=10)
         finally:
@@ -1990,7 +2503,7 @@ def main():
                 print(f"Cleaned up temp directory: {temp_dir}")
                 temp_dir = None
 
-        mode_suffix = f"_{args.mode}" if args.mode in ["v2", "curriculum"] else ""
+        mode_suffix = f"_{args.mode}" if args.mode in ["v2", "curriculum", "self-paced"] else ""
         checkpoint_path = f"results/jarvis_harness{mode_suffix}_{rl_timesteps}.pt"
         os.makedirs("results", exist_ok=True)
         checkpoint_data = {
@@ -2007,6 +2520,14 @@ def main():
                 "total_promotions": curriculum_state.total_promotions,
                 "total_demotions": curriculum_state.total_demotions,
                 "final_success_rate": curriculum_state.success_rate,
+            }
+        if self_paced_state is not None:
+            signal_tracker, controller, _, _ = self_paced_state
+            checkpoint_data["self_paced"] = {
+                "final_difficulty": controller.current_difficulty,
+                "difficulty_target": controller.difficulty_target,
+                "signal_tracker": signal_tracker.state_dict(),
+                "controller": controller.state_dict(),
             }
         torch.save(checkpoint_data, checkpoint_path)
         print(f"Saved checkpoint to {checkpoint_path}")

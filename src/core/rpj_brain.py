@@ -107,6 +107,9 @@ class RPJBrainOutput(NamedTuple):
     # Plasticity gate
     P_t: torch.Tensor              # Plasticity gate [batch]
 
+    # RND metrics (for curriculum signals)
+    rnd_error: torch.Tensor        # RND prediction error [batch] - novelty metric
+
 
 class RNDNetwork(nn.Module):
     """
@@ -366,6 +369,9 @@ class RPJBrain(nn.Module):
         else:
             P_t = torch.zeros(batch_size, device=device)
 
+        # RND error for curriculum signals (computed once, reused)
+        rnd_error, _ = self.rnd(phi_obs)
+
         # Update step counter
         if training:
             self.step_count += batch_size
@@ -390,6 +396,7 @@ class RPJBrain(nn.Module):
             omega_t=omega_t,
             is_sleeping=is_sleeping,
             P_t=P_t,
+            rnd_error=rnd_error,
         )
 
     def compute_intrinsic_reward(
@@ -588,6 +595,66 @@ class RPJBrain(nn.Module):
             )
 
         return action_log_probs, entropy, values, substrate_out.g_t, substrate_out.h_next, action_mu
+
+    def get_vocab_logits(
+        self,
+        obs_bytes: torch.Tensor,
+        prev_h: torch.Tensor,
+        prev_g: torch.Tensor,
+        prev_a: torch.Tensor,
+        z_t: Optional[torch.Tensor] = None,
+    ) -> Optional[torch.Tensor]:
+        """
+        Get vocab classification logits for direct BC training.
+
+        JARVIS VOCAB FIX: The VocabClassificationHead needs direct supervision
+        during BC training to learn the correct vocab token for each bug type.
+        This bypasses the autoregressive collapse.
+
+        Args:
+            obs_bytes: Observation bytes [batch, obs_dim]
+            prev_h: Hidden state before forward pass [batch, hidden_dim]
+            prev_g: Global scalars before forward pass [batch, k_max]
+            prev_a: Previous action [batch] or [batch, action_bytes]
+            z_t: Optional pre-computed latent from rollout [batch, latent_dim]
+
+        Returns:
+            vocab_logits: Logits over TRIVIAL_VOCAB [batch, 5] or None if no vocab head
+        """
+        vocab_head = getattr(self.action_decoder, 'vocab_head', None)
+        if vocab_head is None:
+            return None
+
+        # Normalize observation
+        phi_obs = phi(obs_bytes)
+
+        # Get z_t if not provided
+        if z_t is None:
+            vae_output = self.vae(prev_h, phi_obs, obs_bytes)
+            z_t = vae_output.z_t
+
+        # Run substrate forward pass
+        substrate_out = self.substrate(
+            phi_obs=phi_obs,
+            z_t=z_t,
+            a_prev=prev_a,
+            h_t=prev_h,
+            g_prev=prev_g,
+            training=True,
+        )
+
+        # Extract goal_bytes and focus_text from phi_obs
+        goal_start = self.action_decoder.goal_start
+        goal_dim = self.action_decoder.goal_dim
+        focus_text_start = self.action_decoder.focus_text_start
+        focus_text_dim = self.action_decoder.focus_text_dim
+
+        goal_bytes = phi_obs[:, goal_start:goal_start + goal_dim]
+        focus_text = phi_obs[:, focus_text_start:focus_text_start + focus_text_dim]
+
+        # Get vocab logits from the dedicated head
+        vocab_logits = vocab_head(substrate_out.h_next, goal_bytes, focus_text)
+        return vocab_logits
 
     def update_vae_target(self):
         """Update VAE target encoder via Polyak averaging."""

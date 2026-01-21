@@ -67,15 +67,39 @@ unless you explicitly decide to pause product progress for research.
 
 ---
 
-## STATUS LOG (2026-01-17)
+## STATUS LOG (2026-01-19)
 
 ### What's True Now (Updated)
-- TRIVIAL success: **~30% (BC-only)** on single-shot eval after multi-bug fix
+- TRIVIAL success: **23% SOLVED** (Phase 7.4 baseline before vocab head)
 - TRIVIAL_VOCAB: **5 items** (`[':\n', ')', ',', "'", '"']`)
-- **CRITICAL FIX TODAY:** `generate_task_batch()` was injecting 1-2 bugs for TRIVIAL.
-  Changed to exactly 1 bug. This took eval from 0% to ~30%.
-- BC training accuracy: ~55% (on training dist), but eval success is ~30%
-- Focus jitter **hurts** unless labels are jitter-aware (disabled for now)
+- **VocabClassificationHead:** Added 5-class softmax for vocab token prediction
+- **Fix 9 Training:** Decaying forcing 0.5→0.0 over 50k steps
+
+### Phase 7.5 Upstream Teacher Forcing (Current Focus)
+| Fix | forcing prob | Training Histogram | Eval Result | Problem |
+|-----|-------------|-------------------|-------------|---------|
+| Fix 5 | env-side | RT=80% WF=15% CT=5% | 0% SOLVED | "Lying Environment" bug |
+| Fix 6 | 1.0 (upstream) | RT=0% WF=100% CT=0% | 0% SOLVED | Model never runs tests |
+| Fix 7 | 0.3 (upstream) | RT=45% WF=37% CT=18% | 0% SOLVED | Model never writes at eval |
+| Fix 8 | 0.5 (upstream) | RT=39% WF=50% CT=11% | 0% SOLVED | Train/eval distribution shift |
+| Fix 9 | 0.5→0.0 decay | RT=51% WF=26% CT=24% | 0% SOLVED | Decay didn't help - writes=0 at eval |
+
+**"Lying Environment" Bug (Root Cause):**
+- With env-side `--force-write-focus`, PPO sees (original_action, forced_reward)
+- Model outputs RUN_TESTS, env secretly swaps to WRITE_FOCUS
+- PPO incorrectly reinforces RUN_TESTS for WRITE_FOCUS rewards
+
+**Train/Eval Distribution Shift (Root Cause #2):**
+- During training with 50% forcing, hidden state h_t evolves based on forced WRITE_FOCUS actions
+- At eval WITHOUT forcing, h_t evolves based on model's actual actions (mostly RUN_TESTS)
+- Different h_t trajectories = different learned policies
+- **Fix 9:** Decay forcing from 0.5 to 0.0 over training so model gradually adapts
+
+**Upstream Teacher Forcing Fix:**
+- Move forcing logic OUT of environment INTO training loop
+- Force action BEFORE storing to PPO buffer
+- Recompute log_prob for forced action
+- PPO correctly sees (forced_action, forced_log_prob, forced_reward)
 
 ### Component Accuracy Breakdown (FINAL - Stage A Complete)
 | Bug Type | Train ALL | Generalization ALL | Status |
@@ -1091,11 +1115,11 @@ PYTHONPATH=. python scripts/train_jarvis_harness.py \
 
 **NEXT: Phase 7.5 Stabilization** (gates passed, extend training)
 
-### 7.5 Stabilize Persistent Jarvis ✅ TRAINING COMPLETE (2026-01-19)
+### 7.5 Stabilize Persistent Jarvis ⚠️ VOCAB HEAD FIX IN PROGRESS (2026-01-19)
 
 **Goal:** Complete Stage E training by stabilizing the anchored RL policy and meeting persistence gates.
 
-**FINAL RESULTS (50k steps, 2026-01-19):**
+**BASELINE RESULTS (50k steps, before vocab head):**
 | Metric | 10k | 20k | 30k | 40k | Final (50k) |
 |--------|-----|-----|-----|-----|-------------|
 | Entropy | 0.14 | 0.22 | 0.32 | 0.28 | **0.28** ✅ |
@@ -1104,35 +1128,62 @@ PYTHONPATH=. python scripts/train_jarvis_harness.py \
 | COMPLETE_TASK | 18.4% | 32.6% | 36.0% | 37.9% | **36.2%** ✅ |
 | Avg Reward | -16.37 | -6.34 | -7.47 | -3.94 | **-3.94** ✅ |
 
-**Key Observations:**
-- Entropy recovered from 0.14 → 0.28 (healthy policy diversity)
-- Action distribution balanced naturally (no collapse)
-- COMPLETE_TASK learned effectively (36.2% vs BC's 25% target)
-- Training time: 50k steps in 3843.6s (~64 min)
+**Baseline Eval Results:** 23% SOLVED (23/100 eligible)
+- 77/100 tasks wrote changes but didn't fix the bug (targeting problem)
 
-**Checkpoint:** `results/jarvis_harness_v2_50000.pt`
+---
 
-**Key Metrics & Gates:**
-| Gate | Target | Final Result | Status |
-|------|--------|--------------|--------|
-| Entropy Gate | > 0.15 at 10k+ | **0.28** | ✅ PASSED |
-| Action Diversity | Each type > 10% | RT=28.3%, WF=33.9%, CT=36.2% | ✅ PASSED |
-| Persistent Success | ≥3 tasks/session avg | PENDING EVAL | ⚠️ NEXT |
-| Recovery Rate | ≥80% on wrong edits | PENDING EVAL | ⚠️ NEXT |
-| Catastrophic Failures | ~0% | PENDING EVAL | ⚠️ NEXT |
+#### 7.5.X VOCAB HEAD FIX ATTEMPTS (2026-01-19)
 
-**Eval Results (2026-01-19, TRUTHFUL METRICS v2):**
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Eligible tasks | 100/100 (100%) | All tasks have syntax errors (base=0/0) |
-| **SOLVED rate** | **23.0%** (23/100) | Actually fixed the bug |
-| **IMPROVED rate** | **23.0%** (23/100) | Made code compile |
-| Free wins | 0 | No pre-passing tasks |
+**Problem:** Model struggles to predict correct TRIVIAL_VOCAB token. 77% of writes miss.
 
-**Key Finding:** Model achieves 23% success rate on TRIVIAL syntax error bugs.
-77/100 tasks either:
-- Hit action limit (11 tasks - stuck in loop)
-- Wrote changes but didn't fix the bug (66 tasks - targeting problem)
+**Solution:** Added VocabClassificationHead (5-class softmax) for TRIVIAL_VOCAB tokens.
+- TRIVIAL_VOCAB: `[':\n', ')', ',', "'", '"']`
+- Located in `byte_interface.py`
+- Adds vocab_class_loss to BC training
+
+**Fix Attempt 1: ❌ FAILED (12% SOLVED)**
+- Applied vocab_class_loss to ALL BC samples
+- **ROOT CAUSE:** Byte 25 is ONLY meaningful for WRITE_FOCUS (action_type == 16)
+- For RUN_TESTS/COMPLETE_TASK, byte 25 is GARBAGE (75% of samples!)
+- Training on garbage targets caused model to collapse to RUN_TESTS (82%)
+
+**Fix Attempt 2: ❌ FAILED (0% SOLVED)**
+- Resumed training from checkpoint with vocab_class_loss masked
+- **ROOT CAUSE:** bc_anchor_coef=0.0 in resumed training
+- Without BC anchor, policy drifted completely during RL
+- Balanced training distribution but 0% eval success
+
+**Fix Attempt 3: 🔄 IN PROGRESS**
+```bash
+python scripts/train_jarvis_harness.py \
+    --mode v2 --difficulty trivial --num-envs 16 \
+    --timesteps 50000 --bc-epochs 20 --bc-demos 500 \
+    --bc-anchor-coef 0.1 --persistent --action-bytes 64
+```
+- Fresh training with vocab_class_loss masked to WRITE_FOCUS only
+- BC anchor enabled (0.1 → 0.05 decay)
+- 64-byte actions for proper vocab_idx encoding
+- **Status:** Training at step ~32k, RT=57.8% WF=10.7% CT=31.4%
+
+**CRITICAL FIX (in train_jarvis_harness.py):**
+```python
+if vocab_logits is not None:
+    # CRITICAL: Only apply vocab loss to WRITE_FOCUS actions
+    action_types = target_actions[:, 0]  # byte 0 = action type
+    write_focus_mask = (action_types == 16)  # ActionType.WRITE_FOCUS = 16
+
+    if write_focus_mask.any():
+        vocab_targets = target_actions[:, 25].clamp(0, 4).long()
+        vocab_logits_masked = vocab_logits[write_focus_mask]
+        vocab_targets_masked = vocab_targets[write_focus_mask]
+        vocab_class_loss = F.cross_entropy(vocab_logits_masked, vocab_targets_masked)
+        bc_loss = bc_loss + 0.5 * vocab_class_loss
+```
+
+**GATE (Updated):** TRIVIAL solved rate > 40% to proceed to Stage E completion
+
+---
 
 **IMPORTANT:** Do NOT use `--force-write-focus` in eval! It converts COMPLETE_TASK to WRITE_FOCUS, corrupting files.
 
@@ -1680,14 +1731,220 @@ results/jarvis_persistent_v1.pt     # Phase 7 success (FINAL)
 
 ---
 
-**Document Version:** 2.1
-**Last Updated:** 2026-01-19 (Phase 7.4g RL results + 7.5 stabilization plan)
+**Document Version:** 3.1
+**Last Updated:** 2026-01-21 (Self-Paced Difficulty Control replaces Unified Curriculum)
 **Author:** Project notes (human + copilot)
 
 > "Gate D: RL Non-Regression is Non-Negotiable.
 > If RL hurts baseline, STOP. Fix anchoring or proceed BC-only.
 > Do not iterate deeper into broken RL."
 
-> "Phase 7.4g showed entropy RECOVERING (0.10→0.12), not collapsing.
-> This is progress - the 5% closer ratio works.
-> Phase 7.5 will extend warmup and add timing penalties to push entropy above 0.15."
+> "Phase 7.5 Vocab Head: CRITICAL LESSON - auxiliary losses must only apply to samples where the target is meaningful.
+> vocab_class_loss on WRITE_FOCUS only. Byte 25 is garbage for RUN_TESTS/COMPLETE_TASK.
+> Training on 75% garbage targets destroyed the policy."
+
+---
+
+## SELF-PACED DIFFICULTY CONTROL (2026-01-21)
+
+> **This replaces the Unified Curriculum Framework below.**
+> The key insight: external schedulers violate the project philosophy.
+> The agent's own Boredom/Stress signals should drive difficulty adjustment.
+
+### Philosophy
+
+> "We did not build these structures. We priced the resources, and the structures emerged."
+
+The previous design used a `CurriculumScheduler` with external thresholds (70% promote, 30% demote). This was engineering, not emergence. The new design uses **intrinsic drives**:
+
+### Core Signals
+
+| Signal | Formula | Triggers When |
+|--------|---------|---------------|
+| **Boredom (B)** | `w1*max(0, R* - novelty) + w2*max(0, σ* - variance) + w3*max(0, -Δperf)` | Too easy (low novelty, high success) |
+| **Stress (S)** | `v1*max(0, pred_error - E*) + v2*max(0, P* - success_rate) + v3*max(0, H* - entropy)` | Too hard (failing, entropy collapse) |
+
+### Difficulty Adjustment
+
+```
+Δd = K_b * B - K_s * S
+
+If B > S: Agent bored → increase difficulty
+If S > B: Agent stressed → decrease difficulty
+If B ≈ S ≈ 0: Agent in "flow state" → maintain
+```
+
+### Safeguards
+
+- **Hysteresis:** Dead-band prevents oscillation
+- **Patience Window:** 30 episodes before any adjustment
+- **EMA Smoothing:** Signals based on moving averages
+- **Difficulty Jitter:** Sample from Normal(d, σ=5)
+
+### Implementation
+
+Files added:
+- `src/curriculum/signals.py` - Boredom/Stress computation
+- `src/curriculum/controller.py` - SelfPacedController
+- `src/curriculum/difficulty_mapping.py` - d → task params
+
+Usage:
+```bash
+python scripts/train_jarvis_harness.py --mode self-paced \
+    --initial-difficulty 5 --boredom-coef 5.0 --stress-coef 5.0
+```
+
+See `BLUEPRINT_SELF_PACED.md` for complete architecture.
+
+---
+
+## [DEPRECATED] UNIFIED CURRICULUM RL FRAMEWORK (Design Document - 2026-01-20)
+
+> **⚠️ SUPERSEDED** by Self-Paced Difficulty Control above.
+> Kept for historical reference only.
+
+### Overview & Motivation
+
+The Unified Curriculum Framework replaces the rigid staged training approach (TRIVIAL → EASY → MEDIUM → etc.) with a **continuous curriculum** spanning difficulty levels 1-100. Key motivations:
+
+1. **Open-Ended Learning:** Agent autonomously discovers strategies via intrinsic motivation
+2. **Smooth Difficulty Scaling:** No abrupt transitions or reward function changes
+3. **Unified Reward Structure:** Same extrinsic signals at all levels
+4. **Leverage Existing Architecture:** Minimal changes to RPJ Brain and JarvisHarnessEnv
+
+### Architecture Components
+
+| Component | Purpose | Implementation |
+|-----------|---------|----------------|
+| **Task Generator** | Produces tasks with continuous difficulty d ∈ [1,100] | Extend `bug_templates.py` |
+| **Curriculum Scheduler** | Auto-adjusts difficulty based on performance | New in `train_jarvis_harness.py` |
+| **Intrinsic Reward Module** | Curiosity/RND for exploration in sparse reward | Extend reward computation |
+| **Persistent Memory** | Scratchpad + RNN state across tasks | Already implemented |
+| **Sleep Consolidation** | Offline world model updates | `src/core/sleep.py` |
+
+### Difficulty Scaling (d = 1 to 100)
+
+| Level Range | Codebase Size | Bug Complexity | Hints/Aids |
+|-------------|---------------|----------------|------------|
+| 1-10 | 10-50 lines, 1 file | Obvious syntax | bug_line focus, TRIVIAL_VOCAB |
+| 11-30 | 50-100 lines, 1-2 files | Subtle syntax | Focus fades, vocab expands |
+| 31-50 | 100-200 lines, 2-5 files | Logic bugs | No hints, multi-step fixes |
+| 51-70 | 200-500 lines, 5-10 files | State bugs | File navigation required |
+| 71-100 | 500+ lines, multi-module | Design flaws | Full codebase search needed |
+
+### Reward Design
+
+**Extrinsic (consistent across all levels):**
+- `+10.0`: All tests pass (task solved)
+- `+1.0`: Per additional test passing
+- `-0.01`: Per step (efficiency pressure)
+- `-0.2`: Premature COMPLETE_TASK
+
+**Intrinsic (exploration bonus):**
+- RND curiosity (Random Network Distillation) during warmup
+- KL information gain after warmup
+- λ_int = 0.1 (balanced with extrinsic)
+
+### Curriculum Scheduler Algorithm
+
+```python
+# Performance-based difficulty adjustment
+if success_rate_last_50 > 0.8:
+    difficulty += 1  # Tasks too easy
+elif success_rate_last_50 < 0.3:
+    difficulty -= 1  # Tasks too hard
+
+# Target: 50% success (zone of proximal development)
+# Probabilistic blending: sample d ± 5 with Gaussian distribution
+```
+
+### Implementation Roadmap
+
+1. **Step 1: Continuous Difficulty Parameter**
+   - [ ] Add numeric `--difficulty` (1-100) to env
+   - [ ] Map d to task generation parameters
+   - [ ] Verify smooth transitions (no category jumps)
+
+2. **Step 2: Curriculum Scheduler**
+   - [ ] Track success rate per difficulty level
+   - [ ] Implement auto-adjustment logic
+   - [ ] Log difficulty progression over training
+
+3. **Step 3: Intrinsic Reward Module (RND)**
+   - [ ] Add target/predictor networks
+   - [ ] Compute novelty bonus per step
+   - [ ] Normalize to prevent overwhelming extrinsic
+
+4. **Step 4: Unified Reward Shaping**
+   - [ ] Remove brittle sequence-enforcing penalties
+   - [ ] Keep outcome-driven signals only
+   - [ ] Test penalty for loitering after solve
+
+5. **Step 5: Persistent Multi-Task Episodes**
+   - [ ] Enable `--persistent` with difficulty queues
+   - [ ] Task queue: [d, d+5, d+10] per episode
+   - [ ] Preserve h_t and scratchpad across tasks
+
+6. **Step 6: Memory Utilization**
+   - [ ] Verify .jarvis_notes persistence
+   - [ ] Test RNN state carryover
+   - [ ] Monitor scratchpad usage frequency
+
+7. **Step 7: Periodic Evaluation**
+   - [ ] Sample tasks from levels 1, 20, 40, 60, 80, 100
+   - [ ] Detect catastrophic forgetting
+   - [ ] Interleave easier tasks if needed
+
+8. **Step 8: Full Spectrum Testing**
+   - [ ] Push to level-100 tasks
+   - [ ] Monitor generalization across levels
+   - [ ] Compare vs phase-wise baseline
+
+### Success Criteria
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Level 10 mastery | >90% success | Eval on 100 tasks |
+| Level 50 competence | >50% success | Eval on 100 tasks |
+| Level 100 non-zero | >10% success | Eval on 100 tasks |
+| No forgetting | Level 1-10 stays >85% | Periodic checks |
+| Autonomous progression | d increases over time | Training logs |
+
+### Key Differences from Phase-Wise Training
+
+| Aspect | Phase-Wise (Current) | Unified Curriculum (New) |
+|--------|---------------------|-------------------------|
+| Difficulty | Discrete stages | Continuous d ∈ [1,100] |
+| Transitions | Manual ("now do EASY") | Automatic scheduler |
+| Rewards | Per-phase shaping | Unified across levels |
+| Exploration | BC demos only | Intrinsic motivation |
+| Memory | Fresh start per phase | Persistent across all |
+| Forgetting | Risk at each transition | Interleaved replay |
+
+### Risks and Mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| Scheduler oscillates | Use EMA of success rate |
+| Intrinsic overwhelms extrinsic | Decay λ_int as competence grows |
+| Catastrophic forgetting | Periodic low-level task injection |
+| No signal at high difficulty | Start with intrinsic-only period |
+
+### Integration with Existing Code
+
+The unified framework reuses existing infrastructure:
+- `JarvisHarnessEnv` → Add difficulty parameter
+- `train_jarvis_harness.py` → Add scheduler and intrinsic rewards
+- `src/core/sleep.py` → Already implemented
+- `expert_trajectories.py` → Generate demos across difficulty spectrum
+- `bug_templates.py` → Parameterize by difficulty
+
+### When to Transition
+
+**Prerequisites before starting unified curriculum:**
+1. ✅ Phase 7 infrastructure complete (persistent mode, scratchpad)
+2. ⚠️ Fix 10d behavior gates pass (write_rate, verification loops)
+3. [ ] Base TRIVIAL solved rate > 40%
+4. [ ] Sleep consolidation working (OD-NDT transfer > 60%)
+
+Once these gates pass, implement unified curriculum as the NEXT major phase.

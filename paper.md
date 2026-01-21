@@ -1483,9 +1483,163 @@ See `PLAN_TO_JARVIS.md` Phase 8 for full implementation plan.
 
 ---
 
+## Appendix L — Self-Paced Difficulty Control (2026-01-21)
+
+> **Update:** This appendix has been revised to describe Self-Paced Difficulty Control,
+> which replaces the original Unified Curriculum Framework with intrinsic Boredom/Stress signals.
+
+### L.1 The Problem with External Schedulers
+
+The original design proposed a `CurriculumScheduler` with external thresholds (70% promote, 30% demote).
+This violated the project philosophy: **"We did not build these structures. We priced the resources, and the structures emerged."**
+
+An external scheduler is engineering, not emergence. The agent's own learning dynamics should drive progression.
+
+### L.1.1 The Problem with Staged Training (Historical)
+
+The current training approach—TRIVIAL → EASY → MEDIUM → HARD → EXPERT—suffers from several limitations:
+
+1. **Manual Phase Transitions:** Human must decide when to switch stages
+2. **Reward Function Instability:** Each stage has custom shaping that must be disabled/modified
+3. **Catastrophic Forgetting:** Switching stages risks losing skills learned in earlier stages
+4. **No Autonomous Progression:** Agent cannot "choose" to tackle harder problems
+
+This is not how humans learn. A chess player doesn't reset when transitioning from mate-in-one puzzles to mate-in-three puzzles. They build continuously on prior knowledge.
+
+### L.2 The Unified Framework
+
+We propose replacing staged training with a **continuous curriculum** spanning difficulty d ∈ [1, 100]:
+
+**Core Principles:**
+1. **Same Task, Different Complexity:** Agent always fixes bugs to pass tests. Only the bug complexity changes.
+2. **Same Rewards:** Unified reward function across all difficulties. No per-level shaping.
+3. **Automatic Scheduling:** Difficulty adjusts based on agent performance, not human judgment.
+4. **Intrinsic Motivation:** Curiosity rewards drive exploration when extrinsic rewards are sparse.
+
+### L.3 Architecture Components
+
+| Component | Purpose | RPJ Integration |
+|-----------|---------|-----------------|
+| **Task Generator** | Produces tasks with continuous d | Parameterizes bug templates |
+| **Curriculum Scheduler** | Auto-adjusts difficulty | Maximizes learning progress |
+| **Intrinsic Reward (RND)** | Exploration in sparse reward | Additional term in J |
+| **Sleep Consolidation** | Memory and knowledge transfer | Already implemented |
+
+### L.4 Difficulty Scaling
+
+The difficulty parameter d controls multiple task dimensions simultaneously:
+
+| d | Code Size | Bug Type | Hints | Files |
+|---|-----------|----------|-------|-------|
+| 1-10 | 10-50 lines | Syntax errors | Full | 1 |
+| 11-30 | 50-100 lines | Subtle syntax | Partial | 1-2 |
+| 31-50 | 100-200 lines | Logic bugs | None | 2-5 |
+| 51-70 | 200-500 lines | State bugs | None | 5-10 |
+| 71-100 | 500+ lines | Design flaws | None | Multi-module |
+
+Crucially, these parameters vary *continuously*, not discretely. The transition from d=30 to d=31 is imperceptible; the transition from d=10 to d=50 is substantial. But the agent never experiences a hard reset.
+
+### L.5 Self-Paced Difficulty Controller (NEW)
+
+> **Replaces** the threshold-based scheduler with intrinsic Boredom/Stress signals.
+
+**Boredom Signal (B):** "I need challenge"
+```
+B = w1 * max(0, R* - novelty_ema) +      # Novelty too low
+    w2 * max(0, σ* - reward_variance) +  # Outcomes too predictable
+    w3 * max(0, -Δperf)                  # Learning stalled
+```
+
+**Stress Signal (S):** "I need relief"
+```
+S = v1 * max(0, pred_error - E*) +       # Overwhelmed
+    v2 * max(0, P* - success_rate) +     # Failing repeatedly
+    v3 * max(0, H* - entropy)            # Entropy collapse
+```
+
+**Difficulty Adjustment:**
+```python
+Δd = K_b * B - K_s * S
+
+# If B > S: Agent bored → increase difficulty
+# If S > B: Agent stressed → decrease difficulty
+# If B ≈ S ≈ 0: Agent in "flow state" → maintain
+
+# With safeguards: hysteresis (0.1 dead-band), patience (30 eps)
+sampled_d = int(clip(normal(difficulty_target, 5), 1, 100))
+```
+
+The key insight: **RND curiosity IS the difficulty scheduler.** When tasks are mastered, states become predictable, RND error drops, boredom rises, and the agent seeks harder tasks. No external scheduler needed.
+
+### L.6 Intrinsic Rewards (RND)
+
+Random Network Distillation provides exploration bonus when extrinsic rewards are sparse:
+
+```python
+# Target network (fixed)
+f_target = RandomNetwork(obs_dim, feature_dim)
+
+# Predictor network (trained)
+f_predictor = Learnable(obs_dim, feature_dim)
+
+# Intrinsic reward = prediction error (novelty)
+r_intrinsic = ||f_predictor(obs) - f_target(obs)||²
+```
+
+Early in training, intrinsic rewards dominate (everything is novel). As the agent becomes competent, intrinsic rewards diminish and extrinsic rewards (test pass/fail) take over.
+
+### L.7 Unified Reward Function
+
+The combined reward eliminates per-level shaping:
+
+```
+r_total = r_extrinsic + λ_int * r_intrinsic
+
+r_extrinsic = {
+    +10.0:  All tests pass (task solved)
+    +1.0:   Per additional test passing
+    -0.01:  Per step (efficiency)
+    -0.2:   Premature COMPLETE_TASK
+}
+
+λ_int = max(0.01, 0.5 * decay_schedule)  # Always some exploration
+```
+
+### L.8 Integration with Existing Infrastructure
+
+The unified framework leverages components already in place:
+
+- **JarvisHarnessEnv:** Add numeric difficulty parameter
+- **train_jarvis_harness.py:** Add scheduler, intrinsic rewards
+- **sleep.py:** Already supports consolidation
+- **Persistent mode:** Required for continuous learning
+
+### L.9 Expected Benefits
+
+| Metric | Staged (Current) | Unified (Expected) |
+|--------|------------------|-------------------|
+| Human intervention | Every phase | Once at start |
+| Forgetting risk | High at transitions | Low (interleaved) |
+| Exploration | BC demos only | Intrinsic + BC |
+| Ceiling | Phase-dependent | Continuous growth |
+| Sample efficiency | Resets each phase | Cumulative learning |
+
+### L.10 Prerequisites
+
+Before implementing the unified framework:
+
+1. ✅ Phase 7 infrastructure (persistent mode, scratchpad, COMPLETE_TASK)
+2. ⚠️ Fix 10d behavior gates (write_rate, verification loops)
+3. [ ] Base TRIVIAL solved rate > 40%
+4. [ ] Sleep consolidation validated (OD-NDT transfer > 60%)
+
+Once these gates pass, unified curriculum becomes the NEXT major milestone—replacing the staged roadmap with a single continuous training process.
+
+---
+
 *The meter is running. The entropy is being watched. The author is refreshing tensorboard obsessively.*
 
-*Last verified: 2026-01-19 — Phase 7.4g BC complete (67.0% accuracy), awaiting RL entropy stabilization. If the entropy collapses again, we shall write another appendix. The paper grows longer with each failure. This may be a design flaw.*
+*Last verified: 2026-01-21 — Phase 7.5 continues. Self-Paced Difficulty Control implemented, replacing external schedulers with intrinsic Boredom/Stress signals. "We did not build these structures. We priced the resources, and the structures emerged."*
 
 
 

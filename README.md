@@ -215,15 +215,21 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py \
 
 ### Jarvis Harness Training Status
 
-**CURRENT STATE (2026-01-18):** **BODY BUILT, NERVOUS SYSTEM NEEDED**
+**CURRENT STATE (2026-01-19):** **PHASE 7.5 - FIX 9 DECAYING TEACHER FORCING**
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| TRIVIAL Success | **25-30%** | BC-only, 1 step |
-| EASY Success | **90%** | With focus hints only |
-| BC Accuracy | 72.7% | TRIVIAL, 76.8% EASY |
-| Phase 7 Infra | **DONE** | Persistent mode ready |
-| COMPLETE_TASK Reward | **FIXED** | Was broken (PPO never saw bonus) |
+| Fix | forcing prob | Eval Result | Problem |
+|-----|-------------|-------------|---------|
+| Baseline | - | 23% SOLVED | Before vocab head |
+| Fix 5 | env-side | 0% SOLVED | "Lying Environment" bug |
+| Fix 6-8 | upstream | 0% SOLVED | Train/eval distribution shift |
+| Fix 9 | 0.5→0.0 decay | 0% SOLVED | Decay didn't help |
+| Phase 7 Infra | **DONE** | N/A | Persistent mode ready |
+
+**Phase 7.5 Upstream Teacher Forcing:**
+- **"Lying Environment" Bug (Fix 5):** Env-side forcing recorded (original_action, forced_reward) in PPO
+- **Upstream Fix (Fix 6-8):** Force action BEFORE storing to PPO buffer → PPO sees correct data
+- **Distribution Shift (Fix 8):** Training h_t differs from eval h_t due to forcing
+- **Fix 9:** Decay forcing from 0.5 to 0.0 over training so model adapts gradually
 
 **Phase 7 (Persistent Jarvis) Infrastructure:**
 - Persistent mode (no reset between tasks)
@@ -233,10 +239,7 @@ PYTHONPATH=. ./.venv/bin/python scripts/train_jarvis_harness.py \
 - Recovery actions (GIT_CHECKOUT, GIT_RESET)
 - All sanity gates PASSED
 
-**THE GAP:** Need to train long-horizon loops (run tests → edit → rerun → recover → finish → next task).
-Body is built (actions/tools/env/reward plumbing). Nervous system needed (learned loops).
-
-**Next:** Phase 7.4a (BC demos with COMPLETE_TASK) → 7.4b (BC-only baseline) → 7.4c (anchored RL).
+**GATE:** Need TRIVIAL solved rate > 40% to complete Stage E.
 
 See `HANDOFF.md` for implementation details and `diagnostics/` for debug traps.
 
@@ -251,12 +254,38 @@ The path to "Iron Man Jarvis" within constraints (no LLMs, minimal priors):
 | **B: EASY** | Developer loop | RUN_TESTS, SEARCH, free action | >20-30% multi-step | **✅ 90%** |
 | **C: Multi-File** | Navigation | LIST_FILES, NAVIGATE, stacktrace | Solves multi-file | **✅ DONE** |
 | **D: General** | Byte-level edits | Drop vocab, BPE micro-tokens | Fixes typos | Pending |
-| **E: Persistent** | Continuous ops | Task queue, scratchpad, no reset | Back-to-back tasks | **INFRA DONE** |
+| **E: Persistent** | Continuous ops | Task queue, scratchpad, no reset | >40% TRIVIAL | **TRAINING** |
 | **F: Heterogeneous** | Optuna-discovered brain | Regional heterogeneity, structural plasticity | Beats homogeneous baseline | Pending |
 
-**Current position:** Phase 7 (Stage E - Persistent Jarvis) infrastructure complete. Ready for training.
+**Current position:** Phase 7.5 (Stage E) - All forcing approaches failed (Fix 5-9 = 0% SOLVED). Need new approach. Baseline 23% SOLVED, targeting >40%.
 
-### NEW: Heterogeneous Brain Architecture (2026-01-17)
+### NEW: Self-Paced Difficulty Control (2026-01-21)
+
+**Insight:** External schedulers (threshold-based promotion/demotion) violate the project philosophy: *"We did not build these structures. We priced the resources, and the structures emerged."* The agent's own internal signals should drive its learning progression.
+
+**Key Components:**
+- **Boredom Signal (B):** Rises when novelty is low, variance is low, learning has plateaued → agent seeks challenge
+- **Stress Signal (S):** Rises when prediction error is high, success rate is low, entropy collapses → agent seeks relief
+- **Dynamic Adjustment:** `Δd = K_b * B - K_s * S` with hysteresis and patience safeguards
+- **Continuous Difficulty:** `d ∈ [1, 100]` maps smoothly to task parameters
+
+**Benefits:**
+- No external scheduler—agent self-regulates
+- RND curiosity signal IS the difficulty scheduler
+- Biologically plausible (mimics curiosity/frustration)
+- Fewer hyperparameters than threshold-based approach
+
+**Usage:**
+```bash
+python scripts/train_jarvis_harness.py --mode self-paced \
+    --initial-difficulty 5 \
+    --boredom-coef 5.0 \
+    --stress-coef 5.0
+```
+
+See `BLUEPRINT_SELF_PACED.md` for full architecture and `HANDOFF.md` for design rationale.
+
+### Heterogeneous Brain Architecture (2026-01-17)
 
 **Insight:** Biological brains have regional heterogeneity—different regions with different neuron counts and synapse ratios. We can search for optimal brain structure using Optuna.
 

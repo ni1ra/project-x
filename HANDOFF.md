@@ -1,336 +1,361 @@
 # HANDOFF: WIRED-BRAIN Jarvis Harness v2
 
-Generated: 2026-01-19 (v19 - **PHASE 7.5: TRUTHFUL METRICS FIXED**)
+Generated: 2026-01-21 (v27 - **SELF-PACED DIFFICULTY CONTROL - IMPLEMENTED**)
+
+---
+
+## DOCUMENTATION STATUS
+
+**All documents have been updated to reflect Self-Paced Difficulty Control:**
+
+| Document | Section | Status |
+|----------|---------|--------|
+| `PLAN_TO_JARVIS.md` | "SELF-PACED DIFFICULTY CONTROL" section | ✅ UPDATED |
+| `paper.md` | Appendix L | ✅ UPDATED |
+| `README.md` | "Self-Paced Difficulty Control" section | ✅ UPDATED |
+| `BLUEPRINT_UNIFIED_CURRICULUM.md` | Marked as SUPERSEDED | ✅ UPDATED |
+| `BLUEPRINT_SELF_PACED.md` | New comprehensive blueprint | ✅ CREATED |
+
+**Implementation complete:** `src/curriculum/` module added with Boredom/Stress signals.
+
+---
 
 ## 1. PROJECT CONTEXT
 
 ### What Is This?
-WIRED-BRAIN is a **transformer-free** neural network (RPJ Brain, 2.7M params) trained via BC+RL to fix Python bugs autonomously. The goal is to achieve persistent autonomous operation (Jarvis-Operator mode).
+WIRED-BRAIN is building an autonomous coding agent ("Jarvis") using a 2.7M parameter recurrent neural network. The agent learns to fix bugs in code repositories through reinforcement learning, with **zero LLM dependencies**.
 
-**STATUS: Phase 7.5 - 23% SOLVED ON 100 TRIVIAL TASKS** (2026-01-19)
-- **50k STEPS COMPLETED:** Entropy 0.28, Action diversity balanced
-- **FINAL DISTRIBUTION:** RT=28.3%, WF=33.9%, CT=36.2% (all > 10%)
-- **CHECKPOINT:** `results/jarvis_harness_v2_50000.pt`
-- **EVAL RESULT (100 tasks):** 23% solved (23/100 eligible) - TRUTHFUL METRICS
-- **CRITICAL FIX:** Eval eligible logic corrected (base=0/0 = syntax error, not free win)
-- **IMPORTANT:** Do NOT use `--force-write-focus` in eval (corrupts files via COMPLETE_TASK→WRITE_FOCUS)
-- **NEXT:** Improve targeting accuracy (77/100 writes didn't fix syntax errors)
+### Core Philosophy
+> "We did not build these structures. We priced the resources, and the structures emerged."
 
-### What Problem Does It Solve?
-Creating an AI bug-fixer that doesn't depend on LLMs (no API keys, no intelligence ceiling). A pure RL agent that learns to edit code through environmental feedback (pytest verifiers).
-
-### Tech Stack
-- **Neural Network:** RPJ Brain (2.7M parameters, recurrent + GRU + MLP)
-- **Training:** PPO with Behavioral Cloning (BC) pre-training + **Anchored RL**
-- **Environment:** JarvisHarnessEnv (multi-file Python repos with injected bugs)
-- **Verifier:** pytest (ground-truth test pass/fail)
-- **GPU Guard:** Enforces >80% GPU utilization during training
+This means: **NO external schedulers, NO hand-coded curricula, NO babysitting.** The agent's own internal signals drive its learning progression.
 
 ---
 
-## 2. CURRENT STATUS
+## 2. SELF-PACED DIFFICULTY CONTROL (NEW DESIGN)
 
-### Git State
-```
-Branch: feat/harness-v2-multifile
-Last commit: 6189c54 feat(phase7.5): 100% success on eligible tasks - final validation
+### The Problem with External Scheduling
 
-Uncommitted changes (PHASE 7.5 TRUTHFUL METRICS FIX):
-  - HANDOFF.md (this file)
-  - scripts/eval_jarvis_harness.py (fixed eligible logic)
-```
+The previous design had a `CurriculumScheduler` that:
+- Observed success rate externally
+- Decided when to increase/decrease difficulty
+- Used arbitrary thresholds (70% promote, 30% demote)
 
-### Environment Checkpoint
-```bash
-# GPU: NVIDIA GeForce RTX 5070 Ti, 16303 MiB (2254 MiB used)
-# Python: 3.12.3 (.venv/bin/python)
-# CWD: /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
-```
+**This violates the project's philosophy.** We were engineering curriculum instead of letting it emerge.
 
-### Key Checkpoints Available
-```
-results/jarvis_harness_v2_50000.pt  - Phase 7.4d backup (best so far)
-results/jarvis_harness_v2_500.pt   - Early checkpoint
-results/baseline_trivial_20pct.pt  - Baseline comparison
-```
+### The Solution: Intrinsic Drives
 
-### Phase 7 Infrastructure (COMPLETE)
-| Component | Status | Location |
-|-----------|--------|----------|
-| Persistent mode | DONE | `env.py` - `persistent_mode` config |
-| Task queue | DONE | `env.py` - `reset(task_queue=...)` |
-| COMPLETE_TASK action | DONE | `actions.py:18`, `env.py:1590` |
-| COMPLETE_TASK reward | **FIXED** | Was broken: bonus went to episode_return, not step reward |
-| Scratchpad (.jarvis_notes) | DONE | `env.py` - `scratchpad_enabled` |
-| GIT_CHECKOUT | DONE | `actions.py:11`, `env.py` |
-| GIT_RESET | DONE | `actions.py:10`, `env.py` |
-| Sleep module | DONE | `src/core/sleep.py`, `--enable-sleep` flag |
+Replace external scheduling with two **primal drives** the agent computes from its own experience:
 
-### All Gates PASSED
-| Gate | Status | Evidence |
-|------|--------|----------|
-| Gate D: Eval Truthfulness | PASS | commit 97667ae - free-wins filtered |
-| Gate D2: RL Non-Regression | PASS | Anchored RL (30%) >= BC baseline (25%) |
-| Gate 3: No bricked repos | PASS | Previous eval showed no crashes |
-| All 26 harness tests | PASS | `pytest tests/` passes |
+#### Boredom Signal (B) — "I need challenge"
+Triggers when the agent's world becomes too predictable:
 
----
-
-## 3. IMMEDIATE MOVES (What to Do Next)
-
-### The Entropy Problem
-**Root Cause Identified:** 1-step closer demos created a "toxic attractor"
-- BC over-indexed on "Fresh State (h=0) -> COMPLETE_TASK"
-- When RL starts with h=0 but tests failing: massive conflict
-- Agent collapses to single action ("safe mode")
-
-### Phase 7.5 Fixes IMPLEMENTED (Uncommitted)
-
-**1. 2-step closer demos** - `src/harness/expert_trajectories.py:1470-1509`
-```python
-# OLD (toxic): OBS[tests_pass, h=0] -> COMPLETE_TASK
-# NEW (safe): RUN_TESTS -> COMPLETE_TASK (h is post-RUN_TESTS, not h=0)
-```
-Forces COMPLETE_TASK to condition on post-RUN_TESTS hidden state, not fresh h=0.
-
-**2. Action histogram logging** - `scripts/train_jarvis_harness.py:1333-1422`
-- Tracks RT/WF/CT/OTHER percentages every 1k steps
-- Collapse warning if any action > 85%
-- Frequent checkpoints every 2k steps
-
-### NEXT ACTION: Run Phase 7.5 Training
-```bash
-cd /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
-
-# Run with PYTHONUNBUFFERED for real-time logs
-PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-    --mode v2 --timesteps 200000 --difficulty trivial \
-    --persistent --tasks-per-episode 3 --scratchpad \
-    --num-envs 16 --action-bytes 64 --force-write-focus \
-    --bc-epochs 20 --bc-demos 500 \
-    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000 \
-    2>&1 | tee /tmp/phase7_5_training.log
-```
-
-### Gates to Pass
-- [ ] **Entropy > 0.15** at 10k+ RL steps
-- [ ] **No single action > 85%** over 1k window
-- [ ] **COMPLETE_TASK > 10%** at inference
-
-### If Training Succeeds (entropy > 0.15 at 20k)
-1. Commit Phase 7.5 changes
-2. Run full 200k training
-3. Run eval with `--checkpoint results/jarvis_harness_v2_latest.pt`
-
-### If Entropy Still Collapses
-Try these in order:
-1. Extend BC warmup to 20k steps (modify `--bc-anchor-decay-steps 120000`)
-2. Add -1.0 penalty for premature COMPLETE_TASK
-3. Try `--tasks-per-episode 1` to isolate multi-task issues
-
----
-
-## 4. PHASE HISTORY (What Worked, What Failed)
-
-### Phase 7.4d: Sequential BC - PASS (2026-01-18)
-**Solution:** Sequential BC (maintains h_t across steps)
-**Results:** Best Accuracy 63.7%, RL Entropy 0.4171 (healthy)
-**Gate A:** PARTIAL (RUN_TESTS 67%, WRITE_FOCUS 33%, COMPLETE_TASK 0%)
-
-### Phase 7.4e: Closer Demos (25%) - FAILED (2026-01-18)
-**Attempt:** Add 1-step trajectories: OBS[tests_pass] -> COMPLETE_TASK
-**Result:** Entropy collapsed 0.23 -> 0.10 at 10k steps
-
-### Phase 7.4f: Relaxed Anchor - FAILED (2026-01-18)
-**Attempt:** Reduce anchor 0.5->0.2, increase entropy-coef 0.03->0.05
-**Result:** Same entropy collapse 0.24 -> 0.10 at 10k steps
-
-### Phase 7.4g: Reduced Closer Ratio - PARTIAL (2026-01-19)
-**Attempt:** Reduce `closer_ratio` from 0.25 to 0.05
-**BC Results:** 67.0% accuracy, COMPLETE_TASK 26% (was 0%!)
-**RL Results:**
-| Step | Entropy | Status |
-|------|---------|--------|
-| 5,120 | 0.0999 | Below 0.15 |
-| 10,240 | 0.1207 | RECOVERING (not collapsing!) |
-
-**Key Insight:** Entropy is recovering, not collapsing like 7.4e/f. The 5% ratio helps but 2-step demos needed.
-
----
-
-## 5. STAGED ROADMAP TO JARVIS
-
-See `PLAN_TO_JARVIS.md` for full details.
-
-### Completed Phases
-- Phase 0-2.5: Foundation (validation, sanity gates, baseline)
-- Phase 3: Stage A - TRIVIAL++ (72.7%)
-- Phase 4: Stage B - EASY (90% with hints)
-- Phase 5: Navigation Infrastructure
-
-### Current Phase
-- **Phase 7: Stage E - Persistent Jarvis** - IN PROGRESS
-  - 7.1-7.3 Infrastructure - COMPLETE
-  - 7.4 Training - IN PROGRESS (entropy recovering)
-  - 7.5 Stabilization - READY TO RUN
-
-### Future Phases
-- Phase 6: MICRO_VOCAB byte edits (AFTER Phase 7)
-- Phase 8: Heterogeneous Brain (Research Track)
-- Phase 9-12: Desktop, UI, Personal Jarvis
-
-### Phase Sequencing (IMPORTANT)
-**DO NOT chase "general byte edits" or "full navigation" yet.**
-
-Order:
-1. Persistence + developer loop (Phase 7.4) <- YOU ARE HERE
-2. General edits via MICRO_VOCAB expansion (Phase 6)
-3. Navigation without auto-focus (Phase 5.5)
-4. Multi-file "real repos" as default
-
-**Reason:** A Jarvis that can only do tiny edits but reliably loops + recovers + finishes tasks is an operator. A Jarvis that emits any bytes but doesn't know when to run tests or finish tasks is a noisy keyboard ghost.
-
----
-
-## 6. "IF THINGS GO WRONG" PLAYBOOK
-
-### Symptom: Policy does nothing (writes=0, run_tests=0)
-**Causes:** BC dataset missing "first move" states; action entropy collapsed
-**Fixes:** Train BC on RUN_TESTS-first; add small negative for NO_OP; verify --no-auto-focus shows meaningful terminal bytes
-
-### Symptom: Tons of WRITE_FOCUS but no file changes
-**Causes:** Offset/length out of range; focus text empty/wrong file
-**Fixes:** Log focus_file, focus_offset, len(focus_text); clamp offsets; temporarily force auto_focus_target=True
-
-### Symptom: Solves tests but never calls COMPLETE_TASK
-**Cause:** No reward for COMPLETE_TASK (NOW FIXED); No BC examples
-**Fix:** Patch reward - DONE; Add BC steps with COMPLETE_TASK - DONE
-
-### Symptom: RL regresses (BC 30% -> RL 10-15%)
-**Cause:** Anchor too weak, LR too high, PPO too aggressive
-**Fix:** Raise bc-anchor-coef; shorten rollouts; reduce LR (especially backbone); hard-stop on non-regression gate fail
-
-### Symptom: Entropy collapses (<0.15)
-**Cause:** BC created toxic attractor (h=0 + COMPLETE_TASK)
-**Fix:** 2-step closer demos (Phase 7.5) - IMPLEMENTED
-
-### Symptom: VRAM spikes / instability
-**Rule:** Never exceed 10GB total
-**Fix:** Reduce num_envs; smaller batches; gradient accumulation; kill python instantly if crossed
-
----
-
-## 7. KEY FILES
-
-| File | Purpose | Status |
-|------|---------|--------|
-| `src/harness/env.py` | Core environment with persistent mode | Stable |
-| `src/harness/actions.py` | Action definitions incl. COMPLETE_TASK | Stable |
-| `src/harness/expert_trajectories.py` | BC demo generation | **MODIFIED** (2-step closers) |
-| `scripts/train_jarvis_harness.py` | Training script | **MODIFIED** (action histogram) |
-| `scripts/eval_jarvis_harness.py` | Evaluation with truthful metrics | **MODIFIED** (fixed eligible logic) |
-| `PLAN_TO_JARVIS.md` | Full implementation roadmap | Updated |
-
----
-
-## 8. COMMANDS
-
-### Development
-```bash
-# Activate environment
-cd /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
-
-# Run tests
-PYTHONPATH=. .venv/bin/python -m pytest tests/
-
-# Run training (Phase 7.5)
-PYTHONUNBUFFERED=1 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-    --mode v2 --timesteps 200000 --difficulty trivial \
-    --persistent --tasks-per-episode 3 --scratchpad \
-    --num-envs 16 --action-bytes 64 --force-write-focus \
-    --bc-epochs 20 --bc-demos 500 \
-    --bc-anchor-coef 0.1 --bc-anchor-decay linear --bc-anchor-decay-steps 100000
-
-# Run evaluation (IMPORTANT: NO --force-write-focus flag!)
-PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
-    --checkpoint results/jarvis_harness_v2_50000.pt \
-    --mode v2 --difficulty trivial --num-tasks 100 --seed 999
-```
-
-### Git
-```bash
-# Check status
-git status
-
-# Commit Phase 7.5 changes (AFTER training succeeds)
-git add -A && git commit -m "feat(phase7.5): 2-step closer demos + action histogram logging"
-git push origin feat/harness-v2-multifile
-```
-
----
-
-## QUICK START FOR NEW INSTANCE
-
-```
-Continue WIRED-BRAIN Jarvis Harness. Read HANDOFF.md.
-
-STATUS: Phase 7.5 - 23% SOLVED ON 100 TRIVIAL TASKS (2026-01-19)
-- 50k training complete, entropy 0.28, action diversity balanced
-- Checkpoint: results/jarvis_harness_v2_50000.pt
-- Eval result: 23/100 tasks solved (TRUTHFUL METRICS)
-
-IMPORTANT EVAL NOTES:
-- Do NOT use --force-write-focus in eval (corrupts files via COMPLETE_TASK→WRITE_FOCUS)
-- All 100 tasks are eligible (base=0/0 means syntax error, not free win)
-
-NEXT ACTION: Run eval to verify
-  PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
-      --checkpoint results/jarvis_harness_v2_50000.pt \
-      --mode v2 --difficulty trivial --num-tasks 100 --seed 999
-
-NEXT IMPROVEMENT: Fix targeting accuracy (77/100 writes didn't fix bugs)
-
-DO NOT: Jump to Phase 6 (byte edits) or Phase 5.5 (navigation) yet.
-
-See PLAN_TO_JARVIS.md for full roadmap. See MISTAKES.md for failure log.
-```
-
----
-
-## EVAL TRUTHFULNESS (FIXED - v2)
-
-Updated 2026-01-19: Fixed eligible logic. base=0/0 means SYNTAX ERROR (eligible), not free win.
+| Component | Measurement | Boredom Rises When... |
+|-----------|-------------|----------------------|
+| Low Novelty | RND prediction error | Error consistently low (nothing new) |
+| Low Variance | Std dev of recent rewards | Outcomes predictable |
+| Plateaued Learning | Δ performance over time | No improvement despite success |
 
 ```python
-# Truthful metrics now computed:
-baseline_has_syntax_error = (base_total == 0)  # Can't run tests = syntax error = has bug
-baseline_had_failures = (base_passing < base_total)  # Some tests fail = has bug
-eligible = baseline_has_syntax_error OR baseline_had_failures
-solved = success AND eligible  # Actually fixed the bug
-improved = (tests_passing > base_passing) AND eligible  # Made progress
+B = w1 * max(0, R* - R_mean) +      # Success too high
+    w2 * max(0, σ* - σ(rewards)) +  # Variance too low
+    w3 * max(0, -Δ_perf)            # Learning stalled
+```
 
-# Output shows:
-# SOLVED: actually fixed eligible task
-# IMPROVED: made progress on eligible task
-# ELIGIBLE: task had a bug to fix
-# FREE_WIN: base=total (no bug, excluded from metrics)
+#### Stress Signal (S) — "I need relief"
+Triggers when the agent is overwhelmed:
+
+| Component | Measurement | Stress Rises When... |
+|-----------|-------------|---------------------|
+| Rising Prediction Error | RND error trend | Encountering unpredictable situations |
+| Low Success Rate | EMA of task completion | Failing repeatedly |
+| Entropy Collapse | Policy entropy | Agent "gives up" (one action dominates) |
+
+```python
+S = v1 * max(0, E_pred - E*) +      # Prediction error too high
+    v2 * max(0, P* - P_success) +   # Success rate too low
+    v3 * max(0, H* - H)             # Entropy collapsed
+```
+
+### Dynamic Difficulty Adjustment
+
+The difficulty parameter `d ∈ [1, 100]` adjusts based on the balance of drives:
+
+```python
+Δd = K_b * B - K_s * S
+
+# If B > S: Agent is bored → increase difficulty
+# If S > B: Agent is stressed → decrease difficulty
+# If B ≈ S ≈ 0: Agent in "flow state" → maintain difficulty
+```
+
+### Safeguards Against Oscillation
+
+| Safeguard | Implementation |
+|-----------|----------------|
+| **Hysteresis** | Dead-band where small B/S differences don't trigger changes |
+| **Patience Window** | Minimum N episodes before any adjustment |
+| **EMA Smoothing** | Signals based on moving averages, not single episodes |
+| **Difficulty Jitter** | Sample tasks from Normal(d, σ=5) to smooth transitions |
+
+### Why This Is Better
+
+| Aspect | External Scheduler | Intrinsic Drives |
+|--------|-------------------|------------------|
+| Philosophy | Engineering | Emergence |
+| Hyperparameters | Many thresholds to tune | Few coefficients |
+| Adaptability | Fixed rules | Self-adjusting |
+| Gaming resistance | Agent could exploit | Agent's own signals |
+| Biological plausibility | None | Mimics curiosity/frustration |
+
+---
+
+## 3. CONTINUOUS DIFFICULTY PARAMETER
+
+### Mapping d ∈ [1, 100] to Task Parameters
+
+| d Range | Code Size | Files | Bug Type | Hints |
+|---------|-----------|-------|----------|-------|
+| 1-10 | 10-50 lines | 1 | Syntax | Full (bug_line, auto-focus) |
+| 11-30 | 50-100 lines | 1-2 | Syntax/Logic | Partial (auto-focus only) |
+| 31-50 | 100-200 lines | 2-5 | Logic/Type | None |
+| 51-70 | 200-500 lines | 5-10 | State/Import | None |
+| 71-100 | 500+ lines | 10+ | Design flaws | None |
+
+### Smooth Interpolation
+
+```python
+def map_difficulty_to_params(d: int) -> DifficultyParams:
+    """
+    Linear interpolation between anchor points.
+    d=30 to d=31 is imperceptible.
+    d=10 to d=50 is substantial but gradual.
+    """
 ```
 
 ---
 
-## PHASE 7 ARCHITECTURE
+## 4. IMPLEMENTATION ARCHITECTURE
 
-### Persistent Mode Flow
-1. `reset(task_queue=[t1, t2, t3])` - Initialize with multiple tasks
-2. Agent works on first task
-3. Agent calls `COMPLETE_TASK` when done
-4. Environment validates completion, advances to next task
-5. Workspace preserved between tasks
-6. `.jarvis_notes` scratchpad persists across all tasks
-7. `GIT_RESET`/`GIT_CHECKOUT` available for recovery
+### Core Components
 
-### New Flags
-- `--persistent`: Enable persistent mode (no reset between tasks)
-- `--tasks-per-episode N`: Number of tasks per super-episode
-- `--scratchpad`: Enable .jarvis_notes file
-- `--enable-sleep`: Enable sleep/consolidation module
+```
+┌─────────────────────────────────────────────────────────┐
+│              SELF-PACED DIFFICULTY CONTROL              │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─────────────────┐      ┌─────────────────────────┐  │
+│  │ Boredom Signal  │      │    Stress Signal        │  │
+│  │ - RND novelty   │      │ - Success rate          │  │
+│  │ - Reward var    │      │ - Prediction error      │  │
+│  │ - Learning Δ    │      │ - Policy entropy        │  │
+│  └────────┬────────┘      └───────────┬─────────────┘  │
+│           │                           │                 │
+│           └─────────┬─────────────────┘                 │
+│                     ▼                                   │
+│           ┌─────────────────┐                          │
+│           │  Δd = K_b*B - K_s*S                        │
+│           │  (with hysteresis & patience)              │
+│           └────────┬────────┘                          │
+│                    ▼                                    │
+│           ┌─────────────────┐                          │
+│           │ difficulty_target                          │
+│           │ sampled_d ~ N(target, 5)                   │
+│           └────────┬────────┘                          │
+│                    ▼                                    │
+│           ┌─────────────────┐                          │
+│           │ Task Generation │                          │
+│           │ map_difficulty_to_params(sampled_d)        │
+│           └─────────────────┘                          │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### File Structure
+
+```
+src/
+├── curriculum/
+│   ├── __init__.py
+│   ├── signals.py          # Boredom and Stress computation
+│   ├── controller.py       # Self-paced difficulty adjustment
+│   └── difficulty_mapping.py
+│
+├── harness/
+│   ├── env.py              # Add continuous difficulty support
+│   └── bug_templates.py    # Parameterize by d
+│
+└── core/
+    └── rpj_brain.py        # RND for novelty signal
+```
+
+### Training Loop Integration
+
+```python
+# Pseudocode for self-paced training
+difficulty_target = 5.0  # Start easy
+episodes_since_change = 0
+
+for episode in training:
+    # Run episode
+    metrics = run_episode(difficulty=int(difficulty_target))
+    episodes_since_change += 1
+
+    # Update EMAs
+    success_ema.update(metrics.success)
+    novelty_ema.update(metrics.intrinsic_reward)
+    entropy_ema.update(metrics.policy_entropy)
+
+    # Compute signals
+    B = compute_boredom(success_ema, novelty_ema, reward_variance)
+    S = compute_stress(success_ema, pred_error_ema, entropy_ema)
+
+    # Self-paced adjustment (with safeguards)
+    if episodes_since_change >= MIN_PATIENCE:
+        if B - S > HYSTERESIS and B > B_HIGH:
+            difficulty_target += K_b * B
+            episodes_since_change = 0
+        elif S - B > HYSTERESIS and S > S_HIGH:
+            difficulty_target -= K_s * S
+            episodes_since_change = 0
+
+    # Clamp and sample
+    difficulty_target = clip(difficulty_target, 1, 100)
+    sampled_d = sample_normal(difficulty_target, std=5)
+
+    # Generate next task
+    next_task = generate_task(sampled_d)
+```
+
+---
+
+## 5. CLI ARGUMENTS
+
+New arguments for self-paced training:
+
+```bash
+python scripts/train_jarvis_harness.py \
+    --self-paced \                    # Enable intrinsic drive control
+    --boredom-coef 1.0 \              # K_b weight
+    --stress-coef 1.0 \               # K_s weight
+    --boredom-threshold 0.6 \         # B_HIGH trigger
+    --stress-threshold 0.6 \          # S_HIGH trigger
+    --hysteresis-margin 0.1 \         # Dead-band width
+    --min-patience-episodes 30 \      # Cooldown after adjustment
+    --difficulty-jitter 5.0 \         # Std dev for sampling
+    --initial-difficulty 5            # Starting d
+```
+
+---
+
+## 6. MONITORING AND LOGGING
+
+### Required Metrics
+
+Every N episodes, log:
+
+```
+Episode 2500: d=42, B=0.75, S=0.10, success=1, novelty=0.05, entropy=0.30
+Episode 2550: d=45, B=0.50, S=0.00, success=1, novelty=0.02, entropy=0.25
+Episode 2600: d=48, B=0.20, S=0.00, success=0, novelty=0.15, entropy=0.28
+Episode 2650: d=48, B=0.00, S=0.40, success=0, novelty=0.20, entropy=0.22  # stress rising
+Episode 2700: d=47, B=0.00, S=0.80, success=0, novelty=0.30, entropy=0.15  # difficulty decreased
+```
+
+### Warning Conditions
+
+| Condition | Warning | Response |
+|-----------|---------|----------|
+| Difficulty oscillates 3+ times in 20 episodes | "⚠️ Thrashing detected" | Increase patience |
+| Entropy < 0.1 | "⚠️ Entropy collapse" | Stress signal handles |
+| Success rate = 0 for 50+ episodes | "⚠️ Complete failure" | Force difficulty decrease |
+| B and S both high | "⚠️ Conflicting signals" | Increase smoothing |
+
+---
+
+## 7. EXPERIMENTAL VALIDATION
+
+### Ablation Study
+
+Compare self-paced vs baseline (threshold-based) curriculum:
+
+| Metric | Self-Paced (Expected) | Baseline |
+|--------|----------------------|----------|
+| Max difficulty reached | Higher | Lower |
+| Oscillations | Fewer | More |
+| Entropy stability | Better | Worse |
+| Forgetting (low-d performance) | Minimal | Risk |
+
+### Evaluation Protocol
+
+1. Train both for same timesteps
+2. Evaluate on d ∈ {10, 30, 50, 70, 90}
+3. Measure:
+   - Success rate per difficulty
+   - Time to reach d=50
+   - Backward transfer (can still solve d=10?)
+   - Policy entropy trajectory
+
+---
+
+## 8. KEY INSIGHT
+
+**The RND curiosity signal IS the difficulty scheduler.**
+
+When tasks are mastered:
+- States become predictable → RND error drops → Boredom rises → Agent seeks harder tasks
+
+When tasks are too hard:
+- Outcomes are random → Can't learn patterns → Stress rises → Agent retreats
+
+This is exactly how human curiosity works. We don't need an external scheduler—we just need to measure and respond to the agent's own learning dynamics.
+
+---
+
+## 9. FILES REQUIRING UPDATE
+
+After implementing self-paced control, update these docs to match:
+
+### PLAN_TO_JARVIS.md
+- Replace "UNIFIED CURRICULUM RL FRAMEWORK" section
+- Remove `CurriculumScheduler` references
+- Add Boredom/Stress signal definitions
+- Update implementation roadmap
+
+### paper.md (Appendix L)
+- Rewrite to emphasize intrinsic drives over external scheduling
+- Add equations for B and S signals
+- Discuss philosophical alignment with project thesis
+
+### README.md
+- Update "Unified Curriculum Framework" section
+- Emphasize "no external scheduler" approach
+- Add CLI arguments for self-paced mode
+
+### BLUEPRINT_UNIFIED_CURRICULUM.md
+- Major rewrite: remove `CurriculumScheduler` class
+- Add `signals.py` and `controller.py` specifications
+- Update implementation steps
+- Re-validate with JARVIS
+
+---
+
+## 10. QUICK REFERENCE
+
+### The Two Drives
+
+| Drive | Meaning | Response |
+|-------|---------|----------|
+| **Boredom** | "This is too easy" | Seek challenge (↑ difficulty) |
+| **Stress** | "This is too hard" | Seek relief (↓ difficulty) |
+
+### The Golden Rule
+
+> **Price curiosity correctly, and the curriculum emerges.**
+
+No external scheduler. No arbitrary thresholds. The agent's own learning dynamics guide its progression through the difficulty landscape.
+
+---
+
+*Last updated: 2026-01-21*
+*Status: Self-Paced Difficulty Control IMPLEMENTED. Ready for training.*
