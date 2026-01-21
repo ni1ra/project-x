@@ -830,6 +830,11 @@ class JarvisHarnessTrainer:
                         continue
 
                     # Forward pass with carried hidden state
+                    # Save pre-update state for evaluate_actions (matches PPO behavior)
+                    h_before = h.clone()
+                    g_before = g.clone()
+                    a_prev_before = a_prev.clone()
+
                     output = self.brain(obs_step, h, g, a_prev, training=True)
 
                     # Update hidden state for next step
@@ -838,11 +843,13 @@ class JarvisHarnessTrainer:
                     a_prev = output.action.long().detach()
 
                     # Compute loss only for valid steps
+                    # FIX: Use pre-update state (h_before) to match PPO's evaluate_actions
+                    # The action distribution was computed using h_before, not h_next
                     log_probs, entropy, values, _, _, _ = self.brain.evaluate_actions(
                         obs_bytes=obs_step,
-                        prev_h=output.h_next,  # Use updated h for consistency
-                        prev_g=output.g_t,
-                        prev_a=a_prev,
+                        prev_h=h_before,  # Pre-update state (matches PPO)
+                        prev_g=g_before,
+                        prev_a=a_prev_before,
                         actions=target_action,
                         z_t=output.z_t,
                     )
@@ -2176,8 +2183,9 @@ def main():
             controller = SelfPacedController(controller_config, initial_difficulty=float(args.initial_difficulty))
             self_paced_state = (signal_tracker, controller, boredom_config, stress_config)
 
-            # Get initial difficulty params and create tasks
+            # Get initial difficulty params and set difficulty for BC pre-training
             initial_params = map_difficulty_to_params(args.initial_difficulty)
+            difficulty = BugDifficulty(initial_params.bug_difficulty)
             temp_dir = tempfile.mkdtemp(prefix="jarvis_self_paced_")
             tasks, repos = create_tasks_v2(
                 num_tasks=args.num_envs,

@@ -898,4 +898,139 @@ Hard stop if any occurs:
 - Run held-out eval: CCB (do()), OD-NDT (true one-demo), plus held-out domains 7–8.
 - Deliverable: full results with all ablations A–C, reproducible within tolerance; stop if any kill-switch triggers.
 
+---
+
+## 9) IMPLEMENTATION FIX: h_t Trajectory Alignment
+
+> **Added: 2026-01-21 | FULLAUTO GOD-MODE**
+> **Root cause identified: Train/Eval h_t mismatch prevents any learning**
+
+### 9.1 Problem Statement
+
+**Symptom:** BC accuracy 72.7% but Pytest success 0-25%
+
+**Root Cause:** The training loop uses **upstream teacher forcing** which creates a fundamentally different hidden state trajectory than evaluation.
+
+```
+Training:   a_prev = FORCED (16)     → h_t = f(obs, h_{t-1}, FORCED)
+Evaluation: a_prev = NATURAL (model) → h_t = f(obs, h_{t-1}, NATURAL)
+```
+
+The brain is trained on hidden states it will **never see at eval time**.
+
+### 9.2 Evidence
+
+| Observation | Value | Implication |
+|-------------|-------|-------------|
+| BC accuracy | 72.7% | Model learns static prediction |
+| Eval SR at d=1 | 0.1% | Complete failure even on TRIVIAL |
+| SR trend | 8.3% → 0.1% as d↓ | NOT a difficulty issue |
+| Writes at eval | 0 | Policy collapses to safe default |
+| RUN_TESTS at eval | 100% | Operating on OOD hidden states |
+
+### 9.3 The Fix (Two-Part)
+
+#### Fix A: Remove Upstream Teacher Forcing (Critical)
+
+**File:** `scripts/train_jarvis_harness.py` lines 1187-1210
+
+**Before:**
+```python
+if self.upstream_teacher_forcing and random.random() < current_force_prob:
+    action_to_store[:, 0] = 16  # Force WRITE_FOCUS
+    # Recompute log_prob...
+```
+
+**After:**
+```python
+# DISABLED: Teacher forcing creates h_t trajectory divergence
+# The brain must learn on natural trajectories that match eval
+# action_to_store remains unchanged (model's natural action)
+```
+
+**Implementation:**
+1. Set `--upstream-teacher-forcing` to False by default
+2. Keep BC pre-training (provides good initial policy)
+3. PPO learns on natural h_t trajectories
+
+#### Fix B: Sequential BC Pre-training (Enhancement)
+
+**File:** `scripts/train_jarvis_harness.py` line ~495
+
+**Before:**
+```python
+self.pretrain_behavioral_cloning(num_demos, bc_epochs)  # Shuffled, h_t=0
+```
+
+**After:**
+```python
+self.pretrain_behavioral_cloning_sequential(num_demos, bc_epochs, seq_len=4)
+```
+
+**Why:** Sequential BC trains the model to handle recurrent dynamics, not just static prediction.
+
+### 9.4 Training Command (Post-Fix)
+
+```bash
+PYTHONPATH=. .venv/bin/python -u scripts/train_jarvis_harness.py \
+    --mode self-paced \
+    --num-envs 4 \
+    --timesteps 100000 \
+    --rollout-steps 8 \
+    --initial-difficulty 5 \
+    --boredom-coef 5.0 \
+    --stress-coef 5.0 \
+    --hysteresis-margin 0.1 \
+    --min-patience-episodes 2 \
+    --bc-anchor-coef 0.5 \
+    --entropy-coef 0.01 \
+    --bc-epochs 50 \
+    --bc-sequential \
+    --bc-demos 1000 \
+    2>&1 | tee training_fix_ht.log
+```
+
+### 9.5 Success Criteria
+
+| Metric | Before Fix | Target |
+|--------|------------|--------|
+| TRIVIAL SR | 0% | >70% |
+| EASY SR | 0% | >50% |
+| Action diversity | 0% writes | Mixed RT/WF/CT |
+| Curriculum | Stuck at d=1 | Natural progression |
+
+### 9.6 Verification Protocol
+
+1. **Immediate (post-training 10k steps):**
+   - SR > 5% proves h_t fix works
+   - Entropy > 5.0 (not collapsed)
+   - Mixed actions in logs
+
+2. **Short-term (post-training 50k steps):**
+   - SR > 30% on TRIVIAL
+   - Curriculum begins self-pacing (d increases)
+
+3. **Target (post-training 100k steps):**
+   - >70% TRIVIAL, >50% EASY
+   - Stable Boredom/Stress equilibrium
+
+### 9.7 Files Modified
+
+| File | Change |
+|------|--------|
+| `scripts/train_jarvis_harness.py` | Disable upstream_teacher_forcing |
+| `scripts/train_jarvis_harness.py` | Switch to sequential BC |
+
+### 9.8 Risk Assessment
+
+| Risk | Probability | Mitigation |
+|------|-------------|------------|
+| Slower initial learning | Medium | BC pre-training provides foundation |
+| Entropy collapse | Low | Entropy coefficient 0.01, self-paced curriculum |
+| Curriculum stuck | Low | With non-zero SR, curriculum will respond naturally |
+
+---
+
+*Section 9 added by FULLAUTO GOD-MODE protocol, 2026-01-21*
+
 
