@@ -29,6 +29,7 @@ from src.core.vae import BitsBackVAE, VAEOutput
 from src.core.byte_interface import phi, AutoregressiveActionDecoder, ByteInterface
 from src.core.plasticity import LocalPlasticity, PlasticityConfig
 from src.core.sleep import SleepModule, SleepConfig
+from src.core.goal_encoder import GoalEncoder, GoalEncoderConfig
 
 
 @dataclass
@@ -72,6 +73,11 @@ class RPJConfig:
     # Vocab head size (Phase 9 fix: must match training difficulty)
     # TRIVIAL: 5 (TRIVIAL_VOCAB), HARD/EASY/MEDIUM: 21 (COMBINED_VOCAB)
     vocab_size: int = 5
+
+    # Phase 10: Natural Language Interface (goal encoder)
+    enable_goal_encoder: bool = False
+    goal_embed_dim: int = 64          # Goal embedding dimension
+    max_goal_len: int = 512           # Max goal length in UTF-8 bytes
 
 
 class RPJBrainOutput(NamedTuple):
@@ -252,6 +258,22 @@ class RPJBrain(nn.Module):
             num_action_bytes=config.action_bytes,
         )
 
+        # Phase 10: Goal encoder for natural language interface
+        if config.enable_goal_encoder:
+            self.goal_encoder = GoalEncoder(GoalEncoderConfig(
+                max_goal_len=config.max_goal_len,
+                goal_embed_dim=config.goal_embed_dim,
+                hidden_dim=256,  # Internal GRU hidden dim
+            ))
+            # Projection to combine goal embedding with observation
+            self.goal_projection = nn.Linear(
+                config.goal_embed_dim,
+                config.obs_dim,  # Project to observation dimension
+            )
+        else:
+            self.goal_encoder = None
+            self.goal_projection = None
+
         # Step counter for warmup
         self.register_buffer('step_count', torch.tensor(0))
 
@@ -299,6 +321,8 @@ class RPJBrain(nn.Module):
         g_prev: torch.Tensor,
         a_prev: torch.Tensor,
         training: bool = True,
+        goal_bytes: Optional[torch.Tensor] = None,
+        goal_lengths: Optional[torch.Tensor] = None,
     ) -> RPJBrainOutput:
         """
         Single brain step.
@@ -309,6 +333,8 @@ class RPJBrain(nn.Module):
             g_prev: Previous global scalars [batch, k_max]
             a_prev: Previous action bytes [batch] or [batch, action_bytes]
             training: Whether in training mode
+            goal_bytes: Optional goal text as UTF-8 bytes [batch, max_goal_len] (Phase 10)
+            goal_lengths: Optional lengths of goal texts [batch] (Phase 10)
 
         Returns:
             RPJBrainOutput with all outputs
@@ -318,6 +344,12 @@ class RPJBrain(nn.Module):
 
         # Normalize observation
         phi_obs = phi(obs_bytes)
+
+        # Phase 10: Add goal conditioning if goal encoder is enabled and goal provided
+        if self.goal_encoder is not None and goal_bytes is not None:
+            goal_embed = self.goal_encoder(goal_bytes, goal_lengths)  # [B, goal_embed_dim]
+            goal_features = self.goal_projection(goal_embed)  # [B, obs_dim]
+            phi_obs = phi_obs + goal_features  # Additive conditioning
 
         # Encode observation to latent
         vae_output = self.vae(h_t, phi_obs, obs_bytes)
