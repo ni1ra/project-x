@@ -201,29 +201,36 @@ CONTEXT:
 - Sprint 1 is COMPLETE with 73.1% HARD solve rate (homogeneous model)
 - Phase 8 heterogeneous training FAILED with action collapse (0%)
 - Phase 9 infrastructure COMPLETE (real_repo_source.py, fixtures, --real-ratio flag)
+- Phase 10 infrastructure COMPLETE (GoalEncoder for natural language goals)
 - All blocking bugs FIXED:
   - vocab_size mismatch in byte_interface.py (BC accuracy: 36.4% -> 62.6%)
-  - GPU guard blocking v2 mode (use --v2-subprocess-heavy --gpu-min-util 30)
+  - GPU guard blocking v2 mode (use --v2-subprocess-heavy --gpu-min-util 8)
+  - CRITICAL: Always use --bc-epochs for v2 mode (prevents action collapse)
 
 NEXT ACTION:
-1. Run full Phase 9 training: v2 mode with real repos mixed in
+1. Complete Phase 9 training with BC pre-training + RL fine-tuning
 2. Evaluate trained model on real repos
-3. Progress to Phase 10: Natural Language Interface
+3. Train Phase 10 model with text goals
 
-V2 MODE TRAINING COMMAND:
+V2 MODE TRAINING COMMAND (CORRECT - WITH BC):
 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
     --mode v2 \
     --difficulty hard \
     --real-ratio 0.3 \
-    --timesteps 100000 \
+    --timesteps 50000 \
+    --bc-epochs 20 \
+    --bc-demos 200 \
+    --bc-sequential \
     --v2-subprocess-heavy \
-    --gpu-min-util 30
+    --gpu-min-util 8
 
 KEY FILES:
 - src/harness/real_repo_source.py - Real repo loading infrastructure
+- src/core/goal_encoder.py - Phase 10 GoalEncoder (natural language goals)
 - src/core/byte_interface.py - vocab_size fix
-- scripts/train_jarvis_harness.py - Training with --real-ratio and --v2-subprocess-heavy
+- scripts/train_jarvis_harness.py - Training with --real-ratio and BC pre-training
 - scripts/eval_jarvis_harness.py - Evaluation script
+- PHASE10_DESIGN.md - Phase 10 design document
 
 Production model: jarvis_harness_v2_100000.pt (homogeneous, 73.1% HARD)
 
