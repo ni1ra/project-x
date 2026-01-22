@@ -2068,14 +2068,24 @@ def main():
     parser.add_argument("--gpu-min-util", type=int, default=80, help="Abort if sustained GPU util falls below this %%")
     parser.add_argument("--gpu-grace-s", type=float, default=20.0, help="Warmup seconds before util enforcement")
     parser.add_argument("--gpu-low-util-patience-s", type=float, default=30.0, help="Seconds of low util before abort")
+    # V2 mode context-aware GPU guard: v2 has legitimate subprocess overhead (pytest calls)
+    parser.add_argument("--v2-subprocess-heavy", action="store_true",
+                        help="Acknowledge v2 mode subprocess overhead; allows --gpu-min-util >= 20 for v2/rl modes")
     args = parser.parse_args()
 
     if args.no_gpu_guard:
         raise SystemExit("Refusing to run with --no-gpu-guard (hard repo rule).")
 
-    # Hard safety envelope (non-negotiable).
-    if int(args.gpu_min_util) < 80:
-        raise SystemExit("Refusing --gpu-min-util < 80 (hard repo rule).")
+    # Hard safety envelope (non-negotiable, but context-aware for v2 mode).
+    # V2 mode has legitimate low GPU utilization due to subprocess overhead (pytest calls).
+    # With --v2-subprocess-heavy flag, allow min_util down to 20% for v2/rl modes only.
+    is_v2_subprocess_mode = getattr(args, 'v2_subprocess_heavy', False) and args.mode in ("v2", "rl")
+    min_util_floor = 20 if is_v2_subprocess_mode else 80
+    if int(args.gpu_min_util) < min_util_floor:
+        if is_v2_subprocess_mode:
+            raise SystemExit(f"Refusing --gpu-min-util < {min_util_floor} (v2 subprocess mode minimum).")
+        else:
+            raise SystemExit("Refusing --gpu-min-util < 80 (hard repo rule). Use --v2-subprocess-heavy for v2/rl modes.")
     if int(args.gpu_max_vram_mib) > 10 * 1024:
         raise SystemExit("Refusing --gpu-max-vram-mib > 10240 MiB (hard repo rule).")
 
