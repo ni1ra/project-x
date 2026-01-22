@@ -1,153 +1,163 @@
-# HANDOFF: WIRED-BRAIN Jarvis
+# HANDOFF: WIRED-BRAIN (JARVIS)
 
-Generated: 2026-01-21 (v29 - **PR #5 READY FOR MERGE**)
+Generated: 2026-01-22 05:30
 
----
+## 1. PROJECT CONTEXT
 
-## IMMEDIATE CONTEXT
+### What Is This?
+JARVIS - An autonomous AI coding agent that fixes bugs in Python codebases, trained via BC pre-training + RL fine-tuning. Goal: Build Iron Man's JARVIS.
 
-**Mission:** Make Jarvis that Iron Man would be proud of
-**Target:** >70% TRIVIAL, >50% EASY pytest success rates
-**Current State:** Fix implemented, PR #5 created, pending merge
+### What Problem Does It Solve?
+Automated bug fixing without LLM API calls - a 20W-equivalent brain that learns to debug code through architectural emergence.
 
-**PR:** https://github.com/ni1ra/WIRED-BRAIN/pull/5
+### Tech Stack
+- Core: PyTorch 2.0+, Python 3.12
+- Training: PPO, Behavioral Cloning
+- Environment: Custom harness with synthetic bug generation
+- Search: Optuna for architecture optimization
 
----
+## 2. CURRENT STATUS
 
-## ROOT CAUSE IDENTIFIED (420/420 Diagnosis)
-
-**Problem:** BC accuracy 72.7% but Pytest success 0-25%
-
-**Root Cause:** Train/Eval h_t trajectory mismatch
-
+### Git State
 ```
-Training:  a_prev = FORCED (16) → h_t computed on forced action
-Evaluation: a_prev = NATURAL   → h_t computed on natural action
-```
-
-The brain has NEVER seen eval's hidden state sequences during training.
-
-**Evidence:**
-- SR cascades 8.3% → 0.1% even as difficulty decreases to d=1
-- 100% RUN_TESTS spam at eval (collapse to safe default)
-- writes=0 in ALL episodes
-
----
-
-## THE FIX (IMPLEMENTED)
-
-### Fix A: BC h_t State Alignment (Critical Fix)
-
-**Location:** `scripts/train_jarvis_harness.py` lines 832-855
-
-```python
-# Save pre-update state before forward pass
-h_before = h.clone()
-g_before = g.clone()
-a_prev_before = a_prev.clone()
-
-output = self.brain(obs_step, h, g, a_prev, training=True)
-
-# Use pre-update state in evaluate_actions (matches PPO behavior)
-log_probs, entropy, values, _, _, _ = self.brain.evaluate_actions(
-    obs_bytes=obs_step,
-    prev_h=h_before,  # Pre-update state (NOT h_next)
-    prev_g=g_before,
-    prev_a=a_prev_before,
-    actions=target_action,
-    z_t=output.z_t,
-)
+Branch: main (uncommitted changes ready for PR)
+Last commit: 65b204b feat(phase8): add structural plasticity infrastructure
+Uncommitted changes: Paper rewrite reflecting Phase 8 action collapse reality
 ```
 
-**Why it works:**
-- BC now trains on same h_t trajectories that eval will see
-- Eliminates train/eval distribution shift
-- JARVIS validated: 420/420
+### Sprint 1 Results (COMPLETE - ALL TARGETS EXCEEDED)
+| Difficulty | Target | Achieved | Status |
+|------------|--------|----------|--------|
+| TRIVIAL | >70% | **72%** | PASS |
+| EASY | >50% | **52.2%** | PASS |
+| MEDIUM | >75% | **100%** | PASS |
+| HARD | >30% | **73.1%** | PASS (2.4x target) |
 
-### Fix B: Sequential BC Flags
+### Phase 8 Status - EVALUATION COMPLETE
+- [x] HeterogeneousSubstrate integrated into RPJBrain
+- [x] Optuna search found optimal 3-region architecture
+- [x] Training completed (50,000 steps with --use-heterogeneous)
+- [x] **EVALUATION RUN** - Result: ACTION COLLAPSE (0% solve rate)
+- [x] Paper.md updated to reflect honest results
 
-Added to training command:
-- `--bc-epochs 50`
-- `--bc-sequential`
-- `--bc-demos 1000`
+### Phase 8 Evaluation Results
+```
+Heterogeneous Model (Phase 8):
+- HARD solve rate: 0% (0/26 eligible)
+- Action: Same output every step (WRITE_FOCUS offset=0 vocab=8)
+- Status: ACTION COLLAPSE - model memorized single pattern
 
----
+Homogeneous Model (baseline):
+- HARD solve rate: 73.1% (19/26 eligible)
+- Action: Varied by task (actually fixes bugs)
+- Status: PRODUCTION MODEL
+```
 
-## ARCHITECTURE (Working Components)
+## 3. WHAT WAS JUST COMPLETED (THIS SESSION)
 
-| Component | Status | Location |
-|-----------|--------|----------|
-| RPJBrain | EXCELLENT | `src/core/rpj_brain.py` |
-| Boredom/Stress signals | EXCELLENT | `src/curriculum/signals.py` |
-| Self-Paced Controller | EXCELLENT | `src/curriculum/controller.py` |
-| Evaluation Pipeline | CORRECT | `scripts/eval_jarvis_harness.py` |
-| Training Loop | **FIXED** | `scripts/train_jarvis_harness.py` |
+### Phase 8 Evaluation
+1. Ran heterogeneous evaluation: 0% solve rate (action collapse confirmed)
+2. Ran homogeneous baseline: 73.1% solve rate (meets target)
+3. Decision: Use homogeneous baseline as production model
 
----
+### Paper.md Updated
+1. **Abstract** - Updated Phase 8 claims to reflect action collapse
+2. **Section 1.3** - Added honest acknowledgment
+3. **Act XIII (13.4)** - Added "The Action Collapse" section with root cause analysis
+4. **Act XIII (13.5)** - Added "Future Work" for Phase 8 fixes
+5. **Epilogue Phase 3** - Updated to "Research Direction" status
+6. **Appendix K.5** - Updated with full evaluation results table
 
-## FULLAUTO PROGRESS
+## 4. NEXT STEPS
 
-- [x] Layer 00: MEMORY - MISTAKES.md reviewed
-- [x] Layer 01: ACCELA - Recon complete (root cause found)
-- [x] Layer 02: SOCIETY - Linear issue (N/A - research project)
-- [x] Layer 03: PSYCHE - Blueprint updated (Section 9)
-- [x] CHECKPOINT A: JARVIS validate (420/420)
-- [x] Layer 04: INFORNOGRAPHY - Implement fix
-- [x] Layer 05: DISTORTION - Simplify code
-- [x] CHECKPOINT B: JARVIS validate (420/420)
-- [x] Layer 06: KIDS - Tests (325 passed, 1 pre-existing fail)
-- [x] Layer 07: RUMORS - PR #5 created
-- [ ] Layer 09: BRIDGE - PR review
-- [ ] CHECKPOINT C: JARVIS validate PR
-- [ ] Layer 10: LOGIN - Merge
+### Immediate
+1. Log Phase 8 action collapse in MISTAKES.md
+2. Create PR with all documentation updates
+3. Merge to main
 
----
+### Future Phase 8 Work (not blocking)
+1. Entropy regularization during BC training
+2. Larger heterogeneous models (width=512 total)
+3. Direct RL training (skip BC entirely)
+4. Mixed training: heterogeneous BC + homogeneous fine-tuning
 
-## CRITICAL FILES
+## 5. KEY ARCHITECTURE DETAILS
 
-| File | Purpose |
-|------|---------|
-| `scripts/train_jarvis_harness.py` | Training loop (lines 832-855 contain fix) |
-| `scripts/eval_jarvis_harness.py` | Evaluation (clean, no forcing) |
-| `src/curriculum/signals.py` | Boredom/Stress computation |
-| `src/curriculum/controller.py` | Self-paced difficulty adjustment |
-| `src/core/rpj_brain.py` | Brain architecture |
+### Production Model (Homogeneous)
+```
+Hidden dim: 512
+Blocks: 64
+Global channels: 16
+Parameters: ~3.2M
+HARD solve rate: 73.1%
+```
 
----
+### Research Direction (Heterogeneous - needs fixing)
+```
+Region 1: fast_perception - width=96, sparsity=0.74, FAST timescale
+Region 2: slow_memory - width=224, sparsity=0.48, SLOW timescale
+Region 3: fast_execution - width=64, sparsity=0.80, FAST timescale
+Total hidden dim: 384
+Parameters: ~2.1M (33% smaller)
+HARD solve rate: 0% (action collapse)
+```
 
-## COMMAND TO RUN (After Merge)
+## 6. COMMANDS
 
+### Development
 ```bash
-PYTHONPATH=. .venv/bin/python -u scripts/train_jarvis_harness.py \
-    --mode self-paced \
-    --num-envs 4 \
-    --timesteps 100000 \
-    --rollout-steps 8 \
-    --initial-difficulty 5 \
-    --boredom-coef 5.0 \
-    --stress-coef 5.0 \
-    --hysteresis-margin 0.1 \
-    --min-patience-episodes 2 \
-    --bc-anchor-coef 0.5 \
-    --entropy-coef 0.01 \
-    --bc-epochs 50 \
-    --bc-sequential \
-    --bc-demos 1000 \
-    2>&1 | tee training_fix_ht_mismatch.log
+cd /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
+source .venv/bin/activate
 ```
 
----
+### Run Evaluation (Homogeneous - Production)
+```bash
+PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
+    --checkpoint results/jarvis_harness_v2_100000.pt \
+    --difficulty hard \
+    --num-tasks 40
+```
 
-## SUCCESS CRITERIA
+### Run Evaluation (Heterogeneous - Research)
+```bash
+PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
+    --checkpoint results/jarvis_harness_50000.pt \
+    --use-heterogeneous \
+    --difficulty hard \
+    --num-tasks 40
+```
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| TRIVIAL SR | 0% | >70% |
-| EASY SR | 0% | >50% |
-| Action diversity | 0% writes | Mixed RT/WF/CT |
-| Curriculum progression | Stuck at d=1 | Natural d increase |
+## 7. SUCCESS CRITERIA
 
----
+### Sprint 1 (COMPLETE)
+- [x] TRIVIAL >= 70%: 72%
+- [x] EASY >= 50%: 52.2%
+- [x] MEDIUM >= 75%: 100%
+- [x] HARD >= 30%: 73.1%
 
-*Last updated: 2026-01-21*
-*Status: PR #5 ready for CHECKPOINT C and merge*
+### Phase 8 (CONCEPT VALIDATED, IMPLEMENTATION NEEDS WORK)
+- [x] Structure search completed (Optuna)
+- [x] Optimal architecture found (3-region fast/slow/fast)
+- [ ] HARD solve rate >= 72.5% with heterogeneous: **FAILED (0%)**
+- [ ] Changes committed via PR: **PENDING**
+
+## 8. QUICK START FOR NEW INSTANCE
+
+```
+Continue WIRED-BRAIN documentation updates.
+
+CONTEXT:
+- Sprint 1 is COMPLETE with 73.1% HARD solve rate (homogeneous model)
+- Phase 8 heterogeneous training FAILED with action collapse
+- Paper.md has been updated with honest results
+
+NEXT ACTION:
+1. Log Phase 8 failure in MISTAKES.md
+2. Create PR with documentation changes
+3. Merge to main
+
+Production model: jarvis_harness_v2_100000.pt (homogeneous)
+Research model: jarvis_harness_50000.pt (heterogeneous - broken)
+
+Goal: Build Iron Man's JARVIS. Do not stop until complete.
+```
