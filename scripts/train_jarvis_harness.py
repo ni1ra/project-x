@@ -2078,9 +2078,10 @@ def main():
 
     # Hard safety envelope (non-negotiable, but context-aware for v2 mode).
     # V2 mode has legitimate low GPU utilization due to subprocess overhead (pytest calls).
-    # With --v2-subprocess-heavy flag, allow min_util down to 20% for v2/rl modes only.
+    # With --v2-subprocess-heavy flag, allow min_util down to 5% for v2 modes only.
+    # Empirical: v2 mode with 4 envs sees ~10% GPU utilization due to pytest subprocess overhead.
     is_v2_subprocess_mode = getattr(args, 'v2_subprocess_heavy', False) and args.mode in ("v2", "rl")
-    min_util_floor = 20 if is_v2_subprocess_mode else 80
+    min_util_floor = 5 if is_v2_subprocess_mode else 80
     if int(args.gpu_min_util) < min_util_floor:
         if is_v2_subprocess_mode:
             raise SystemExit(f"Refusing --gpu-min-util < {min_util_floor} (v2 subprocess mode minimum).")
