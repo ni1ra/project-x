@@ -199,11 +199,21 @@ def main():
     action_bytes = int(action_bytes)
 
     # Create brain and load weights.
+    # Phase 9 FIX: Get vocab_size from checkpoint or infer from state dict
+    # Check if vocab_head exists and its size to determine vocab_size
+    state_dict = ckpt["brain_state_dict"]
+    vocab_size = 5  # Default for TRIVIAL
+    vocab_head_key = "action_decoder.vocab_head.classifier.5.weight"
+    if vocab_head_key in state_dict:
+        # Vocab head exists - get size from weight shape
+        vocab_size = state_dict[vocab_head_key].shape[0]
+
     brain_kwargs = dict(
         obs_dim=OBS_TOTAL_BYTES,
         action_bytes=action_bytes,
         enable_plasticity=False,
         enable_sleep=False,
+        vocab_size=vocab_size,  # Phase 9: Match checkpoint vocab size
     )
     if isinstance(cfg, dict):
         hidden_dim = cfg.get("hidden_dim")

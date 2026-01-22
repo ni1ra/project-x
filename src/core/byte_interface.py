@@ -447,6 +447,7 @@ class AutoregressiveActionDecoder(nn.Module):
         use_gaussian: bool = True,  # JARVIS 420 FIX: Use Gaussian head for ordinal outputs
         obs_dim: int = 2,  # Observation dimension for direct input path
         use_vocab_head: bool = True,  # JARVIS VOCAB FIX: Use parallel vocab classification
+        vocab_size: int = 5,  # Phase 9 FIX: Vocab head size (5=TRIVIAL, 21=COMBINED)
     ):
         super().__init__()
 
@@ -458,6 +459,7 @@ class AutoregressiveActionDecoder(nn.Module):
         self.use_gaussian = use_gaussian
         self.obs_dim = obs_dim
         self.use_vocab_head = use_vocab_head
+        self.vocab_size = vocab_size
 
         # JARVIS 420 FIX: Use Gaussian head for single-byte ordinal outputs (like CCB)
         # This provides smooth gradients between adjacent byte values
@@ -514,11 +516,12 @@ class AutoregressiveActionDecoder(nn.Module):
             # JARVIS VOCAB FIX: Parallel vocab classification head for byte 25
             # This directly classifies which TRIVIAL_VOCAB token to use
             # instead of relying on autoregressive generation which collapses
+            # Phase 9 FIX: vocab_size is configurable (5=TRIVIAL, 21=COMBINED)
             if use_vocab_head and obs_dim >= 448:
                 self.vocab_head = VocabClassificationHead(
                     hidden_dim=hidden_dim,
                     decoder_hidden=decoder_hidden,
-                    vocab_size=5,  # TRIVIAL_VOCAB: [':\n', ')', ',', "'", '"']
+                    vocab_size=vocab_size,  # Phase 9: Configurable vocab size
                     goal_dim=self.goal_dim,
                     focus_text_dim=self.focus_text_dim,
                 )
@@ -695,7 +698,9 @@ class AutoregressiveActionDecoder(nn.Module):
         # JARVIS VOCAB FIX: Pre-compute vocab log prob for byte 25
         vocab_log_prob_byte25 = None
         if self.vocab_head is not None and num_bytes > 25:
-            vocab_idx_actual = actions[:, 25]
+            # Phase 9 FIX: Clamp vocab_idx to valid range for vocab_head
+            # Actions[:, 25] can be 0-255 from model output, but vocab_head has vocab_size classes
+            vocab_idx_actual = actions[:, 25].clamp(0, self.vocab_size - 1)
             vocab_log_prob_byte25 = self.vocab_head.get_log_prob(
                 h_t, goal_bytes, focus_text, vocab_idx_actual
             )

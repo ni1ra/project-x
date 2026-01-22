@@ -69,6 +69,10 @@ class RPJConfig:
     # Discount (BLUEPRINT: γ ≥ 0.999 for sleep credit assignment)
     gamma: float = 0.999
 
+    # Vocab head size (Phase 9 fix: must match training difficulty)
+    # TRIVIAL: 5 (TRIVIAL_VOCAB), HARD/EASY/MEDIUM: 21 (COMBINED_VOCAB)
+    vocab_size: int = 5
+
 
 class RPJBrainOutput(NamedTuple):
     """Output from a single brain step."""
@@ -200,11 +204,13 @@ class RPJBrain(nn.Module):
 
         # Action decoder (with g_t conditioning for K_eff gradient flow)
         # JARVIS 420 FIX: Pass obs_dim for direct observation input path
+        # Phase 9 FIX: Pass vocab_size to match training difficulty
         self.action_decoder = AutoregressiveActionDecoder(
             hidden_dim=config.hidden_dim,
             num_action_bytes=config.action_bytes,
             k_max=config.k_max,
             obs_dim=config.obs_dim,  # Enable direct gradient path from input to output
+            vocab_size=config.vocab_size,  # Must match training vocab
         )
 
         # RND for exploration warmup
