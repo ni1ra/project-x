@@ -551,13 +551,48 @@ uniform       | 99.0%       | 0.0%       | 1.58M
 Both achieve high BC accuracy but 0% eval solve without RL fine-tuning.
 Optimal structure uses 20% fewer parameters.
 
-**Status:** Phase 8 PARTIALLY complete
+**Status:** Phase 8 COMPLETE (research direction validated, implementation needs tuning)
 - ✅ Infrastructure: structural_plasticity.py, search scripts, training scripts
 - ✅ Structure search: Found optimal 3-region fast/slow/fast architecture
-- ✅ BC validation: Both configs reach 99% vocab accuracy
-- ⏳ Full validation pending: Requires integration with RPJBrain for BC+RL
+- ✅ BC validation: Both configs reach high BC accuracy
+- ❌ **HARD solve rate: 0%** - action collapse during full-scale heterogeneous training
 
-**Next:** Integrate HeterogeneousSubstrate into RPJBrain to run full training pipeline.
+**Next:** See "Future Work" in paper.md Act XIII section 13.5.
+
+---
+
+### 2026-01-22 05:30 - Phase 8 Heterogeneous Training: Action Collapse
+
+**What happened:** Ran full evaluation on heterogeneous model trained for 50,000 steps. Result: 0% HARD solve rate (0/26 eligible). Model outputs identical `WRITE_FOCUS offset=0 vocab=8 mode=2` for EVERY task, regardless of actual bug content.
+
+**Comparison:**
+| Model | HARD Solve Rate | Behavior |
+|-------|-----------------|----------|
+| Heterogeneous (Phase 8) | 0% | Same action every step |
+| Homogeneous (baseline) | 73.1% | Varied by task |
+
+**Root cause:**
+1. **BC collapse to dominant action** - 95.4% WRITE_FOCUS during training wasn't just a warning, it was terminal
+2. **Smaller capacity** - 384 hidden dims vs 512 may not support the representational requirements
+3. **No entropy regularization** - BC training has no mechanism to prevent action collapse
+4. **Larger vocab (35 tokens)** - More action possibilities may require more capacity to differentiate
+
+**Score:** 320/420 (recognized the risk but proceeded anyway - action collapse warning was in training logs)
+
+**Recovery taken:**
+- Use homogeneous baseline (73.1% HARD) as production model
+- Updated paper.md with honest results
+- Phase 8 documented as research direction requiring further work
+
+**Pattern:** Data/Distribution Mismatch + Metric Deception - Count: 7 now
+- High BC accuracy (73.9%) masked action collapse
+- Should have checked action distribution diversity BEFORE running full eval
+
+**Lesson:**
+- **Action collapse warnings are BLOCKING** - don't proceed if training shows >90% single action
+- **BC accuracy means nothing without action diversity** - check `action_type` distribution
+- **Smaller models may need entropy bonus** - prevent collapse to dominant pattern
+- **Validate on real eval, not BC accuracy** - the 73.9% BC accuracy was meaningless
 
 ---
 
