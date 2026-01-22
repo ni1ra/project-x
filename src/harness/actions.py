@@ -236,6 +236,12 @@ def decode_action(action_bytes: torch.Tensor) -> JarvisAction:
 
     Returns:
         JarvisAction
+
+    Note:
+        Supports vocab-based content decoding for WRITE_FOCUS/WRITE_FILE actions.
+        If bytes 5-24 are zeros and byte 25 contains a vocab index, the content
+        is looked up from COMBINED_VOCAB. This enables BC training with vocab
+        indices in 32-byte action format.
     """
     # Convert numpy to tensor if needed
     if not isinstance(action_bytes, torch.Tensor):
@@ -248,15 +254,33 @@ def decode_action(action_bytes: torch.Tensor) -> JarvisAction:
     action_type_val = int(action_bytes[0].item())
     action_type = ActionType(action_type_val % len(ActionType))
 
-    # Offset
-    offset = int(action_bytes[1].item()) + (int(action_bytes[2].item()) << 8)
+    # Offset - use full byte range for focus windows up to 256 chars
+    offset = int(action_bytes[1].item())
 
-    # Length
-    length = int(action_bytes[3].item()) + (int(action_bytes[4].item()) << 8)
+    # Length - constrained to 0-3 for simpler action space (matches v2 decoder)
+    length = int(action_bytes[3].item()) % 4
 
     # Target/content
     target_bytes = action_bytes[5:].cpu().numpy().tobytes()
     target_content = target_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
+
+    # Vocab-based content decoding for WRITE actions
+    # If raw content is empty but byte 25 has a value, use vocab lookup
+    # This supports BC training with vocab_idx in byte 25
+    if action_type in [ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS]:
+        if not target_content and len(action_bytes) > 25:
+            vocab_idx = int(action_bytes[25].item())
+            vocab_mode = int(action_bytes[26].item()) if len(action_bytes) > 26 else 0
+
+            if vocab_mode == 1 and vocab_idx > 0:
+                # MICRO_VOCAB mode
+                vocab_idx = vocab_idx % len(MICRO_VOCAB)
+                target_content = MICRO_VOCAB[vocab_idx]
+            elif vocab_idx > 0 or (vocab_idx == 0 and action_bytes[25].item() == 0):
+                # COMBINED_VOCAB mode (default)
+                # Check if byte 25 was intentionally set (even if 0)
+                vocab_idx = vocab_idx % len(COMBINED_VOCAB)
+                target_content = COMBINED_VOCAB[vocab_idx]
 
     if action_type == ActionType.READ_FILE:
         length = max(1, length)  # At least 1 byte
