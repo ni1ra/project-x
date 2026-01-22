@@ -1716,11 +1716,19 @@ class JarvisHarnessTrainer:
                 ckpt_path = f"results/jarvis_ckpt_{self.total_steps}.pt"
                 import os
                 os.makedirs("results", exist_ok=True)
+                # Include config for eval compatibility
+                vocab_size = 5  # Default TRIVIAL
+                if hasattr(self.brain.action_decoder, 'vocab_head') and self.brain.action_decoder.vocab_head is not None:
+                    vocab_size = self.brain.action_decoder.vocab_head.classifier[-1].out_features
                 torch.save({
                     "brain_state_dict": self.brain.state_dict(),
                     "total_steps": self.total_steps,
                     "entropy": metrics.get("entropy", 0),
                     "action_counts": dict(action_counts),
+                    "config": {
+                        "action_bytes": self.brain.config.action_bytes,
+                        "vocab_size": vocab_size,
+                    },
                 }, ckpt_path)
                 print(f"  Checkpoint saved: {ckpt_path}", flush=True)
                 last_histogram_step = self.total_steps
