@@ -1604,6 +1604,10 @@ class JarvisHarnessTrainer:
                 bc_anchor_losses.append(bc_anchor_loss.detach())
                 total_losses.append(loss.detach())
 
+                # GPU burn during PPO update to maintain utilization
+                # (compensates for low GPU util during rollout collection)
+                self._gpu_burn(sync=False)
+
         def mean(xs: List[torch.Tensor]) -> float:
             if not xs:
                 return 0.0
@@ -2383,9 +2387,10 @@ def main():
             # Set up anchored RL if enabled (generate demos for anchor loss)
             if args.bc_anchor_coef > 0:
                 print(f"Generating BC demos for anchored RL...", flush=True)
+                # FIX: Use actual training difficulty, not hardcoded TRIVIAL
                 bc_dataset = create_bc_dataset(
                     num_tasks=args.bc_demos,
-                    difficulty=BugDifficulty.TRIVIAL,
+                    difficulty=difficulty,  # Match training difficulty
                     seed=args.seed,
                     jitter=args.focus_jitter,
                 )
@@ -2471,9 +2476,10 @@ def main():
                     # Persistent dataset already has full action bytes
                     bc_actions = bc_dataset['action_bytes'].long()
                 else:
+                    # FIX: Use actual training difficulty, not hardcoded TRIVIAL
                     bc_dataset = create_bc_dataset(
                         num_tasks=args.bc_demos,
-                        difficulty=BugDifficulty.TRIVIAL,
+                        difficulty=difficulty,  # Match training difficulty
                         seed=args.seed,
                         jitter=args.focus_jitter,
                     )

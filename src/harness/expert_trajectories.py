@@ -1068,12 +1068,13 @@ def generate_multistep_trajectory(
     if single_step is None:
         return None
 
-    # Step 1: Initial observation (focus not set, tests not run yet)
+    # Step 1: Initial observation (tests not run yet)
     # Agent should call RUN_TESTS to discover where the bug is
+    # FIX: Include focus_text to match eval env behavior (auto_focus_target)
     initial_obs = create_initial_observation(
         repo_name=repo.name,
         goal=f"Fix bug: {repo.fix_description[:50]}",
-        focus_text="",  # Empty - haven't navigated yet
+        focus_text=buggy_content[:256],  # Match eval env: focus_text is set from start
         tests_passing=0,
         tests_total=1,
     )
@@ -1301,10 +1302,13 @@ def generate_persistent_trajectory(
 
     # Step 1: Initial observation (tests not run yet)
     # Agent should call RUN_TESTS to discover where the bug is
+    # FIX: Include focus_text to match eval env behavior
+    # The eval env sets focus_text from the start (auto_focus_target)
+    # Model must learn: tests_passing==0 → RUN_TESTS (not empty focus_text → RUN_TESTS)
     initial_obs = create_initial_observation(
         repo_name=repo.name,
         goal=f"Fix bug: {repo.fix_description[:50]}",
-        focus_text="",  # Empty - haven't navigated yet
+        focus_text=buggy_content[:256],  # Match eval env: focus_text is set from start
         tests_passing=0,
         tests_total=1,
     )
