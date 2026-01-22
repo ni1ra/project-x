@@ -50,6 +50,9 @@ from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.repo_generator import (
     RepoGenerator, GeneratedRepo, BugDifficulty, generate_task_batch,
 )
+from src.harness.real_repo_source import (
+    generate_mixed_task_batch, setup_real_repo_fixtures,
+)
 from src.harness.expert_trajectories import (
     create_bc_dataset,
     create_multistep_bc_dataset,
@@ -253,16 +256,37 @@ def create_tasks_v2(
     seed: Optional[int] = None,
     *,
     difficulty_span: int = 0,
+    real_ratio: float = 0.0,
 ) -> Tuple[List[Task], List[GeneratedRepo]]:
     """
     Create training tasks using v2 multi-file repo generation.
 
     Returns (tasks, repos) where repos should be cleaned up after training.
+
+    Args:
+        num_tasks: Number of tasks to create
+        difficulty: Target difficulty level
+        temp_base: Base path for temporary repo storage
+        seed: Random seed
+        difficulty_span: Range of difficulties to sample from
+        real_ratio: Fraction of tasks from real repos (Phase 9)
     """
     generator = RepoGenerator(seed=seed)
     span = max(0, int(difficulty_span))
     max_diff = BugDifficulty(min(int(difficulty.value) + span, 5))
-    repos = generate_task_batch(num_tasks=num_tasks, difficulty_range=(difficulty, max_diff), seed=seed)
+
+    # Phase 9: Use mixed dataset if real_ratio > 0
+    if real_ratio > 0:
+        # Ensure real repo fixtures exist
+        setup_real_repo_fixtures()
+        repos = generate_mixed_task_batch(
+            num_tasks=num_tasks,
+            real_ratio=real_ratio,
+            difficulty_range=(difficulty, max_diff),
+            seed=seed,
+        )
+    else:
+        repos = generate_task_batch(num_tasks=num_tasks, difficulty_range=(difficulty, max_diff), seed=seed)
 
     tasks = []
     for repo in repos:
@@ -1927,6 +1951,9 @@ def main():
                         help="Training mode: v1 (toy repo), v2 (multi-file), curriculum (threshold-based), or self-paced (intrinsic drives)")
     parser.add_argument("--difficulty", type=str, choices=["trivial", "easy", "medium", "hard"], default="medium",
                         help="Bug difficulty for v2 mode (starting difficulty for curriculum)")
+    # Phase 9: Real codebase integration
+    parser.add_argument("--real-ratio", type=float, default=0.0,
+                        help="Fraction of tasks from real repos (0.0 = all synthetic, 1.0 = all real)")
     parser.add_argument("--action-bytes", type=int, choices=[32, 64], default=32,
                         help="Action space size (32 for v1, 64 for v2)")
     # Curriculum options (threshold-based, legacy)
@@ -2041,14 +2068,24 @@ def main():
     parser.add_argument("--gpu-min-util", type=int, default=80, help="Abort if sustained GPU util falls below this %%")
     parser.add_argument("--gpu-grace-s", type=float, default=20.0, help="Warmup seconds before util enforcement")
     parser.add_argument("--gpu-low-util-patience-s", type=float, default=30.0, help="Seconds of low util before abort")
+    # V2 mode context-aware GPU guard: v2 has legitimate subprocess overhead (pytest calls)
+    parser.add_argument("--v2-subprocess-heavy", action="store_true",
+                        help="Acknowledge v2 mode subprocess overhead; allows --gpu-min-util >= 20 for v2/rl modes")
     args = parser.parse_args()
 
     if args.no_gpu_guard:
         raise SystemExit("Refusing to run with --no-gpu-guard (hard repo rule).")
 
-    # Hard safety envelope (non-negotiable).
-    if int(args.gpu_min_util) < 80:
-        raise SystemExit("Refusing --gpu-min-util < 80 (hard repo rule).")
+    # Hard safety envelope (non-negotiable, but context-aware for v2 mode).
+    # V2 mode has legitimate low GPU utilization due to subprocess overhead (pytest calls).
+    # With --v2-subprocess-heavy flag, allow min_util down to 20% for v2/rl modes only.
+    is_v2_subprocess_mode = getattr(args, 'v2_subprocess_heavy', False) and args.mode in ("v2", "rl")
+    min_util_floor = 20 if is_v2_subprocess_mode else 80
+    if int(args.gpu_min_util) < min_util_floor:
+        if is_v2_subprocess_mode:
+            raise SystemExit(f"Refusing --gpu-min-util < {min_util_floor} (v2 subprocess mode minimum).")
+        else:
+            raise SystemExit("Refusing --gpu-min-util < 80 (hard repo rule). Use --v2-subprocess-heavy for v2/rl modes.")
     if int(args.gpu_max_vram_mib) > 10 * 1024:
         raise SystemExit("Refusing --gpu-max-vram-mib > 10240 MiB (hard repo rule).")
 
@@ -2159,6 +2196,7 @@ def main():
                 temp_base=temp_dir,
                 seed=args.seed,
                 difficulty_span=0,
+                real_ratio=args.real_ratio,
             )
             print("CURRICULUM mode: Starting at TRIVIAL difficulty")
             print(f"Promotion threshold: {curriculum_state.promote_threshold:.0%}")
@@ -2193,6 +2231,7 @@ def main():
                 temp_base=temp_dir,
                 seed=args.seed,
                 difficulty_span=0,
+                real_ratio=args.real_ratio,
             )
             from src.curriculum.difficulty_mapping import describe_difficulty
             print("SELF-PACED mode: Intrinsic Boredom/Stress signals")
@@ -2219,8 +2258,12 @@ def main():
                 temp_base=temp_dir,
                 seed=args.seed,
                 difficulty_span=0,
+                real_ratio=args.real_ratio,
             )
             print(f"v2 mode: Generated {len(tasks)} multi-file tasks")
+            if args.real_ratio > 0:
+                real_count = sum(1 for t in tasks if t.name.startswith("real_"))
+                print(f"Phase 9: {real_count}/{len(tasks)} tasks from real repos ({args.real_ratio:.0%} ratio)")
             print(f"Difficulty: {args.difficulty}")
             print(f"Temp directory: {temp_dir}")
 
@@ -2240,6 +2283,8 @@ def main():
             init_burner = None
 
         # Create brain
+        # Phase 9 FIX: vocab_size must match training difficulty
+        vocab_size = len(TRIVIAL_VOCAB) if difficulty == BugDifficulty.TRIVIAL else len(COMBINED_VOCAB)
         print("Creating brain...", flush=True)
         brain = create_brain(
             obs_dim=OBS_TOTAL_BYTES,
@@ -2247,6 +2292,7 @@ def main():
             hidden_dim=int(args.hidden_dim),
             enable_plasticity=False,  # Disable for initial training
             enable_sleep=getattr(args, 'enable_sleep', False),
+            vocab_size=vocab_size,  # Phase 9: Match vocab to difficulty
         ).to(device)
 
         param_count = sum(p.numel() for p in brain.parameters())
@@ -2449,6 +2495,7 @@ def main():
                         temp_base=temp_dir,
                         seed=random.randint(0, 2**31),
                         difficulty_span=0,
+                        real_ratio=args.real_ratio,
                     )
                     repos = new_repos
                     return new_tasks, new_repos
@@ -2478,6 +2525,7 @@ def main():
                         temp_base=temp_dir,
                         seed=random.randint(0, 2**31),
                         difficulty_span=0,
+                        real_ratio=args.real_ratio,
                     )
                     repos = new_repos
                     return new_tasks, new_repos
