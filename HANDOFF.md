@@ -172,19 +172,27 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 - Issue: BC loss doesn't train NAVIGATE target file bytes (5-24)
 - Need to add supervision for file path encoding
 
-### Phase 9: Real Codebase Integration (IN PROGRESS)
+### Phase 9: Real Codebase Integration (BLOCKED on vocab)
 - ✅ Infrastructure complete: `real_repo_source.py`, eval `--real-ratio` flag
 - ✅ BC demos generate correct pytest output for real repos
-- ⚠️ 0% solve rate on real repos - needs step amplification fix
-- **Root Cause**: Main `train_jarvis_harness.py` uses RPJBrain without step signal amplification
-- **Fix**: Port `amplify_step_signal()` from Phase 8 heterogeneous brain to main training pipeline
+- ✅ Step amplification ported to main RPJBrain (`enable_step_amplification=True`)
+- ✅ 100% synthetic EASY with step amplification
+- ❌ 0% real repos due to **vocab mismatch**
 
-### Phase 9 Results
+**Root Cause**: Real repo bugs require different tokens than synthetic training:
+- Synthetic bugs: comparison operators (`>`, `<`, `>=`), digits (`0`, `1`)
+- Real repo bugs: keyword typos (`retrun` → `return`)
+- COMBINED_VOCAB lacks Python keywords like `return`, `def`, `if`
+
+### Phase 9 Results (After Step Amplification)
 | Training Data | Eval on Synthetic | Eval on Real Repos |
 |--------------|-------------------|-------------------|
-| 100% synthetic | 100% | N/A |
-| 50% mixed | 60% | 37.9% |
-| 100% real | 63.3% | 0% |
+| 100% synthetic | **100%** | 0% (vocab mismatch) |
+
+### Next Steps for Real Repos
+1. **Expand COMBINED_VOCAB** to include Python keywords (`return`, `def`, `class`, etc.)
+2. **Generate BC demos for real repo bug patterns** (typos, missing keywords)
+3. **Train on mixed data** with expanded vocab
 
 ## 10. LESSONS LEARNED
 
@@ -200,8 +208,10 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 
 6. **BC Demo vs Eval Mismatch**: BC demos must generate observations that match the actual eval environment EXACTLY. For real repos, the pytest output templates must include actual test file names and line numbers (e.g., `test_strings.py:35: in test_truncate`), not generic placeholders.
 
-7. **Step Amplification is Critical**: The step amplification fix from Phase 8 (`amplify_step_signal()`) is NOT in the main training script. Any model trained without it will RUN_TESTS-spam because it can't distinguish steps 0-3 from observations alone.
+7. **Step Amplification is Critical**: The step amplification fix from Phase 8 (`amplify_step_signal()`) is now ported to RPJBrain. Without it, models RUN_TESTS-spam because they can't distinguish steps 0-3.
+
+8. **Vocab Mismatch Between Training and Real Repos**: The model's vocabulary (COMBINED_VOCAB) was designed for synthetic bugs (comparison operators, off-by-one errors). Real repos have different bug patterns (typos like `retrun`). Must expand vocab to include Python keywords before training on real repos.
 
 ---
 
-**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 IN PROGRESS (need step amplification).**
+**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 BLOCKED (need vocab expansion for real repos).**

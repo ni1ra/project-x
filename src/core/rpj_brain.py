@@ -32,6 +32,51 @@ from src.core.sleep import SleepModule, SleepConfig
 from src.core.goal_encoder import GoalEncoder, GoalEncoderConfig
 
 
+def amplify_step_signal(phi_obs: torch.Tensor, meta_offset: int = 448) -> torch.Tensor:
+    """
+    JARVIS 420 FIX: Amplify step signal in observations.
+
+    The step byte (at meta_offset + 6) after phi() normalization produces
+    nearly identical values: step 0 = -1.0, step 1 = -0.988, step 2 = -0.976, step 3 = -0.965.
+    These 0.012 differences are too small for the model to distinguish.
+
+    This function amplifies the step signal by adding a sinusoidal encoding
+    of the step position to the last 8 bytes, making step differences salient.
+
+    Args:
+        phi_obs: Normalized observation [batch, obs_dim] with values in [-1, 1]
+        meta_offset: Offset to metadata section (default 448)
+
+    Returns:
+        Modified phi_obs with amplified step signal
+    """
+    # Extract step byte (at meta_offset + 6, which is byte 454)
+    # In normalized space: step_val = (step_byte - 127.5) / 127.5
+    # To recover step_byte: step_byte = step_val * 127.5 + 127.5
+    step_byte_idx = meta_offset + 6
+    step_normalized = phi_obs[:, step_byte_idx]  # [batch]
+    step_raw = (step_normalized * 127.5 + 127.5).round().long().clamp(0, 255)  # [batch]
+
+    # Create amplified step encoding using sinusoidal pattern (like positional encoding)
+    batch_size = phi_obs.size(0)
+    device = phi_obs.device
+
+    step_float = step_raw.float()
+    freqs = torch.tensor([1.0, 0.5, 0.25, 0.125], device=device)
+    angles = step_float.unsqueeze(1) * freqs.unsqueeze(0) * 3.14159  # [batch, 4]
+    sin_enc = torch.sin(angles)  # [batch, 4]
+    cos_enc = torch.cos(angles)  # [batch, 4]
+
+    # Interleave sin/cos for 8-dim encoding
+    step_encoding = torch.stack([sin_enc, cos_enc], dim=2).view(batch_size, 8)  # [batch, 8]
+
+    # Replace last 8 bytes with step encoding
+    phi_obs_amplified = phi_obs.clone()
+    phi_obs_amplified[:, -8:] = step_encoding
+
+    return phi_obs_amplified
+
+
 @dataclass
 class RPJConfig:
     """Configuration for RPJ Brain."""
@@ -78,6 +123,11 @@ class RPJConfig:
     enable_goal_encoder: bool = False
     goal_embed_dim: int = 64          # Goal embedding dimension
     max_goal_len: int = 512           # Max goal length in UTF-8 bytes
+
+    # Step signal amplification (JARVIS 420 fix from Phase 8)
+    # Without this, steps 0-3 have nearly identical phi() values (~0.012 apart)
+    # and the model can't distinguish them, causing RUN_TESTS spam
+    enable_step_amplification: bool = True
 
 
 class RPJBrainOutput(NamedTuple):
@@ -345,6 +395,11 @@ class RPJBrain(nn.Module):
         # Normalize observation
         phi_obs = phi(obs_bytes)
 
+        # JARVIS 420 FIX: Amplify step signal to make steps distinguishable
+        # Without this, steps 0-3 have nearly identical phi() values
+        if self.config.enable_step_amplification:
+            phi_obs = amplify_step_signal(phi_obs)
+
         # Phase 10: Add goal conditioning if goal encoder is enabled and goal provided
         if self.goal_encoder is not None and goal_bytes is not None:
             goal_embed = self.goal_encoder(goal_bytes, goal_lengths)  # [B, goal_embed_dim]
@@ -591,6 +646,10 @@ class RPJBrain(nn.Module):
         # Normalize observation
         phi_obs = phi(obs_bytes)
 
+        # JARVIS 420 FIX: Amplify step signal to make steps distinguishable
+        if self.config.enable_step_amplification:
+            phi_obs = amplify_step_signal(phi_obs)
+
         # JARVIS 420 FIX: Use stored z_t if provided to ensure consistent state
         # Re-sampling z_t introduces noise that washes out the obs→action signal
         if z_t is None:
@@ -665,6 +724,10 @@ class RPJBrain(nn.Module):
 
         # Normalize observation
         phi_obs = phi(obs_bytes)
+
+        # JARVIS 420 FIX: Amplify step signal to make steps distinguishable
+        if self.config.enable_step_amplification:
+            phi_obs = amplify_step_signal(phi_obs)
 
         # Get z_t if not provided
         if z_t is None:
