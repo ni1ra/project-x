@@ -431,8 +431,8 @@ class TestExpertTrajectories:
         # NO empty string - it was removed to fix curriculum closure
 
     def test_easy_vocab_size(self):
-        """EASY_VOCAB should have 16 items for logic bug fixes."""
-        assert len(EASY_VOCAB) == 16
+        """EASY_VOCAB should have 28 items for logic bug fixes + digits + HARD tokens."""
+        assert len(EASY_VOCAB) == 28
         # Comparison operators
         assert '<=' in EASY_VOCAB
         assert '>=' in EASY_VOCAB
@@ -448,8 +448,8 @@ class TestExpertTrajectories:
         assert '-1' in EASY_VOCAB
 
     def test_combined_vocab_size(self):
-        """COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB = 21 items."""
-        assert len(COMBINED_VOCAB) == 21
+        """COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB = 33 items."""
+        assert len(COMBINED_VOCAB) == 33
         assert COMBINED_VOCAB[:5] == TRIVIAL_VOCAB
         assert COMBINED_VOCAB[5:] == EASY_VOCAB
 
@@ -503,9 +503,9 @@ class TestExpertTrajectories:
         for demo in demos:
             assert isinstance(demo, ExpertTrajectory)
             assert demo.correct_action.offset >= 0
-            assert demo.correct_action.offset < 64
+            assert demo.correct_action.offset < 128  # Focus window is 128 bytes
             assert demo.correct_action.vocab_idx >= 0
-            assert demo.correct_action.vocab_idx < len(TRIVIAL_VOCAB)
+            assert demo.correct_action.vocab_idx < len(COMBINED_VOCAB)
 
     def test_create_bc_dataset(self):
         """Test BC dataset creation."""
@@ -528,9 +528,9 @@ class TestExpertTrajectories:
 
         # Check value ranges
         assert (dataset['offsets'] >= 0).all()
-        assert (dataset['offsets'] < 64).all()  # Offset validated < 64 in generator
+        assert (dataset['offsets'] < 128).all()  # Focus window is 128 bytes
         assert (dataset['vocab_idxs'] >= 0).all()
-        assert (dataset['vocab_idxs'] < len(TRIVIAL_VOCAB)).all()
+        assert (dataset['vocab_idxs'] < len(COMBINED_VOCAB)).all()
         assert (dataset['lengths'] >= 0).all()
         assert (dataset['lengths'] < 4).all()
 

@@ -1513,11 +1513,19 @@ class JarvisHarnessEnv:
 
         chosen: Optional[Tuple[str, int]] = None
         for rel, line in reversed(candidates):
-            if not rel.replace("\\", "/").startswith("tests/"):
+            # Skip test files: either in tests/ directory or named test_*.py
+            norm_path = rel.replace("\\", "/")
+            is_test_file = (
+                norm_path.startswith("tests/") or
+                norm_path.split("/")[-1].startswith("test_") or
+                norm_path.split("/")[-1] == "conftest.py"
+            )
+            if not is_test_file:
                 chosen = (rel, line)
                 break
         if chosen is None:
-            chosen = candidates[-1]
+            # Don't switch focus if only test files found in traceback
+            return
 
         self._set_focus_from_location(chosen[0], line=int(chosen[1]))
 
@@ -1663,7 +1671,10 @@ class JarvisHarnessEnv:
                 content = f.read()
 
             file_offset = max(0, min(int(offset), len(content)))
-            window = max(0, min(int(length), max(0, len(content) - file_offset)))
+            # For NAVIGATE, use default window size (128) if length is small (action space constraint)
+            # The action space constrains length to 0-3, but NAVIGATE needs a reasonable read window
+            effective_length = 128 if int(length) < 4 else int(length)
+            window = max(0, min(effective_length, max(0, len(content) - file_offset)))
             chunk = content[file_offset:file_offset + window]
 
             if self.state is not None:
