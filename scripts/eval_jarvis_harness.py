@@ -30,6 +30,7 @@ import torch
 from src.core.rpj_brain import create_brain
 from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task, VectorizedJarvisEnv
 from src.harness.repo_generator import RepoGenerator, BugDifficulty, generate_task_batch
+from src.harness.real_repo_source import generate_mixed_task_batch, setup_real_repo_fixtures
 from src.harness.verifiers import run_pytest, compute_diff_size
 from src.harness.observations import OBS_TOTAL_BYTES
 from src.harness.actions import ACTION_BYTES, ACTION_BYTES_V2, ActionType
@@ -181,6 +182,8 @@ def main():
         default=0.0,
         help="Optional per-step sleep to let async verifiers complete (useful for eval realism).",
     )
+    parser.add_argument("--real-ratio", type=float, default=0.0,
+                        help="Fraction of tasks from real repos (Phase 9)")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -235,11 +238,24 @@ def main():
 
     temp_base = tempfile.mkdtemp(prefix="jarvis_eval_")
     gen = RepoGenerator(seed=args.seed)
-    repos = generate_task_batch(
-        num_tasks=args.num_tasks,
-        difficulty_range=(difficulty, difficulty),
-        seed=args.seed,
-    )
+
+    # Phase 9: Use mixed dataset if real_ratio > 0
+    if args.real_ratio > 0:
+        setup_real_repo_fixtures()
+        repos = generate_mixed_task_batch(
+            num_tasks=args.num_tasks,
+            real_ratio=args.real_ratio,
+            difficulty_range=(difficulty, difficulty),
+            seed=args.seed,
+        )
+        real_count = sum(1 for r in repos if r.name.startswith("real_"))
+        print(f"Phase 9: {real_count}/{len(repos)} tasks from real repos ({args.real_ratio:.0%} ratio)")
+    else:
+        repos = generate_task_batch(
+            num_tasks=args.num_tasks,
+            difficulty_range=(difficulty, difficulty),
+            seed=args.seed,
+        )
 
     tasks: List[Task] = []
     for repo in repos:
@@ -274,6 +290,8 @@ def main():
         force_write_focus_prob=args.force_write_focus_prob,
         # Navigation eval: disable auto-focus on target file
         auto_focus_target=not getattr(args, 'no_auto_focus', False),
+        # Match BC training: keep focus on bug file, don't move to test file after RUN_TESTS
+        auto_focus_from_test_details=False,
     )
     env = JarvisHarnessEnv(harness_config)
 
