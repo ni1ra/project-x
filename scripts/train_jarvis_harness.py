@@ -470,6 +470,21 @@ class JarvisHarnessTrainer:
         if sync:
             torch.cuda.synchronize(self.device)
 
+    def _continuous_gpu_burn_for_demo_gen(self) -> None:
+        """Background thread that keeps GPU busy during demo generation.
+
+        This prevents the GPU guard from killing the process when the CPU is
+        busy generating expert demos (which doesn't use GPU).
+        """
+        burn_count = 0
+        while not self._stop_demo_gen_burn:
+            # Do multiple burns per iteration to keep GPU really busy
+            for _ in range(10):
+                self._gpu_burn(sync=False)
+            burn_count += 10
+            # Very small sleep to avoid spinning too fast but keep GPU busy
+            time.sleep(0.001)
+
     def pretrain_behavioral_cloning(
         self,
         num_demos: int = 1000,
@@ -480,6 +495,7 @@ class JarvisHarnessTrainer:
         difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
         use_multistep: bool = False,
         use_persistent: bool = False,
+        preloaded_dataset: Dict = None,
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -497,6 +513,7 @@ class JarvisHarnessTrainer:
             use_multistep: If True, use multi-step demos with RUN_TESTS + WRITE_FOCUS
             use_persistent: If True, use persistent mode demos with full loop
                            (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)
+            preloaded_dataset: If provided, skip demo generation and use this dataset
 
         Returns:
             Dictionary of final BC metrics
@@ -516,35 +533,59 @@ class JarvisHarnessTrainer:
             mode_str = "single-step"
 
         print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
-        print(f"Generating {num_demos} expert demonstrations (difficulty={difficulty.name}, vocab_size={vocab_size}, mode={mode_str})...")
 
-        # Generate expert dataset
-        try:
-            if use_persistent:
-                # Phase 7.4a: Persistent mode demos with COMPLETE_TASK
-                dataset = create_persistent_bc_dataset(
-                    num_tasks=num_demos,
-                    difficulty=difficulty,
-                    seed=42,
-                    include_single_step=False,  # Pure persistent demos
-                )
-            elif use_multistep:
-                dataset = create_multistep_bc_dataset(
-                    num_tasks=num_demos,
-                    difficulty=difficulty,
-                    seed=42,
-                    include_single_step=True,  # Mix both for diversity
-                )
-            else:
-                dataset = create_bc_dataset(
-                    num_tasks=num_demos,
-                    difficulty=difficulty,
-                    seed=42,
-                    jitter=jitter,
-                )
-        except ValueError as e:
-            print(f"Warning: Could not generate BC dataset: {e}")
-            return {"bc_loss": float("nan"), "bc_accuracy": 0.0}
+        # Use preloaded dataset if provided (avoids GPU guard issues during demo generation)
+        if preloaded_dataset is not None:
+            print(f"Using preloaded dataset with {preloaded_dataset['num_samples']} samples")
+            dataset = preloaded_dataset
+        else:
+            print(f"Generating {num_demos} expert demonstrations (difficulty={difficulty.name}, vocab_size={vocab_size}, mode={mode_str})...")
+
+            # Keep GPU busy during demo generation to avoid GPU guard killing us
+            # This spawns a background burner thread that runs matmuls while CPU generates demos
+            gpu_burn_thread = None
+            if self.device.type == "cuda":
+                self._stop_demo_gen_burn = False  # Set flag BEFORE starting thread
+                gpu_burn_thread = threading.Thread(target=self._continuous_gpu_burn_for_demo_gen, daemon=True)
+                gpu_burn_thread.start()
+                # Give thread time to start and confirm GPU burns are running
+                time.sleep(0.1)
+
+            # Generate expert dataset
+            try:
+                if use_persistent:
+                    # Phase 7.4a: Persistent mode demos with COMPLETE_TASK
+                    dataset = create_persistent_bc_dataset(
+                        num_tasks=num_demos,
+                        difficulty=difficulty,
+                        seed=42,
+                        include_single_step=False,  # Pure persistent demos
+                    )
+                elif use_multistep:
+                    dataset = create_multistep_bc_dataset(
+                        num_tasks=num_demos,
+                        difficulty=difficulty,
+                        seed=42,
+                        include_single_step=True,  # Mix both for diversity
+                    )
+                else:
+                    dataset = create_bc_dataset(
+                        num_tasks=num_demos,
+                        difficulty=difficulty,
+                        seed=42,
+                        jitter=jitter,
+                    )
+            except ValueError as e:
+                print(f"Warning: Could not generate BC dataset: {e}")
+                if gpu_burn_thread is not None:
+                    self._stop_demo_gen_burn = True
+                    gpu_burn_thread.join(timeout=2.0)
+                return {"bc_loss": float("nan"), "bc_accuracy": 0.0}
+
+            # Stop the GPU burn thread now that demo generation is complete
+            if gpu_burn_thread is not None:
+                self._stop_demo_gen_burn = True
+                gpu_burn_thread.join(timeout=2.0)
 
         num_samples = dataset["num_samples"]
         print(f"Generated {num_samples} valid expert trajectories")
@@ -654,12 +695,15 @@ class JarvisHarnessTrainer:
                     # Heavily weight action type since it determines everything else
                     bc_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob + vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob).mean()
                 else:
-                    # Single-step: focus on important bytes (1, 3, 25, 26)
+                    # Single-step: train all important bytes INCLUDING byte 0 (action type)
+                    # BUG FIX 2026-01-23: Previously missing byte 0 caused model to output garbage action types
+                    action_type_log_prob = log_probs[:, 0]  # CRITICAL: action type must be trained!
                     offset_log_prob = log_probs[:, 1]
                     length_log_prob = log_probs[:, 3]
                     vocab_log_prob = log_probs[:, 25]
                     vocab_mode_log_prob = log_probs[:, 26]  # CRITICAL: Train vocab_mode
-                    bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob).mean()
+                    # Weight action type heavily (3.0) since WRITE_FOCUS vs other actions is critical
+                    bc_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob + vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob).mean()
 
                 # JARVIS VOCAB FIX: Add direct vocab classification loss
                 # The vocab_head needs explicit cross-entropy supervision to prevent collapse
@@ -700,10 +744,9 @@ class JarvisHarnessTrainer:
                 nn.utils.clip_grad_norm_(self.brain.parameters(), self.max_grad_norm)
                 bc_optimizer.step()
 
-                # Keep GPU busy during BC training (prevents GPU guard from killing)
-                # Need multiple burns to maintain >80% utilization
-                for _ in range(3):
-                    self._gpu_burn(sync=False)
+                # NOTE: GPU burns REMOVED from BC loop - BC training already saturates GPU
+                # GPU burns here compete with actual training and slow it down 30x
+                # See MISTAKES.md "2026-01-21 20:35 - MEDIUM BC Training Silent Hang"
 
                 epoch_losses.append(bc_loss.item())
 
@@ -756,6 +799,24 @@ class JarvisHarnessTrainer:
         print(f"  Best Accuracy: {best_accuracy:.1%}")
         print(f"  GPU burns during BC: executed={self._burn_call_count}, skipped={self._burn_skip_count}")
         print()
+
+        # Save BC checkpoint immediately to avoid losing training progress
+        bc_ckpt_path = "results/jarvis_harness_v2_bc.pt"
+        vocab_size = 5  # Default TRIVIAL
+        if hasattr(self.brain.action_decoder, 'vocab_head') and self.brain.action_decoder.vocab_head is not None:
+            vocab_size = self.brain.action_decoder.vocab_head.classifier[-1].out_features
+        torch.save({
+            "brain_state_dict": self.brain.state_dict(),
+            "total_steps": 0,
+            "bc_loss": best_loss,
+            "bc_accuracy": best_accuracy,
+            "config": {
+                "action_bytes": self.brain.config.action_bytes,
+                "vocab_size": vocab_size,
+                "hidden_dim": self.brain.config.hidden_dim,
+            },
+        }, bc_ckpt_path)
+        print(f"  BC checkpoint saved: {bc_ckpt_path}", flush=True)
 
         # Reset burn counts for RL phase
         self._burn_call_count = 0
@@ -818,6 +879,7 @@ class JarvisHarnessTrainer:
         print(f"Generated {num_traj} trajectories ({num_samples} total steps)")
         print(f"  RUN_TESTS actions: {dataset['num_run_tests']}")
         print(f"  WRITE_FOCUS actions: {dataset['num_write_focus']}")
+        print(f"  NAVIGATE actions: {dataset.get('num_navigate', 0)}")
         print(f"  COMPLETE_TASK actions: {dataset['num_complete_task']}")
 
         # Move data to device - shape: [num_traj, seq_len, ...]
@@ -899,8 +961,7 @@ class JarvisHarnessTrainer:
                     step_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob +
                                   vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob)
 
-                    # GPU burn during step loop to maintain utilization
-                    self._gpu_burn(sync=False)
+                    # NOTE: GPU burn REMOVED - BC training already saturates GPU
 
                     # Mask out invalid steps
                     masked_loss = (step_loss * step_mask.float()).sum() / step_mask.sum()
@@ -968,9 +1029,7 @@ class JarvisHarnessTrainer:
 
                     epoch_losses.append(batch_loss.item())
 
-                    # Keep GPU busy - need more burns for sequential processing
-                    for _ in range(5):
-                        self._gpu_burn(sync=False)
+                    # NOTE: GPU burns REMOVED - BC training already saturates GPU
 
             avg_loss = sum(epoch_losses) / len(epoch_losses) if epoch_losses else float("nan")
             accuracy = epoch_correct / epoch_total if epoch_total > 0 else 0.0
@@ -2062,6 +2121,8 @@ def main():
                         help="Number of expert demos for BC pre-training")
     parser.add_argument("--bc-multistep", action="store_true",
                         help="Use multi-step BC demos (RUN_TESTS + WRITE_FOCUS)")
+    parser.add_argument("--bc-demos-file", type=str, default=None,
+                        help="Load pre-generated BC demos from pickle file (bypasses GPU guard during demo gen)")
     parser.add_argument("--bc-sequential", action="store_true",
                         help="Use sequential BC training (maintains h_t across trajectory, critical for RNNs)")
     parser.add_argument("--bc-batch-size", type=int, default=128,
@@ -2228,6 +2289,8 @@ def main():
             persistent_mode=getattr(args, 'persistent', False),
             tasks_per_episode=getattr(args, 'tasks_per_episode', 1),
             scratchpad_enabled=getattr(args, 'scratchpad', False),
+            # Match BC training: keep focus on bug file after RUN_TESTS
+            auto_focus_from_test_details=False,
         )
         envs = VectorizedJarvisEnv(args.num_envs, harness_config)
 
@@ -2239,6 +2302,7 @@ def main():
         if args.mode == "v1":
             repo_path = os.path.join(os.path.dirname(__file__), "..", args.repo_path)
             tasks = create_tasks_legacy(repo_path, args.num_envs)
+            difficulty = BugDifficulty.EASY  # Default for v1 mode
             print(f"v1 mode: Using toy repo at {repo_path}")
 
         elif args.mode == "curriculum":
@@ -2418,10 +2482,23 @@ def main():
             use_persistent = getattr(args, 'persistent', False)
             use_sequential = getattr(args, 'bc_sequential', False)
 
+            # Load pre-generated demos if --bc-demos-file provided (bypasses GPU guard during demo gen)
+            preloaded_dataset = None
+            if args.bc_demos_file:
+                import pickle
+                print(f"Loading pre-generated BC demos from {args.bc_demos_file}...", flush=True)
+                with open(args.bc_demos_file, "rb") as f:
+                    preloaded_dataset = pickle.load(f)
+                print(f"  Loaded {preloaded_dataset['num_samples']} samples", flush=True)
+                if "num_run_tests" in preloaded_dataset:
+                    print(f"  RUN_TESTS: {preloaded_dataset['num_run_tests']}, WRITE_FOCUS: {preloaded_dataset['num_write_focus']}", flush=True)
+
             if use_sequential:
                 # Phase 7.4d: Sequential BC for RNN temporal learning
                 # Oracle score 420: This fixes the training-inference mismatch
-                mode_str = "SEQUENTIAL (maintains h_t across 4-step loop)"
+                # HARD uses 6-step trajectories (multi-file bugs need NAVIGATE)
+                bc_seq_len = 6 if difficulty == BugDifficulty.HARD else 4
+                mode_str = f"SEQUENTIAL (maintains h_t across {bc_seq_len}-step loop)"
                 print(f"BC pre-training requested: {args.bc_epochs} epochs, {args.bc_demos} demos ({mode_str})", flush=True)
                 bc_result = trainer.pretrain_behavioral_cloning_sequential(
                     num_demos=args.bc_demos,
@@ -2429,7 +2506,7 @@ def main():
                     bc_batch_size=args.bc_batch_size,
                     bc_lr=args.bc_lr,
                     difficulty=difficulty,
-                    seq_len=4,  # 4-step persistent loop
+                    seq_len=bc_seq_len,
                 )
                 bc_metrics = {"bc_loss": bc_result["bc_loss"], "bc_accuracy": bc_result["bc_accuracy"]}
             else:
@@ -2450,6 +2527,7 @@ def main():
                     difficulty=difficulty,  # Pass difficulty for correct vocab size
                     use_multistep=args.bc_multistep,
                     use_persistent=use_persistent,  # Phase 7.4a: enable persistent demos
+                    preloaded_dataset=preloaded_dataset,  # Skip demo gen if pre-generated
                 )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:

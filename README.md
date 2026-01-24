@@ -45,7 +45,7 @@ Build an autonomous AI coding agent that fixes bugs WITHOUT LLM API calls. The c
 
 **Jarvis Harness:** The brain can fix bugs in synthetic Python repos via bytes-in/bytes-out interface with pytest verification.
 
-**Phase 9 Status:** Vocabulary expanded to 64 tokens (added Python keywords). Next: BC demos for real repo patterns.
+**Phase 9 Status:** Vocabulary expanded to 80 tokens (31 Python keywords + 16 builtins). Typo fix support added. Real repo infrastructure complete. Next: Debug why real repos show 0% solve rate despite correct bug injection.
 
 ## Key Constraints
 

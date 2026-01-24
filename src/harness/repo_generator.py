@@ -681,16 +681,20 @@ def inject_missing_paren(code: str) -> Tuple[str, str, str]:
 
 
 def inject_typo_keyword(code: str) -> Tuple[str, str, str]:
-    """Inject typo in Python keyword - TRUE TRIVIAL syntax bug."""
+    """Inject typo in Python keyword - TRUE TRIVIAL syntax bug.
+
+    Phase 9 constraint: Only use same-length typos (e.g., 'return'->'retrun')
+    because the action decoder uses delete+insert which requires len(old)==len(new).
+    """
     keywords = [
-        ('return ', 'retrun '),
-        ('import ', 'improt '),
-        ('from ', 'form '),
-        ('class ', 'calss '),
-        ('elif ', 'elfi '),
-        ('True', 'Ture'),
-        ('False', 'Flase'),
-        ('None', 'Nonee'),
+        ('return ', 'retrun '),   # 7->7 (with space)
+        ('import ', 'improt '),   # 7->7
+        ('from ', 'form '),       # 5->5
+        ('class ', 'calss '),     # 6->6
+        ('elif ', 'elfi '),       # 5->5
+        ('True', 'Ture'),         # 4->4
+        ('False', 'Flase'),       # 5->5
+        # Removed: ('None', 'Nonee') - different length (4->5)
     ]
     for correct, typo in keywords:
         if correct in code:

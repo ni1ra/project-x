@@ -496,8 +496,22 @@ class AutoregressiveActionDecoder(nn.Module):
             self.goal_start = 256 if obs_dim >= 320 else 0  # Start of goal section
             self.focus_text_start = 320 if obs_dim >= 448 else 0  # Start of focus text
 
-            # Project [h_t || g_t || goal_bytes || focus_text || focus_preview] to decoder initial state
-            self.h_proj = nn.Linear(hidden_dim + k_max + self.goal_dim + self.focus_text_dim + self.focus_preview_dim, decoder_hidden)
+            # DEEP-DEBUG FIX: Add metadata skip connection
+            # The model ignores metadata bytes (step, tests_passing, tests_total) buried in text.
+            # Adding them directly to context forces the decoder to attend to them.
+            # Metadata layout at bytes 448-480:
+            #   [448-449]: energy (float16)
+            #   [450-451]: time (float16)
+            #   [452-453]: actions_remaining (uint16)
+            #   [454-455]: step (uint16)  <-- KEY for action selection
+            #   [456-457]: last_reward (float16)
+            #   [458]:     tests_passing (uint8)  <-- KEY for action selection
+            #   [459]:     tests_total (uint8)    <-- KEY for action selection
+            self.metadata_dim = 12 if obs_dim >= 460 else 0  # Bytes 448-459
+            self.metadata_start = 448 if obs_dim >= 460 else 0
+
+            # Project [h_t || g_t || goal_bytes || focus_text || focus_preview || metadata] to decoder initial state
+            self.h_proj = nn.Linear(hidden_dim + k_max + self.goal_dim + self.focus_text_dim + self.focus_preview_dim + self.metadata_dim, decoder_hidden)
 
             # GRU decoder
             self.gru = nn.GRU(
@@ -568,12 +582,14 @@ class AutoregressiveActionDecoder(nn.Module):
         # Goal bytes (256-320) contain bug type info for vocabulary selection
         # Focus text (320-448) contains actual code for offset selection
         # Focus preview (480-512) contains small code preview
+        # DEEP-DEBUG FIX: Also extract metadata bytes (448-459) for action type selection
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
         if phi_obs is None:
             goal_bytes = torch.zeros(batch_size, self.goal_dim, device=h_t.device)
             focus_text = torch.zeros(batch_size, self.focus_text_dim, device=h_t.device)
             focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
+            metadata = torch.zeros(batch_size, self.metadata_dim, device=h_t.device)
         else:
             # Extract goal bytes (256-320) for bug type discrimination
             goal_bytes = phi_obs[:, self.goal_start:self.goal_start + self.goal_dim]
@@ -581,7 +597,13 @@ class AutoregressiveActionDecoder(nn.Module):
             focus_text = phi_obs[:, self.focus_text_start:self.focus_text_start + self.focus_text_dim]
             # Extract last 32 bytes (focus_preview region)
             focus_preview = phi_obs[:, -self.focus_preview_dim:]
-        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview], dim=-1)
+            # DEEP-DEBUG FIX: Extract metadata bytes (448-459) for action type selection
+            # These contain step, tests_passing, tests_total - critical for RUN_TESTS decision
+            if self.metadata_dim > 0:
+                metadata = phi_obs[:, self.metadata_start:self.metadata_start + self.metadata_dim]
+            else:
+                metadata = torch.zeros(batch_size, 0, device=h_t.device)
+        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview, metadata], dim=-1)
 
         # Initialize decoder hidden state from [h_t || g_t || focus_preview]
         decoder_h = self.h_proj(context).unsqueeze(0)  # [1, batch, decoder_hidden]
@@ -675,17 +697,24 @@ class AutoregressiveActionDecoder(nn.Module):
         num_bytes = actions.size(1)
 
         # JARVIS FIX: Extract goal bytes, focus_text, AND focus_preview from phi_obs
+        # DEEP-DEBUG FIX: Also extract metadata bytes (448-459) for action type selection
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
         if phi_obs is None:
             goal_bytes = torch.zeros(batch_size, self.goal_dim, device=h_t.device)
             focus_text = torch.zeros(batch_size, self.focus_text_dim, device=h_t.device)
             focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
+            metadata = torch.zeros(batch_size, self.metadata_dim, device=h_t.device)
         else:
             goal_bytes = phi_obs[:, self.goal_start:self.goal_start + self.goal_dim]
             focus_text = phi_obs[:, self.focus_text_start:self.focus_text_start + self.focus_text_dim]
             focus_preview = phi_obs[:, -self.focus_preview_dim:]
-        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview], dim=-1)
+            # DEEP-DEBUG FIX: Extract metadata bytes
+            if self.metadata_dim > 0:
+                metadata = phi_obs[:, self.metadata_start:self.metadata_start + self.metadata_dim]
+            else:
+                metadata = torch.zeros(batch_size, 0, device=h_t.device)
+        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview, metadata], dim=-1)
 
         # Initialize decoder hidden state
         decoder_h = self.h_proj(context).unsqueeze(0)
@@ -759,17 +788,24 @@ class AutoregressiveActionDecoder(nn.Module):
         num_bytes = num_bytes or self.num_action_bytes
 
         # JARVIS FIX: Extract goal bytes, focus_text, AND focus_preview from phi_obs
+        # DEEP-DEBUG FIX: Also extract metadata bytes (448-459) for action type selection
         if g_t is None:
             g_t = torch.zeros(batch_size, self.k_max, device=h_t.device)
         if phi_obs is None:
             goal_bytes = torch.zeros(batch_size, self.goal_dim, device=h_t.device)
             focus_text = torch.zeros(batch_size, self.focus_text_dim, device=h_t.device)
             focus_preview = torch.zeros(batch_size, self.focus_preview_dim, device=h_t.device)
+            metadata = torch.zeros(batch_size, self.metadata_dim, device=h_t.device)
         else:
             goal_bytes = phi_obs[:, self.goal_start:self.goal_start + self.goal_dim]
             focus_text = phi_obs[:, self.focus_text_start:self.focus_text_start + self.focus_text_dim]
             focus_preview = phi_obs[:, -self.focus_preview_dim:]
-        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview], dim=-1)
+            # DEEP-DEBUG FIX: Extract metadata bytes
+            if self.metadata_dim > 0:
+                metadata = phi_obs[:, self.metadata_start:self.metadata_start + self.metadata_dim]
+            else:
+                metadata = torch.zeros(batch_size, 0, device=h_t.device)
+        context = torch.cat([h_t, g_t, goal_bytes, focus_text, focus_preview, metadata], dim=-1)
 
         # Initialize decoder hidden state
         decoder_h = self.h_proj(context).unsqueeze(0)
