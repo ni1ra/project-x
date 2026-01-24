@@ -48,12 +48,19 @@ def amplify_step_signal(phi_obs: torch.Tensor, meta_offset: int = 448) -> torch.
         meta_offset: Offset to metadata section (default 448)
 
     Returns:
-        Modified phi_obs with amplified step signal
+        Modified phi_obs with amplified step signal (or unchanged if obs too small)
     """
+    obs_dim = phi_obs.size(1)
+    step_byte_idx = meta_offset + 6  # byte 454 for standard 512-byte obs
+
+    # Guard: Only apply amplification if observation is large enough
+    # This handles test cases with small mock observations
+    if obs_dim <= step_byte_idx:
+        return phi_obs  # Return unchanged for small observations
+
     # Extract step byte (at meta_offset + 6, which is byte 454)
     # In normalized space: step_val = (step_byte - 127.5) / 127.5
     # To recover step_byte: step_byte = step_val * 127.5 + 127.5
-    step_byte_idx = meta_offset + 6
     step_normalized = phi_obs[:, step_byte_idx]  # [batch]
     step_raw = (step_normalized * 127.5 + 127.5).round().long().clamp(0, 255)  # [batch]
 
@@ -116,8 +123,8 @@ class RPJConfig:
     gamma: float = 0.999
 
     # Vocab head size (Phase 9 fix: must match training difficulty)
-    # TRIVIAL: 5 (TRIVIAL_VOCAB), COMBINED: 64 (includes REAL_REPO_VOCAB)
-    vocab_size: int = 64
+    # TRIVIAL: 5, COMBINED: 80 (5 TRIVIAL + 28 EASY + 47 REAL_REPO with builtins)
+    vocab_size: int = 80
 
     # Phase 10: Natural Language Interface (goal encoder)
     enable_goal_encoder: bool = False

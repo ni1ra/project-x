@@ -448,10 +448,11 @@ class TestExpertTrajectories:
         assert '-1' in EASY_VOCAB
 
     def test_combined_vocab_size(self):
-        """COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB = 33 items."""
-        assert len(COMBINED_VOCAB) == 33
+        """COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB + REAL_REPO_VOCAB = 80 items."""
+        # Phase 9: Expanded to include Python keywords and builtins
+        assert len(COMBINED_VOCAB) == 80  # 5 + 28 + 47
         assert COMBINED_VOCAB[:5] == TRIVIAL_VOCAB
-        assert COMBINED_VOCAB[5:] == EASY_VOCAB
+        assert COMBINED_VOCAB[5:33] == EASY_VOCAB  # EASY_VOCAB is 28 items (indices 5-32)
 
     def test_compute_fix_offset(self):
         """Test fix offset computation."""

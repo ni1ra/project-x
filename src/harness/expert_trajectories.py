@@ -305,10 +305,10 @@ def compute_fix_offset_in_focus(
 def get_vocab_idx_for_fix(fix_char: str) -> int:
     """Map fix character(s) to COMBINED_VOCAB index.
 
-    Phase 9: Search full COMBINED_VOCAB which includes:
+    Phase 9: Search full COMBINED_VOCAB (80 items) which includes:
     - TRIVIAL_VOCAB (0-4): syntax tokens
     - EASY_VOCAB (5-32): operators, digits, HARD tokens
-    - REAL_REPO_VOCAB (33-63): Python keywords for typo fixes
+    - REAL_REPO_VOCAB (33-79): Python keywords + builtins for typo fixes
     """
     # Try exact match first in full COMBINED_VOCAB
     for idx, vocab in enumerate(COMBINED_VOCAB):
@@ -768,31 +768,52 @@ def compute_correct_action_for_typo(
     """
     Compute correct action for typo keyword bugs.
 
-    Requires MICRO_VOCAB to fix (vocab_mode=1) since the correct keywords
-    like 'return', 'import', etc. are multi-character tokens.
+    Uses COMBINED_VOCAB (vocab_mode=0) since Python keywords and builtins
+    are now included in the expanded vocabulary.
 
     Examples:
-    - 'retrun' -> 'return' (MICRO_VOCAB index for 'return')
-    - 'improt' -> 'import' (MICRO_VOCAB index for 'import')
+    - 'retrun' -> 'return' (COMBINED_VOCAB index 33)
+    - 'improt' -> 'import' (COMBINED_VOCAB index 45)
+    - 'pritn' -> 'print' (COMBINED_VOCAB index 64)
     """
-    from src.harness.actions import MICRO_VOCAB
+    from src.harness.actions import COMBINED_VOCAB
 
     # Known typo pairs (buggy -> correct)
+    # Phase 9: Action decoder expanded to 0-15 length range (was 0-3)
+    # Same-length typos only (different lengths require more complex fixes)
     typo_pairs = [
-        ('retrun', 'return'),
-        ('improt', 'import'),
-        ('form', 'from'),
-        ('calss', 'class'),
-        ('elfi', 'elif'),
-        ('Ture', 'True'),
-        ('Flase', 'False'),
-        ('Nonee', 'None'),
-        ('slef', 'self'),
-        ('defitn', 'define'),
+        # Keywords (same-length)
+        ('retrun', 'return'),   # 6->6
+        ('improt', 'import'),   # 6->6
+        ('excpet', 'except'),   # 6->6
+        ('lmabda', 'lambda'),   # 6->6
+        ('form', 'from'),       # 4->4
+        ('calss', 'class'),     # 5->5
+        ('elfi', 'elif'),       # 4->4
+        ('Ture', 'True'),       # 4->4
+        ('Flase', 'False'),     # 5->5
+        ('slef', 'self'),       # 4->4
+        ('whlie', 'while'),     # 5->5
+        ('fro', 'for'),         # 3->3
+        ('yiled', 'yield'),     # 5->5
+        # Builtins (same-length)
+        ('pritn', 'print'),     # 5->5
+        ('pirnt', 'print'),     # 5->5
+        ('lne', 'len'),         # 3->3
+        ('rnage', 'range'),     # 5->5
+        ('opne', 'open'),       # 4->4
+        ('tpye', 'type'),       # 4->4
+        ('lsit', 'list'),       # 4->4
+        ('dcit', 'dict'),       # 4->4
+        ('ste', 'set'),         # 3->3
     ]
 
     # Find which typo is present
     for typo, correct in typo_pairs:
+        # Only support same-length replacements
+        if len(typo) != len(correct):
+            continue
+
         if typo in buggy and correct in original:
             # Find the typo position in buggy code
             typo_pos = buggy.find(typo)
@@ -804,22 +825,22 @@ def compute_correct_action_for_typo(
             if offset_in_focus < 0 or offset_in_focus >= 256:
                 continue
 
-            # Find the correct token in MICRO_VOCAB
-            if correct not in MICRO_VOCAB:
+            # Find the correct token in COMBINED_VOCAB
+            if correct not in COMBINED_VOCAB:
                 continue
 
-            vocab_idx = MICRO_VOCAB.index(correct)
+            vocab_idx = COMBINED_VOCAB.index(correct)
 
-            # Replace the typo with correct token
-            # Length = len(typo) to replace the entire typo
-            length = min(len(typo), 3)  # Constrained to 0-3
+            # For same-length typos: delete len(typo) chars, insert vocab token
+            # Phase 9: length range expanded to 0-15 (was 0-3)
+            length = min(len(typo), 15)  # Now supports up to 15 chars
 
             action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
             action_bytes[0] = ActionType.WRITE_FOCUS.value
             action_bytes[1] = max(0, min(255, offset_in_focus))
-            action_bytes[3] = length % 4
+            action_bytes[3] = length
             action_bytes[25] = vocab_idx
-            action_bytes[26] = 1  # MICRO_VOCAB mode
+            action_bytes[26] = 0  # COMBINED_VOCAB mode (default)
 
             return ExpertAction(
                 offset=offset_in_focus,

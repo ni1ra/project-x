@@ -100,10 +100,13 @@ REAL_REPO_VOCAB = [
     'try', 'except', 'finally', 'with', 'import', 'from', 'True', 'False',
     'None', 'self', 'pass', 'in', 'not', 'and', 'or', 'is', 'as',
     'raise', 'assert', 'yield', 'break', 'continue', 'lambda',
-]  # 31 items
+    # Python builtins (common typo targets like 'pritn' -> 'print')
+    'print', 'len', 'int', 'str', 'list', 'dict', 'range', 'type',
+    'open', 'bool', 'float', 'tuple', 'set', 'enumerate', 'zip', 'map',
+]  # 47 items (31 keywords + 16 builtins)
 
 # Combined vocab for training that can handle TRIVIAL, EASY, HARD, and REAL repos
-COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB + REAL_REPO_VOCAB  # 64 items total
+COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB + REAL_REPO_VOCAB  # 80 items total (5+28+47)
 
 # MICRO_VOCAB: Comprehensive vocabulary for byte-level edits
 # Designed based on frequency analysis of generated Python repos
@@ -273,8 +276,8 @@ def decode_action(action_bytes: torch.Tensor) -> JarvisAction:
     # Offset - use full byte range for focus windows up to 256 chars
     offset = int(action_bytes[1].item())
 
-    # Length - constrained to 0-3 for simpler action space (matches v2 decoder)
-    length = int(action_bytes[3].item()) % 4
+    # Length - expanded to 0-15 for Phase 9 typo fixes (matches v2 decoder)
+    length = int(action_bytes[3].item()) % 16
 
     # Target/content
     target_bytes = action_bytes[5:].cpu().numpy().tobytes()
@@ -497,9 +500,9 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
     # would be encoded as 13, causing incorrect edits. Now using full byte.
     offset = int(action_bytes[1].item())  # Full 8-bit offset (0-255)
 
-    # Length - constrained to 0-3 for simpler action space
-    # 0 = insert, 1-3 = replace small amounts
-    length = int(action_bytes[3].item()) % 4  # 2-bit length
+    # Length - expanded to 0-15 for Phase 9 typo fixes (was 0-3)
+    # 0 = insert, 1-15 = replace up to 15 chars (covers most keyword typos)
+    length = int(action_bytes[3].item()) % 16  # 4-bit length
 
     # Target (bytes 5-24)
     target_bytes = action_bytes[5:25].cpu().numpy().tobytes()
