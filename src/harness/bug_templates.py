@@ -88,7 +88,8 @@ class BugInstance:
     buggy_code: str            # Code after injection
     fix_code: str              # How to fix it
     line_number: int           # Approximate line number
-    hint: str = ""             # Optional hint for the agent
+    hint: str = ""             # Optional hint for the agent (generic)
+    fix_description: str = ""  # Specific fix description (e.g., "Change > to >=")
 
     # For multi-file bugs
     secondary_files: Dict[str, Tuple[str, str, str]] = field(default_factory=dict)

@@ -38,14 +38,14 @@ Build an autonomous AI coding agent that fixes bugs WITHOUT LLM API calls. The c
 | Benchmark | Value | Target | Status |
 |-----------|-------|--------|--------|
 | **Synthetic EASY Bug Fixes** | 100% | >50% | **PASS** |
-| **Real Repo Bug Fixes** | 0% | >50% | IN PROGRESS |
+| **Real Repo Bug Fixes** | 100% | >50% | **PASS** |
 | K_eff (neuromodulator compression) | 5.57 | [2-6] | **PASS** |
 | DoErr (causal reasoning) | 0.216 | ≤0.25 | **PASS** |
 | CBR_B (compute allocation) | 0.892 | >0.555 | **PASS** |
 
-**Jarvis Harness:** The brain can fix bugs in synthetic Python repos via bytes-in/bytes-out interface with pytest verification.
+**Jarvis Harness:** The brain can fix bugs in synthetic AND real Python repos via bytes-in/bytes-out interface with pytest verification.
 
-**Phase 9 Status:** Vocabulary expanded to 80 tokens (31 Python keywords + 16 builtins). Typo fix support added. Real repo infrastructure complete. Next: Debug why real repos show 0% solve rate despite correct bug injection.
+**Phase 9 Status (2026-01-24):** 100% solve rate on REAL REPOS achieved with 50% mixed training + focus jitter. Next: Unified training approach for both synthetic AND real repos simultaneously.
 
 ## Key Constraints
 

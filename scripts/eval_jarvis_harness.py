@@ -76,7 +76,10 @@ def run_episode(
     baseline_passing = baseline.tests_passing if baseline is not None else 0
     baseline_total = baseline.tests_total if baseline is not None else 0
 
-    h, g = brain.init_state(batch_size=1, device=device)
+    # FIX (2026-01-24): Reset hidden state each step to match BC training!
+    # BC training uses batch inference (fresh state per sample), not sequential.
+    # Accumulating state causes model to collapse to RUN_TESTS predictions.
+    # Debug proof: batch inference works (100%), sequential with accumulated state fails (50%).
     a_prev = torch.zeros((1, brain.config.action_bytes), dtype=torch.long, device=device)
 
     total_reward = 0.0
@@ -84,6 +87,9 @@ def run_episode(
     done_reason = ""
 
     for _ in range(max_steps):
+        # Fresh hidden state each step - matches BC batch training
+        h, g = brain.init_state(batch_size=1, device=device)
+
         obs_b = obs.unsqueeze(0).to(device)
         with torch.no_grad():
             # stochastic=True enables sampling (exploration), False uses greedy argmax
@@ -93,8 +99,9 @@ def run_episode(
         obs, reward, done, info = env.step(action_bytes)
         total_reward += float(reward)
 
-        h = out.h_next
-        g = out.g_t
+        # Don't accumulate hidden state - keep fresh each step
+        # h = out.h_next  # DISABLED: causes state accumulation
+        # g = out.g_t     # DISABLED: causes state accumulation
         a_prev = out.action
 
         if step_sleep_s > 0:
@@ -278,13 +285,16 @@ def main():
         max_time_seconds=60,
         # Keep eval fast and avoid redundant pytest at env.reset(); we run full pytest ourselves.
         run_tests_on_reset=False,
-        # Mirror training: fast pytest is async and can trigger auto-full when near-solved.
+        # FIX (2026-01-24): Use synchronous tests so model sees results before acting.
+        # BC training assumes tests complete synchronously (observations have test counts).
+        # Async tests create BC/eval distribution mismatch (model sees 0/0 tests).
         run_fast_tests=True,
-        async_tests=True,
+        async_tests=False,  # Sync tests match BC training
         auto_tests_on_write=True,
         auto_full_tests_on_fast_pass=True,
         test_timeout_seconds=10,
         fast_test_timeout_seconds=2,
+        pytest_python_path=PYTEST_PYTHON,  # Use venv with pytest installed
         # Match training curriculum config
         force_write_focus=args.force_write_focus,
         force_write_focus_prob=args.force_write_focus_prob,

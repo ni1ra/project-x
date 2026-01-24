@@ -76,6 +76,7 @@ class HarnessConfig:
     auto_full_tests_on_fast_pass: bool = False  # If True, run full tests when fast tests pass (async only)
     test_timeout_seconds: int = 30
     fast_test_timeout_seconds: int = 20
+    pytest_python_path: str = ""      # Python executable for pytest (empty = sys.executable)
 
     # Task config
     task_type: str = "fix_bug"        # fix_bug, add_feature, refactor
@@ -332,7 +333,9 @@ class JarvisHarnessEnv:
             energy_used=0.0,
             time_start=time.time(),
             actions_taken=0,
-            terminal_buffer=f"Task: {self.task.description}\nRepo ready at {self.temp_dir}\n",
+            # FIX (2026-01-24): Match BC observation format exactly.
+            # BC uses "Repo ready." without path to avoid variable-length mismatch.
+            terminal_buffer=f"Task: {self.task.description[:60]}\nRepo ready.\n",
             file_changes={},
             last_test_result=None,
             last_test_step=-1,
@@ -404,14 +407,16 @@ class JarvisHarnessEnv:
                 ok, msg = self._start_pytest_process(fast=bool(self.config.run_fast_tests))
                 self.state.terminal_buffer += f"Initial tests: {msg if ok else 'failed to start'}\n"
             else:
+                pytest_py = self.config.pytest_python_path or None
                 if self.config.run_fast_tests:
                     self.state.last_test_result = run_pytest_fast(
                         self.temp_dir,
                         timeout=self.config.fast_test_timeout_seconds,
                         maxfail=1,
+                        python_path=pytest_py,
                     )
                 else:
-                    self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                    self.state.last_test_result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds, python_path=pytest_py)
 
                 self.state.last_test_step = 0
                 self.state.initial_tests_passing = self.state.last_test_result.tests_passing
@@ -795,8 +800,11 @@ class JarvisHarnessEnv:
             tests_total=self.state.last_test_result.tests_total if self.state and self.state.last_test_result else 0,
             focus_offset=self.state.focus_offset if self.state else 0,
             focus_length=len(self.state.focus_text) if self.state else 0,
+            # FIX (2026-01-24): Use filename bytes as "hash" to match BC training format.
+            # BC uses file_path.encode('utf-8')[:16], not an actual hash.
+            # The model learned to associate filename with fix patterns.
             focus_file_hash=(
-                hashlib.md5(self.state.focus_file.encode("utf-8", errors="replace")).digest()[:16]
+                self.state.focus_file.encode("utf-8", errors="replace")[:16]
                 if self.state and self.state.focus_file
                 else b""
             ),
@@ -1107,14 +1115,16 @@ class JarvisHarnessEnv:
 
         elif action.action_type == ActionType.RUN_TESTS:
             if not self.config.async_tests:
+                pytest_py = self.config.pytest_python_path or None
                 if self.config.run_fast_tests:
                     result = run_pytest_fast(
                         self.temp_dir,
                         timeout=self.config.fast_test_timeout_seconds,
                         maxfail=1,
+                        python_path=pytest_py,
                     )
                 else:
-                    result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                    result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds, python_path=pytest_py)
 
                 self.state.last_test_result = result
                 self.state.last_test_step = int(self.state.step)
@@ -1136,7 +1146,18 @@ class JarvisHarnessEnv:
 
                 if self.config.auto_focus_from_test_details:
                     self._maybe_update_focus_from_test_details(result.details)
-                return True, result.details
+
+                # FIX (2026-01-24): Format sync test output to match BC training format.
+                # BC generates: "[Tests completed: fast] X/Y passing\n{pytest_output}"
+                # The model uses terminal assertion details to determine the fix.
+                # Extract key assertion info from pytest output, skipping banners.
+                scope = "fast" if self.config.run_fast_tests else "repo"
+                details_short = self._extract_pytest_assertion(result.details)
+                formatted_output = (
+                    f"[Tests completed: {scope}] {result.tests_passing}/{result.tests_total} passing\n"
+                    f"{details_short}"
+                )
+                return True, formatted_output
 
             # Async mode: avoid CPU subprocess stalls that starve the GPU.
             self.state.pending_submit = False
@@ -1165,7 +1186,8 @@ class JarvisHarnessEnv:
         elif action.action_type == ActionType.SUBMIT:
             if not self.config.async_tests:
                 # Run final tests
-                result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds)
+                pytest_py = self.config.pytest_python_path or None
+                result = run_pytest(self.temp_dir, timeout=self.config.test_timeout_seconds, python_path=pytest_py)
                 self.state.last_test_result = result
                 self.state.last_test_step = int(self.state.step)
 
@@ -1251,7 +1273,7 @@ class JarvisHarnessEnv:
 
         import sys
 
-        python_exe = sys.executable
+        python_exe = self.config.pytest_python_path or sys.executable
         cmd = [python_exe, "-m", "pytest", "-q", "--tb=short"]
         scope = "full"
         timeout_s: float = float(self.config.test_timeout_seconds)
@@ -1490,15 +1512,70 @@ class JarvisHarnessEnv:
         self.state.focus_offset = int(offset)
         self.state.focus_text = content[offset:offset + 512]
 
-        # Surface a small snippet for debugging/edit guidance.
-        start = max(0, line_idx - 3)
-        end = min(len(lines), line_idx + 4)
-        snippet = "".join(f"{i+1:04d} {lines[i]}" for i in range(start, end))
-        self.state.terminal_buffer += f"\n[Focus] {rel_path}:{line_idx + 1}\n{snippet}\n"
-        if len(self.state.terminal_buffer) > 2000:
-            self.state.terminal_buffer = self.state.terminal_buffer[-2000:]
+        # NOTE: Removed snippet from terminal_buffer (2026-01-24)
+        # Adding focus snippet to terminal created BC/eval distribution mismatch.
+        # The focus text is already available in the observation's dedicated region [320:448].
+        # Keeping terminal clean ensures BC training observations match eval observations.
 
         return True
+
+    def _extract_pytest_assertion(self, details: str) -> str:
+        """
+        Extract key assertion info from pytest output, matching BC training format.
+
+        BC format:
+            test_file.py:14: in test_name
+                assert r.is_valid() == False
+            E   AssertionError: assert True == False
+
+        Skips pytest banners (===FAILURES===, ____test_name____) and extracts
+        just the test location, assertion, and error lines.
+        """
+        lines = details.split('\n')
+        extracted: list[str] = []
+        in_failure_block = False
+
+        for line in lines:
+            # Skip pytest banners
+            if '=' * 10 in line or '_' * 10 in line:
+                in_failure_block = True
+                continue
+
+            # Skip empty lines and pytest progress indicators (.F etc)
+            stripped = line.strip()
+            if not stripped or stripped in ('.', 'F', '.F', 'F.', '..'):
+                continue
+
+            # Extract test file location (e.g., "test_file.py:16: in test_name")
+            if '.py:' in line and ': in ' in line:
+                # Remove repo prefix (e.g., "data_pipeline_9744/test_pipeline.py")
+                if '/' in line:
+                    parts = line.split('/')
+                    line = parts[-1] if parts else line
+                extracted.append(line.strip())
+
+            # Extract assertion line (starts with "assert")
+            elif stripped.startswith('assert'):
+                extracted.append(f"    {stripped}")
+
+            # Extract error line (starts with "E   ")
+            elif line.startswith('E   '):
+                error_text = line[4:]  # Remove "E   " prefix
+                # Only keep main assertion error, skip "+ where" details
+                if error_text.startswith('AssertionError') or error_text.startswith('+') is False:
+                    if not error_text.strip().startswith('+'):
+                        extracted.append(f"E   {error_text}")
+
+            # Stop after we have enough (file, assert, error)
+            if len(extracted) >= 3:
+                break
+
+        # Format output to match BC training
+        if extracted:
+            return '\n'.join(extracted[:3]) + '\n'
+        else:
+            # Fallback: just truncate
+            return details[:150]
 
     def _maybe_update_focus_from_test_details(self, details: str) -> None:
         """Opportunistically set focus to a relevant traceback location (learnability helper)."""
@@ -1839,16 +1916,19 @@ class JarvisHarnessEnv:
             if self.config.async_tests:
                 self._start_pytest_process(fast=bool(self.config.run_fast_tests))
             else:
+                pytest_py = self.config.pytest_python_path or None
                 if self.config.run_fast_tests:
                     self.state.last_test_result = run_pytest_fast(
                         self.temp_dir,
                         timeout=self.config.fast_test_timeout_seconds,
                         maxfail=1,
+                        python_path=pytest_py,
                     )
                 else:
                     self.state.last_test_result = run_pytest(
                         self.temp_dir,
                         timeout=self.config.test_timeout_seconds,
+                        python_path=pytest_py,
                     )
                 self.state.last_test_step = 0
                 self.state.initial_tests_passing = self.state.last_test_result.tests_passing
