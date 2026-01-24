@@ -2684,6 +2684,428 @@ def get_oracle_action_from_env(
     )
 
 
+# =============================================================================
+# Phase 11: Git Commit Trajectories (Tool Diversity)
+# =============================================================================
+
+def create_git_status_action() -> torch.Tensor:
+    """Create a GIT_STATUS action for checking git state."""
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.GIT_STATUS.value
+    return action_bytes
+
+
+def create_git_add_action(target_file: str = ".") -> torch.Tensor:
+    """Create a GIT_ADD action to stage changes.
+
+    Args:
+        target_file: File to stage (default "." for all)
+    """
+    action = JarvisAction(
+        action_type=ActionType.GIT_ADD,
+        target=target_file,
+        content="",
+        offset=0,
+        length=0,
+    )
+    return encode_action(action, max_bytes=ACTION_BYTES_V2)
+
+
+def create_git_commit_action(vocab_idx: int = 0) -> torch.Tensor:
+    """Create a GIT_COMMIT action with vocab-based message.
+
+    Args:
+        vocab_idx: Index into GIT_COMMIT_VOCAB (0='Fix bug', 1='Fix test', etc.)
+    """
+    from src.harness.actions import GIT_COMMIT_VOCAB
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.GIT_COMMIT.value
+    # Use vocab encoding: byte 25 = vocab_idx, byte 26 = vocab_mode (0 for GIT_COMMIT)
+    action_bytes[25] = vocab_idx % len(GIT_COMMIT_VOCAB)
+    action_bytes[26] = 0  # vocab_mode=0 means use GIT_COMMIT_VOCAB
+    return action_bytes
+
+
+def create_post_git_status_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    tests_passing: int,
+    tests_total: int,
+    step: int,
+    modified_files: int = 1,
+    staged_files: int = 0,
+) -> torch.Tensor:
+    """Create observation after GIT_STATUS showing modified files."""
+    terminal = (
+        f"[Step {step - 1}] GIT_STATUS\n"
+        f"On branch main\n"
+        f"Changes not staged for commit:\n"
+        f"  (use 'git add <file>...' to update)\n"
+        f"  modified: {repo_name}/models.py\n"
+    )
+    return encode_observation(JarvisObservation(
+        terminal_output=terminal[:256],
+        goal=goal[:64],
+        focus_text=focus_text[:128],
+        step=step,
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        git_modified=modified_files,
+        git_staged=staged_files,
+        git_untracked=0,
+        git_clean=False,
+    ))
+
+
+def create_post_git_add_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    tests_passing: int,
+    tests_total: int,
+    step: int,
+) -> torch.Tensor:
+    """Create observation after GIT_ADD showing staged files."""
+    terminal = (
+        f"[Step {step - 1}] GIT_ADD\n"
+        f"Staged: {repo_name}/models.py\n"
+    )
+    return encode_observation(JarvisObservation(
+        terminal_output=terminal[:256],
+        goal=goal[:64],
+        focus_text=focus_text[:128],
+        step=step,
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        git_modified=0,
+        git_staged=1,
+        git_untracked=0,
+        git_clean=False,
+    ))
+
+
+def create_post_git_commit_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    tests_passing: int,
+    tests_total: int,
+    step: int,
+) -> torch.Tensor:
+    """Create observation after GIT_COMMIT showing clean tree."""
+    terminal = (
+        f"[Step {step - 1}] GIT_COMMIT\n"
+        f"Committed: [main abc1234] Fix bug\n"
+        f" 1 file changed, 1 insertion(+), 1 deletion(-)\n"
+    )
+    return encode_observation(JarvisObservation(
+        terminal_output=terminal[:256],
+        goal=goal[:64],
+        focus_text=focus_text[:128],
+        step=step,
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        git_modified=0,
+        git_staged=0,
+        git_untracked=0,
+        git_clean=True,
+    ))
+
+
+@dataclass
+class GitCommitTrajectory:
+    """A 7-step trajectory for fix + git commit workflow.
+
+    Step 1: RUN_TESTS - discover bug
+    Step 2: WRITE_FOCUS - apply fix
+    Step 3: RUN_TESTS - verify fix
+    Step 4: GIT_STATUS - check state
+    Step 5: GIT_ADD - stage changes
+    Step 6: GIT_COMMIT - commit with message
+    Step 7: COMPLETE_TASK - mark done
+    """
+    repo_name: str
+    bug_type: str
+    fix_description: str
+    steps: List[Tuple[torch.Tensor, torch.Tensor]]  # [(obs, action), ...]
+    solved: bool
+    goal_text: str = ""
+
+
+def generate_git_commit_trajectory(
+    repo: GeneratedRepo,
+    focus_length: int = 256,
+    jitter: int = 0,
+    tests_total: int = 11,
+    commit_vocab_idx: int = 0,  # Index into GIT_COMMIT_VOCAB
+) -> Optional[GitCommitTrajectory]:
+    """Generate a 7-step trajectory with git commit workflow.
+
+    Step 1: RUN_TESTS - discover bug
+    Step 2: WRITE_FOCUS - apply fix
+    Step 3: RUN_TESTS - verify fix
+    Step 4: GIT_STATUS - check state
+    Step 5: GIT_ADD - stage changes
+    Step 6: GIT_COMMIT - commit
+    Step 7: COMPLETE_TASK - done
+
+    Args:
+        repo: Generated repo with bugs
+        focus_length: Size of focus window
+        jitter: Random jitter for focus offset diversity
+        tests_total: Total tests in repo (for distribution coverage)
+        commit_vocab_idx: Index into GIT_COMMIT_VOCAB for commit message
+
+    Returns:
+        GitCommitTrajectory with 7 steps, or None if can't generate
+    """
+    if not repo.bugs:
+        return None
+
+    bug = repo.bugs[0]
+
+    # Get original and buggy code
+    original = repo.original_files.get(bug.file_path, "")
+    buggy = repo.files.get(bug.file_path)
+    if buggy is None:
+        return None
+
+    # Generate single-step trajectory to get the correct WRITE_FOCUS action
+    single_step = generate_expert_trajectory(repo, focus_length, jitter=jitter)
+    if single_step is None:
+        return None
+
+    # Goal text
+    full_goal_text = f"Fix bug, verify, and commit. Hint: {repo.fix_description}"
+    goal = f"Fix bug, verify, and commit. Hint: {repo.fix_description[:30]}"
+
+    # Fast test counts (match eval)
+    fast_tests_passing = 1
+    fast_tests_total = 2
+
+    # Compute fixed focus text
+    fix_content = COMBINED_VOCAB[single_step.correct_action.vocab_idx]
+    fix_offset = single_step.correct_action.offset
+    fix_length = single_step.correct_action.length
+    buggy_focus = single_step.focus_text
+    fixed_focus = buggy_focus[:fix_offset] + fix_content + buggy_focus[fix_offset + fix_length:]
+
+    # Step 1: RUN_TESTS (discover bug)
+    step1_obs = create_initial_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=single_step.focus_text,
+        tests_passing=0,
+        tests_total=0,
+    )
+    step1_action = create_run_tests_action()
+
+    # Step 2: WRITE_FOCUS (apply fix)
+    step2_obs = create_post_run_tests_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=single_step.focus_text,
+        focus_offset=single_step.focus_offset,
+        file_path=single_step.focus_file,
+        tests_passing=fast_tests_passing,
+        tests_total=fast_tests_total,
+        step=1,
+        bug_type=single_step.bug_type,
+        bug_line=bug.line_number,
+    )
+    step2_action = single_step.correct_action.action_bytes
+
+    # Step 3: RUN_TESTS (verify fix)
+    step3_obs = create_post_fix_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=fixed_focus,
+        tests_passing=fast_tests_passing,
+        tests_total=fast_tests_total,
+        step=2,
+        file_path=single_step.focus_file,
+        offset=fix_offset,
+        content=fix_content,
+        length=fix_length,
+        bug_type=single_step.bug_type,
+        bug_line=bug.line_number,
+    )
+    step3_action = create_run_tests_action()
+
+    # Step 4: GIT_STATUS (check state)
+    step4_obs = create_post_verify_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=fixed_focus,
+        tests_passing=tests_total,
+        tests_total=tests_total,
+        step=3,
+    )
+    step4_action = create_git_status_action()
+
+    # Step 5: GIT_ADD (stage changes)
+    step5_obs = create_post_git_status_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=fixed_focus,
+        tests_passing=tests_total,
+        tests_total=tests_total,
+        step=4,
+        modified_files=1,
+        staged_files=0,
+    )
+    step5_action = create_git_add_action(single_step.focus_file)
+
+    # Step 6: GIT_COMMIT (commit)
+    step6_obs = create_post_git_add_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=fixed_focus,
+        tests_passing=tests_total,
+        tests_total=tests_total,
+        step=5,
+    )
+    step6_action = create_git_commit_action(commit_vocab_idx)
+
+    # Step 7: COMPLETE_TASK
+    step7_obs = create_post_git_commit_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=fixed_focus,
+        tests_passing=tests_total,
+        tests_total=tests_total,
+        step=6,
+    )
+    step7_action = create_complete_task_action()
+
+    steps = [
+        (step1_obs, step1_action),   # RUN_TESTS
+        (step2_obs, step2_action),   # WRITE_FOCUS
+        (step3_obs, step3_action),   # RUN_TESTS (verify)
+        (step4_obs, step4_action),   # GIT_STATUS
+        (step5_obs, step5_action),   # GIT_ADD
+        (step6_obs, step6_action),   # GIT_COMMIT
+        (step7_obs, step7_action),   # COMPLETE_TASK
+    ]
+
+    return GitCommitTrajectory(
+        repo_name=repo.name,
+        bug_type=single_step.bug_type,
+        fix_description=single_step.fix_description,
+        steps=steps,
+        solved=True,
+        goal_text=full_goal_text,
+    )
+
+
+def generate_git_commit_demos(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.EASY,
+    seed: int = 42,
+    jitter: int = 0,
+) -> List[GitCommitTrajectory]:
+    """Generate git commit expert demonstrations.
+
+    Args:
+        num_tasks: Number of demonstrations to generate
+        difficulty: Bug difficulty level
+        seed: Random seed
+        jitter: Focus offset jitter for diversity
+
+    Returns:
+        List of GitCommitTrajectory objects
+    """
+    repos = generate_task_batch(
+        num_tasks=num_tasks,
+        difficulty_range=(difficulty, difficulty),
+        seed=seed,
+    )
+
+    from src.harness.actions import GIT_COMMIT_VOCAB
+
+    trajectories = []
+    rng = random.Random(seed)
+    test_count_options = [8, 9, 10, 11, 12, 13]
+
+    for i, repo in enumerate(repos):
+        tests_total = test_count_options[i % len(test_count_options)]
+        # Vary commit message vocab to cover distribution
+        commit_vocab_idx = i % len(GIT_COMMIT_VOCAB)
+
+        traj = generate_git_commit_trajectory(
+            repo,
+            jitter=jitter,
+            tests_total=tests_total,
+            commit_vocab_idx=commit_vocab_idx,
+        )
+        if traj is not None:
+            trajectories.append(traj)
+
+    return trajectories
+
+
+def create_git_commit_bc_dataset(
+    num_tasks: int = 1000,
+    difficulty: BugDifficulty = BugDifficulty.EASY,
+    seed: int = 42,
+    jitter: int = 16,
+) -> Dict[str, torch.Tensor]:
+    """Create a BC dataset with git commit trajectories.
+
+    Returns dict with:
+        - observations: [N, 512]
+        - action_bytes: [N, 64]
+        - num_samples: int
+        - action type counts
+    """
+    trajs = generate_git_commit_demos(num_tasks, difficulty, seed, jitter=jitter)
+
+    all_obs = []
+    all_actions = []
+    action_counts = {
+        'num_run_tests': 0,
+        'num_write_focus': 0,
+        'num_git_status': 0,
+        'num_git_add': 0,
+        'num_git_commit': 0,
+        'num_complete_task': 0,
+    }
+
+    for traj in trajs:
+        for obs, action in traj.steps:
+            all_obs.append(obs)
+            all_actions.append(action)
+            action_type = ActionType(action[0].item())
+            if action_type == ActionType.RUN_TESTS:
+                action_counts['num_run_tests'] += 1
+            elif action_type == ActionType.WRITE_FOCUS:
+                action_counts['num_write_focus'] += 1
+            elif action_type == ActionType.GIT_STATUS:
+                action_counts['num_git_status'] += 1
+            elif action_type == ActionType.GIT_ADD:
+                action_counts['num_git_add'] += 1
+            elif action_type == ActionType.GIT_COMMIT:
+                action_counts['num_git_commit'] += 1
+            elif action_type == ActionType.COMPLETE_TASK:
+                action_counts['num_complete_task'] += 1
+
+    if not all_obs:
+        return {'observations': torch.zeros(0, OBS_TOTAL_BYTES, dtype=torch.uint8),
+                'action_bytes': torch.zeros(0, ACTION_BYTES_V2, dtype=torch.uint8),
+                'num_samples': 0, **action_counts}
+
+    observations = torch.stack(all_obs)
+    action_bytes = torch.stack(all_actions)
+
+    return {
+        'observations': observations,
+        'action_bytes': action_bytes,
+        'num_samples': len(all_obs),
+        **action_counts,
+    }
+
+
 if __name__ == "__main__":
     # Test expert trajectory generation
     print("Generating expert demonstrations...")

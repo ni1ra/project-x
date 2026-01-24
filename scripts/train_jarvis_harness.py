@@ -58,6 +58,7 @@ from src.harness.expert_trajectories import (
     create_multistep_bc_dataset,
     create_persistent_bc_dataset,
     create_sequential_bc_dataset,
+    create_git_commit_bc_dataset,  # Phase 11: Tool Diversity
     compute_fix_offset_in_focus,
     # Fix 10: Oracle functions for on-policy corrective imitation
     OracleAction, get_oracle_action, get_oracle_action_from_env,
@@ -496,6 +497,8 @@ class JarvisHarnessTrainer:
         use_multistep: bool = False,
         use_persistent: bool = False,
         preloaded_dataset: Dict = None,
+        enable_git_tasks: bool = False,  # Phase 11: Tool Diversity
+        git_task_ratio: float = 0.3,     # Phase 11: Ratio of git tasks
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -514,6 +517,8 @@ class JarvisHarnessTrainer:
             use_persistent: If True, use persistent mode demos with full loop
                            (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK)
             preloaded_dataset: If provided, skip demo generation and use this dataset
+            enable_git_tasks: If True, include git commit tasks in BC dataset (Phase 11)
+            git_task_ratio: Ratio of git commit tasks in BC dataset (Phase 11)
 
         Returns:
             Dictionary of final BC metrics
@@ -531,6 +536,10 @@ class JarvisHarnessTrainer:
             mode_str = "multi-step (RUN_TESTS + WRITE_FOCUS)"
         else:
             mode_str = "single-step"
+
+        # Phase 11: Add git task info to mode string
+        if enable_git_tasks:
+            mode_str += f" + git-tasks ({git_task_ratio:.0%})"
 
         print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
 
@@ -553,28 +562,66 @@ class JarvisHarnessTrainer:
 
             # Generate expert dataset
             try:
+                # Phase 11: Compute task split for git tasks
+                if enable_git_tasks:
+                    git_demos = int(num_demos * git_task_ratio)
+                    main_demos = num_demos - git_demos
+                else:
+                    git_demos = 0
+                    main_demos = num_demos
+
                 if use_persistent:
                     # Phase 7.4a: Persistent mode demos with COMPLETE_TASK
                     dataset = create_persistent_bc_dataset(
-                        num_tasks=num_demos,
+                        num_tasks=main_demos,
                         difficulty=difficulty,
                         seed=42,
                         include_single_step=False,  # Pure persistent demos
                     )
                 elif use_multistep:
                     dataset = create_multistep_bc_dataset(
-                        num_tasks=num_demos,
+                        num_tasks=main_demos,
                         difficulty=difficulty,
                         seed=42,
                         include_single_step=True,  # Mix both for diversity
                     )
                 else:
                     dataset = create_bc_dataset(
-                        num_tasks=num_demos,
+                        num_tasks=main_demos,
                         difficulty=difficulty,
                         seed=42,
                         jitter=jitter,
                     )
+
+                # Phase 11: Mix in git commit trajectories
+                if enable_git_tasks and git_demos > 0:
+                    print(f"  Adding {git_demos} git commit trajectories...")
+                    git_dataset = create_git_commit_bc_dataset(
+                        num_tasks=git_demos,
+                        difficulty=difficulty,
+                        seed=43,  # Different seed for diversity
+                        jitter=jitter,
+                    )
+                    if git_dataset['num_samples'] > 0:
+                        # Merge datasets
+                        import torch
+                        dataset['observations'] = torch.cat([
+                            dataset['observations'],
+                            git_dataset['observations']
+                        ], dim=0)
+                        dataset['action_bytes'] = torch.cat([
+                            dataset['action_bytes'],
+                            git_dataset['action_bytes']
+                        ], dim=0)
+                        dataset['num_samples'] += git_dataset['num_samples']
+                        # Add git action counts
+                        dataset['num_git_status'] = git_dataset.get('num_git_status', 0)
+                        dataset['num_git_add'] = git_dataset.get('num_git_add', 0)
+                        dataset['num_git_commit'] = git_dataset.get('num_git_commit', 0)
+                        print(f"  Git tasks: {git_dataset['num_samples']} samples "
+                              f"(GIT_STATUS={dataset['num_git_status']}, "
+                              f"GIT_ADD={dataset['num_git_add']}, "
+                              f"GIT_COMMIT={dataset['num_git_commit']})")
             except ValueError as e:
                 print(f"Warning: Could not generate BC dataset: {e}")
                 if gpu_burn_thread is not None:
@@ -2206,6 +2253,11 @@ def main():
                        help="Goal embedding dimension (Phase 10)")
     parser.add_argument("--max-goal-len", type=int, default=512,
                        help="Maximum goal length in UTF-8 bytes (Phase 10)")
+    # Phase 11: Tool Diversity (Git Operations)
+    parser.add_argument("--enable-git-tasks", action="store_true",
+                       help="Enable git commit tasks in BC training (Phase 11)")
+    parser.add_argument("--git-task-ratio", type=float, default=0.3,
+                       help="Ratio of git commit tasks in BC dataset (default 0.3)")
 
     # Fix 10: Corrective Imitation (DAgger-lite)
     parser.add_argument("--corrective-imitation", action="store_true",
@@ -2581,6 +2633,8 @@ def main():
                     use_multistep=args.bc_multistep,
                     use_persistent=use_persistent,  # Phase 7.4a: enable persistent demos
                     preloaded_dataset=preloaded_dataset,  # Skip demo gen if pre-generated
+                    enable_git_tasks=getattr(args, 'enable_git_tasks', False),  # Phase 11
+                    git_task_ratio=getattr(args, 'git_task_ratio', 0.3),        # Phase 11
                 )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:

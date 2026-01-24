@@ -37,6 +37,11 @@ class JarvisObservation:
     focus_file_hash: bytes = b""        # 16-byte hash of focus file identifier
     focus_text: str = ""                # Focus window text (truncated in encoding)
     focus_preview: str = ""             # Small preview of focus_text (for learnable edits)
+    # Phase 11: Git state (Tool Diversity)
+    git_modified: int = 0               # Number of modified files
+    git_staged: int = 0                 # Number of staged files
+    git_untracked: int = 0              # Number of untracked files
+    git_clean: bool = True              # True if working tree is clean
 
     def __post_init__(self):
         if self.fs_snapshot is None:
@@ -51,8 +56,12 @@ FS_BYTES = 128            # Filesystem snapshot
 META_BYTES = 64           # Budget, step, reward, test status
 OBS_TOTAL_BYTES = TERMINAL_BYTES + GOAL_BYTES + FS_BYTES + META_BYTES  # 512
 
-# META_BYTES layout uses 32 bytes today; reserve the rest for focus preview.
-FOCUS_PREVIEW_BYTES = 32
+# META_BYTES layout (64 bytes):
+# - Bytes 0-31: Core metadata (energy, time, actions, step, reward, tests, focus)
+# - Bytes 32-47: Focus preview (16 bytes, reduced from 32 in Phase 11)
+# - Bytes 48-51: Git state (Phase 11: Tool Diversity)
+# - Bytes 52-63: Reserved for future tools
+FOCUS_PREVIEW_BYTES = 16  # Reduced from 32 to make room for git state
 
 
 def hash_file_content(content: str, max_bytes: int = 16) -> bytes:
@@ -143,11 +152,17 @@ def encode_observation(obs: JarvisObservation, max_bytes: int = OBS_TOTAL_BYTES)
     for i, b in enumerate(focus_hash):
         result[meta_offset + 16 + i] = b
 
-    # Focus preview (remaining META bytes)
+    # Focus preview (16 bytes, reduced in Phase 11)
     preview = (obs.focus_preview or "").encode("utf-8", errors="replace")[:FOCUS_PREVIEW_BYTES]
     preview_start = meta_offset + 32
     for i, b in enumerate(preview):
         result[preview_start + i] = b
+
+    # Phase 11: Git state (bytes 48-51)
+    result[meta_offset + 48] = min(obs.git_modified, 255)
+    result[meta_offset + 49] = min(obs.git_staged, 255)
+    result[meta_offset + 50] = min(obs.git_untracked, 255)
+    result[meta_offset + 51] = 1 if obs.git_clean else 0
 
     return result
 
@@ -205,6 +220,12 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
     preview_bytes = obs_bytes[meta_offset + 32:meta_offset + 32 + FOCUS_PREVIEW_BYTES].cpu().numpy().tobytes()
     focus_preview = preview_bytes.rstrip(b"\x00").decode("utf-8", errors="replace")
 
+    # Phase 11: Git state (bytes 48-51)
+    git_modified = int(obs_bytes[meta_offset + 48].item())
+    git_staged = int(obs_bytes[meta_offset + 49].item())
+    git_untracked = int(obs_bytes[meta_offset + 50].item())
+    git_clean = bool(obs_bytes[meta_offset + 51].item())
+
     return JarvisObservation(
         terminal_output=terminal,
         fs_snapshot=fs_snapshot,
@@ -221,6 +242,10 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
         focus_file_hash=focus_hash,
         focus_text=focus_text,
         focus_preview=focus_preview,
+        git_modified=git_modified,
+        git_staged=git_staged,
+        git_untracked=git_untracked,
+        git_clean=git_clean,
     )
 
 

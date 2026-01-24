@@ -477,3 +477,133 @@ def compute_reward(
         components.success_bonus = 10.0
 
     return components
+
+
+# =============================================================================
+# Phase 11: Tool Diversity - Git Verifiers
+# =============================================================================
+
+def verify_git_commit(repo_path: str, timeout: int = 10) -> VerifierResult:
+    """
+    Verify git commit was made correctly (Phase 11: Tool Diversity).
+
+    Checks:
+    1. Working tree is clean (no uncommitted changes)
+    2. At least one new commit exists after the initial "init" commit
+
+    Args:
+        repo_path: Path to repository root
+        timeout: Maximum seconds to wait
+
+    Returns:
+        VerifierResult with git commit verification status
+    """
+    try:
+        # Check working tree is clean
+        status = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if status.stdout.strip():
+            return VerifierResult(
+                passed=False,
+                score=0.0,
+                details=f"Working tree not clean: {status.stdout.strip()[:100]}",
+                scope="git",
+            )
+
+        # Check commit exists after initial
+        log = subprocess.run(
+            ['git', 'log', '--oneline'],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        commits = [c for c in log.stdout.strip().split('\n') if c]
+        if len(commits) < 2:
+            return VerifierResult(
+                passed=False,
+                score=0.5,  # Partial credit - at least no uncommitted changes
+                details="No new commit found (only initial commit)",
+                scope="git",
+            )
+
+        # Success: clean tree + new commit
+        return VerifierResult(
+            passed=True,
+            score=1.0,
+            details=f"Git commit verified: {commits[0][:50]}",
+            scope="git",
+        )
+
+    except subprocess.TimeoutExpired:
+        return VerifierResult(
+            passed=False,
+            score=0.0,
+            details="TIMEOUT: Git verification took too long",
+            scope="git",
+        )
+    except Exception as e:
+        return VerifierResult(
+            passed=False,
+            score=0.0,
+            details=f"ERROR: {str(e)[:200]}",
+            scope="git",
+        )
+
+
+def get_git_state(repo_path: str, timeout: int = 5) -> dict:
+    """
+    Get current git state for observations (Phase 11: Tool Diversity).
+
+    Returns:
+        Dictionary with git state:
+        - modified_count: Number of modified files
+        - staged_count: Number of staged files
+        - untracked_count: Number of untracked files
+        - clean_tree: True if working tree is clean
+    """
+    result = {
+        'modified_count': 0,
+        'staged_count': 0,
+        'untracked_count': 0,
+        'clean_tree': True,
+    }
+
+    try:
+        status = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if status.returncode != 0:
+            return result
+
+        lines = [l for l in status.stdout.strip().split('\n') if l]
+
+        for line in lines:
+            if len(line) < 2:
+                continue
+            # Porcelain format: XY filename
+            # X = index status, Y = worktree status
+            x, y = line[0], line[1]
+
+            if x == '?' and y == '?':
+                result['untracked_count'] += 1
+            elif x != ' ' and x != '?':
+                result['staged_count'] += 1
+            elif y != ' ' and y != '?':
+                result['modified_count'] += 1
+
+        result['clean_tree'] = len(lines) == 0
+
+    except Exception:
+        pass
+
+    return result

@@ -46,7 +46,8 @@ from src.harness.observations import (
 )
 from src.harness.verifiers import (
     run_pytest, run_lint, compute_diff_size, compute_reward,
-    RewardComponents, VerifierResult, run_py_compile_file, run_pytest_fast
+    RewardComponents, VerifierResult, run_py_compile_file, run_pytest_fast,
+    get_git_state,  # Phase 11: Tool Diversity
 )
 from src.energy.proxy import EnergyTracker, EnergyConfig
 
@@ -809,8 +810,16 @@ class JarvisHarnessEnv:
                 else b""
             ),
             focus_text=(self.state.focus_text if self.state and self.state.focus_text else ""),
-            focus_preview=(self.state.focus_text[:32] if self.state and self.state.focus_text else ""),
+            focus_preview=(self.state.focus_text[:16] if self.state and self.state.focus_text else ""),  # Phase 11: reduced to 16 bytes
         )
+
+        # Phase 11: Populate git state (Tool Diversity)
+        if self.temp_dir and os.path.isdir(os.path.join(self.temp_dir, '.git')):
+            git_state = get_git_state(self.temp_dir)
+            obs.git_modified = git_state['modified_count']
+            obs.git_staged = git_state['staged_count']
+            obs.git_untracked = git_state['untracked_count']
+            obs.git_clean = git_state['clean_tree']
 
         return encode_observation(obs, self.config.obs_bytes)
 
@@ -1238,6 +1247,10 @@ class JarvisHarnessEnv:
 
         elif action.action_type == ActionType.GIT_LOG:
             return self._git_log()
+
+        # Phase 11: Git commit action
+        elif action.action_type == ActionType.GIT_COMMIT:
+            return self._git_commit(action.content)
 
         # =================================================================
         # Multi-file operations (v2)
@@ -1718,6 +1731,31 @@ class JarvisHarnessEnv:
         except Exception as e:
             return False, f"Git log error: {e}"
 
+    def _git_commit(self, message: str) -> Tuple[bool, str]:
+        """Commit staged changes with message (Phase 11: Tool Diversity)."""
+        if not message:
+            message = "Fix bug"  # Default message
+        try:
+            result = subprocess.run(
+                ['git', 'commit', '-m', message, '--no-gpg-sign'],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                # Extract short commit info
+                output = result.stdout.strip()
+                # Return first line which has the commit summary
+                first_line = output.split('\n')[0] if output else "Committed"
+                return True, f"Committed: {first_line}"
+            # Check if nothing to commit
+            if "nothing to commit" in result.stdout or "nothing to commit" in result.stderr:
+                return False, "Nothing to commit (working tree clean)"
+            return False, result.stderr.strip() or result.stdout.strip()
+        except Exception as e:
+            return False, f"Git commit error: {e}"
+
     # =================================================================
     # Multi-file operation implementations
     # =================================================================
@@ -1982,6 +2020,10 @@ class JarvisHarnessEnv:
             ActionType.GIT_CHECKOUT,
         ]:
             return base_cost * 5
+
+        # Phase 11: Git commit - higher cost (creates permanent change)
+        elif action.action_type == ActionType.GIT_COMMIT:
+            return base_cost * 10
 
         # Multi-file operations (v2) - cheap info gathering
         elif action.action_type in [

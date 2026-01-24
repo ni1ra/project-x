@@ -27,7 +27,7 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 
 # HANDOFF: WIRED-BRAIN (JARVIS)
 
-Generated: 2026-01-24 (Updated after Phase 10 completion)
+Generated: 2026-01-24 (Updated after Phase 11 completion)
 
 ## 1. MISSION
 
@@ -278,7 +278,7 @@ but forgot the easier synthetic patterns. Next: find training approach for both.
 
 ---
 
-**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 100% on synthetic EASY. Phase 10 COMPLETE (Goal Encoder with 100% solve rate). Ready for Phase 11: Tool Diversity (git, npm, docker, etc.).**
+**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 100% on synthetic EASY. Phase 10 COMPLETE (Goal Encoder with 100% solve rate). Phase 11 COMPLETE (Git Operations with 100% solve rate). Ready for Phase 12: Extended Tool Diversity (npm, pip, docker, etc.).**
 
 ## 11. PHASE 10: NATURAL LANGUAGE INTERFACE
 
@@ -335,3 +335,71 @@ The goal encoder integrates seamlessly with the BC training pipeline. The model 
 1. ⏳ Evaluate NL understanding: can model distinguish task types from goal text?
 2. ⏳ Compare solve rates: with vs without goal encoder
 3. ⏳ Test with diverse goal phrasings to verify NL generalization
+
+## 12. PHASE 11: TOOL DIVERSITY (GIT OPERATIONS)
+
+### Status: **COMPLETE** (2026-01-24)
+
+Phase 11 expanded JARVIS beyond pytest to support git workflows. The model learned to use git operations (GIT_STATUS, GIT_ADD, GIT_COMMIT) as part of bug-fixing trajectories.
+
+### Results
+| Metric | Target | Achieved | Status |
+|--------|--------|----------|--------|
+| BC accuracy on git actions | >80% | **96.5%** | PASS |
+| Git-commit task solve rate | >50% | **100%** | PASS |
+| No regression on EASY | 100% | **100%** | PASS |
+
+### Architecture Additions
+
+**New Action: GIT_COMMIT (ActionType 19)**
+- Vocab-based commit messages (8 standard messages in GIT_COMMIT_VOCAB)
+- Avoids raw text generation which destabilized training in Phase 9
+
+**GIT_COMMIT_VOCAB:**
+```python
+GIT_COMMIT_VOCAB = ['Fix bug', 'Fix test', 'Update logic', 'Fix comparison',
+                    'Fix off-by-one', 'Fix typo', 'Refactor code', 'Add feature']
+```
+
+**Observation Enhancement:**
+- Reduced FOCUS_PREVIEW_BYTES from 32 to 16
+- Added git state at metadata offset 48-51:
+  - `git_modified` (uint8): Count of modified files
+  - `git_staged` (uint8): Count of staged files
+  - `git_untracked` (uint8): Count of untracked files
+  - `git_clean` (bool): Whether working tree is clean
+
+### 7-Step Git Commit Trajectory
+```
+Step 0: obs (tests=0/0)         → RUN_TESTS
+Step 1: obs (tests=X/Y, fail)   → WRITE_FOCUS (fix bug)
+Step 2: obs (tests=X/Y, fixed)  → RUN_TESTS (verify)
+Step 3: obs (tests=Y/Y, pass)   → GIT_STATUS (check state)
+Step 4: obs (modified files)    → GIT_ADD (stage fix)
+Step 5: obs (staged)            → GIT_COMMIT (commit)
+Step 6: obs (clean tree)        → COMPLETE_TASK
+```
+
+### Training Command
+```bash
+PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+    --mode v2 --difficulty easy --timesteps 0 \
+    --bc-epochs 100 --bc-demos 500 --bc-sequential \
+    --enable-git-tasks --git-task-ratio 0.3
+```
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `src/harness/actions.py` | GIT_COMMIT = 19, GIT_COMMIT_VOCAB |
+| `src/harness/env.py` | `_git_commit()` handler, git state in observations |
+| `src/harness/verifiers.py` | `verify_git_commit()`, `get_git_state()` |
+| `src/harness/observations.py` | Git state fields, FOCUS_PREVIEW_BYTES = 16 |
+| `src/harness/expert_trajectories.py` | `GitCommitTrajectory`, git trajectory functions |
+| `scripts/train_jarvis_harness.py` | `--enable-git-tasks`, `--git-task-ratio` |
+| `scripts/eval_jarvis_harness.py` | Git action tracking, metrics reporting |
+
+### Key Lessons
+1. **Vocab-based text generation**: Using a vocabulary of standard messages avoids raw text generation instability
+2. **Observation space planning**: Must plan metadata layout carefully to avoid collisions
+3. **Extended trajectories**: 7-step sequences work well with BC training
