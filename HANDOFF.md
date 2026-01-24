@@ -196,7 +196,17 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 ### Phase 9 Results
 | Training Data | Eval on Synthetic | Eval on Real Repos |
 |--------------|-------------------|-------------------|
-| 100% synthetic | **100%** | 0% (typo support ready, needs training) |
+| 100% synthetic | **100%** | 0% (model introduces syntax errors) |
+
+**Key Fix (2026-01-24):** Removed `inject_typo_keyword` from real repo EASY injectors.
+- Typo bugs like `retrun` cause Python syntax errors at import time
+- Pytest can't collect tests when imports fail (showed `0/1` instead of `7/8`)
+- Real repos now use only logic bugs (`inject_wrong_operator`, `inject_off_by_one`)
+- Baselines now correct: 7/8, 9/11, 11/12 instead of 0/1
+
+**Current State:** Model trained on synthetic data doesn't generalize to real repos.
+The model makes edits that work for synthetic templates but introduce syntax errors in real code.
+Need to retrain on mixed synthetic+real data.
 
 ### Next Steps for Real Repos
 1. ✅ ~~Expand COMBINED_VOCAB~~ (DONE - 80 items with keywords + builtins)

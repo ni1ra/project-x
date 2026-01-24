@@ -282,10 +282,16 @@ def inject_bug_into_real_code(
         return None
 
     # Select injectors based on difficulty
+    # NOTE: For real repos, we EXCLUDE typo bugs (inject_typo_keyword) because:
+    # - Typos like 'retrun' cause Python syntax errors at import time
+    # - Pytest can't collect tests when imports fail
+    # - This breaks the "test-failure-based" training feedback loop
+    # - Typo bugs require error-message-based fixing (different training approach)
     if difficulty == BugDifficulty.TRIVIAL:
         injectors = [inject_missing_colon, inject_missing_paren, inject_wrong_quote]
     elif difficulty == BugDifficulty.EASY:
-        injectors = [inject_wrong_operator, inject_off_by_one, inject_typo_keyword]
+        # Real repos: only logic bugs that don't break imports
+        injectors = [inject_wrong_operator, inject_off_by_one]
     elif difficulty == BugDifficulty.MEDIUM:
         injectors = [inject_wrong_operator, inject_off_by_one, inject_wrong_return]
     else:  # HARD
