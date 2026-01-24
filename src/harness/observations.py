@@ -42,6 +42,10 @@ class JarvisObservation:
     git_staged: int = 0                 # Number of staged files
     git_untracked: int = 0              # Number of untracked files
     git_clean: bool = True              # True if working tree is clean
+    # Phase 12: NPM state (Extended Tool Diversity)
+    npm_package_json: bool = False      # True if package.json exists
+    npm_node_modules: bool = False      # True if node_modules exists
+    npm_last_exit_code: int = 0         # Last npm command exit code (0=success)
 
     def __post_init__(self):
         if self.fs_snapshot is None:
@@ -164,6 +168,12 @@ def encode_observation(obs: JarvisObservation, max_bytes: int = OBS_TOTAL_BYTES)
     result[meta_offset + 50] = min(obs.git_untracked, 255)
     result[meta_offset + 51] = 1 if obs.git_clean else 0
 
+    # Phase 12: NPM state (bytes 52-55)
+    result[meta_offset + 52] = 1 if obs.npm_package_json else 0
+    result[meta_offset + 53] = 1 if obs.npm_node_modules else 0
+    result[meta_offset + 54] = min(obs.npm_last_exit_code, 255)
+    # Byte 55 reserved
+
     return result
 
 
@@ -226,6 +236,11 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
     git_untracked = int(obs_bytes[meta_offset + 50].item())
     git_clean = bool(obs_bytes[meta_offset + 51].item())
 
+    # Phase 12: NPM state (bytes 52-55)
+    npm_package_json = bool(obs_bytes[meta_offset + 52].item())
+    npm_node_modules = bool(obs_bytes[meta_offset + 53].item())
+    npm_last_exit_code = int(obs_bytes[meta_offset + 54].item())
+
     return JarvisObservation(
         terminal_output=terminal,
         fs_snapshot=fs_snapshot,
@@ -246,6 +261,9 @@ def decode_observation(obs_bytes: torch.Tensor) -> JarvisObservation:
         git_staged=git_staged,
         git_untracked=git_untracked,
         git_clean=git_clean,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        npm_last_exit_code=npm_last_exit_code,
     )
 
 

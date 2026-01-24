@@ -57,6 +57,11 @@ class ActionType(IntEnum):
     # Phase 11: Tool Diversity - Git commit action
     GIT_COMMIT = 19    # Commit staged changes with vocab-based message
 
+    # Phase 12: NPM operations
+    NPM_INSTALL = 20   # Run npm install
+    NPM_TEST = 21      # Run npm test (like RUN_TESTS but for JS)
+    NPM_RUN = 22       # Run npm run <script> (vocab-based)
+
 
 # Shell command grammar (constrained for safety)
 ALLOWED_SHELL_COMMANDS = [
@@ -122,6 +127,18 @@ GIT_COMMIT_VOCAB = [
     'Refactor code',
     'Add feature',
 ]  # 8 items - model learns to select appropriate message
+
+# Phase 12: NPM script vocabulary (for npm run <script>)
+NPM_SCRIPT_VOCAB = [
+    'build',
+    'lint',
+    'format',
+    'check',
+    'dev',
+    'start',
+    'compile',
+    'typecheck',
+]  # 8 items - model learns to select appropriate script
 
 # MICRO_VOCAB: Comprehensive vocabulary for byte-level edits
 # Designed based on frequency analysis of generated Python repos
@@ -588,6 +605,15 @@ def is_git_action(action_type: ActionType) -> bool:
         ActionType.GIT_CHECKOUT,
         ActionType.GIT_LOG,
         ActionType.GIT_COMMIT,  # Phase 11
+    ]
+
+
+def is_npm_action(action_type: ActionType) -> bool:
+    """Check if action type is an npm operation (Phase 12)."""
+    return action_type in [
+        ActionType.NPM_INSTALL,
+        ActionType.NPM_TEST,
+        ActionType.NPM_RUN,
     ]
 
 

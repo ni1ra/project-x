@@ -27,7 +27,7 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 
 # HANDOFF: WIRED-BRAIN (JARVIS)
 
-Generated: 2026-01-24 (Updated after Phase 11 completion)
+Generated: 2026-01-24 (Updated after Phase 12 infrastructure completion)
 
 ## 1. MISSION
 
@@ -278,7 +278,7 @@ but forgot the easier synthetic patterns. Next: find training approach for both.
 
 ---
 
-**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 100% on synthetic EASY. Phase 10 COMPLETE (Goal Encoder with 100% solve rate). Phase 11 COMPLETE (Git Operations with 100% solve rate). Ready for Phase 12: Extended Tool Diversity (npm, pip, docker, etc.).**
+**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 100% on synthetic EASY. Phase 10 COMPLETE (Goal Encoder with 100% solve rate). Phase 11 COMPLETE (Git Operations with 100% solve rate). Phase 12 INFRASTRUCTURE COMPLETE (NPM Operations - ready for training). Next: Train and validate npm workflows.**
 
 ## 11. PHASE 10: NATURAL LANGUAGE INTERFACE
 
@@ -403,3 +403,78 @@ PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
 1. **Vocab-based text generation**: Using a vocabulary of standard messages avoids raw text generation instability
 2. **Observation space planning**: Must plan metadata layout carefully to avoid collisions
 3. **Extended trajectories**: 7-step sequences work well with BC training
+
+## 13. PHASE 12: EXTENDED TOOL DIVERSITY (NPM OPERATIONS)
+
+### Status: **IMPLEMENTATION COMPLETE** (2026-01-24)
+
+Phase 12 expanded JARVIS beyond pytest and git to support npm workflows. The infrastructure is ready for training and evaluation.
+
+### Architecture Additions
+
+**New Actions (ActionType 20-22):**
+- `NPM_INSTALL = 20`: Run `npm install`
+- `NPM_TEST = 21`: Run `npm test` (Jest)
+- `NPM_RUN = 22`: Run `npm run <script>` (vocab-based)
+
+**NPM_SCRIPT_VOCAB (8 scripts):**
+```python
+NPM_SCRIPT_VOCAB = ['build', 'lint', 'format', 'check', 'dev', 'start', 'compile', 'typecheck']
+```
+
+**Observation Enhancement (bytes 52-55):**
+- `npm_package_json` (bool): True if package.json exists
+- `npm_node_modules` (bool): True if node_modules exists
+- `npm_last_exit_code` (uint8): Last npm command exit code
+
+### 8-Step NPM Workflow Trajectory
+```
+Step 0: obs (tests=0/0)           → NPM_INSTALL (install deps)
+Step 1: obs (node_modules=1)      → NPM_TEST (discover failing test)
+Step 2: obs (tests=X/Y, fail)     → WRITE_FOCUS (fix bug)
+Step 3: obs (tests=X/Y, fixed)    → NPM_TEST (verify fix)
+Step 4: obs (tests=Y/Y, pass)     → GIT_STATUS (check state)
+Step 5: obs (modified files)      → GIT_ADD (stage fix)
+Step 6: obs (staged)              → GIT_COMMIT (commit)
+Step 7: obs (clean tree)          → COMPLETE_TASK
+```
+
+### Files Created/Modified
+
+**New File:**
+| File | Purpose |
+|------|---------|
+| `src/harness/js_repo_generator.py` | Generate JS repos with Jest tests and injectable bugs |
+
+**Modified Files:**
+| File | Changes |
+|------|---------|
+| `src/harness/actions.py` | NPM_INSTALL, NPM_TEST, NPM_RUN actions, NPM_SCRIPT_VOCAB |
+| `src/harness/env.py` | `_npm_install()`, `_npm_test()`, `_npm_run()` handlers |
+| `src/harness/observations.py` | npm state fields at bytes 52-55 |
+| `src/harness/expert_trajectories.py` | `NpmTrajectory`, `create_npm_bc_dataset()` |
+| `scripts/train_jarvis_harness.py` | `--enable-npm-tasks`, `--npm-task-ratio` |
+| `scripts/eval_jarvis_harness.py` | npm action tracking, `--enable-npm-tasks` |
+
+### Training Command
+```bash
+PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+    --mode v2 --difficulty easy --timesteps 0 \
+    --bc-epochs 100 --bc-demos 500 --bc-sequential \
+    --enable-npm-tasks --npm-task-ratio 0.2
+```
+
+### Verified Working (2026-01-24)
+- ✅ npm trajectory generation produces 8-step sequences (24 samples per 3 tasks)
+- ✅ BC dataset merges npm trajectories with pytest trajectories
+- ✅ Training with `--enable-npm-tasks` starts successfully
+- ✅ Eval script tracks npm action counts
+
+### Remaining Steps (Validation)
+- [ ] Train on npm tasks with 100 BC epochs (target BC accuracy >80%)
+- [ ] Evaluate npm task solve rate (target >50%)
+
+### Environment Requirements
+- Node.js: v22.21.0 ✅
+- npm: 11.6.2 ✅
+- GPU: RTX 5070 Ti (16GB) ✅

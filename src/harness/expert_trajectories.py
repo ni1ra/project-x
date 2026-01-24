@@ -3106,6 +3106,431 @@ def create_git_commit_bc_dataset(
     }
 
 
+# =============================================================================
+# Phase 12: NPM Commit Trajectories (Extended Tool Diversity)
+# =============================================================================
+
+@dataclass
+class NpmTrajectory:
+    """An 8-step trajectory for npm workflow (install, test, fix, test, git commit)."""
+    repo_name: str
+    bug_type: str
+    fix_description: str
+    steps: List[Tuple[torch.Tensor, torch.Tensor]]  # (obs, action) pairs
+    solved: bool
+    goal_text: str = ""
+
+
+def create_npm_install_action() -> torch.Tensor:
+    """Create an NPM_INSTALL action."""
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.NPM_INSTALL.value
+    return action_bytes
+
+
+def create_npm_test_action() -> torch.Tensor:
+    """Create an NPM_TEST action."""
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.NPM_TEST.value
+    return action_bytes
+
+
+def create_npm_run_action(script_idx: int = 0) -> torch.Tensor:
+    """Create an NPM_RUN action with vocab-based script."""
+    from src.harness.actions import NPM_SCRIPT_VOCAB
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.NPM_RUN.value
+    action_bytes[25] = script_idx % len(NPM_SCRIPT_VOCAB)
+    action_bytes[26] = 1  # vocab_mode=1 for NPM_SCRIPT_VOCAB
+    return action_bytes
+
+
+def create_write_focus_action(offset: int, vocab_idx: int, length: int = 1) -> torch.Tensor:
+    """Create a WRITE_FOCUS action for npm trajectories.
+
+    Args:
+        offset: Byte offset within focus window (0-127)
+        vocab_idx: Index into COMBINED_VOCAB
+        length: Number of bytes to replace (0-15)
+
+    Returns:
+        64-byte action tensor
+    """
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.WRITE_FOCUS.value
+    action_bytes[1] = min(offset, 127)  # Offset byte
+    action_bytes[3] = min(length, 15)   # Length byte
+    action_bytes[25] = vocab_idx        # Vocab index
+    action_bytes[26] = 0                # vocab_mode=0 for COMBINED_VOCAB
+    return action_bytes
+
+
+def generate_npm_trajectory(
+    repo_name: str = "js_array_utils",
+    bug_type: str = "wrong_operator",
+    tests_total: int = 6,
+    tests_failing: int = 1,
+    fix_offset: int = 23,
+    fix_vocab_idx: int = 4,  # ">" in EASY_VOCAB
+    jitter: int = 0,
+    commit_vocab_idx: int = 0,
+) -> Optional[NpmTrajectory]:
+    """Generate an 8-step trajectory with npm workflow.
+
+    Steps:
+        0: NPM_INSTALL (install dependencies)
+        1: NPM_TEST (discover failing test)
+        2: WRITE_FOCUS (fix bug)
+        3: NPM_TEST (verify fix)
+        4: GIT_STATUS (check state)
+        5: GIT_ADD (stage fix)
+        6: GIT_COMMIT (commit)
+        7: COMPLETE_TASK
+    """
+    random_jitter = random.randint(-jitter, jitter) if jitter > 0 else 0
+    actual_offset = max(0, min(fix_offset + random_jitter, 127))
+
+    steps = []
+
+    # Step 0: NPM_INSTALL
+    obs0 = create_npm_pre_install_observation(
+        tests_passing=0, tests_total=0, step=0,
+        npm_package_json=True, npm_node_modules=False,
+    )
+    action0 = create_npm_install_action()
+    steps.append((obs0, action0))
+
+    # Step 1: NPM_TEST (discover failing test)
+    obs1 = create_npm_post_install_observation(
+        tests_passing=0, tests_total=0, step=1,
+        npm_package_json=True, npm_node_modules=True,
+    )
+    action1 = create_npm_test_action()
+    steps.append((obs1, action1))
+
+    # Step 2: WRITE_FOCUS (fix bug)
+    obs2 = create_npm_test_observation(
+        tests_passing=tests_total - tests_failing, tests_total=tests_total, step=2,
+        npm_package_json=True, npm_node_modules=True, tests_failing=True,
+    )
+    action2 = create_write_focus_action(
+        offset=actual_offset, vocab_idx=fix_vocab_idx, length=1,
+    )
+    steps.append((obs2, action2))
+
+    # Step 3: NPM_TEST (verify fix)
+    obs3 = create_npm_post_fix_observation(
+        tests_passing=tests_total - tests_failing, tests_total=tests_total, step=3,
+        npm_package_json=True, npm_node_modules=True, fixed=True,
+    )
+    action3 = create_npm_test_action()
+    steps.append((obs3, action3))
+
+    # Step 4: GIT_STATUS (check state)
+    obs4 = create_npm_tests_pass_observation(
+        tests_passing=tests_total, tests_total=tests_total, step=4,
+        npm_package_json=True, npm_node_modules=True,
+        git_modified=1, git_clean=False,
+    )
+    action4 = create_git_status_action()
+    steps.append((obs4, action4))
+
+    # Step 5: GIT_ADD (stage fix)
+    obs5 = create_npm_git_status_observation(
+        step=5, git_modified=1, git_staged=0, git_clean=False,
+        npm_package_json=True, npm_node_modules=True,
+    )
+    action5 = create_git_add_action(".")
+    steps.append((obs5, action5))
+
+    # Step 6: GIT_COMMIT (commit)
+    obs6 = create_npm_git_staged_observation(
+        step=6, git_modified=0, git_staged=1, git_clean=False,
+        npm_package_json=True, npm_node_modules=True,
+    )
+    action6 = create_git_commit_action(commit_vocab_idx)
+    steps.append((obs6, action6))
+
+    # Step 7: COMPLETE_TASK
+    obs7 = create_npm_clean_observation(
+        step=7, git_clean=True,
+        npm_package_json=True, npm_node_modules=True,
+    )
+    action7 = create_complete_task_action()
+    steps.append((obs7, action7))
+
+    return NpmTrajectory(
+        repo_name=repo_name,
+        bug_type=bug_type,
+        fix_description=f"Fix {bug_type} at offset {actual_offset}",
+        steps=steps,
+        solved=True,
+        goal_text=f"Fix {bug_type} bug in {repo_name}",
+    )
+
+
+# NPM observation creators
+def create_npm_pre_install_observation(
+    tests_passing: int = 0, tests_total: int = 0, step: int = 0,
+    npm_package_json: bool = True, npm_node_modules: bool = False,
+) -> torch.Tensor:
+    """Create observation before npm install."""
+    obs = JarvisObservation(
+        terminal_output="$ npm install\npackage.json found\n",
+        goal="Fix JS bug and commit",
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+    )
+    return encode_observation(obs)
+
+
+def create_npm_post_install_observation(
+    tests_passing: int = 0, tests_total: int = 0, step: int = 1,
+    npm_package_json: bool = True, npm_node_modules: bool = True,
+) -> torch.Tensor:
+    """Create observation after npm install."""
+    obs = JarvisObservation(
+        terminal_output="npm install completed\nadded 50 packages\n",
+        goal="Fix JS bug and commit",
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+    )
+    return encode_observation(obs)
+
+
+def create_npm_test_observation(
+    tests_passing: int = 5, tests_total: int = 6, step: int = 2,
+    npm_package_json: bool = True, npm_node_modules: bool = True,
+    tests_failing: bool = True,
+) -> torch.Tensor:
+    """Create observation after npm test (with failing test)."""
+    terminal = f"$ npm test\nTests: {tests_passing}/{tests_total} passing\n"
+    if tests_failing:
+        terminal += "FAIL test/utils.test.js\n"
+    obs = JarvisObservation(
+        terminal_output=terminal,
+        goal="Fix JS bug and commit",
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        focus_text="    if (arr[i] >= threshold) {\n",  # Buggy code
+    )
+    return encode_observation(obs)
+
+
+def create_npm_post_fix_observation(
+    tests_passing: int = 5, tests_total: int = 6, step: int = 3,
+    npm_package_json: bool = True, npm_node_modules: bool = True,
+    fixed: bool = True,
+) -> torch.Tensor:
+    """Create observation after fix, before verification."""
+    terminal = f"Fixed bug at offset 23\n"
+    obs = JarvisObservation(
+        terminal_output=terminal,
+        goal="Fix JS bug and commit",
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        focus_text="    if (arr[i] > threshold) {\n",  # Fixed code
+    )
+    return encode_observation(obs)
+
+
+def create_npm_tests_pass_observation(
+    tests_passing: int = 6, tests_total: int = 6, step: int = 4,
+    npm_package_json: bool = True, npm_node_modules: bool = True,
+    git_modified: int = 1, git_clean: bool = False,
+) -> torch.Tensor:
+    """Create observation after all tests pass."""
+    terminal = f"$ npm test\nTests: {tests_passing}/{tests_total} passing\nAll tests pass!\n"
+    obs = JarvisObservation(
+        terminal_output=terminal,
+        goal="Fix JS bug and commit",
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        git_modified=git_modified,
+        git_clean=git_clean,
+    )
+    return encode_observation(obs)
+
+
+def create_npm_git_status_observation(
+    step: int = 5, git_modified: int = 1, git_staged: int = 0,
+    git_clean: bool = False, npm_package_json: bool = True,
+    npm_node_modules: bool = True,
+) -> torch.Tensor:
+    """Create observation after git status."""
+    terminal = "$ git status\nmodified: src/utils.js\n"
+    obs = JarvisObservation(
+        terminal_output=terminal,
+        goal="Fix JS bug and commit",
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        git_modified=git_modified,
+        git_staged=git_staged,
+        git_clean=git_clean,
+    )
+    return encode_observation(obs)
+
+
+def create_npm_git_staged_observation(
+    step: int = 6, git_modified: int = 0, git_staged: int = 1,
+    git_clean: bool = False, npm_package_json: bool = True,
+    npm_node_modules: bool = True,
+) -> torch.Tensor:
+    """Create observation after git add."""
+    terminal = "$ git add .\nChanges staged for commit\n"
+    obs = JarvisObservation(
+        terminal_output=terminal,
+        goal="Fix JS bug and commit",
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        git_modified=git_modified,
+        git_staged=git_staged,
+        git_clean=git_clean,
+    )
+    return encode_observation(obs)
+
+
+def create_npm_clean_observation(
+    step: int = 7, git_clean: bool = True,
+    npm_package_json: bool = True, npm_node_modules: bool = True,
+) -> torch.Tensor:
+    """Create observation after git commit (clean tree)."""
+    terminal = "$ git commit -m 'Fix bug'\n[main abc1234] Fix bug\n"
+    obs = JarvisObservation(
+        terminal_output=terminal,
+        goal="Fix JS bug and commit",
+        step=step,
+        npm_package_json=npm_package_json,
+        npm_node_modules=npm_node_modules,
+        git_clean=git_clean,
+    )
+    return encode_observation(obs)
+
+
+def generate_npm_demos(
+    num_tasks: int = 100,
+    seed: int = 42,
+    jitter: int = 16,
+) -> List[NpmTrajectory]:
+    """Generate npm workflow demonstrations.
+
+    Args:
+        num_tasks: Number of trajectories to generate
+        seed: Random seed
+        jitter: Offset jitter for diversity
+
+    Returns:
+        List of NpmTrajectory instances
+    """
+    random.seed(seed)
+    trajs = []
+
+    # JS bug templates - alternate between array_utils and string_utils
+    templates = [
+        ("js_array_utils", "wrong_operator", 6, 1, 23, 5),  # vocab_idx=5 is ">"
+        ("js_string_utils", "wrong_operator", 6, 1, 21, 0),  # vocab_idx=0 is "<="
+    ]
+
+    for i in range(num_tasks):
+        template = templates[i % len(templates)]
+        repo_name, bug_type, tests_total, tests_failing, fix_offset, fix_vocab_idx = template
+
+        traj = generate_npm_trajectory(
+            repo_name=repo_name,
+            bug_type=bug_type,
+            tests_total=tests_total,
+            tests_failing=tests_failing,
+            fix_offset=fix_offset,
+            fix_vocab_idx=fix_vocab_idx,
+            jitter=jitter,
+            commit_vocab_idx=i % 8,
+        )
+        if traj:
+            trajs.append(traj)
+
+    return trajs
+
+
+def create_npm_bc_dataset(
+    num_tasks: int = 1000,
+    seed: int = 42,
+    jitter: int = 16,
+) -> Dict[str, torch.Tensor]:
+    """Create a BC dataset with npm workflow trajectories.
+
+    Returns dict with:
+        - observations: [N, 512]
+        - action_bytes: [N, 64]
+        - num_samples: int
+        - action type counts
+    """
+    trajs = generate_npm_demos(num_tasks, seed, jitter=jitter)
+
+    all_obs = []
+    all_actions = []
+    action_counts = {
+        'num_npm_install': 0,
+        'num_npm_test': 0,
+        'num_write_focus': 0,
+        'num_git_status': 0,
+        'num_git_add': 0,
+        'num_git_commit': 0,
+        'num_complete_task': 0,
+    }
+
+    for traj in trajs:
+        for obs, action in traj.steps:
+            all_obs.append(obs)
+            all_actions.append(action)
+            action_type = ActionType(action[0].item())
+            if action_type == ActionType.NPM_INSTALL:
+                action_counts['num_npm_install'] += 1
+            elif action_type == ActionType.NPM_TEST:
+                action_counts['num_npm_test'] += 1
+            elif action_type == ActionType.WRITE_FOCUS:
+                action_counts['num_write_focus'] += 1
+            elif action_type == ActionType.GIT_STATUS:
+                action_counts['num_git_status'] += 1
+            elif action_type == ActionType.GIT_ADD:
+                action_counts['num_git_add'] += 1
+            elif action_type == ActionType.GIT_COMMIT:
+                action_counts['num_git_commit'] += 1
+            elif action_type == ActionType.COMPLETE_TASK:
+                action_counts['num_complete_task'] += 1
+
+    if not all_obs:
+        return {'observations': torch.zeros(0, OBS_TOTAL_BYTES, dtype=torch.uint8),
+                'action_bytes': torch.zeros(0, ACTION_BYTES_V2, dtype=torch.uint8),
+                'num_samples': 0, **action_counts}
+
+    observations = torch.stack(all_obs)
+    action_bytes = torch.stack(all_actions)
+
+    return {
+        'observations': observations,
+        'action_bytes': action_bytes,
+        'num_samples': len(all_obs),
+        **action_counts,
+    }
+
+
 if __name__ == "__main__":
     # Test expert trajectory generation
     print("Generating expert demonstrations...")

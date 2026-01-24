@@ -821,6 +821,12 @@ class JarvisHarnessEnv:
             obs.git_untracked = git_state['untracked_count']
             obs.git_clean = git_state['clean_tree']
 
+        # Phase 12: Populate npm state (Extended Tool Diversity)
+        if self.temp_dir:
+            obs.npm_package_json = os.path.exists(os.path.join(self.temp_dir, 'package.json'))
+            obs.npm_node_modules = os.path.isdir(os.path.join(self.temp_dir, 'node_modules'))
+            # npm_last_exit_code is set by _npm_* handlers
+
         return encode_observation(obs, self.config.obs_bytes)
 
     def _execute_action(self, action: JarvisAction) -> Tuple[bool, str]:
@@ -1251,6 +1257,18 @@ class JarvisHarnessEnv:
         # Phase 11: Git commit action
         elif action.action_type == ActionType.GIT_COMMIT:
             return self._git_commit(action.content)
+
+        # =================================================================
+        # Phase 12: NPM operations
+        # =================================================================
+        elif action.action_type == ActionType.NPM_INSTALL:
+            return self._npm_install()
+
+        elif action.action_type == ActionType.NPM_TEST:
+            return self._npm_test()
+
+        elif action.action_type == ActionType.NPM_RUN:
+            return self._npm_run(action.content)
 
         # =================================================================
         # Multi-file operations (v2)
@@ -1757,6 +1775,87 @@ class JarvisHarnessEnv:
             return False, f"Git commit error: {e}"
 
     # =================================================================
+    # Phase 12: NPM operation implementations
+    # =================================================================
+
+    def _npm_install(self) -> Tuple[bool, str]:
+        """Run npm install in the repo (Phase 12: Extended Tool Diversity)."""
+        try:
+            result = subprocess.run(
+                ['npm', 'install'],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=120,  # npm install can be slow
+            )
+            if result.returncode == 0:
+                return True, "npm install completed"
+            return False, result.stderr.strip() or result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            return False, "npm install timed out"
+        except Exception as e:
+            return False, f"npm install error: {e}"
+
+    def _npm_test(self) -> Tuple[bool, str]:
+        """Run npm test (Phase 12: Extended Tool Diversity).
+
+        Parses Jest output to extract pass/fail counts.
+        """
+        try:
+            result = subprocess.run(
+                ['npm', 'test', '--', '--json', '--outputFile=test-results.json'],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            # Try to parse Jest JSON output
+            json_path = os.path.join(self.temp_dir, 'test-results.json')
+            if os.path.exists(json_path):
+                import json
+                with open(json_path, 'r') as f:
+                    test_results = json.load(f)
+                passed = test_results.get('numPassedTests', 0)
+                failed = test_results.get('numFailedTests', 0)
+                total = test_results.get('numTotalTests', passed + failed)
+                if self.state:
+                    self.state.tests_passing = passed
+                    self.state.tests_total = total
+                return (failed == 0), f"Tests: {passed}/{total} passing"
+            else:
+                # Fallback: parse text output
+                output = result.stdout + result.stderr
+                if "PASS" in output and "FAIL" not in output:
+                    return True, "All tests passed"
+                elif "FAIL" in output:
+                    return False, output[:500]
+                return result.returncode == 0, output[:500]
+        except subprocess.TimeoutExpired:
+            return False, "npm test timed out"
+        except Exception as e:
+            return False, f"npm test error: {e}"
+
+    def _npm_run(self, script: str) -> Tuple[bool, str]:
+        """Run npm run <script> (Phase 12: Extended Tool Diversity)."""
+        if not script:
+            script = "build"  # Default script
+        try:
+            result = subprocess.run(
+                ['npm', 'run', script],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                return True, f"npm run {script} completed"
+            return False, result.stderr.strip() or result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            return False, f"npm run {script} timed out"
+        except Exception as e:
+            return False, f"npm run {script} error: {e}"
+
+    # =================================================================
     # Multi-file operation implementations
     # =================================================================
 
@@ -2024,6 +2123,16 @@ class JarvisHarnessEnv:
         # Phase 11: Git commit - higher cost (creates permanent change)
         elif action.action_type == ActionType.GIT_COMMIT:
             return base_cost * 10
+
+        # Phase 12: NPM operations
+        elif action.action_type == ActionType.NPM_INSTALL:
+            return base_cost * 15  # Expensive - network + disk I/O
+
+        elif action.action_type == ActionType.NPM_TEST:
+            return base_cost * 8  # Like running tests
+
+        elif action.action_type == ActionType.NPM_RUN:
+            return base_cost * 5  # General script execution
 
         # Multi-file operations (v2) - cheap info gathering
         elif action.action_type in [

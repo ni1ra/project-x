@@ -33,7 +33,7 @@ from src.harness.repo_generator import RepoGenerator, BugDifficulty, generate_ta
 from src.harness.real_repo_source import generate_mixed_task_batch, setup_real_repo_fixtures
 from src.harness.verifiers import run_pytest, compute_diff_size, verify_git_commit
 from src.harness.observations import OBS_TOTAL_BYTES
-from src.harness.actions import ACTION_BYTES, ACTION_BYTES_V2, ActionType, is_git_action
+from src.harness.actions import ACTION_BYTES, ACTION_BYTES_V2, ActionType, is_git_action, is_npm_action
 
 # Python path with pytest installed (for running tests)
 PYTEST_PYTHON = "/tmp/jarvis_venv/bin/python"
@@ -63,6 +63,11 @@ class EpisodeResult:
     git_add_actions: int = 0
     git_commit_actions: int = 0
     git_commit_verified: bool = False  # True if clean working tree after commit
+    # Phase 12: NPM action tracking
+    npm_install_actions: int = 0
+    npm_test_actions: int = 0
+    npm_run_actions: int = 0
+    npm_install_success: bool = False  # True if npm install succeeded
 
 
 def run_episode(
@@ -95,6 +100,10 @@ def run_episode(
     git_status_actions = 0
     git_add_actions = 0
     git_commit_actions = 0
+    # Phase 12: Track npm actions
+    npm_install_actions = 0
+    npm_test_actions = 0
+    npm_run_actions = 0
 
     for _ in range(max_steps):
         # Fresh hidden state each step - matches BC batch training
@@ -117,6 +126,13 @@ def run_episode(
             git_add_actions += 1
         elif action_type == ActionType.GIT_COMMIT:
             git_commit_actions += 1
+        # Phase 12: Track npm actions
+        elif action_type == ActionType.NPM_INSTALL:
+            npm_install_actions += 1
+        elif action_type == ActionType.NPM_TEST:
+            npm_test_actions += 1
+        elif action_type == ActionType.NPM_RUN:
+            npm_run_actions += 1
 
         # Don't accumulate hidden state - keep fresh each step
         # h = out.h_next  # DISABLED: causes state accumulation
@@ -171,6 +187,11 @@ def run_episode(
         git_result = verify_git_commit(env.temp_dir)
         git_commit_verified = git_result.passed
 
+    # Phase 12: Verify npm install (check if node_modules exists)
+    npm_install_success = False
+    if npm_install_actions > 0 and env.temp_dir:
+        npm_install_success = os.path.isdir(os.path.join(env.temp_dir, 'node_modules'))
+
     return EpisodeResult(
         success=success,
         steps=steps,
@@ -192,6 +213,10 @@ def run_episode(
         git_add_actions=git_add_actions,
         git_commit_actions=git_commit_actions,
         git_commit_verified=git_commit_verified,
+        npm_install_actions=npm_install_actions,
+        npm_test_actions=npm_test_actions,
+        npm_run_actions=npm_run_actions,
+        npm_install_success=npm_install_success,
     )
 
 
@@ -223,6 +248,9 @@ def main():
     # Phase 11: Git task evaluation
     parser.add_argument("--enable-git-tasks", action="store_true",
                         help="Enable git task metrics reporting (Phase 11)")
+    # Phase 12: NPM task evaluation
+    parser.add_argument("--enable-npm-tasks", action="store_true",
+                        help="Enable npm task metrics reporting (Phase 12)")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -404,6 +432,18 @@ def main():
         print(f"\n--- Git task metrics (Phase 11) ---")
         print(f"GIT_STATUS actions: {git_status_total} | GIT_ADD: {git_add_total} | GIT_COMMIT: {git_commit_total}")
         print(f"Git commits verified (clean tree): {git_commit_verified_count}/{len(results)} ({git_commit_rate:.1%})")
+
+    # Phase 12: NPM metrics
+    if getattr(args, 'enable_npm_tasks', False):
+        npm_install_total = sum(r.npm_install_actions for r in results)
+        npm_test_total = sum(r.npm_test_actions for r in results)
+        npm_run_total = sum(r.npm_run_actions for r in results)
+        npm_install_success_count = sum(1 for r in results if r.npm_install_success)
+        npm_install_rate = npm_install_success_count / len(results) if len(results) > 0 else 0.0
+
+        print(f"\n--- NPM task metrics (Phase 12) ---")
+        print(f"NPM_INSTALL actions: {npm_install_total} | NPM_TEST: {npm_test_total} | NPM_RUN: {npm_run_total}")
+        print(f"NPM install success (node_modules exists): {npm_install_success_count}/{len(results)} ({npm_install_rate:.1%})")
 
 
 if __name__ == "__main__":

@@ -59,6 +59,7 @@ from src.harness.expert_trajectories import (
     create_persistent_bc_dataset,
     create_sequential_bc_dataset,
     create_git_commit_bc_dataset,  # Phase 11: Tool Diversity
+    create_npm_bc_dataset,         # Phase 12: Extended Tool Diversity
     compute_fix_offset_in_focus,
     # Fix 10: Oracle functions for on-policy corrective imitation
     OracleAction, get_oracle_action, get_oracle_action_from_env,
@@ -499,6 +500,8 @@ class JarvisHarnessTrainer:
         preloaded_dataset: Dict = None,
         enable_git_tasks: bool = False,  # Phase 11: Tool Diversity
         git_task_ratio: float = 0.3,     # Phase 11: Ratio of git tasks
+        enable_npm_tasks: bool = False,  # Phase 12: Extended Tool Diversity
+        npm_task_ratio: float = 0.2,     # Phase 12: Ratio of npm tasks
     ) -> Dict[str, float]:
         """
         Pre-train the policy on expert demonstrations using behavioral cloning.
@@ -519,6 +522,8 @@ class JarvisHarnessTrainer:
             preloaded_dataset: If provided, skip demo generation and use this dataset
             enable_git_tasks: If True, include git commit tasks in BC dataset (Phase 11)
             git_task_ratio: Ratio of git commit tasks in BC dataset (Phase 11)
+            enable_npm_tasks: If True, include npm workflow tasks in BC dataset (Phase 12)
+            npm_task_ratio: Ratio of npm workflow tasks in BC dataset (Phase 12)
 
         Returns:
             Dictionary of final BC metrics
@@ -540,6 +545,9 @@ class JarvisHarnessTrainer:
         # Phase 11: Add git task info to mode string
         if enable_git_tasks:
             mode_str += f" + git-tasks ({git_task_ratio:.0%})"
+        # Phase 12: Add npm task info to mode string
+        if enable_npm_tasks:
+            mode_str += f" + npm-tasks ({npm_task_ratio:.0%})"
 
         print(f"\n=== BEHAVIORAL CLONING PRE-TRAINING ===")
 
@@ -562,13 +570,21 @@ class JarvisHarnessTrainer:
 
             # Generate expert dataset
             try:
-                # Phase 11: Compute task split for git tasks
+                # Phase 11 & 12: Compute task split for git and npm tasks
+                git_demos = 0
+                npm_demos = 0
+                main_demos = num_demos
+
                 if enable_git_tasks:
                     git_demos = int(num_demos * git_task_ratio)
-                    main_demos = num_demos - git_demos
-                else:
-                    git_demos = 0
-                    main_demos = num_demos
+                    main_demos -= git_demos
+
+                if enable_npm_tasks:
+                    npm_demos = int(num_demos * npm_task_ratio)
+                    main_demos -= npm_demos
+
+                # Ensure main_demos doesn't go negative
+                main_demos = max(1, main_demos)
 
                 if use_persistent:
                     # Phase 7.4a: Persistent mode demos with COMPLETE_TASK
@@ -622,6 +638,35 @@ class JarvisHarnessTrainer:
                               f"(GIT_STATUS={dataset['num_git_status']}, "
                               f"GIT_ADD={dataset['num_git_add']}, "
                               f"GIT_COMMIT={dataset['num_git_commit']})")
+
+                # Phase 12: Mix in npm workflow trajectories
+                if enable_npm_tasks and npm_demos > 0:
+                    print(f"  Adding {npm_demos} npm workflow trajectories...")
+                    npm_dataset = create_npm_bc_dataset(
+                        num_tasks=npm_demos,
+                        seed=44,  # Different seed for diversity
+                        jitter=jitter,
+                    )
+                    if npm_dataset['num_samples'] > 0:
+                        # Merge datasets
+                        import torch
+                        dataset['observations'] = torch.cat([
+                            dataset['observations'],
+                            npm_dataset['observations']
+                        ], dim=0)
+                        dataset['action_bytes'] = torch.cat([
+                            dataset['action_bytes'],
+                            npm_dataset['action_bytes']
+                        ], dim=0)
+                        dataset['num_samples'] += npm_dataset['num_samples']
+                        # Add npm action counts
+                        dataset['num_npm_install'] = npm_dataset.get('num_npm_install', 0)
+                        dataset['num_npm_test'] = npm_dataset.get('num_npm_test', 0)
+                        dataset['num_npm_run'] = npm_dataset.get('num_npm_run', 0)
+                        print(f"  NPM tasks: {npm_dataset['num_samples']} samples "
+                              f"(NPM_INSTALL={dataset['num_npm_install']}, "
+                              f"NPM_TEST={dataset['num_npm_test']}, "
+                              f"NPM_RUN={dataset['num_npm_run']})")
             except ValueError as e:
                 print(f"Warning: Could not generate BC dataset: {e}")
                 if gpu_burn_thread is not None:
@@ -2259,6 +2304,12 @@ def main():
     parser.add_argument("--git-task-ratio", type=float, default=0.3,
                        help="Ratio of git commit tasks in BC dataset (default 0.3)")
 
+    # Phase 12: Extended Tool Diversity (NPM Operations)
+    parser.add_argument("--enable-npm-tasks", action="store_true",
+                       help="Enable npm workflow tasks in BC training (Phase 12)")
+    parser.add_argument("--npm-task-ratio", type=float, default=0.2,
+                       help="Ratio of npm workflow tasks in BC dataset (default 0.2)")
+
     # Fix 10: Corrective Imitation (DAgger-lite)
     parser.add_argument("--corrective-imitation", action="store_true",
                        help="Enable on-policy corrective imitation (Fix 10)")
@@ -2635,6 +2686,8 @@ def main():
                     preloaded_dataset=preloaded_dataset,  # Skip demo gen if pre-generated
                     enable_git_tasks=getattr(args, 'enable_git_tasks', False),  # Phase 11
                     git_task_ratio=getattr(args, 'git_task_ratio', 0.3),        # Phase 11
+                    enable_npm_tasks=getattr(args, 'enable_npm_tasks', False),  # Phase 12
+                    npm_task_ratio=getattr(args, 'npm_task_ratio', 0.2),        # Phase 12
                 )
             # Save BC reference policy for KL penalty (if enabled)
             if args.kl_coef > 0:
