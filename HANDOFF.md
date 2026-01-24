@@ -88,7 +88,7 @@ if self.state.done:
 | File | Purpose |
 |------|---------|
 | `src/harness/repo_generator.py` | Task generation, `balance_templates` fix |
-| `src/harness/actions.py` | Action encoding, COMBINED_VOCAB (33 items) |
+| `src/harness/actions.py` | Action encoding, COMBINED_VOCAB (64 items) |
 | `src/harness/env.py` | JarvisHarnessEnv, focus management |
 | `src/harness/expert_trajectories.py` | BC demo generation |
 | `scripts/train_jarvis_harness.py` | Training script |
@@ -137,14 +137,15 @@ Byte 25: vocab_idx (into COMBINED_VOCAB)
 Byte 26: vocab_mode (0=COMBINED, forced)
 ```
 
-### COMBINED_VOCAB (33 items)
+### COMBINED_VOCAB (64 items)
 ```
-Index 0-4:   [':\n', ')', ',', "'", '"']           # syntax
+Index 0-4:   [':\n', ')', ',', "'", '"']           # TRIVIAL_VOCAB (syntax)
 Index 5-10:  ['<=', '>=', '!=', '==', '<', '>']    # comparison
 Index 11-14: ['+', '-', '*', '/']                   # arithmetic
 Index 15-20: [' + 1', ' - 1', '+1', '-1', '+ 1', '- 1']  # off-by-one
 Index 21-30: ['0'-'9']                              # digits
 Index 31-32: ['upper', 'del self._users[user_id]']  # HARD tokens
+Index 33-63: ['return', 'def', 'class', 'if', ...]  # REAL_REPO_VOCAB (Python keywords)
 ```
 
 ## 8. BC DEMO SEQUENCE
@@ -172,27 +173,29 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 - Issue: BC loss doesn't train NAVIGATE target file bytes (5-24)
 - Need to add supervision for file path encoding
 
-### Phase 9: Real Codebase Integration (BLOCKED on vocab)
+### Phase 9: Real Codebase Integration (IN PROGRESS)
 - ✅ Infrastructure complete: `real_repo_source.py`, eval `--real-ratio` flag
 - ✅ BC demos generate correct pytest output for real repos
 - ✅ Step amplification ported to main RPJBrain (`enable_step_amplification=True`)
 - ✅ 100% synthetic EASY with step amplification
-- ❌ 0% real repos due to **vocab mismatch**
+- ✅ COMBINED_VOCAB expanded to 64 items (added REAL_REPO_VOCAB with Python keywords)
+- ⚠️ Need to generate BC demos for real repo bug patterns
+- ⚠️ Need to train on mixed synthetic+real data
 
-**Root Cause**: Real repo bugs require different tokens than synthetic training:
-- Synthetic bugs: comparison operators (`>`, `<`, `>=`), digits (`0`, `1`)
-- Real repo bugs: keyword typos (`retrun` → `return`)
-- COMBINED_VOCAB lacks Python keywords like `return`, `def`, `if`
+**Vocab Expansion (2026-01-24)**:
+- Added `REAL_REPO_VOCAB` with 31 Python keywords: `return`, `def`, `class`, `if`, `elif`, `else`, `for`, `while`, `try`, `except`, `finally`, `with`, `import`, `from`, `True`, `False`, `None`, `self`, `pass`, `in`, `not`, `and`, `or`, `is`, `as`, `raise`, `assert`, `yield`, `break`, `continue`, `lambda`
+- Updated `get_vocab_idx_for_fix()` to search full COMBINED_VOCAB
+- Default `vocab_size` in RPJConfig changed from 5 to 64
 
-### Phase 9 Results (After Step Amplification)
+### Phase 9 Results
 | Training Data | Eval on Synthetic | Eval on Real Repos |
 |--------------|-------------------|-------------------|
-| 100% synthetic | **100%** | 0% (vocab mismatch) |
+| 100% synthetic | **100%** | 0% (not yet trained on keywords) |
 
 ### Next Steps for Real Repos
-1. **Expand COMBINED_VOCAB** to include Python keywords (`return`, `def`, `class`, etc.)
-2. **Generate BC demos for real repo bug patterns** (typos, missing keywords)
-3. **Train on mixed data** with expanded vocab
+1. ✅ ~~Expand COMBINED_VOCAB~~ (DONE - 64 items with Python keywords)
+2. **Generate BC demos for real repo bug patterns** (typos like `retrun` → `return`)
+3. **Train on mixed synthetic+real data** with expanded vocab
 
 ## 10. LESSONS LEARNED
 
@@ -210,8 +213,8 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 
 7. **Step Amplification is Critical**: The step amplification fix from Phase 8 (`amplify_step_signal()`) is now ported to RPJBrain. Without it, models RUN_TESTS-spam because they can't distinguish steps 0-3.
 
-8. **Vocab Mismatch Between Training and Real Repos**: The model's vocabulary (COMBINED_VOCAB) was designed for synthetic bugs (comparison operators, off-by-one errors). Real repos have different bug patterns (typos like `retrun`). Must expand vocab to include Python keywords before training on real repos.
+8. **Vocab Mismatch Between Training and Real Repos**: The model's vocabulary (COMBINED_VOCAB) was designed for synthetic bugs (comparison operators, off-by-one errors). Real repos have different bug patterns (typos like `retrun`). **Solution**: Expanded COMBINED_VOCAB from 33 to 64 items by adding REAL_REPO_VOCAB with 31 Python keywords.
 
 ---
 
-**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 BLOCKED (need vocab expansion for real repos).**
+**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 IN PROGRESS (vocab expanded, need BC demos for real repo patterns).**

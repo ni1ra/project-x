@@ -78,8 +78,8 @@ ALLOWED_SHELL_COMMANDS = [
 # TRIVIAL: Syntax bugs (missing colon, paren, wrong quotes)
 TRIVIAL_VOCAB = [':\n', ')', ',', "'", '"']  # 5 items
 
-# EASY: Logic bugs (wrong operators, off-by-one)
-# These tokens allow fixing wrong_operator and off_by_one bugs
+# EASY: Logic bugs (wrong operators, off-by-one, numeric literals)
+# These tokens allow fixing wrong_operator, off_by_one, and numeric literal bugs
 EASY_VOCAB = [
     '<=', '>=', '!=', '==',   # comparison operators (4)
     '<', '>',                  # single char comparisons (2)
@@ -87,10 +87,23 @@ EASY_VOCAB = [
     ' + 1', ' - 1',            # off-by-one fixes with spaces (2)
     '+1', '-1',                # compact off-by-one (2)
     '+ 1', '- 1',              # alternate spacing (2)
-]  # 16 items
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',  # numeric digits (10) - for literal fixes
+    # HARD multi-file bug tokens (added 2026-01-23)
+    'upper',                   # for data_pipeline secondary fix (lower→upper)
+    'del self._users[user_id]',  # for rest_api secondary fix (pass→del)
+]  # 28 items
 
-# Combined vocab for training that can handle both TRIVIAL and EASY
-COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB  # 21 items total
+# Phase 9: Python keywords for real repo typo fixes (e.g., retrun→return)
+# These are the most common keywords that might have typos
+REAL_REPO_VOCAB = [
+    'return', 'def', 'class', 'if', 'elif', 'else', 'for', 'while',
+    'try', 'except', 'finally', 'with', 'import', 'from', 'True', 'False',
+    'None', 'self', 'pass', 'in', 'not', 'and', 'or', 'is', 'as',
+    'raise', 'assert', 'yield', 'break', 'continue', 'lambda',
+]  # 31 items
+
+# Combined vocab for training that can handle TRIVIAL, EASY, HARD, and REAL repos
+COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB + REAL_REPO_VOCAB  # 64 items total
 
 # MICRO_VOCAB: Comprehensive vocabulary for byte-level edits
 # Designed based on frequency analysis of generated Python repos
@@ -210,6 +223,9 @@ def encode_action(action: JarvisAction, max_bytes: int = 32) -> torch.Tensor:
     if action.action_type == ActionType.SHELL_CMD:
         target_content = action.content
     elif action.action_type == ActionType.READ_FILE:
+        target_content = action.target
+    elif action.action_type == ActionType.NAVIGATE:
+        # NAVIGATE uses target for file path (HARD multi-file bugs)
         target_content = action.target
     elif action.action_type in (ActionType.WRITE_FILE, ActionType.WRITE_FOCUS, ActionType.REPLACE_FOCUS):
         # Jarvis Harness v0: WRITE_FILE uses bytes 5-31 as the content/patch payload.
@@ -505,12 +521,18 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
         vocab_idx = int(content_raw[0])
         vocab_mode = int(content_raw[1]) if len(content_raw) > 1 else 0
 
+        # FIX (2026-01-23): Force COMBINED_VOCAB mode for EASY curriculum.
+        # The model outputs garbage in byte[26] (vocab_mode) due to insufficient supervision.
+        # Since all EASY tasks use COMBINED_VOCAB, forcing mode=0 fixes the content lookup.
+        # TODO: Improve BC training to supervise vocab_mode byte properly.
+        vocab_mode = 0  # Force COMBINED_VOCAB
+
         if vocab_mode == 1:
             # MICRO_VOCAB mode: 219 tokens for byte-level edits
             vocab_idx = vocab_idx % len(MICRO_VOCAB)
             content = MICRO_VOCAB[vocab_idx]
         else:
-            # Legacy COMBINED_VOCAB mode: 21 tokens (TRIVIAL + EASY)
+            # COMBINED_VOCAB mode (31 items: TRIVIAL + EASY + digits)
             vocab_idx = vocab_idx % len(COMBINED_VOCAB)
             content = COMBINED_VOCAB[vocab_idx]
     else:

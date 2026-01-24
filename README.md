@@ -37,12 +37,15 @@ Build an autonomous AI coding agent that fixes bugs WITHOUT LLM API calls. The c
 
 | Benchmark | Value | Target | Status |
 |-----------|-------|--------|--------|
-| **EASY Bug Fixes** | 100% | >50% | **PASS** |
+| **Synthetic EASY Bug Fixes** | 100% | >50% | **PASS** |
+| **Real Repo Bug Fixes** | 0% | >50% | IN PROGRESS |
 | K_eff (neuromodulator compression) | 5.57 | [2-6] | **PASS** |
 | DoErr (causal reasoning) | 0.216 | ≤0.25 | **PASS** |
 | CBR_B (compute allocation) | 0.892 | >0.555 | **PASS** |
 
 **Jarvis Harness:** The brain can fix bugs in synthetic Python repos via bytes-in/bytes-out interface with pytest verification.
+
+**Phase 9 Status:** Vocabulary expanded to 64 tokens (added Python keywords). Next: BC demos for real repo patterns.
 
 ## Key Constraints
 
@@ -76,7 +79,8 @@ pip install -e ".[dev]"
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
     --mode v2 --difficulty easy --timesteps 0 \
-    --bc-epochs 30 --bc-demos 300 --bc-sequential
+    --bc-epochs 50 --bc-demos 1000 --bc-sequential \
+    --v2-subprocess-heavy --gpu-low-util-patience-s 300
 ```
 
 ### Evaluate

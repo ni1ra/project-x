@@ -116,8 +116,8 @@ class RPJConfig:
     gamma: float = 0.999
 
     # Vocab head size (Phase 9 fix: must match training difficulty)
-    # TRIVIAL: 5 (TRIVIAL_VOCAB), HARD/EASY/MEDIUM: 21 (COMBINED_VOCAB)
-    vocab_size: int = 5
+    # TRIVIAL: 5 (TRIVIAL_VOCAB), COMBINED: 64 (includes REAL_REPO_VOCAB)
+    vocab_size: int = 64
 
     # Phase 10: Natural Language Interface (goal encoder)
     enable_goal_encoder: bool = False

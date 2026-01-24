@@ -303,20 +303,26 @@ def compute_fix_offset_in_focus(
 
 
 def get_vocab_idx_for_fix(fix_char: str) -> int:
-    """Map fix character(s) to TRIVIAL_VOCAB index."""
-    # Try exact match first
-    for idx, vocab in enumerate(TRIVIAL_VOCAB):
+    """Map fix character(s) to COMBINED_VOCAB index.
+
+    Phase 9: Search full COMBINED_VOCAB which includes:
+    - TRIVIAL_VOCAB (0-4): syntax tokens
+    - EASY_VOCAB (5-32): operators, digits, HARD tokens
+    - REAL_REPO_VOCAB (33-63): Python keywords for typo fixes
+    """
+    # Try exact match first in full COMBINED_VOCAB
+    for idx, vocab in enumerate(COMBINED_VOCAB):
         if vocab == fix_char:
             return idx
 
     # Try with newline appended (common for colon fixes)
     fix_with_newline = fix_char + '\n'
-    for idx, vocab in enumerate(TRIVIAL_VOCAB):
+    for idx, vocab in enumerate(COMBINED_VOCAB):
         if vocab == fix_with_newline:
             return idx
 
     # Try partial match
-    for idx, vocab in enumerate(TRIVIAL_VOCAB):
+    for idx, vocab in enumerate(COMBINED_VOCAB):
         if vocab.startswith(fix_char) or fix_char.startswith(vocab):
             return idx
 
