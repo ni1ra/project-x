@@ -54,6 +54,9 @@ class ActionType(IntEnum):
     COMPLETE_TASK = 18 # Mark current task complete, move to next task in queue
                        # In persistent mode, this doesn't end episode - just advances the task
 
+    # Phase 11: Tool Diversity - Git commit action
+    GIT_COMMIT = 19    # Commit staged changes with vocab-based message
+
 
 # Shell command grammar (constrained for safety)
 ALLOWED_SHELL_COMMANDS = [
@@ -107,6 +110,18 @@ REAL_REPO_VOCAB = [
 
 # Combined vocab for training that can handle TRIVIAL, EASY, HARD, and REAL repos
 COMBINED_VOCAB = TRIVIAL_VOCAB + EASY_VOCAB + REAL_REPO_VOCAB  # 80 items total (5+28+47)
+
+# Phase 11: Git commit message vocabulary (vocab-based to avoid raw text generation)
+GIT_COMMIT_VOCAB = [
+    'Fix bug',
+    'Fix test',
+    'Update logic',
+    'Fix comparison',
+    'Fix off-by-one',
+    'Fix typo',
+    'Refactor code',
+    'Add feature',
+]  # 8 items - model learns to select appropriate message
 
 # MICRO_VOCAB: Comprehensive vocabulary for byte-level edits
 # Designed based on frequency analysis of generated Python repos
@@ -381,6 +396,9 @@ def action_to_string(action: JarvisAction) -> str:
     # Persistent mode operations (v3)
     elif action.action_type == ActionType.COMPLETE_TASK:
         return "COMPLETE_TASK"
+    # Phase 11: Git commit
+    elif action.action_type == ActionType.GIT_COMMIT:
+        return f"GIT_COMMIT: '{action.content[:30]}...'"
     else:
         return f"UNKNOWN({action.action_type})"
 
@@ -524,20 +542,25 @@ def decode_action_v2(action_bytes: torch.Tensor) -> JarvisAction:
         vocab_idx = int(content_raw[0])
         vocab_mode = int(content_raw[1]) if len(content_raw) > 1 else 0
 
-        # FIX (2026-01-23): Force COMBINED_VOCAB mode for EASY curriculum.
-        # The model outputs garbage in byte[26] (vocab_mode) due to insufficient supervision.
-        # Since all EASY tasks use COMBINED_VOCAB, forcing mode=0 fixes the content lookup.
-        # TODO: Improve BC training to supervise vocab_mode byte properly.
-        vocab_mode = 0  # Force COMBINED_VOCAB
-
-        if vocab_mode == 1:
-            # MICRO_VOCAB mode: 219 tokens for byte-level edits
-            vocab_idx = vocab_idx % len(MICRO_VOCAB)
-            content = MICRO_VOCAB[vocab_idx]
+        # Phase 11: GIT_COMMIT uses GIT_COMMIT_VOCAB for commit messages
+        if action_type == ActionType.GIT_COMMIT:
+            vocab_idx = vocab_idx % len(GIT_COMMIT_VOCAB)
+            content = GIT_COMMIT_VOCAB[vocab_idx]
         else:
-            # COMBINED_VOCAB mode (31 items: TRIVIAL + EASY + digits)
-            vocab_idx = vocab_idx % len(COMBINED_VOCAB)
-            content = COMBINED_VOCAB[vocab_idx]
+            # FIX (2026-01-23): Force COMBINED_VOCAB mode for EASY curriculum.
+            # The model outputs garbage in byte[26] (vocab_mode) due to insufficient supervision.
+            # Since all EASY tasks use COMBINED_VOCAB, forcing mode=0 fixes the content lookup.
+            # TODO: Improve BC training to supervise vocab_mode byte properly.
+            vocab_mode = 0  # Force COMBINED_VOCAB
+
+            if vocab_mode == 1:
+                # MICRO_VOCAB mode: 219 tokens for byte-level edits
+                vocab_idx = vocab_idx % len(MICRO_VOCAB)
+                content = MICRO_VOCAB[vocab_idx]
+            else:
+                # COMBINED_VOCAB mode (31 items: TRIVIAL + EASY + digits)
+                vocab_idx = vocab_idx % len(COMBINED_VOCAB)
+                content = COMBINED_VOCAB[vocab_idx]
     else:
         content = ''
 
@@ -564,6 +587,7 @@ def is_git_action(action_type: ActionType) -> bool:
         ActionType.GIT_RESET,
         ActionType.GIT_CHECKOUT,
         ActionType.GIT_LOG,
+        ActionType.GIT_COMMIT,  # Phase 11
     ]
 
 

@@ -31,9 +31,9 @@ from src.core.rpj_brain import create_brain
 from src.harness.env import JarvisHarnessEnv, HarnessConfig, Task, VectorizedJarvisEnv
 from src.harness.repo_generator import RepoGenerator, BugDifficulty, generate_task_batch
 from src.harness.real_repo_source import generate_mixed_task_batch, setup_real_repo_fixtures
-from src.harness.verifiers import run_pytest, compute_diff_size
+from src.harness.verifiers import run_pytest, compute_diff_size, verify_git_commit
 from src.harness.observations import OBS_TOTAL_BYTES
-from src.harness.actions import ACTION_BYTES, ACTION_BYTES_V2, ActionType
+from src.harness.actions import ACTION_BYTES, ACTION_BYTES_V2, ActionType, is_git_action
 
 # Python path with pytest installed (for running tests)
 PYTEST_PYTHON = "/tmp/jarvis_venv/bin/python"
@@ -58,6 +58,11 @@ class EpisodeResult:
     eligible: bool  # True if task had a bug to fix (base < total)
     solved: bool    # True if solved AND eligible
     improved: bool  # True if improved AND eligible
+    # Phase 11: Git action tracking
+    git_status_actions: int = 0
+    git_add_actions: int = 0
+    git_commit_actions: int = 0
+    git_commit_verified: bool = False  # True if clean working tree after commit
 
 
 def run_episode(
@@ -86,6 +91,11 @@ def run_episode(
     done = False
     done_reason = ""
 
+    # Phase 11: Track git actions
+    git_status_actions = 0
+    git_add_actions = 0
+    git_commit_actions = 0
+
     for _ in range(max_steps):
         # Fresh hidden state each step - matches BC batch training
         h, g = brain.init_state(batch_size=1, device=device)
@@ -98,6 +108,15 @@ def run_episode(
         action_bytes = out.action.clamp(0, 255).to(torch.uint8).squeeze(0).cpu()
         obs, reward, done, info = env.step(action_bytes)
         total_reward += float(reward)
+
+        # Phase 11: Track git actions
+        action_type = ActionType(int(action_bytes[0].item()))
+        if action_type == ActionType.GIT_STATUS:
+            git_status_actions += 1
+        elif action_type == ActionType.GIT_ADD:
+            git_add_actions += 1
+        elif action_type == ActionType.GIT_COMMIT:
+            git_commit_actions += 1
 
         # Don't accumulate hidden state - keep fresh each step
         # h = out.h_next  # DISABLED: causes state accumulation
@@ -146,6 +165,12 @@ def run_episode(
     solved = success and eligible  # Actually fixed the bug
     improved = (tests_passing > int(baseline_passing)) and eligible  # Made progress
 
+    # Phase 11: Verify git commit (if any commits were made)
+    git_commit_verified = False
+    if git_commit_actions > 0 and env.temp_dir:
+        git_result = verify_git_commit(env.temp_dir)
+        git_commit_verified = git_result.passed
+
     return EpisodeResult(
         success=success,
         steps=steps,
@@ -163,6 +188,10 @@ def run_episode(
         eligible=eligible,
         solved=solved,
         improved=improved,
+        git_status_actions=git_status_actions,
+        git_add_actions=git_add_actions,
+        git_commit_actions=git_commit_actions,
+        git_commit_verified=git_commit_verified,
     )
 
 
@@ -191,6 +220,9 @@ def main():
     )
     parser.add_argument("--real-ratio", type=float, default=0.0,
                         help="Fraction of tasks from real repos (Phase 9)")
+    # Phase 11: Git task evaluation
+    parser.add_argument("--enable-git-tasks", action="store_true",
+                        help="Enable git task metrics reporting (Phase 11)")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -360,6 +392,18 @@ def main():
     print(f"Improved tests (raw): {improved_rate_legacy:.1%}")
     print(f"Wrote any: {wrote_rate:.1%} | Diff>0: {diff_rate:.1%} | Avg writes: {avg_writes:.1f}")
     print(f"Avg steps: {avg_steps:.1f} | Avg diff lines: {avg_diff:.1f}")
+
+    # Phase 11: Git metrics
+    if getattr(args, 'enable_git_tasks', False):
+        git_status_total = sum(r.git_status_actions for r in results)
+        git_add_total = sum(r.git_add_actions for r in results)
+        git_commit_total = sum(r.git_commit_actions for r in results)
+        git_commit_verified_count = sum(1 for r in results if r.git_commit_verified)
+        git_commit_rate = git_commit_verified_count / len(results) if len(results) > 0 else 0.0
+
+        print(f"\n--- Git task metrics (Phase 11) ---")
+        print(f"GIT_STATUS actions: {git_status_total} | GIT_ADD: {git_add_total} | GIT_COMMIT: {git_commit_total}")
+        print(f"Git commits verified (clean tree): {git_commit_verified_count}/{len(results)} ({git_commit_rate:.1%})")
 
 
 if __name__ == "__main__":

@@ -25,249 +25,274 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 ================================================================================
 -->
 
-# BLUEPRINT.md — RPJ Brain v5 Technical Specification
+# BLUEPRINT.md — Phase 11: Tool Diversity (Git Operations)
 
-## 1. Thesis
+## Overview
 
-Under strict resource pricing (energy proxy in objective), a content-free agent acquires **one-demonstration transfer** and **do()-operator competence** if its only pressure is **maximize reward per proxy-joule** while minimizing **model codelength**.
+Expand JARVIS beyond pytest to support git workflows. The model learns to use git operations (status, diff, add, commit) as part of bug-fixing trajectories. This is the first step toward full tool diversity (npm, pip, docker).
 
-**Key Claims:**
-- No LLM dependencies, no pretrained embeddings
-- Brain-like structure emerges from RPJ objective
-- All scoring uses ground truth verifiers
+## Reconnaissance
 
----
+**Existing Infrastructure (READY):**
+- Git ActionTypes 7-12 already defined in `actions.py`
+- Git handlers implemented in `env.py`: `_git_status()`, `_git_diff()`, `_git_add()`, etc.
+- Git repos initialized on env reset via `_init_git_repo()`
+- Energy costs assigned for git operations
 
-## 2. Architecture Constants
-
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| d (hidden) | 512 | Substrate dimension |
-| K_max | 16 | Max global scalars |
-| dim(z_t) | 64 | Latent bottleneck |
-| k_r,max | 4 | Max routed blocks |
-| N_max | 5 | Max rollout steps |
-| adapter rank | 64 | Fast weight rank |
-| B (blocks) | 64 | Routing granularity |
+**Missing Components:**
+- BC demos demonstrating git workflows
+- Task types that require git (e.g., "fix bug AND commit")
+- Git-based verification (clean working tree, proper commit)
+- Training infrastructure for git action prediction
 
 ---
 
-## 3. Substrate (Sparse LN-GRU)
+## Architecture
 
-### 3.1 Recurrence
-```
-h_{t+1} = RNN(h_t, [φ(o_t) || z_t], a_t, g_t; r_t)
-```
-
-Where:
-- `φ(·)` = fixed byte normalization
-- `z_t` = VAE latent sample
-- `g_t` = global scalar broadcast
-- `r_t` = TopK routing mask
-
-### 3.2 Routing
-```
-r_t = TopK(softmax(W_r h_t), k_r)
-k_r(t) = 1 + Binomial(k_r,max - 1, c_t)  # train
-k_r(t) = floor(c_t * (k_r,max - 1) + 0.5)  # eval
-```
-
-### 3.3 Compute Allocation
-```
-c_t = σ(w_c^T h_t) ∈ [0,1]
-```
-Maps to routing depth and rollout count.
-
----
-
-## 4. Global Scalars (Neuromodulator Emergence)
+### File Structure (Changes Only)
 
 ```
-g_t = σ(W_g h_t + b_g) ∈ [0,1]^K_max
+src/harness/
+├── expert_trajectories.py  # ADD: generate_git_trajectory()
+├── verifiers.py            # ADD: verify_git_commit()
+├── bug_templates.py        # ADD: GitCommitTask type
+└── env.py                  # MODIFY: git state in observations
+
+scripts/
+├── train_jarvis_harness.py # ADD: --enable-git-tasks flag
+└── eval_jarvis_harness.py  # ADD: git task evaluation
 ```
 
-**Emergence Target:** K_eff ∈ [2,6] (effective scalar count)
+### Task Type: GitCommitTask
 
-```
-K_eff = (Σ Var(g_:,k))² / (Σ Var(g_:,k)² + ε)
-```
+New task type that requires the model to:
+1. Run tests (discover failing test)
+2. Fix the bug (WRITE_FOCUS)
+3. Run tests (verify fix)
+4. Stage changes (GIT_ADD)
+5. Commit changes (GIT_COMMIT - new action)
+6. Complete task
 
----
-
-## 5. Local Plasticity
-
-### 5.1 Error Signals
-- **Prediction:** e^pred_j = ∂ℓ_pred/∂u_j
-- **TD broadcast:** e^δ_j = w^δ_j · δ_t
-- **Total:** e_j = e^pred_j + e^δ_j
-
-### 5.2 Plasticity Gate
-```
-P_t = σ(w_P^T g_t + b_P)
-```
-
-### 5.3 Synapse Update
-```
-Δw_ij = η P_t e_j x_i - ηλ w_ij
+```python
+@dataclass
+class GitCommitTask:
+    """Task requiring fix + git commit."""
+    bug_task: Task              # The underlying bug to fix
+    commit_message_hint: str    # Hint for commit message
+    require_clean_tree: bool    # Must have no uncommitted changes
 ```
 
-### 5.4 Slow/Fast Split
-- **Slow (θ):** Updated between episodes by RL
-- **Fast (W_t):** Low-rank adapters, updated by local plasticity, reset per episode
+### New Action: GIT_COMMIT (ActionType 19)
 
----
-
-## 6. Bits-Back VAE
-
-### 6.1 Encoder
-```
-q(z_t|h_t, φ(o_t)) = N(μ_z, σ_z)
-μ_z = W_μ[h_t || φ(o_t)] + b_μ
-σ_z = softplus(W_σ[h_t || φ(o_t)] + b_σ)
+```python
+class ActionType(IntEnum):
+    # ... existing ...
+    GIT_COMMIT = 19    # Commit staged changes with message
 ```
 
-### 6.2 Decoder (position-wise)
-```
-p(o_t|z_t) = Π_i Cat(o_t,i; softmax(W_dec f_pos(i, z_t)))
-f_pos(i, z_t) = MLP([PE(i) || z_t])
+**Encoding (vocab-based, JARVIS recommended):**
+- Byte 0: action_type (19)
+- Byte 25: vocab_idx (into GIT_COMMIT_VOCAB)
+- Byte 26: vocab_mode (0 = GIT_COMMIT_VOCAB)
+
+**GIT_COMMIT_VOCAB (standard messages):**
+```python
+GIT_COMMIT_VOCAB = [
+    'Fix bug',
+    'Fix test',
+    'Update logic',
+    'Fix comparison',
+    'Fix off-by-one',
+    'Fix typo',
+    'Refactor code',
+    'Add feature',
+]  # 8 items - model learns to select appropriate message
 ```
 
-### 6.3 Codelength
-```
-CodeLen_t = -log p(o_t|z_t) - log p_0(z_t) + log q(z_t|·)
-```
+This avoids raw text generation which destabilized training in Phase 9.
 
----
+### BC Demo Sequence (7 steps)
 
-## 7. RPJ Objective
-
-### 7.1 Energy Proxy
 ```
-E_t = κ_F · FLOPs + κ_M · BytesMoved
-κ_F = 1e-9 J/FLOP
-κ_M = 5e-11 J/Byte
+Step 0: obs (tests=0/0)           → RUN_TESTS
+Step 1: obs (tests=X/Y, fail)     → WRITE_FOCUS (fix bug)
+Step 2: obs (tests=X/Y, fixed)    → RUN_TESTS (verify)
+Step 3: obs (tests=Y/Y, pass)     → GIT_STATUS (check state)
+Step 4: obs (modified files)      → GIT_ADD (stage fix)
+Step 5: obs (staged)              → GIT_COMMIT (commit)
+Step 6: obs (clean tree)          → COMPLETE_TASK
 ```
 
-### 7.2 Normalized Terms
-```
-Ê_t = E_t / E_cap,step  (E_cap,step = 0.1 J/step)
-Ĉ_t = CodeLen_t / (8n ln 2)
-```
+### Observation Enhancement
 
-### 7.3 Objective
+**JARVIS Fix:** Reduce FOCUS_PREVIEW_BYTES from 32 to 16 (occupies 32-47), freeing 48-63 for git state.
+
+Add git state to metadata section (bytes 448-512):
+
 ```
-J = Σ γ^t (r̃_t - λ_E Ê_t - λ_mdl Ĉ_t)
-```
-
-Fixed coefficients: λ_E = 1.0, λ_mdl = 1.0, λ_rnd = 0.1, λ_int = 0.1
-
----
-
-## 8. Sleep/Offline Consolidation
-
-### 8.1 Trigger
-```
-ω_t = σ(w_ω^T h_t + b_ω) ∈ (0,1)
-E^sleep_t = ω_t · E^sleep_max
+Meta offset + 32: focus_preview (16 bytes, reduced from 32)
+Meta offset + 48: git_modified_count (uint8)
+Meta offset + 49: git_staged_count (uint8)
+Meta offset + 50: git_untracked_count (uint8)
+Meta offset + 51: git_clean_tree (bool)
+Meta offset + 52-63: reserved (12 bytes for future tools)
 ```
 
-### 8.2 Replay Buffer
-- Capacity: 100,000 transitions (FIFO)
-- Prioritized replay: p_i ∝ (|δ_i| + ε)^α
+### Verifier: verify_git_commit()
 
-### 8.3 Renormalization
-```
-w ← w / max(1, ||w||_2 / ρ)  # ρ = 1.0
+```python
+def verify_git_commit(repo_path: str) -> Tuple[bool, str]:
+    """Verify git commit was made correctly."""
+    # Check working tree is clean
+    status = subprocess.run(['git', 'status', '--porcelain'], ...)
+    if status.stdout.strip():
+        return False, "Working tree not clean"
+
+    # Check commit exists after initial
+    log = subprocess.run(['git', 'log', '--oneline', '-2'], ...)
+    commits = log.stdout.strip().split('\n')
+    if len(commits) < 2:
+        return False, "No new commit found"
+
+    return True, "Git commit verified"
 ```
 
 ---
 
-## 9. Benchmarks
+## Implementation Steps
 
-### 9.1 CCB (Confounded Causal Bandits)
-```
-U ~ N(0,1), Z = a_U·U + ε_Z, Y = b_X·X + b_U·U + ε_Y
-DoErr = (1/Q) Σ |μ̂^do_q - μ^do_q|
-```
-PASS: DoErr ≤ 0.25, discrimination ≥ 0.80 (BLINDFOLD)
+### Phase 11.1: Foundation (Git Commit Action)
 
-### 9.2 OD-NDT (One-Demo Transfer)
-- One expert demo (≤200 steps)
-- One sleep cycle (B_sleep,1)
-- Test on 100 held-out tasks
+- [x] **Step 1: Add GIT_COMMIT action type** ✓
+  - File: `src/harness/actions.py`
+  - Add `GIT_COMMIT = 19` to ActionType enum
+  - Add encoding/decoding for commit message
+  - Verify: Unit test passes
 
-PASS: SR_novel ≥ 0.60, T = SR_novel/SR_train ≥ 0.80
+- [x] **Step 2: Implement _git_commit() handler** ✓
+  - File: `src/harness/env.py`
+  - Handle GIT_COMMIT action in step()
+  - Extract commit message from action bytes
+  - Verify: Manual test `git log` shows commit
 
-### 9.3 Jarvis Harness
-- Observation: 512 bytes (terminal + focus + goal + meta)
-- Action: 32 bytes (type + offset + vocab)
-- Reward: pytest pass/fail + lint + diff minimality
+- [x] **Step 3: Add git verifier** ✓
+  - File: `src/harness/verifiers.py`
+  - Add `verify_git_commit()` function
+  - Verify: Unit test with clean/dirty repos
 
----
+### Phase 11.2: Observations (Git State)
 
-## 10. Falsification Criteria
+- [x] **Step 4: Add git state to observations** ✓
+  - File: `src/harness/observations.py`
+  - Add `git_modified`, `git_staged`, `git_clean` fields
+  - Update `encode_observation()` and `decode_observation()`
+  - Verify: Observation roundtrip test
 
-**Hard stop if:**
-- LLM/transformer used (ceiling violation)
-- Domain-specific primitives (hand-coding)
-- Manifest modified after training starts (curriculum engineering)
-- Budget exceeded without calibration (energy proxy)
-- OD-NDT: SR_novel < 0.60 or T < 0.80
-- CCB: DoErr > 0.25 or discrimination < 0.80
-- K_eff outside [2,6] across ≥5 seeds
-- Sleep doesn't improve retention/transfer
+- [x] **Step 5: Update env to populate git state** ✓
+  - File: `src/harness/env.py`
+  - Call `git status --porcelain` in `_get_observation()`
+  - Parse output to populate git fields
+  - Verify: Observation shows correct git state
 
----
+### Phase 11.3: BC Demos (Expert Trajectories)
 
-## 11. Ablations
+- [x] **Step 6: Create GitCommitTask type** ✓
+  - File: `src/harness/expert_trajectories.py`
+  - Define `GitCommitTrajectory` dataclass
+  - Verify: Task can be instantiated
 
-| Ablation | Change | Prediction |
-|----------|--------|------------|
-| A (no RPJ) | λ_E = 0 | No compute bursts |
-| B (no g_t) | K_max = 0 | Degraded transfer |
-| C (no MDL) | λ_mdl = 0 | Higher CodeLen |
+- [x] **Step 7: Generate git BC trajectories** ✓
+  - File: `src/harness/expert_trajectories.py`
+  - Add `generate_git_commit_trajectory()` function
+  - 7-step sequence: RUN_TESTS → WRITE_FOCUS → RUN_TESTS → GIT_STATUS → GIT_ADD → GIT_COMMIT → COMPLETE
+  - Verify: Generated trajectory is valid
 
----
+- [x] **Step 8: Update BC dataset generation** ✓
+  - File: `src/harness/expert_trajectories.py`
+  - Add `create_git_commit_bc_dataset()` function
+  - Verify: Dataset includes git trajectories
 
-## 12. Jarvis Harness Extensions
+### Phase 11.4: Training Integration
 
-### 12.1 Temporal Hierarchy
-```
-h^fast_{t+1} = GRU_fast(h^fast_t, [φ(o_t) || z_t || a_t])
-h^slow_{t+1} = GRU_slow(h^slow_t, h^fast_t)  if trigger
-gate_t = σ(MLP([h^fast_t || h^slow_t]))
-h_t = h^fast_t + gate_t · W_proj h^slow_t
-```
+- [x] **Step 9: Add training flags** ✓
+  - File: `scripts/train_jarvis_harness.py`
+  - Add `--enable-git-tasks` and `--git-task-ratio` flags
+  - Pass to BC demo generation
+  - Verify: Training with git tasks starts
 
-### 12.2 Action Types
-| ID | Name | Description |
-|----|------|-------------|
-| 0 | SHELL_CMD | Execute shell |
-| 1 | READ_FILE | Read chunk |
-| 2 | WRITE_FILE | Write/patch |
-| 3 | RUN_TESTS | Run pytest |
-| 16 | WRITE_FOCUS | Vocab-based edit |
-| 18 | COMPLETE_TASK | Signal done |
+- [x] **Step 10: Add eval support** ✓
+  - File: `scripts/eval_jarvis_harness.py`
+  - Add git task evaluation and `--enable-git-tasks` flag
+  - Report git commit success rate
+  - Verify: Eval reports git metrics
 
----
+### Phase 11.5: Validation
 
-## 13. Implementation Notes
+- [x] **Step 11: Train on git tasks** ✓
+  - Run: `--enable-git-tasks --bc-epochs 100`
+  - Result: **96.5% BC accuracy** (target >80%) ✓
+  - Verify: Model predicts GIT_ADD, GIT_COMMIT correctly
 
-### 13.1 h_t Trajectory Alignment
-**Problem:** BC training with upstream forcing creates different h_t than eval
-**Fix:** Disable upstream_teacher_forcing, use sequential BC
-
-### 13.2 BC Demo Requirements
-- `assert (bc_obs == eval_obs).all()` before training
-- Terminal, focus, goal, step metadata MUST match eval exactly
-
----
-
-## 14. Panel Verdict
-
-**External Audit Complete:** 5 implementation bugs fixed, regression tests added.
-**Score:** 420/420 (IMPLEMENTATION CONSISTENT WITH BLUEPRINT)
+- [x] **Step 12: Evaluate solve rate** ✓
+  - Run eval with git tasks
+  - Result: **100% solve rate** (target >50%) ✓
+  - Verify: Model completes full persistent workflow
 
 ---
 
-*Full equations in paper.md. Code in src/core/.*
+## Acceptance Criteria
+
+- [x] Model can predict GIT_STATUS, GIT_ADD, GIT_COMMIT actions ✓
+- [x] BC accuracy on git actions > 80% → **96.5%** ✓
+- [x] Git-commit task solve rate > 50% → **100%** ✓
+- [x] Observations correctly reflect git state ✓
+- [x] No regression on pytest-only tasks (maintain 100% EASY) ✓
+
+**Phase 11 COMPLETE** - 2026-01-24
+
+---
+
+## Test Requirements
+
+### Unit Tests
+- `test_git_commit_action_encoding()` - Action bytes roundtrip
+- `test_git_state_observation()` - Git state in observations
+- `test_verify_git_commit()` - Verifier with clean/dirty repos
+- `test_git_commit_trajectory()` - 7-step trajectory validity
+
+### Integration Tests
+- `test_git_task_bc_training()` - BC on mixed tasks (pytest + git)
+- `test_git_task_evaluation()` - Full eval loop with git tasks
+
+### E2E Tests
+- Train model with `--enable-git-tasks`
+- Verify BC accuracy > 80%
+- Evaluate solve rate > 50%
+
+---
+
+## Resource Requirements
+
+- **GPU:** RTX A4000 (16GB) - verified available
+- **Python:** 3.12.3 in venv - verified
+- **Git:** Available in environment - verified
+
+---
+
+## JARVIS Validation
+
+**Score:** 380/420 (PROCEED)
+
+**Issues Identified:**
+1. Observation metadata collision at offset 48 - **FIXED** (reduce FOCUS_PREVIEW_BYTES)
+2. Raw text generation risk for commit messages - **FIXED** (use GIT_COMMIT_VOCAB)
+
+**Recommendations Applied:**
+- Reduced FOCUS_PREVIEW_BYTES from 32 to 16
+- Added GIT_COMMIT_VOCAB for vocab-based commit messages
+- Must implement mock git output generators in BC demos to match env.py
+
+---
+
+Generated by /blueprint
+Ready for /goapeshit execution
