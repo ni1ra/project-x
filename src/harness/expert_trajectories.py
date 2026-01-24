@@ -124,11 +124,12 @@ def generate_realistic_pytest_output(
             "error": "assert True == False",
         },
         # rest_api template uses test_app.py
+        # FIX (2026-01-24): test_line is line 17 where "assert c.validate() == False" is
         "rest_api": {
             "test_file": "test_app.py",
             "test_class": "TestConfig",
             "test_name": "test_invalid_port",
-            "test_line": 10,
+            "test_line": 17,
             "assertion": "assert c.validate() == False",
             "error": "assert True == False",
         },
@@ -1055,12 +1056,19 @@ def generate_expert_trajectory(
         focus_text=focus_text,
     )
 
+    # FIX (2026-01-24): Include preamble to match eval env terminal_buffer!
+    # The eval env has: "Task: {desc}\nRepo ready.\nInitial tests: (skipped)\n"
+    # BEFORE the [Step 0] action output. Without this, BC terminal starts at
+    # different offset than env, causing 190/256 byte mismatch!
+    preamble = f"Task: {goal_str[:60]}\nRepo ready.\nInitial tests: (skipped)\n"
+
     jarvis_obs = JarvisObservation(
         # Terminal: Match eval env format after RUN_TESTS with REAL pytest output
         terminal_output=(
+            f"{preamble}"
             f"[Step 0] RUN_TESTS\n"
             f"[Tests completed: repo] 0/1 passing\n"
-            f"{pytest_output}"
+            f"{pytest_output}\n"  # FIX: trailing \n to match env
         ),
         # Goal: Must match eval env task.description format
         goal=f"{goal_str[:60]}",
@@ -1477,6 +1485,7 @@ def create_post_run_tests_observation(
     tests_total: int,
     step: int = 1,
     bug_type: str = "",  # FIX: Add bug_type for realistic pytest output
+    bug_line: int = 10,  # FIX (2026-01-24): Use actual bug line, not hardcoded
 ) -> torch.Tensor:
     """
     Create an observation for AFTER RUN_TESTS is called.
@@ -1490,18 +1499,26 @@ def create_post_run_tests_observation(
     """
     # FIX (2026-01-23): Use realistic pytest output to match eval env!
     # The eval env terminal_buffer contains actual pytest stacktraces after RUN_TESTS.
+    # FIX (2026-01-24): Use actual bug_line parameter instead of hardcoded 10.
     pytest_output = generate_realistic_pytest_output(
         file_path=file_path,
-        bug_line=10,
+        bug_line=bug_line,
         bug_type=bug_type,
         focus_text=focus_text,
     )
 
     # Match eval env terminal format after RUN_TESTS
+    # FIX (2026-01-24): Include preamble to match env.reset() terminal_buffer.
+    # The env has: "Task: {desc}\nRepo ready.\nInitial tests: (skipped)\n"
+    # BEFORE the [Step 0] action. Without this, BC terminal is shorter and
+    # encodes at different offsets than env, causing mismatch.
+    preamble = f"Task: {goal[:60]}\nRepo ready.\nInitial tests: (skipped)\n"
+    # FIX (2026-01-24): Add trailing \n to match env which appends \n after output
     terminal = (
+        f"{preamble}\n"
         f"[Step {step - 1}] RUN_TESTS\n"
         f"[Tests completed: fast] {tests_passing}/{tests_total} passing\n"
-        f"{pytest_output}"
+        f"{pytest_output}\n"
     )
     jarvis_obs = JarvisObservation(
         terminal_output=terminal,
@@ -1532,6 +1549,9 @@ def create_post_fix_observation(
     file_path: str = "models.py",
     offset: int = 23,
     content: str = "1",
+    length: int = 1,  # FIX (2026-01-24): Original content length being replaced
+    bug_type: str = "wrong_operator",
+    bug_line: int = 21,
 ) -> torch.Tensor:
     """
     Create an observation for after WRITE_FOCUS is applied (before verify RUN_TESTS).
@@ -1542,21 +1562,34 @@ def create_post_fix_observation(
 
     The agent should emit RUN_TESTS in this state to verify.
 
-    FIX (2026-01-24): The observation encodes LAST 256 bytes of terminal.
-    After WRITE_FOCUS, the terminal ends with write confirmation, NOT pytest errors.
-    The pytest output from RUN_TESTS is ~70 chars earlier and gets truncated.
+    FIX (2026-01-24): Match eval terminal format EXACTLY.
+    The eval env terminal accumulates history and shows:
+    - Partial RUN_TESTS output (pytest errors) at start
+    - WRITE_FOCUS output at end (with "Syntax OK")
 
-    Key signal: "Syntax OK" at end → RUN_TESTS (to verify fix)
-    vs step 1: pytest errors at end → WRITE_FOCUS
-
-    DO NOT add pytest_prefix - that makes step 1 and step 2 indistinguishable!
+    The model must learn: "fixed focus + Syntax OK at end" → RUN_TESTS
+    NOT: "any Syntax OK" → RUN_TESTS (that could trigger on step 1 too)
     """
-    content_preview = content[:20] + "..." if len(content) > 20 else content
+    # FIX (2026-01-24): Eval env action_to_string ALWAYS adds "..." after content[:20]
+    # Match this format exactly: '{content[:20]}...' regardless of content length
+    content_preview = content[:20] + "..."
 
-    # NO pytest_prefix! After WRITE_FOCUS, terminal ends with write confirmation.
-    # The last 256 bytes should show WRITE_FOCUS output, NOT pytest errors.
+    # FIX (2026-01-24): Include truncated pytest output at start to match eval env.
+    # Eval terminal at step 2 shows: "...[Step 0] RUN_TESTS.[Tests]...[Step 1] WRITE_FOCUS..."
+    # The key is that WRITE_FOCUS output is at the END, with Syntax OK.
+    pytest_prefix = (
+        f"[Tests completed: fast] {tests_passing}/{tests_total} passing\n"
+        f"test_pipeline.py:{bug_line}: in test_invalid_id\n"
+        f"    assert r.is_valid() == False\n"
+        f"E   AssertionError: assert True == False\n"
+    )
+
     terminal = (
-        f"[Step {step - 1}] WRITE_FOCUS[{offset}:{offset + len(content)}] = '{content_preview}'\n"
+        pytest_prefix +  # Include pytest errors like eval does
+        # FIX (2026-01-24): Use offset + length (original content length), NOT len(content)!
+        # Eval env uses action.length in action_to_string, which is the original length being replaced.
+        # For data_pipeline: content='>' (1 char) but length=2 (replacing '>='), so range is [23:25]
+        f"[Step {step - 1}] WRITE_FOCUS[{offset}:{offset + length}] = '{content_preview}'\n"
         f"Wrote {len(content)} bytes to focus {file_path}\n"
         f"Syntax OK\n"
     )
@@ -1643,11 +1676,16 @@ class PersistentTrajectory:
     # Final state info
     solved: bool  # Would this trajectory solve the bug?
 
+    # Phase 10: Full goal text for natural language interface
+    # The observation only stores truncated 64-byte goal, but goal encoder needs full text
+    goal_text: str = ""
+
 
 def generate_persistent_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
     jitter: int = 0,
+    tests_total: int = 11,  # FIX (2026-01-24): Vary test counts to match eval distribution
 ) -> Optional[PersistentTrajectory]:
     """
     Generate a 4-step trajectory for the persistent developer loop.
@@ -1660,6 +1698,9 @@ def generate_persistent_trajectory(
     Args:
         repo: Generated repo with bugs
         focus_length: Size of focus window
+        tests_total: Total number of tests in repo (default 11, varies 8-13 in eval)
+                     FIX (2026-01-24): Vary this to match eval distribution so model
+                     learns to recognize tests_passing==tests_total, not just 2==2
 
     Returns:
         PersistentTrajectory with 4 steps, or None if can't generate
@@ -1690,6 +1731,8 @@ def generate_persistent_trajectory(
     # which causes it to WRITE_FOCUS immediately in eval (where focus is at bug).
     # Use EXACT same goal format as eval env
     # Eval uses: f"Fix the bugs and make tests pass. Hint: {repo.fix_description}"
+    # Phase 10: Store full goal text for goal encoder, truncated version for observation
+    full_goal_text = f"Fix the bugs and make tests pass. Hint: {repo.fix_description}"
     goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
 
     initial_obs = create_initial_observation(
@@ -1706,20 +1749,24 @@ def generate_persistent_trajectory(
 
     # Step 2: After RUN_TESTS, focus is set to bug location by env
     # Agent should call WRITE_FOCUS with the correct fix
-    # FIX: Use proper observation with step=1, not step=0 from single_step
-    # FIX (2026-01-23): Use eval-like test counts (1/2 from fast tests, not 7/11)
-    # With async_tests=True, the model sees 1/2 (or similar) after async completes.
-    # Must match eval distribution so model generalizes correctly.
+    # FIX (2026-01-24): Match eval fast test counts
+    # Eval uses run_fast_tests=True which runs only 2 tests: 1 passes, 1 fails (1/2)
+    # After fix verification, full tests run: all pass (tests_total/tests_total)
+    # BC training must use THESE exact counts to match eval distribution!
+    fast_tests_passing = 1  # Fast tests: 1/2 passing (one test fails)
+    fast_tests_total = 2
+
     post_discovery_obs = create_post_run_tests_observation(
         repo_name=repo.name,
         goal=goal,
         focus_text=single_step.focus_text,  # Focus on bug location
         focus_offset=single_step.focus_offset,
         file_path=single_step.focus_file,
-        tests_passing=1,  # FIX: Match eval env fast tests (1/2)
-        tests_total=2,    # FIX: Match eval env fast tests (1/2)
+        tests_passing=fast_tests_passing,  # FIX (2026-01-24): Fast test counts (1/2)
+        tests_total=fast_tests_total,       # FIX: Match eval fast tests
         step=1,  # CRITICAL: After RUN_TESTS, step=1
         bug_type=single_step.bug_type,  # FIX: Pass bug type for realistic pytest output
+        bug_line=bug.line_number,  # FIX (2026-01-24): Pass actual bug line
     )
     write_focus_action = single_step.correct_action.action_bytes
 
@@ -1727,28 +1774,45 @@ def generate_persistent_trajectory(
     # Create observation showing code context (post-fix)
     # The agent should call RUN_TESTS again to verify
     # FIX (2026-01-23): Pass file_path, offset, content to match eval env terminal format
+    # FIX (2026-01-24): Use fast test counts - same as step 1 (tests haven't been re-run yet)
+    # FIX (2026-01-24): Use FIXED focus text at bug location, NOT file start!
+    # The eval env keeps focus at the same location after WRITE_FOCUS, just with updated content.
+    # Previously we used original[:focus_length] (file start), causing a distribution mismatch.
+    # The model learned "file start → RUN_TESTS" but saw "bug location → ?" during eval.
     fix_content = COMBINED_VOCAB[single_step.correct_action.vocab_idx]
+    fix_offset = single_step.correct_action.offset
+    fix_length = single_step.correct_action.length
+
+    # Compute the fixed focus text by applying the fix to the original buggy focus text
+    buggy_focus = single_step.focus_text
+    fixed_focus = buggy_focus[:fix_offset] + fix_content + buggy_focus[fix_offset + fix_length:]
+
     post_fix_obs = create_post_fix_observation(
         repo_name=repo.name,
         goal=goal,  # Use consistent goal
-        focus_text=original[:focus_length],  # Now shows the fixed code
-        tests_passing=1,  # FIX: Same test count pattern (not verified yet)
-        tests_total=2,    # FIX: Match eval env
+        focus_text=fixed_focus,  # FIX: Use FIXED focus at bug location (matches eval env)
+        tests_passing=fast_tests_passing,  # FIX (2026-01-24): Same as step 1 (1/2)
+        tests_total=fast_tests_total,       # FIX: Fast test counts
         step=2,  # After WRITE_FOCUS, step=2
         file_path=single_step.focus_file,
         offset=single_step.correct_action.offset,
         content=fix_content,
+        length=fix_length,  # FIX (2026-01-24): Pass original length for terminal format
+        bug_type=single_step.bug_type,  # FIX (2026-01-24): Pass for realistic terminal
+        bug_line=bug.line_number,        # FIX (2026-01-24): Pass for realistic terminal
     )
     verify_tests_action = create_run_tests_action()
 
     # Step 4: After verification RUN_TESTS, tests pass
     # Agent should call COMPLETE_TASK
+    # FIX (2026-01-24): tests_passing == tests_total (ALL tests pass)
+    # FIX (2026-01-24): Use fixed focus text at bug location (same as step 3)
     post_verify_obs = create_post_verify_observation(
         repo_name=repo.name,
         goal=goal,  # Use consistent goal
-        focus_text=original[:focus_length],  # Fixed code
-        tests_passing=2,  # FIX: All tests pass (2/2)
-        tests_total=2,    # FIX: Match eval env
+        focus_text=fixed_focus,  # FIX: Use FIXED focus at bug location (matches eval env)
+        tests_passing=tests_total,  # FIX (2026-01-24): ALL tests pass (N/N)
+        tests_total=tests_total,    # FIX: Match eval distribution
         step=3,  # After verify RUN_TESTS, step=3
     )
     complete_task_action = create_complete_task_action()
@@ -1766,6 +1830,7 @@ def generate_persistent_trajectory(
         fix_description=single_step.fix_description,
         steps=steps,
         solved=True,
+        goal_text=full_goal_text,  # Phase 10: Full goal text for goal encoder
     )
 
 
@@ -1773,6 +1838,7 @@ def generate_multifile_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
     jitter: int = 0,
+    tests_total: int = 11,  # FIX (2026-01-24): Vary test counts
 ) -> Optional[PersistentTrajectory]:
     """
     Generate a 6-step trajectory for HARD multi-file bugs.
@@ -1787,6 +1853,7 @@ def generate_multifile_trajectory(
     Args:
         repo: Generated repo with multi-file bugs
         focus_length: Size of focus window
+        tests_total: Total number of tests in repo (for distribution coverage)
 
     Returns:
         PersistentTrajectory with 6 steps, or None if can't generate
@@ -1799,7 +1866,7 @@ def generate_multifile_trajectory(
     # Check if this is a multi-file bug
     if not bug.secondary_files:
         # Single-file bug - use regular 4-step trajectory
-        return generate_persistent_trajectory(repo, focus_length, jitter=jitter)
+        return generate_persistent_trajectory(repo, focus_length, jitter=jitter, tests_total=tests_total)
 
     # Get primary bug info
     primary_file = bug.file_path
@@ -1892,6 +1959,8 @@ def generate_multifile_trajectory(
         return generate_persistent_trajectory(repo, focus_length, jitter=jitter)
 
     # Build the goal string
+    # Phase 10: Store full goal text for goal encoder, truncated version for observation
+    full_goal_text = f"Fix the bugs and make tests pass. Hint: {repo.fix_description}"
     goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
 
     # Step 1: Initial observation - RUN_TESTS
@@ -1915,6 +1984,7 @@ def generate_multifile_trajectory(
         tests_total=3,  # More tests for HARD
         step=1,
         bug_type=single_step_primary.bug_type,
+        bug_line=bug.line_number,  # FIX (2026-01-24): Pass actual bug line
     )
     write_focus_action_1 = single_step_primary.correct_action.action_bytes
 
@@ -1988,6 +2058,7 @@ def generate_multifile_trajectory(
         fix_description=repo.fix_description,
         steps=steps,
         solved=True,
+        goal_text=full_goal_text,  # Phase 10: Full goal text for goal encoder
     )
 
 
@@ -2005,7 +2076,9 @@ def create_post_write_focus_observation(
     FIX (2026-01-23): Match eval env terminal format EXACTLY!
     Include truncated pytest output prefix to match eval env behavior.
     """
-    content_preview = content[:20] + "..." if len(content) > 20 else content
+    # FIX (2026-01-24): Eval env action_to_string ALWAYS adds "..." after content[:20]
+    # Match this format exactly: '{content[:20]}...' regardless of content length
+    content_preview = content[:20] + "..."
 
     # Prepend truncated pytest output to match eval env behavior
     pytest_prefix = (
@@ -2093,13 +2166,22 @@ def generate_persistent_demos(
         )
 
     trajectories = []
-    for repo in repos:
+    rng = random.Random(seed)
+
+    # FIX (2026-01-24): Vary test counts to match eval distribution
+    # Eval repos have tests like 8/11 and 12/13, so we sample from [8, 9, 10, 11, 12, 13]
+    test_count_options = [8, 9, 10, 11, 12, 13]
+
+    for i, repo in enumerate(repos):
+        # Vary test counts per trajectory for distribution coverage
+        tests_total = test_count_options[i % len(test_count_options)]
+
         # For HARD difficulty, try multi-file trajectory first
         # generate_multifile_trajectory() falls back to 4-step if not multi-file
         if difficulty == BugDifficulty.HARD:
-            traj = generate_multifile_trajectory(repo, jitter=jitter)
+            traj = generate_multifile_trajectory(repo, jitter=jitter, tests_total=tests_total)
         else:
-            traj = generate_persistent_trajectory(repo, jitter=jitter)
+            traj = generate_persistent_trajectory(repo, jitter=jitter, tests_total=tests_total)
 
         if traj is not None:
             trajectories.append(traj)
@@ -2174,6 +2256,9 @@ def create_sequential_bc_dataset(
     action_bytes = torch.zeros(num_traj, seq_len, ACTION_BYTES_V2, dtype=torch.long)
     masks = torch.zeros(num_traj, seq_len, dtype=torch.bool)
 
+    # Phase 10: Store full goal texts for goal encoder
+    goal_texts = []  # List of goal strings, one per trajectory
+
     num_run_tests = 0
     num_write_focus = 0
     num_complete_task = 0
@@ -2181,6 +2266,7 @@ def create_sequential_bc_dataset(
 
     # Add full trajectories (4-step for EASY, up to 6-step for HARD)
     for i, traj in enumerate(persistent_trajs):
+        goal_texts.append(traj.goal_text)
         for step_idx, (obs, action) in enumerate(traj.steps):
             if step_idx >= seq_len:
                 break
@@ -2209,6 +2295,7 @@ def create_sequential_bc_dataset(
         # In a 4-step loop: step 2 is RUN_TESTS (verify), step 3 is COMPLETE_TASK
         closer_run_tests_list = []  # Step 2: RUN_TESTS after fix
         closer_complete_task_list = []  # Step 3: COMPLETE_TASK
+        closer_goal_texts = []  # Phase 10: Goal texts for closer demos
         for traj in persistent_trajs:
             if len(traj.steps) >= 4:
                 # Step 2 (index 2): RUN_TESTS to verify fix
@@ -2217,6 +2304,7 @@ def create_sequential_bc_dataset(
                 obs_ct, action_ct = traj.steps[3]
                 closer_run_tests_list.append((obs_rt, action_rt))
                 closer_complete_task_list.append((obs_ct, action_ct))
+                closer_goal_texts.append(traj.goal_text)
 
         # Add 2-step closer demos (sample with replacement if needed)
         random.seed(seed + 9999)  # Different seed for closer sampling
@@ -2237,6 +2325,12 @@ def create_sequential_bc_dataset(
             action_bytes[traj_idx, 1] = action_ct
             masks[traj_idx, 1] = True
 
+            # Phase 10: Store goal text for closer demo
+            if closer_goal_texts:
+                goal_texts.append(closer_goal_texts[src_idx])
+            else:
+                goal_texts.append("")
+
             num_run_tests += 1  # Count the RUN_TESTS step
             num_complete_task += 1  # Count the COMPLETE_TASK step
 
@@ -2244,6 +2338,7 @@ def create_sequential_bc_dataset(
         "observations": observations,  # [N, seq_len, 512]
         "action_bytes": action_bytes,  # [N, seq_len, 64]
         "masks": masks,                # [N, seq_len]
+        "goal_texts": goal_texts,      # [N] - Phase 10: Full goal text per trajectory
         "num_trajectories": num_traj,
         "num_full_trajectories": num_full_traj,
         "num_closer_demos": num_closer_traj,

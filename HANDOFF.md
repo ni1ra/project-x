@@ -27,7 +27,7 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 
 # HANDOFF: WIRED-BRAIN (JARVIS)
 
-Generated: 2026-01-24
+Generated: 2026-01-24 (Updated after Phase 10 completion)
 
 ## 1. MISSION
 
@@ -48,16 +48,36 @@ BC Training accuracy: 100% TypeAcc, 100% VocabAcc (50 epochs)
 ### Latest Results (2026-01-24)
 | Difficulty | Solved Rate | Notes |
 |------------|-------------|-------|
-| EASY | **100%** | Heterogeneous brain fully working |
-| HARD | 36.7% | NAVIGATE bytes (5-24) not trained |
+| EASY | **100%** (100/100 tasks) | Terminal format fix + more training |
+| HARD | 70.4% improved, 0% solved | Model generalizes but HARD bugs untrained |
 
 ### Key Metrics
 - RUN_TESTS at step 0: 100%
-- Action sequence: RUN_TESTS → WRITE_FOCUS → RUN_TESTS → COMPLETE
-- BC accuracy: 94.0%
+- Action sequence: RUN_TESTS → WRITE_FOCUS → RUN_TESTS → COMPLETE_TASK (4 steps)
+- BC training: 200 epochs, 40 demos → 100% accuracy
 - Templates: 50/50 balanced (data_pipeline/rest_api)
+- Average writes per task: 1.0 (exactly correct)
 
 ## 3. CRITICAL FIXES (2026-01-24)
+
+### Terminal Format Mismatch Fix (Latest)
+
+**Problem**: BC training achieved 38.8% accuracy with 50 epochs / 20 demos. Model predicted `length=0` for WRITE_FOCUS instead of correct `length=1` or `length=2`.
+
+**Root Causes**:
+1. BC terminal format used `offset + len(content)` but eval used `offset + action.length`
+   - For data_pipeline: content='>' (1 char) but length=2 (replacing '>=')
+   - BC showed `WRITE_FOCUS[23:24]` but eval showed `WRITE_FOCUS[23:25]`
+2. BC showed `'>'` but eval showed `'>...'` (action_to_string always adds `...`)
+3. Training too short - only 50 epochs with 20 demos couldn't learn length byte (75% of samples have length=0)
+
+**Fix**:
+1. Added `length` parameter to `create_post_fix_observation()` in `expert_trajectories.py`
+2. Use `offset + length` in terminal format string
+3. Always add `...` suffix to content preview
+4. Train 200 epochs with 40 demos → 100% BC accuracy
+
+**Result**: 0% → **100%** solve rate on EASY difficulty (100/100 tasks)
 
 ### Phase 8: Heterogeneous Brain + Env Fix
 
@@ -258,4 +278,60 @@ but forgot the easier synthetic patterns. Next: find training approach for both.
 
 ---
 
-**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 IN PROGRESS (100% real repos achieved! Next: unified training for both synthetic AND real).**
+**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 100% on synthetic EASY. Phase 10 COMPLETE (Goal Encoder with 100% solve rate). Ready for Phase 11: Tool Diversity (git, npm, docker, etc.).**
+
+## 11. PHASE 10: NATURAL LANGUAGE INTERFACE
+
+### Infrastructure Status (2026-01-24)
+- ✅ `GoalEncoder` class implemented in `src/core/goal_encoder.py`
+- ✅ `RPJBrain` integration: `enable_goal_encoder` config flag
+- ✅ `encode_goal_batch()` utility for batch text encoding
+- ✅ Training script: `--enable-goal-encoder` flag added
+- ✅ BC demos: `goal_texts` field added to `PersistentTrajectory`
+- ✅ BC dataset: `create_sequential_bc_dataset` returns `goal_texts` list
+- ✅ Training loop: `pretrain_behavioral_cloning_sequential` passes `goal_bytes`
+
+### Training Command
+```bash
+PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
+    --mode v2 --difficulty easy --timesteps 0 \
+    --bc-epochs 200 --bc-demos 40 --bc-sequential \
+    --enable-goal-encoder \
+    --gpu-min-util 5 --v2-subprocess-heavy
+```
+
+### Files Modified (Phase 10)
+| File | Changes |
+|------|---------|
+| `scripts/train_jarvis_harness.py` | Added `--enable-goal-encoder`, `--goal-embed-dim`, `--max-goal-len` flags |
+| `src/harness/expert_trajectories.py` | Added `goal_text` field to `PersistentTrajectory`, `goal_texts` in dataset |
+| `src/core/rpj_brain.py` | `forward()` accepts `goal_bytes` and `goal_lengths` |
+| `src/core/goal_encoder.py` | `GoalEncoder` class, `encode_goal_batch()` utility |
+
+### Goal Encoder Architecture
+```
+GoalEncoder (~130K params, <5% overhead):
+  Byte Embedding (256 → 64)
+  BiGRU (64 → 256, 2 layers)
+  Projection (256 → 64)
+  Output: [B, 64] goal embedding
+```
+
+### Expected Behavior
+- Model conditions on goal embedding during forward pass
+- `phi_obs = phi_obs + goal_features` (additive conditioning)
+- Should learn to distinguish: "fix off-by-one" vs "fix operator" from NL text
+
+### Results (2026-01-24)
+- ✅ **BC Training**: 100% accuracy with goal encoder enabled
+- ✅ **Solve Rate**: 99-100% on EASY difficulty (100/100 with seed 42)
+- ✅ **Checkpoint**: `results/jarvis_harness_v2_0.pt` includes goal encoder weights (23 keys)
+- ✅ **Config**: Checkpoint contains `enable_goal_encoder: True`
+
+### Phase 10 Status: **COMPLETE**
+The goal encoder integrates seamlessly with the BC training pipeline. The model can process full natural language goal texts (up to 512 UTF-8 bytes) and condition actions on goal embeddings.
+
+### Future Work
+1. ⏳ Evaluate NL understanding: can model distinguish task types from goal text?
+2. ⏳ Compare solve rates: with vs without goal encoder
+3. ⏳ Test with diverse goal phrasings to verify NL generalization
