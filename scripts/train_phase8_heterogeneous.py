@@ -323,7 +323,9 @@ def train_bc_sequential(
     print(f"  Batch size: {batch_size} trajectories")
 
     # Generate dataset - KEEP TRAJECTORY STRUCTURE
-    seq_len = 4  # 4 steps for EASY: RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE
+    # EASY/MEDIUM: 4 steps (RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE)
+    # HARD: 6 steps (RUN_TESTS -> WRITE_FOCUS -> NAVIGATE -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE)
+    seq_len = 6 if difficulty == BugDifficulty.HARD else 4
     dataset = create_sequential_bc_dataset(
         num_tasks=num_tasks,
         difficulty=difficulty,
