@@ -1374,8 +1374,17 @@ def generate_task_batch(
         BugDifficulty.EASY, BugDifficulty.HARD
     ),
     seed: Optional[int] = None,
+    balance_templates: bool = True,
 ) -> List[GeneratedRepo]:
-    """Generate a batch of tasks for training."""
+    """Generate a batch of tasks for training.
+
+    Args:
+        num_tasks: Number of tasks to generate
+        difficulty_range: Tuple of (min, max) difficulty
+        seed: Random seed
+        balance_templates: If True, cycle through templates evenly to prevent
+                          imbalanced BC training. Default True.
+    """
     if seed is not None:
         random.seed(seed)
 
@@ -1388,15 +1397,23 @@ def generate_task_batch(
         if difficulty_range[0].value <= d.value <= difficulty_range[1].value
     ]
 
+    # Get template names for balanced generation
+    template_names = list(RepoGenerator.TEMPLATES.keys())
+
     for i in range(num_tasks):
         difficulty = random.choice(valid_difficulties)
-        # TRIVIAL curriculum: exactly 1 bug for single-action fixes
-        # EASY+: 1-2 bugs for multi-step debugging
-        if difficulty == BugDifficulty.TRIVIAL:
+        # TRIVIAL/EASY: exactly 1 bug for single-file fixes (model can only see one file)
+        # MEDIUM+: 1-2 bugs for multi-step debugging
+        if difficulty.value <= BugDifficulty.EASY.value:
             num_bugs = 1
         else:
             num_bugs = random.randint(1, 2)
+
+        # Balance templates by cycling through them (prevents BC training imbalance)
+        template_name = template_names[i % len(template_names)] if balance_templates else None
+
         repo = generator.generate(
+            template_name=template_name,
             difficulty=difficulty,
             num_bugs=num_bugs,
             multi_file=difficulty.value >= BugDifficulty.MEDIUM.value,

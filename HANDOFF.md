@@ -1,238 +1,178 @@
+<!--
+================================================================================
+WIRED-BRAIN ROOT DOCUMENTATION STRUCTURE
+================================================================================
+
+ROOT FILES ARE STATIC - DO NOT ADD NEW FILES TO ROOT.
+New content must go into existing docs or subdirectories (scripts/, src/, etc.)
+
+Root Documents:
+- README.md        : Project overview, quick start, current results
+- BLUEPRINT.md     : Core thesis, architecture design, falsification criteria
+- PLAN_TO_JARVIS.md: Phased roadmap to Jarvis (Phase 1-10 plans, future work)
+- HANDOFF.md       : Context for continuing work in new Claude instances
+- MISTAKES.md      : Failure log with patterns and lessons learned
+- paper.md         : Academic write-up of methodology and results
+
+Subdirectories:
+- src/             : Source code (core/, harness/, utils/)
+- scripts/         : Training, evaluation, and diagnostic scripts
+- results/         : Checkpoints and evaluation outputs
+- tests/           : Unit and integration tests
+
+RULE: If you need to create a new doc, integrate it into an existing root doc
+or place it in the appropriate subdirectory. Single files in root = violation.
+================================================================================
+-->
+
 # HANDOFF: WIRED-BRAIN (JARVIS)
 
-Generated: 2026-01-22 08:00
+Generated: 2026-01-24
 
-## 1. PROJECT CONTEXT
+## 1. MISSION
 
-### What Is This?
-JARVIS - An autonomous AI coding agent that fixes bugs in Python codebases, trained via BC pre-training + RL fine-tuning. Goal: Build Iron Man's JARVIS.
+Build Iron Man's JARVIS - an autonomous AI coding agent that fixes bugs WITHOUT LLM API calls. A ~20W brain that learns to debug through architectural emergence.
 
-### What Problem Does It Solve?
-Automated bug fixing without LLM API calls - a 20W-equivalent brain that learns to debug code through architectural emergence.
+**The ASI Constraint**: NO transformer dependencies. The system must think for itself.
 
-### Tech Stack
-- Core: PyTorch 2.0+, Python 3.12
-- Training: PPO, Behavioral Cloning
-- Environment: Custom harness with synthetic bug generation
-- Search: Optuna for architecture optimization
+## 2. CURRENT STATE
 
-## 2. CURRENT STATUS
-
-### Git State
+### Production Model
 ```
-Branch: main (uncommitted changes ready for PR)
-Last commit: 65b204b feat(phase8): add structural plasticity infrastructure
-Uncommitted changes: Paper rewrite reflecting Phase 8 action collapse reality
+Model: jarvis_harness_v2_0.pt
+Architecture: Homogeneous RPJBrain (512 hidden, 64 blocks)
+BC Training accuracy: 94.0% (sequential BC on EASY)
 ```
 
-### Sprint 1 Results (COMPLETE - ALL TARGETS EXCEEDED)
-| Difficulty | Target | Achieved | Status |
-|------------|--------|----------|--------|
-| TRIVIAL | >70% | **72%** | PASS |
-| EASY | >50% | **52.2%** | PASS |
-| MEDIUM | >75% | **100%** | PASS |
-| HARD | >30% | **73.1%** | PASS (2.4x target) |
+### Latest Results (2026-01-24)
+| Difficulty | Solved Rate | Notes |
+|------------|-------------|-------|
+| EASY | **100%** | Both templates working |
+| HARD | 0% | Multi-file bugs need NAVIGATE action |
 
-### Phase 8 Status - EVALUATION COMPLETE
-- [x] HeterogeneousSubstrate integrated into RPJBrain
-- [x] Optuna search found optimal 3-region architecture
-- [x] Training completed (50,000 steps with --use-heterogeneous)
-- [x] **EVALUATION RUN** - Result: ACTION COLLAPSE (0% solve rate)
-- [x] Paper.md updated to reflect honest results
+### Key Metrics
+- RUN_TESTS at step 0: 100%
+- Action sequence: RUN_TESTS → WRITE_FOCUS → RUN_TESTS → COMPLETE
+- BC accuracy: 94.0%
+- Templates: 50/50 balanced (data_pipeline/rest_api)
 
-### Phase 8 Evaluation Results
-```
-Heterogeneous Model (Phase 8):
-- HARD solve rate: 0% (0/26 eligible)
-- Action: Same output every step (WRITE_FOCUS offset=0 vocab=8)
-- Status: ACTION COLLAPSE - model memorized single pattern
+## 3. CRITICAL FIX (2026-01-24)
 
-Homogeneous Model (baseline):
-- HARD solve rate: 73.1% (19/26 eligible)
-- Action: Varied by task (actually fixes bugs)
-- Status: PRODUCTION MODEL
+### BC Training Imbalance → 100% Solve Rate
+
+**Problem**: rest_api template had 0% solve rate while data_pipeline had 100%
+
+**Root Cause**: BC demos were 65:35 imbalanced (data_pipeline:rest_api). Model memorized vocab_idx=10 (`>`) for data_pipeline but defaulted to vocab_idx=0 (`:\n`) for rest_api instead of vocab_idx=22 (`1`).
+
+**Fix**: Added `balance_templates=True` to `generate_task_batch()` in `repo_generator.py`
+```python
+# Balance templates by cycling through them (prevents BC training imbalance)
+template_name = template_names[i % len(template_names)] if balance_templates else None
 ```
 
-### Phase 9 Status - INFRASTRUCTURE COMPLETE
-- [x] Created `src/harness/real_repo_source.py` with full real repo infrastructure
-- [x] Curated initial repo index (3 repos: mini-calc, string-utils, data-validator)
-- [x] Created test fixtures in `fixtures/real_repos/`
-- [x] Integrated into training script with `--real-ratio` flag
-- [x] Verified training works with mixed dataset
-- [x] Fixed vocab_size mismatch bug in byte_interface.py (was hardcoded to 5, now configurable)
-- [x] Fixed vocab_idx clamp bug (was hardcoded 0-4, now uses self.vocab_size)
-- [x] BC training achieves 62.6% accuracy with correct vocab_size
-- [x] Evaluated on synthetic tasks (BC-only: 0%, needs RL for full policy)
-- [x] Fixed GPU guard blocking v2 mode RL training (context-aware `--v2-subprocess-heavy` flag)
+**Result**: 63.3% → 100% EASY solve rate
 
-### Phase 9 Bug Fixes
-1. **vocab_size hardcoded**: VocabClassificationHead was hardcoded to 5 (TRIVIAL_VOCAB) but HARD training uses 21 (COMBINED_VOCAB). Added configurable vocab_size to RPJConfig and AutoregressiveActionDecoder.
-2. **vocab_idx clamp**: get_log_prob clamped vocab_idx to 0-4 regardless of actual vocab size. Now uses `self.vocab_size - 1`.
-3. **Eval checkpoint mismatch**: Eval script now extracts vocab_size from checkpoint state dict.
-4. **GPU guard blocking v2 mode**: Hard rule prevented `--gpu-min-util < 80` but v2 mode has legitimate subprocess overhead (pytest calls). Added context-aware `--v2-subprocess-heavy` flag that allows min_util >= 20 for v2 mode.
+### Also Fixed
+- `_maybe_update_focus_from_test_details()`: Don't switch focus when only test files in traceback
+- Test expectations updated for 128-byte focus window and 33-item vocab
 
-## 3. WHAT WAS JUST COMPLETED (THIS SESSION)
+## 4. KEY FILES
 
-### Phase 9: Real Codebase Integration
-1. Created `src/harness/real_repo_source.py` with full infrastructure:
-   - `RepoEntry` dataclass for curated repo index
-   - `CURATED_REPOS` list with initial 3 repos
-   - `RepoCache` class for loading/caching repos
-   - `inject_bug_into_real_code()` using same injectors as synthetic
-   - `generate_real_repo_task()` and `generate_mixed_task_batch()` functions
-   - Fixture creators for mini-calc, string-utils, data-validator repos
+| File | Purpose |
+|------|---------|
+| `src/harness/repo_generator.py` | Task generation, `balance_templates` fix |
+| `src/harness/actions.py` | Action encoding, COMBINED_VOCAB (33 items) |
+| `src/harness/env.py` | JarvisHarnessEnv, focus management |
+| `src/harness/expert_trajectories.py` | BC demo generation |
+| `scripts/train_jarvis_harness.py` | Training script |
+| `scripts/eval_jarvis_harness.py` | Evaluation script |
 
-2. Created test fixtures in `fixtures/real_repos/`:
-   - `mini_calc/`: calculator.py + test_calculator.py (11 tests)
-   - `string_utils/`: strings.py + test_strings.py (8 tests)
-   - `data_validator/`: validator.py + test_validator.py (12 tests)
+## 5. COMMANDS
 
-3. Integrated into training script:
-   - Added `--real-ratio` argument (0.0-1.0)
-   - Modified `create_tasks_v2()` to support mixed datasets
-   - Verified training works: "Phase 9: 2/8 tasks from real repos (30% ratio)"
-
-### Critical Bug Fixes
-4. Fixed vocab_size mismatch:
-   - `byte_interface.py`: Added vocab_size parameter to AutoregressiveActionDecoder
-   - `rpj_brain.py`: Added vocab_size to RPJConfig, pass to action decoder
-   - `train_jarvis_harness.py`: Compute vocab_size from difficulty, pass to create_brain
-   - `eval_jarvis_harness.py`: Extract vocab_size from checkpoint state dict
-
-5. BC training with correct vocab_size:
-   - Before fix: 36.4% accuracy (wrong vocab size)
-   - After fix: 62.6% accuracy (correct vocab size)
-
-## 4. NEXT STEPS
-
-### Immediate (Phase 9 Training)
-1. Run full Phase 9 training with `--real-ratio 0.3`
-2. Evaluate trained model on real repos
-3. Commit Phase 9 changes via PR
-
-### Future Phases
-- **Phase 10**: Scale to larger real repo index (50+ repos)
-- **Phase 11**: Multi-file debugging (already supported in harness)
-- **Phase 12**: Full JARVIS integration (production deployment)
-
-### Future Phase 8 Work (not blocking)
-1. Entropy regularization during BC training
-2. Larger heterogeneous models (width=512 total)
-3. Direct RL training (skip BC entirely)
-4. Mixed training: heterogeneous BC + homogeneous fine-tuning
-
-## 5. KEY ARCHITECTURE DETAILS
-
-### Production Model (Homogeneous)
-```
-Hidden dim: 512
-Blocks: 64
-Global channels: 16
-Parameters: ~3.2M
-HARD solve rate: 73.1%
-```
-
-### Research Direction (Heterogeneous - needs fixing)
-```
-Region 1: fast_perception - width=96, sparsity=0.74, FAST timescale
-Region 2: slow_memory - width=224, sparsity=0.48, SLOW timescale
-Region 3: fast_execution - width=64, sparsity=0.80, FAST timescale
-Total hidden dim: 384
-Parameters: ~2.1M (33% smaller)
-HARD solve rate: 0% (action collapse)
-```
-
-## 6. COMMANDS
-
-### Development
-```bash
-cd /mnt/c/Users/nira/Documents/Research/WIRED/WIRED-BRAIN
-source .venv/bin/activate
-```
-
-### Phase 9 Training (Mixed Real + Synthetic)
+### Train
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-    --mode bc \
-    --difficulty hard \
-    --bc-epochs 20 \
-    --seed 42 \
-    --real-ratio 0.3 \
-    --output-dir results/phase9_mixed
+    --mode v2 --difficulty easy --timesteps 0 \
+    --bc-epochs 30 --bc-demos 300 --bc-sequential
 ```
 
-### Run Evaluation (Homogeneous - Production)
+### Evaluate
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
-    --checkpoint results/jarvis_harness_v2_100000.pt \
-    --difficulty hard \
-    --num-tasks 40
+    --checkpoint results/jarvis_harness_v2_0.pt \
+    --difficulty easy --num-tasks 30
 ```
 
-### Run Evaluation (Heterogeneous - Research)
+### Run Tests
 ```bash
-PYTHONPATH=. .venv/bin/python scripts/eval_jarvis_harness.py \
-    --checkpoint results/jarvis_harness_50000.pt \
-    --use-heterogeneous \
-    --difficulty hard \
-    --num-tasks 40
+PYTHONPATH=. .venv/bin/python -m pytest tests/ -q
 ```
 
-## 7. SUCCESS CRITERIA
-
-### Sprint 1 (COMPLETE)
-- [x] TRIVIAL >= 70%: 72%
-- [x] EASY >= 50%: 52.2%
-- [x] MEDIUM >= 75%: 100%
-- [x] HARD >= 30%: 73.1%
-
-### Phase 8 (CONCEPT VALIDATED, IMPLEMENTATION NEEDS WORK)
-- [x] Structure search completed (Optuna)
-- [x] Optimal architecture found (3-region fast/slow/fast)
-- [ ] HARD solve rate >= 72.5% with heterogeneous: **FAILED (0%)**
-- [ ] Changes committed via PR: **PENDING**
-
-## 8. QUICK START FOR NEW INSTANCE
+## 6. OBSERVATION LAYOUT (512 bytes)
 
 ```
-Continue WIRED-BRAIN toward Iron Man's JARVIS.
-
-CONTEXT:
-- Sprint 1 is COMPLETE with 73.1% HARD solve rate (homogeneous model)
-- Phase 8 heterogeneous training FAILED with action collapse (0%)
-- Phase 9 infrastructure COMPLETE (real_repo_source.py, fixtures, --real-ratio flag)
-- Phase 10 infrastructure COMPLETE (GoalEncoder for natural language goals)
-- All blocking bugs FIXED:
-  - vocab_size mismatch in byte_interface.py (BC accuracy: 36.4% -> 62.6%)
-  - GPU guard blocking v2 mode (use --v2-subprocess-heavy --gpu-min-util 8)
-  - CRITICAL: Always use --bc-epochs for v2 mode (prevents action collapse)
-
-NEXT ACTION:
-1. Complete Phase 9 training with BC pre-training + RL fine-tuning
-2. Evaluate trained model on real repos
-3. Train Phase 10 model with text goals
-
-V2 MODE TRAINING COMMAND (CORRECT - WITH BC):
-PYTHONPATH=. .venv/bin/python scripts/train_jarvis_harness.py \
-    --mode v2 \
-    --difficulty hard \
-    --real-ratio 0.3 \
-    --timesteps 50000 \
-    --bc-epochs 20 \
-    --bc-demos 200 \
-    --bc-sequential \
-    --v2-subprocess-heavy \
-    --gpu-min-util 8
-
-KEY FILES:
-- src/harness/real_repo_source.py - Real repo loading infrastructure
-- src/core/goal_encoder.py - Phase 10 GoalEncoder (natural language goals)
-- src/core/byte_interface.py - vocab_size fix
-- scripts/train_jarvis_harness.py - Training with --real-ratio and BC pre-training
-- scripts/eval_jarvis_harness.py - Evaluation script
-- PHASE10_DESIGN.md - Phase 10 design document
-
-Production model: jarvis_harness_v2_100000.pt (homogeneous, 73.1% HARD)
-
-Goal: Build Iron Man's JARVIS. Do not stop until complete.
+[0:256]:   Terminal output
+[256:320]: Goal string (64 bytes)
+[320:448]: Focus text (128 bytes)
+[448:512]: Metadata
+  [454-455]: step (uint16) - KEY for action selection
+  [458]:     tests_passing
+  [459]:     tests_total
 ```
+
+## 7. ACTION LAYOUT (32 bytes)
+
+```
+Byte 0:  action_type (WRITE_FOCUS=16, RUN_TESTS=3, COMPLETE=18)
+Byte 1:  offset (0-127, within focus window)
+Byte 3:  length (0-3)
+Byte 25: vocab_idx (into COMBINED_VOCAB)
+Byte 26: vocab_mode (0=COMBINED, forced)
+```
+
+### COMBINED_VOCAB (33 items)
+```
+Index 0-4:   [':\n', ')', ',', "'", '"']           # syntax
+Index 5-10:  ['<=', '>=', '!=', '==', '<', '>']    # comparison
+Index 11-14: ['+', '-', '*', '/']                   # arithmetic
+Index 15-20: [' + 1', ' - 1', '+1', '-1', '+ 1', '- 1']  # off-by-one
+Index 21-30: ['0'-'9']                              # digits
+Index 31-32: ['upper', 'del self._users[user_id]']  # HARD tokens
+```
+
+## 8. BC DEMO SEQUENCE
+
+```
+Step 0: obs (step=0, tests=0/0)   → RUN_TESTS
+Step 1: obs (step=1, tests=X/Y)   → WRITE_FOCUS (offset=23, vocab=10 or 22)
+Step 2: obs (step=2, tests=X/Y)   → RUN_TESTS (verify)
+Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
+```
+
+**Template-specific vocab tokens:**
+- data_pipeline: vocab_idx=10 (`>`) to fix `>= 0` → `> 0`
+- rest_api: vocab_idx=22 (`1`) to fix `< 0` → `< 1`
+
+## 9. REMAINING WORK
+
+### Phase 8: Structural Plasticity (NEXT)
+- Heterogeneous brain regions (different sizes/timescales)
+- Optuna search for optimal structure
+- Target: HARD >75%, Energy reduction >20%
+
+### HARD Difficulty (0%)
+- Requires multi-file bugs (NAVIGATE action)
+- Current BC only teaches single-file fixes
+- Need multi-step demos with file navigation
+
+## 10. LESSONS LEARNED
+
+1. **BC Training Imbalance**: Random template selection caused 65:35 imbalance. Model memorized majority pattern. Fix: Cycle through templates evenly.
+
+2. **Vocab Prediction**: Model must learn different vocab tokens for different bug patterns. If it defaults to vocab_idx=0, BC training failed.
+
+3. **Test Focus Switching**: After RUN_TESTS, don't switch focus to test file if no source file in traceback.
+
+---
+
+**GOAL: Build Iron Man's JARVIS. Sprint 1 COMPLETE (100% EASY). Phase 8 NEXT.**

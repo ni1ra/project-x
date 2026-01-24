@@ -89,6 +89,8 @@ class HarnessConfig:
                                       # Set False for multi-file navigation training
     auto_focus_from_stacktrace: bool = False  # If True, parse pytest stacktrace on reset and focus there
                                               # This is a middle ground: uses test output to find bug location
+    auto_focus_from_test_details: bool = True  # If True, update focus based on pytest traceback after RUN_TESTS
+                                               # Set False for BC training where focus should stay on bug file
 
     # Energy proxy coefficients (from BLUEPRINT)
     kappa_F: float = 1e-9             # J/FLOP
@@ -736,7 +738,10 @@ class JarvisHarnessEnv:
         expected = int(self.config.action_bytes)
         actual = int(action_bytes.shape[-1]) if action_bytes.dim() >= 1 else expected
 
-        if expected == ACTION_BYTES_V2 or actual >= ACTION_BYTES_V2:
+        # JARVIS FIX: Always use decode_action_v2 for 32-byte actions too
+        # decode_action_v2 supports vocab lookup in byte 25, which decode_action does not
+        # This is required for BC-trained models that use COMBINED_VOCAB
+        if expected >= 32 or actual >= 32:
             action = decode_action_v2(action_bytes)
         else:
             action = decode_action(action_bytes)
@@ -1120,7 +1125,8 @@ class JarvisHarnessEnv:
                     self.state.prev_tests_passing = int(result.tests_passing)
                     self.state.prev_tests_total = int(result.tests_total)
 
-                self._maybe_update_focus_from_test_details(result.details)
+                if self.config.auto_focus_from_test_details:
+                    self._maybe_update_focus_from_test_details(result.details)
                 return True, result.details
 
             # Async mode: avoid CPU subprocess stalls that starve the GPU.
@@ -1169,7 +1175,8 @@ class JarvisHarnessEnv:
                     self.state.prev_tests_passing = int(result.tests_passing)
                     self.state.prev_tests_total = int(result.tests_total)
 
-                self._maybe_update_focus_from_test_details(result.details)
+                if self.config.auto_focus_from_test_details:
+                    self._maybe_update_focus_from_test_details(result.details)
                 return True, (
                     "Submitted. Final tests: "
                     f"{result.tests_passing}/{result.tests_total}"
@@ -1332,7 +1339,8 @@ class JarvisHarnessEnv:
                 self.state.terminal_buffer = self.state.terminal_buffer[-2000:]
 
             # Update focus from traceback hints (makes focused edits learnable).
-            self._maybe_update_focus_from_test_details(details_trunc)
+            if self.config.auto_focus_from_test_details:
+                self._maybe_update_focus_from_test_details(details_trunc)
 
             # Training helper: if fast tests pass, opportunistically run the full suite so the
             # success bonus is reachable even if the agent hasn't learned SUBMIT yet.
@@ -1505,11 +1513,19 @@ class JarvisHarnessEnv:
 
         chosen: Optional[Tuple[str, int]] = None
         for rel, line in reversed(candidates):
-            if not rel.replace("\\", "/").startswith("tests/"):
+            # Skip test files: either in tests/ directory or named test_*.py
+            norm_path = rel.replace("\\", "/")
+            is_test_file = (
+                norm_path.startswith("tests/") or
+                norm_path.split("/")[-1].startswith("test_") or
+                norm_path.split("/")[-1] == "conftest.py"
+            )
+            if not is_test_file:
                 chosen = (rel, line)
                 break
         if chosen is None:
-            chosen = candidates[-1]
+            # Don't switch focus if only test files found in traceback
+            return
 
         self._set_focus_from_location(chosen[0], line=int(chosen[1]))
 
@@ -1655,7 +1671,10 @@ class JarvisHarnessEnv:
                 content = f.read()
 
             file_offset = max(0, min(int(offset), len(content)))
-            window = max(0, min(int(length), max(0, len(content) - file_offset)))
+            # For NAVIGATE, use default window size (128) if length is small (action space constraint)
+            # The action space constrains length to 0-3, but NAVIGATE needs a reasonable read window
+            effective_length = 128 if int(length) < 4 else int(length)
+            window = max(0, min(effective_length, max(0, len(content) - file_offset)))
             chunk = content[file_offset:file_offset + window]
 
             if self.state is not None:

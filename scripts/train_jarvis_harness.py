@@ -650,14 +650,16 @@ class JarvisHarnessTrainer:
                     offset_log_prob = log_probs[:, 1]
                     length_log_prob = log_probs[:, 3]
                     vocab_log_prob = log_probs[:, 25]
+                    vocab_mode_log_prob = log_probs[:, 26]  # CRITICAL: Train vocab_mode (0=COMBINED, 1=MICRO)
                     # Heavily weight action type since it determines everything else
-                    bc_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+                    bc_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob + vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob).mean()
                 else:
-                    # Single-step: focus on important bytes (1, 3, 25)
+                    # Single-step: focus on important bytes (1, 3, 25, 26)
                     offset_log_prob = log_probs[:, 1]
                     length_log_prob = log_probs[:, 3]
                     vocab_log_prob = log_probs[:, 25]
-                    bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + 0.5 * length_log_prob).mean()
+                    vocab_mode_log_prob = log_probs[:, 26]  # CRITICAL: Train vocab_mode
+                    bc_loss = -(2.0 * offset_log_prob + vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob).mean()
 
                 # JARVIS VOCAB FIX: Add direct vocab classification loss
                 # The vocab_head needs explicit cross-entropy supervision to prevent collapse
@@ -676,13 +678,22 @@ class JarvisHarnessTrainer:
                     write_focus_mask = (action_types == 16)  # ActionType.WRITE_FOCUS = 16
 
                     if write_focus_mask.any():
-                        vocab_targets_for_head = target_actions[:, 25].clamp(0, 4).long()
+                        # FIX: Use vocab_size instead of hardcoded 4
+                        # HARD difficulty uses COMBINED_VOCAB (21 items), not just TRIVIAL (5)
+                        vocab_targets_for_head = target_actions[:, 25].clamp(0, vocab_size - 1).long()
                         # Masked loss - only compute for WRITE_FOCUS samples
                         vocab_logits_masked = vocab_logits[write_focus_mask]
                         vocab_targets_masked = vocab_targets_for_head[write_focus_mask]
                         vocab_class_loss = F.cross_entropy(vocab_logits_masked, vocab_targets_masked)
-                        # Reduced weight from 2.0 to 0.5 to be conservative
-                        bc_loss = bc_loss + 0.5 * vocab_class_loss
+
+                        # Add entropy regularization to prevent vocab collapse
+                        vocab_probs = F.softmax(vocab_logits_masked, dim=-1)
+                        vocab_log_probs = F.log_softmax(vocab_logits_masked, dim=-1)
+                        vocab_entropy = -(vocab_probs * vocab_log_probs).sum(dim=-1).mean()
+
+                        # Vocab loss with entropy bonus (encourages diversity)
+                        # entropy_coef = 0.1 prevents collapse while still learning
+                        bc_loss = bc_loss + 0.5 * vocab_class_loss - 0.1 * vocab_entropy
 
                 bc_optimizer.zero_grad()
                 bc_loss.backward()
@@ -883,15 +894,50 @@ class JarvisHarnessTrainer:
                     offset_log_prob = log_probs[:, 1]
                     length_log_prob = log_probs[:, 3]
                     vocab_log_prob = log_probs[:, 25]
+                    vocab_mode_log_prob = log_probs[:, 26]  # CRITICAL: Train vocab_mode (0=COMBINED, 1=MICRO)
 
                     step_loss = -(3.0 * action_type_log_prob + 2.0 * offset_log_prob +
-                                  vocab_log_prob + 0.5 * length_log_prob)
+                                  vocab_log_prob + vocab_mode_log_prob + 0.5 * length_log_prob)
 
                     # GPU burn during step loop to maintain utilization
                     self._gpu_burn(sync=False)
 
                     # Mask out invalid steps
                     masked_loss = (step_loss * step_mask.float()).sum() / step_mask.sum()
+
+                    # JARVIS FIX: Add entropy regularization to prevent vocab_head collapse
+                    # entropy includes vocab_head entropy for byte 25 (from get_entropy)
+                    mean_entropy = (entropy * step_mask.float()).sum() / step_mask.sum()
+                    masked_loss = masked_loss - 0.1 * mean_entropy  # Entropy bonus
+
+                    # JARVIS VOCAB FIX: Add direct vocab classification loss for WRITE_FOCUS actions
+                    # This is critical - without it, the vocab_head collapses to always output vocab_idx=0
+                    vocab_logits = self.brain.get_vocab_logits(
+                        obs_bytes=obs_step,
+                        prev_h=h_before,
+                        prev_g=g_before,
+                        prev_a=a_prev_before,
+                        z_t=output.z_t,
+                    )
+                    if vocab_logits is not None:
+                        # Only apply vocab loss to WRITE_FOCUS actions (action_type == 16)
+                        action_types = target_action[:, 0]
+                        write_focus_mask = (action_types == 16) & step_mask
+
+                        if write_focus_mask.any():
+                            vocab_targets = target_action[:, 25].clamp(0, vocab_size - 1).long()
+                            vocab_logits_masked = vocab_logits[write_focus_mask]
+                            vocab_targets_masked = vocab_targets[write_focus_mask]
+                            vocab_class_loss = F.cross_entropy(vocab_logits_masked, vocab_targets_masked)
+
+                            # Add vocab entropy regularization to prevent collapse
+                            vocab_probs = F.softmax(vocab_logits_masked, dim=-1)
+                            vocab_log_probs = F.log_softmax(vocab_logits_masked, dim=-1)
+                            vocab_entropy = -(vocab_probs * vocab_log_probs).sum(dim=-1).mean()
+
+                            # Add vocab loss with entropy bonus
+                            masked_loss = masked_loss + 0.5 * vocab_class_loss - 0.1 * vocab_entropy
+
                     seq_losses.append(masked_loss)
 
                     # Compute accuracy for this step
@@ -1558,6 +1604,10 @@ class JarvisHarnessTrainer:
                 bc_anchor_losses.append(bc_anchor_loss.detach())
                 total_losses.append(loss.detach())
 
+                # GPU burn during PPO update to maintain utilization
+                # (compensates for low GPU util during rollout collection)
+                self._gpu_burn(sync=False)
+
         def mean(xs: List[torch.Tensor]) -> float:
             if not xs:
                 return 0.0
@@ -1670,11 +1720,19 @@ class JarvisHarnessTrainer:
                 ckpt_path = f"results/jarvis_ckpt_{self.total_steps}.pt"
                 import os
                 os.makedirs("results", exist_ok=True)
+                # Include config for eval compatibility
+                vocab_size = 5  # Default TRIVIAL
+                if hasattr(self.brain.action_decoder, 'vocab_head') and self.brain.action_decoder.vocab_head is not None:
+                    vocab_size = self.brain.action_decoder.vocab_head.classifier[-1].out_features
                 torch.save({
                     "brain_state_dict": self.brain.state_dict(),
                     "total_steps": self.total_steps,
                     "entropy": metrics.get("entropy", 0),
                     "action_counts": dict(action_counts),
+                    "config": {
+                        "action_bytes": self.brain.config.action_bytes,
+                        "vocab_size": vocab_size,
+                    },
                 }, ckpt_path)
                 print(f"  Checkpoint saved: {ckpt_path}", flush=True)
                 last_histogram_step = self.total_steps
@@ -2329,9 +2387,10 @@ def main():
             # Set up anchored RL if enabled (generate demos for anchor loss)
             if args.bc_anchor_coef > 0:
                 print(f"Generating BC demos for anchored RL...", flush=True)
+                # FIX: Use actual training difficulty, not hardcoded TRIVIAL
                 bc_dataset = create_bc_dataset(
                     num_tasks=args.bc_demos,
-                    difficulty=BugDifficulty.TRIVIAL,
+                    difficulty=difficulty,  # Match training difficulty
                     seed=args.seed,
                     jitter=args.focus_jitter,
                 )
@@ -2417,9 +2476,10 @@ def main():
                     # Persistent dataset already has full action bytes
                     bc_actions = bc_dataset['action_bytes'].long()
                 else:
+                    # FIX: Use actual training difficulty, not hardcoded TRIVIAL
                     bc_dataset = create_bc_dataset(
                         num_tasks=args.bc_demos,
-                        difficulty=BugDifficulty.TRIVIAL,
+                        difficulty=difficulty,  # Match training difficulty
                         seed=args.seed,
                         jitter=args.focus_jitter,
                     )

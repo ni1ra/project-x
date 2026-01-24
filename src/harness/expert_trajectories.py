@@ -1011,8 +1011,10 @@ def create_initial_observation(
         observation: [OBS_TOTAL_BYTES] tensor
     """
     jarvis_obs = JarvisObservation(
-        # Terminal: empty (haven't run any commands yet)
-        terminal_output="$ ",
+        # Terminal: match eval env format exactly
+        # The eval env (with run_tests_on_reset=False) initializes terminal_buffer to:
+        # "Task: {desc}\nRepo ready at {path}\nInitial tests: (skipped)\n"
+        terminal_output=f"Task: {goal[:60]}\nRepo ready.\nInitial tests: (skipped)\n",
         # Goal: task description
         goal=f"{goal[:60]}",
         # Focus text: empty or minimal (don't know where bug is yet)
@@ -1068,14 +1070,18 @@ def generate_multistep_trajectory(
     if single_step is None:
         return None
 
-    # Step 1: Initial observation (focus not set, tests not run yet)
+    # Use EXACT same goal format as eval env
+    goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
+
+    # Step 1: Initial observation (tests not run yet)
     # Agent should call RUN_TESTS to discover where the bug is
+    # FIX: Include focus_text to match eval env behavior (auto_focus_target)
     initial_obs = create_initial_observation(
         repo_name=repo.name,
-        goal=f"Fix bug: {repo.fix_description[:50]}",
-        focus_text="",  # Empty - haven't navigated yet
+        goal=goal,
+        focus_text=buggy_content[:256],  # Match eval env: focus_text is set from start
         tests_passing=0,
-        tests_total=1,
+        tests_total=0,  # FIX: Match eval env when run_tests_on_reset=False
     )
     run_tests_action = create_run_tests_action()
 
@@ -1201,40 +1207,132 @@ def create_complete_task_action() -> torch.Tensor:
     return action_bytes
 
 
+def create_post_run_tests_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    focus_offset: int,
+    file_path: str,
+    tests_passing: int,
+    tests_total: int,
+    step: int = 1,
+) -> torch.Tensor:
+    """
+    Create an observation for AFTER RUN_TESTS is called.
+
+    This simulates what the eval env shows after running tests:
+    - Terminal shows test results (failures with stacktrace)
+    - Focus is set to bug location
+    - step is incremented
+
+    The agent should emit WRITE_FOCUS in this state.
+    """
+    # Simulate test failure output (what eval env would show)
+    failed = tests_total - tests_passing
+    terminal = (
+        f"Task: {goal[:60]}\nRepo ready.\nInitial tests: (skipped)\n"
+        f"[Step {step - 1}] RUN_TESTS\n"
+        f"[Tests completed: fast] {tests_passing}/{tests_total} passing\n"
+        f"FAILED - {failed} tests failed\n"
+        f"[Focus] {file_path}\n"
+    )
+    jarvis_obs = JarvisObservation(
+        terminal_output=terminal,
+        goal=f"{goal[:60]}",
+        focus_text=focus_text[:256] if focus_text else "",
+        focus_preview=focus_text[:32] if focus_text else "",
+        focus_offset=focus_offset,
+        focus_length=len(focus_text) if focus_text else 0,
+        focus_file_hash=file_path.encode('utf-8')[:16] if file_path else repo_name.encode('utf-8')[:16],
+        energy_remaining=0.98,  # Slightly used after 1 action
+        time_remaining=0.95,
+        actions_remaining=99,  # 1 action taken
+        step=step,  # step=1 after first action
+        last_reward=-0.1,  # Tests failed
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+    )
+    return encode_observation(jarvis_obs)
+
+
 def create_post_fix_observation(
     repo_name: str,
     goal: str,
     focus_text: str,
     tests_passing: int,
     tests_total: int,
+    step: int = 2,
 ) -> torch.Tensor:
     """
-    Create an observation for after the fix is applied and tests pass.
+    Create an observation for after WRITE_FOCUS is applied (before verify RUN_TESTS).
 
     This simulates the state after:
-    1. WRITE_FOCUS applied the fix
-    2. RUN_TESTS was called and tests pass
+    1. RUN_TESTS (step 0) - discovered bug
+    2. WRITE_FOCUS (step 1) - applied fix
 
-    The agent should emit COMPLETE_TASK in this state.
+    The agent should emit RUN_TESTS in this state to verify.
     """
+    terminal = (
+        f"Task: {goal[:60]}\nRepo ready.\n"
+        f"[Step 1] WRITE_FOCUS\n"
+        f"Write OK: Syntax OK\n"
+    )
     jarvis_obs = JarvisObservation(
-        # Terminal: show tests passing
-        terminal_output=f"$ pytest\n{tests_passing}/{tests_total} tests passed\nOK",
-        # Goal: task description
+        terminal_output=terminal,
         goal=f"{goal[:60]}",
-        # Focus text: the fixed code
         focus_text=focus_text[:256] if focus_text else "",
         focus_preview=focus_text[:32] if focus_text else "",
         focus_offset=0,
         focus_length=len(focus_text) if focus_text else 0,
-        # File hash for identification
         focus_file_hash=repo_name.encode('utf-8')[:16],
-        # Default values
-        energy_remaining=0.9,  # Some energy used
+        energy_remaining=0.95,
+        time_remaining=0.9,
+        actions_remaining=98,  # 2 actions taken
+        step=step,
+        last_reward=0.5,  # Small reward for valid write
+        tests_passing=tests_passing,
+        tests_total=tests_total,
+    )
+    return encode_observation(jarvis_obs)
+
+
+def create_post_verify_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    tests_passing: int,
+    tests_total: int,
+    step: int = 3,
+) -> torch.Tensor:
+    """
+    Create an observation for after verification RUN_TESTS passes.
+
+    This simulates the state after:
+    1. RUN_TESTS (step 0) - discovered bug
+    2. WRITE_FOCUS (step 1) - applied fix
+    3. RUN_TESTS (step 2) - verified fix works
+
+    The agent should emit COMPLETE_TASK in this state.
+    """
+    terminal = (
+        f"Task: {goal[:60]}\nRepo ready.\n"
+        f"[Step 2] RUN_TESTS\n"
+        f"[Tests completed: fast] {tests_passing}/{tests_total} passing\n"
+        f"ALL PASSED\n"
+    )
+    jarvis_obs = JarvisObservation(
+        terminal_output=terminal,
+        goal=f"{goal[:60]}",
+        focus_text=focus_text[:256] if focus_text else "",
+        focus_preview=focus_text[:32] if focus_text else "",
+        focus_offset=0,
+        focus_length=len(focus_text) if focus_text else 0,
+        focus_file_hash=repo_name.encode('utf-8')[:16],
+        energy_remaining=0.9,
         time_remaining=0.8,
-        actions_remaining=97,  # 3 actions taken (RUN_TESTS, WRITE_FOCUS, RUN_TESTS)
-        step=3,
-        last_reward=10.0,  # Reward from fixing
+        actions_remaining=97,  # 3 actions taken
+        step=step,
+        last_reward=10.0,  # Tests passed!
         tests_passing=tests_passing,
         tests_total=tests_total,
     )
@@ -1301,18 +1399,35 @@ def generate_persistent_trajectory(
 
     # Step 1: Initial observation (tests not run yet)
     # Agent should call RUN_TESTS to discover where the bug is
+    # FIX: Include focus_text to match eval env behavior
+    # The eval env sets focus_text from the start (auto_focus_target)
+    # Model must learn: tests_passing==0 → RUN_TESTS (not empty focus_text → RUN_TESTS)
+    # Use EXACT same goal format as eval env
+    # Eval uses: f"Fix the bugs and make tests pass. Hint: {repo.fix_description}"
+    goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
+
     initial_obs = create_initial_observation(
         repo_name=repo.name,
-        goal=f"Fix bug: {repo.fix_description[:50]}",
-        focus_text="",  # Empty - haven't navigated yet
+        goal=goal,
+        focus_text=buggy_content[:256],  # Match eval env: focus_text is set from start
         tests_passing=0,
-        tests_total=1,
+        tests_total=0,  # FIX: Match eval env when run_tests_on_reset=False
     )
     run_tests_action = create_run_tests_action()
 
     # Step 2: After RUN_TESTS, focus is set to bug location by env
     # Agent should call WRITE_FOCUS with the correct fix
-    post_discovery_obs = single_step.observation
+    # FIX: Use proper observation with step=1, not step=0 from single_step
+    post_discovery_obs = create_post_run_tests_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=single_step.focus_text,  # Focus on bug location
+        focus_offset=single_step.focus_offset,
+        file_path=single_step.focus_file,
+        tests_passing=7,  # Some tests pass, but not all
+        tests_total=11,
+        step=1,  # CRITICAL: After RUN_TESTS, step=1
+    )
     write_focus_action = single_step.correct_action.action_bytes
 
     # Step 3: After WRITE_FOCUS, run tests again to verify
@@ -1320,21 +1435,23 @@ def generate_persistent_trajectory(
     # The agent should call RUN_TESTS again to verify
     post_fix_obs = create_post_fix_observation(
         repo_name=repo.name,
-        goal=f"Fix bug: {repo.fix_description[:50]}",
+        goal=goal,  # Use consistent goal
         focus_text=original[:focus_length],  # Now shows the fixed code
-        tests_passing=0,  # Haven't run tests yet after fix
-        tests_total=1,
+        tests_passing=7,  # Same as before (haven't run tests yet)
+        tests_total=11,
+        step=2,  # After WRITE_FOCUS, step=2
     )
     verify_tests_action = create_run_tests_action()
 
     # Step 4: After verification RUN_TESTS, tests pass
     # Agent should call COMPLETE_TASK
-    post_verify_obs = create_post_fix_observation(
+    post_verify_obs = create_post_verify_observation(
         repo_name=repo.name,
-        goal=f"Fix bug: {repo.fix_description[:50]}",
+        goal=goal,  # Use consistent goal
         focus_text=original[:focus_length],  # Fixed code
-        tests_passing=1,  # Tests pass now
-        tests_total=1,
+        tests_passing=11,  # All tests pass now
+        tests_total=11,
+        step=3,  # After verify RUN_TESTS, step=3
     )
     complete_task_action = create_complete_task_action()
 
