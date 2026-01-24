@@ -137,7 +137,7 @@ Byte 25: vocab_idx (into COMBINED_VOCAB)
 Byte 26: vocab_mode (0=COMBINED, forced)
 ```
 
-### COMBINED_VOCAB (64 items)
+### COMBINED_VOCAB (80 items)
 ```
 Index 0-4:   [':\n', ')', ',', "'", '"']           # TRIVIAL_VOCAB (syntax)
 Index 5-10:  ['<=', '>=', '!=', '==', '<', '>']    # comparison
@@ -145,7 +145,8 @@ Index 11-14: ['+', '-', '*', '/']                   # arithmetic
 Index 15-20: [' + 1', ' - 1', '+1', '-1', '+ 1', '- 1']  # off-by-one
 Index 21-30: ['0'-'9']                              # digits
 Index 31-32: ['upper', 'del self._users[user_id]']  # HARD tokens
-Index 33-63: ['return', 'def', 'class', 'if', ...]  # REAL_REPO_VOCAB (Python keywords)
+Index 33-63: ['return', 'def', 'class', 'if', ...]  # Python keywords (31)
+Index 64-79: ['print', 'len', 'int', 'str', ...]   # Python builtins (16)
 ```
 
 ## 8. BC DEMO SEQUENCE
@@ -178,24 +179,30 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 - ✅ BC demos generate correct pytest output for real repos
 - ✅ Step amplification ported to main RPJBrain (`enable_step_amplification=True`)
 - ✅ 100% synthetic EASY with step amplification
-- ✅ COMBINED_VOCAB expanded to 64 items (added REAL_REPO_VOCAB with Python keywords)
+- ✅ COMBINED_VOCAB expanded to 80 items (31 keywords + 16 builtins)
+- ✅ Typo fix support: `compute_correct_action_for_typo()` uses COMBINED_VOCAB
+- ✅ Action length range expanded from 0-3 to 0-15 for multi-char typos
 - ⚠️ Need to generate BC demos for real repo bug patterns
 - ⚠️ Need to train on mixed synthetic+real data
 
 **Vocab Expansion (2026-01-24)**:
-- Added `REAL_REPO_VOCAB` with 31 Python keywords: `return`, `def`, `class`, `if`, `elif`, `else`, `for`, `while`, `try`, `except`, `finally`, `with`, `import`, `from`, `True`, `False`, `None`, `self`, `pass`, `in`, `not`, `and`, `or`, `is`, `as`, `raise`, `assert`, `yield`, `break`, `continue`, `lambda`
-- Updated `get_vocab_idx_for_fix()` to search full COMBINED_VOCAB
-- Default `vocab_size` in RPJConfig changed from 5 to 64
+- COMBINED_VOCAB = TRIVIAL (5) + EASY (28) + REAL_REPO (47) = 80 items
+- REAL_REPO_VOCAB includes:
+  - 31 Python keywords: `return`, `def`, `class`, `if`, `elif`, `else`, `for`, `while`, `try`, `except`, `finally`, `with`, `import`, `from`, `True`, `False`, `None`, `self`, `pass`, `in`, `not`, `and`, `or`, `is`, `as`, `raise`, `assert`, `yield`, `break`, `continue`, `lambda`
+  - 16 Python builtins: `print`, `len`, `int`, `str`, `list`, `dict`, `range`, `type`, `open`, `bool`, `float`, `tuple`, `set`, `enumerate`, `zip`, `map`
+- 22 same-length typo pairs supported (e.g., `retrun`→`return`, `pritn`→`print`)
+- Default `vocab_size` in RPJConfig changed from 64 to 80
 
 ### Phase 9 Results
 | Training Data | Eval on Synthetic | Eval on Real Repos |
 |--------------|-------------------|-------------------|
-| 100% synthetic | **100%** | 0% (not yet trained on keywords) |
+| 100% synthetic | **100%** | 0% (typo support ready, needs training) |
 
 ### Next Steps for Real Repos
-1. ✅ ~~Expand COMBINED_VOCAB~~ (DONE - 64 items with Python keywords)
-2. **Generate BC demos for real repo bug patterns** (typos like `retrun` → `return`)
-3. **Train on mixed synthetic+real data** with expanded vocab
+1. ✅ ~~Expand COMBINED_VOCAB~~ (DONE - 80 items with keywords + builtins)
+2. ✅ ~~Fix typo action generation~~ (DONE - uses COMBINED_VOCAB, expanded length)
+3. **Generate BC demos for real repo bug patterns** (typos like `retrun` → `return`)
+4. **Train on mixed synthetic+real data** with expanded vocab
 
 ## 10. LESSONS LEARNED
 
@@ -213,7 +220,11 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 
 7. **Step Amplification is Critical**: The step amplification fix from Phase 8 (`amplify_step_signal()`) is now ported to RPJBrain. Without it, models RUN_TESTS-spam because they can't distinguish steps 0-3.
 
-8. **Vocab Mismatch Between Training and Real Repos**: The model's vocabulary (COMBINED_VOCAB) was designed for synthetic bugs (comparison operators, off-by-one errors). Real repos have different bug patterns (typos like `retrun`). **Solution**: Expanded COMBINED_VOCAB from 33 to 64 items by adding REAL_REPO_VOCAB with 31 Python keywords.
+8. **Vocab Mismatch Between Training and Real Repos**: The model's vocabulary (COMBINED_VOCAB) was designed for synthetic bugs (comparison operators, off-by-one errors). Real repos have different bug patterns (typos like `retrun`). **Solution**: Expanded COMBINED_VOCAB from 33 to 80 items by adding REAL_REPO_VOCAB with 31 Python keywords + 16 builtins.
+
+9. **Action Length Constraint**: Original decoder used `length % 4` (0-3 range) which was too small for typo fixes (e.g., `retrun` is 6 chars). **Solution**: Expanded to `length % 16` (0-15 range) to support multi-character replacements.
+
+10. **Same-Length Typos Only**: Different-length typo pairs (e.g., `Nonee`→`None`) require more complex edits. For simplicity, only support same-length typos where delete + insert works cleanly.
 
 ---
 
