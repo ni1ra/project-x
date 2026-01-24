@@ -182,8 +182,10 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 - ✅ COMBINED_VOCAB expanded to 80 items (31 keywords + 16 builtins)
 - ✅ Typo fix support: `compute_correct_action_for_typo()` uses COMBINED_VOCAB
 - ✅ Action length range expanded from 0-3 to 0-15 for multi-char typos
-- ⚠️ Need to generate BC demos for real repo bug patterns
-- ⚠️ Need to train on mixed synthetic+real data
+- ✅ BC demos support real repos via `--real-ratio` (2026-01-24)
+- ✅ Focus jitter support via `--focus-jitter` for offset diversity (2026-01-24)
+- ✅ **100% solve rate on REAL REPOS** when trained on 50% mixed data!
+- ⚠️ Synthetic templates break when trained on mixed data (0% rest_api)
 
 **Vocab Expansion (2026-01-24)**:
 - COMBINED_VOCAB = TRIVIAL (5) + EASY (28) + REAL_REPO (47) = 80 items
@@ -197,6 +199,7 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 | Training Data | Eval on Synthetic | Eval on Real Repos |
 |--------------|-------------------|-------------------|
 | 100% synthetic | **100%** | 0% (model introduces syntax errors) |
+| 50% mixed + jitter | 0% (writes `1or`) | **100%** (6/6 real repos!) |
 
 **Key Fix (2026-01-24):** Removed `inject_typo_keyword` from real repo EASY injectors.
 - Typo bugs like `retrun` cause Python syntax errors at import time
@@ -204,15 +207,26 @@ Step 3: obs (step=3, tests=Y/Y)   → COMPLETE_TASK
 - Real repos now use only logic bugs (`inject_wrong_operator`, `inject_off_by_one`)
 - Baselines now correct: 7/8, 9/11, 11/12 instead of 0/1
 
-**Current State:** Model trained on synthetic data doesn't generalize to real repos.
-The model makes edits that work for synthetic templates but introduce syntax errors in real code.
-Need to retrain on mixed synthetic+real data.
+**Jitter Fix (2026-01-24):** Added `--focus-jitter` to randomize bug offset in focus window.
+- Synthetic bugs always at offset=23; real bugs at offsets 9, 14, 19
+- Model memorized offset=23, failed on real repos with different offsets
+- Jitter makes offset vary ±16, forcing model to find bug dynamically
+
+**Real Ratio Fix (2026-01-24):** Added `--real-ratio` to BC demo generation.
+- Previously `--real-ratio` only affected eval tasks, not BC training demos
+- Now BC demos include real repos, teaching model real bug patterns
+- Model learns vocab=5 (`<=`) and vocab=8 (`==`) for real bugs
+
+**Current State:** Model achieves **100% on real repos** but breaks synthetic templates.
+This is expected - the model learned the harder task (real repos with variable offsets)
+but forgot the easier synthetic patterns. Next: find training approach for both.
 
 ### Next Steps for Real Repos
 1. ✅ ~~Expand COMBINED_VOCAB~~ (DONE - 80 items with keywords + builtins)
 2. ✅ ~~Fix typo action generation~~ (DONE - uses COMBINED_VOCAB, expanded length)
-3. **Generate BC demos for real repo bug patterns** (typos like `retrun` → `return`)
-4. **Train on mixed synthetic+real data** with expanded vocab
+3. ✅ ~~Generate BC demos for real repo bug patterns~~ (DONE via --real-ratio)
+4. ✅ ~~Train on mixed synthetic+real data~~ (DONE - 100% on real repos!)
+5. **Unify training approach** to work on both synthetic AND real repos
 
 ## 10. LESSONS LEARNED
 
@@ -236,6 +250,12 @@ Need to retrain on mixed synthetic+real data.
 
 10. **Same-Length Typos Only**: Different-length typo pairs (e.g., `Nonee`→`None`) require more complex edits. For simplicity, only support same-length typos where delete + insert works cleanly.
 
+11. **Offset Memorization**: Synthetic templates always have bugs at offset=23 in the focus window. Model memorizes this fixed offset and fails on real repos where bugs are at offset 9, 14, 19, etc. **Solution**: Use `--focus-jitter 16` to randomize offset ±16 during training.
+
+12. **BC Demo Data Source Matters**: The `--real-ratio` flag was only affecting eval task generation, not BC demo generation. BC demos were always 100% synthetic. **Solution**: Propagate `real_ratio` through `create_sequential_bc_dataset` → `generate_persistent_demos` → `generate_mixed_task_batch`.
+
+13. **Synthetic vs Real Trade-off**: Training on 50% mixed data achieves 100% on real repos but 0% on synthetic. Training on 100% synthetic achieves 100% on synthetic but 0% on real. The model can't generalize across both due to different offset/vocab patterns. **Next**: Unified training approach needed.
+
 ---
 
-**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 IN PROGRESS (vocab expanded, need BC demos for real repo patterns).**
+**GOAL: Build Iron Man's JARVIS. Phase 8 COMPLETE (100% EASY). Phase 9 IN PROGRESS (100% real repos achieved! Next: unified training for both synthetic AND real).**
