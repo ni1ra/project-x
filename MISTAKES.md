@@ -36,7 +36,7 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 
 | Pattern | Count | Severity | Core Lesson |
 |---------|-------|----------|-------------|
-| Train/Eval Mismatch | 10 | L100 | BC demos MUST match eval env exactly |
+| Train/Eval Mismatch | 11 | L110 | BC demos MUST match eval env exactly |
 | Protocol Violations | 9 | L90 | FULLAUTO skills are mandatory, not optional |
 | Data/Distribution Mismatch | 7 | L70 | Verify data distributions before training |
 | GPU/Training Infra | 5 | L50 | GPU busy ≠ training works; verify output |
@@ -46,22 +46,25 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 
 ## Critical Patterns (Detailed)
 
-### 1. Train/Eval Mismatch [L100] - Count: 10
+### 1. Train/Eval Mismatch [L110] - Count: 11
 
 **Pattern:** Training observations/actions differ from eval, model learns wrong associations.
 
-**Recent Instance (2026-01-23):**
-- BC demos had different terminal format after WRITE_FOCUS than eval env
-- Training: `pytest_prefix + "Syntax OK"`, Eval: just `"Syntax OK"`
-- Result: 0% WRITE_FOCUS in eval (model learned wrong terminal pattern)
-- Fix: Removed pytest_prefix from create_post_fix_observation()
+**Recent Instance (2026-01-24):**
+- BC terminal used `offset + len(content)` but eval used `offset + action.length`
+- For data_pipeline: content='>' (1 char) but length=2 (replacing '>=')
+- BC showed `WRITE_FOCUS[23:24]` but eval showed `WRITE_FOCUS[23:25]`
+- Also: BC showed `'>'` but eval showed `'>...'` (action_to_string always adds `...`)
+- Result: Model predicted length=0 instead of correct length, fix didn't apply properly
+- Fix: Added `length` param to `create_post_fix_observation()`, always add `...` suffix
 
 **Variants:**
 - Empty focus in BC, filled focus in eval (Count: 1)
 - Single-step training, multi-step eval (Count: 2)
 - Forced actions create different h_t than natural actions (Count: 2)
-- Terminal format mismatch (Count: 3)
+- Terminal format mismatch (Count: 4) ← INCREMENTED
 - Loss function omitting critical bytes (Count: 1)
+- Action string format mismatch (Count: 1) ← NEW
 
 **Rule:** `assert (bc_obs == eval_obs).all()` before training
 

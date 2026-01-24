@@ -837,6 +837,7 @@ class JarvisHarnessTrainer:
         seq_len: int = 4,
         jitter: int = 0,
         real_ratio: float = 0.0,
+        enable_goal_encoder: bool = False,  # Phase 10: Natural language interface
     ) -> Dict[str, Any]:
         """
         Sequential BC pre-training for RNNs.
@@ -857,6 +858,9 @@ class JarvisHarnessTrainer:
             bc_lr: Learning rate
             difficulty: Bug difficulty level
             seq_len: Sequence length per trajectory (default 4)
+            jitter: Focus offset jitter for diversity
+            real_ratio: Fraction of tasks from real repos
+            enable_goal_encoder: Phase 10 - pass full goal text to brain
 
         Returns:
             Dictionary of BC metrics
@@ -864,6 +868,10 @@ class JarvisHarnessTrainer:
         from src.harness.actions import TRIVIAL_VOCAB, COMBINED_VOCAB
 
         vocab_size = len(TRIVIAL_VOCAB) if difficulty == BugDifficulty.TRIVIAL else len(COMBINED_VOCAB)
+
+        # Phase 10: Import goal encoder utilities if enabled
+        if enable_goal_encoder:
+            from src.core.goal_encoder import encode_goal_batch
 
         print(f"\n=== SEQUENTIAL BC PRE-TRAINING ===")
         print(f"Generating {num_demos} sequential trajectories (seq_len={seq_len})...")
@@ -891,6 +899,17 @@ class JarvisHarnessTrainer:
         action_bytes = dataset["action_bytes"].to(self.device).long()  # [N, S, 64]
         masks = dataset["masks"].to(self.device)  # [N, S]
 
+        # Phase 10: Extract goal texts if goal encoder is enabled
+        goal_texts = dataset.get("goal_texts", [])
+        if enable_goal_encoder and goal_texts:
+            print(f"  Goal encoder enabled with {len(goal_texts)} goal texts")
+            # Pre-encode all goals for efficient batching
+            max_goal_len = self.brain.config.max_goal_len if hasattr(self.brain.config, 'max_goal_len') else 512
+            all_goal_bytes, all_goal_lengths = encode_goal_batch(goal_texts, max_len=max_goal_len, device=self.device)
+        else:
+            all_goal_bytes = None
+            all_goal_lengths = None
+
         # Create BC optimizer
         bc_optimizer = Adam(self.brain.parameters(), lr=bc_lr)
 
@@ -914,6 +933,14 @@ class JarvisHarnessTrainer:
                 action_seq = action_bytes[batch_idx]  # [B, S, 64]
                 mask_seq = masks[batch_idx]  # [B, S]
 
+                # Phase 10: Get goal bytes for this batch if enabled
+                if all_goal_bytes is not None:
+                    batch_goal_bytes = all_goal_bytes[batch_idx]  # [B, max_goal_len]
+                    batch_goal_lengths = all_goal_lengths[batch_idx]  # [B]
+                else:
+                    batch_goal_bytes = None
+                    batch_goal_lengths = None
+
                 # Initialize hidden state ONCE per trajectory
                 h, g = self.brain.init_state(batch_size, self.device)
                 a_prev = torch.zeros((batch_size, self.brain.config.action_bytes),
@@ -936,7 +963,12 @@ class JarvisHarnessTrainer:
                     g_before = g.clone()
                     a_prev_before = a_prev.clone()
 
-                    output = self.brain(obs_step, h, g, a_prev, training=True)
+                    # Phase 10: Pass goal_bytes if enabled
+                    output = self.brain(
+                        obs_step, h, g, a_prev, training=True,
+                        goal_bytes=batch_goal_bytes,
+                        goal_lengths=batch_goal_lengths,
+                    )
 
                     # Update hidden state for next step
                     h = output.h_next.detach()
@@ -2167,6 +2199,13 @@ def main():
                        help="Enable .jarvis_notes scratchpad file")
     parser.add_argument("--enable-sleep", action="store_true",
                        help="Enable sleep/consolidation module")
+    # Phase 10: Natural Language Interface
+    parser.add_argument("--enable-goal-encoder", action="store_true",
+                       help="Enable goal encoder for natural language interface (Phase 10)")
+    parser.add_argument("--goal-embed-dim", type=int, default=64,
+                       help="Goal embedding dimension (Phase 10)")
+    parser.add_argument("--max-goal-len", type=int, default=512,
+                       help="Maximum goal length in UTF-8 bytes (Phase 10)")
 
     # Fix 10: Corrective Imitation (DAgger-lite)
     parser.add_argument("--corrective-imitation", action="store_true",
@@ -2420,7 +2459,14 @@ def main():
             enable_plasticity=False,  # Disable for initial training
             enable_sleep=getattr(args, 'enable_sleep', False),
             vocab_size=vocab_size,  # Phase 9: Match vocab to difficulty
+            # Phase 10: Natural Language Interface
+            enable_goal_encoder=getattr(args, 'enable_goal_encoder', False),
+            goal_embed_dim=getattr(args, 'goal_embed_dim', 64),
+            max_goal_len=getattr(args, 'max_goal_len', 512),
         ).to(device)
+
+        if getattr(args, 'enable_goal_encoder', False):
+            print(f"Phase 10: Goal encoder ENABLED (embed_dim={args.goal_embed_dim}, max_len={args.max_goal_len})")
 
         param_count = sum(p.numel() for p in brain.parameters())
         print(f"Brain parameters: {param_count:,}", flush=True)
@@ -2513,6 +2559,7 @@ def main():
                     seq_len=bc_seq_len,
                     jitter=args.focus_jitter,
                     real_ratio=args.real_ratio,
+                    enable_goal_encoder=getattr(args, 'enable_goal_encoder', False),
                 )
                 bc_metrics = {"bc_loss": bc_result["bc_loss"], "bc_accuracy": bc_result["bc_accuracy"]}
             else:

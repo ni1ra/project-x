@@ -48,8 +48,10 @@ def run_pytest(repo_path: str, timeout: int = 30, python_path: str = None) -> Ve
 
     try:
         # Note: removed -x flag to get full test count
+        # FIX (2026-01-24): Use -B flag to prevent Python from writing .pyc files.
+        # Without this, pytest uses stale bytecode after WRITE_FOCUS edits the source.
         result = subprocess.run(
-            [python_exe, "-m", "pytest", "-q", "--tb=short"],
+            [python_exe, "-B", "-m", "pytest", "-q", "--tb=short"],
             cwd=repo_path,
             capture_output=True,
             text=True,
@@ -127,8 +129,11 @@ def run_pytest_fast(
     maxfail = max(1, int(maxfail))
 
     try:
+        # FIX (2026-01-24): Use -B flag to prevent Python from writing .pyc files.
+        # Without this, pytest uses stale bytecode after WRITE_FOCUS edits the source,
+        # causing tests to fail even when the source fix is correct.
         result = subprocess.run(
-            [python_exe, "-m", "pytest", "-q", "--tb=short", f"--maxfail={maxfail}"],
+            [python_exe, "-B", "-m", "pytest", "-q", "--tb=short", f"--maxfail={maxfail}"],
             cwd=repo_path,
             capture_output=True,
             text=True,

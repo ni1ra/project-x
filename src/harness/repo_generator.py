@@ -834,6 +834,37 @@ def inject_wrong_import(files: Dict[str, str]) -> Dict[str, str]:
     return result
 
 
+def _extract_minimal_diff(original: str, modified: str) -> Tuple[str, str]:
+    """Extract the minimal difference between two strings.
+
+    Returns (original_part, modified_part) representing the smallest
+    substring that differs between the two strings.
+    """
+    # Find common prefix
+    prefix_len = 0
+    for i, (a, b) in enumerate(zip(original, modified)):
+        if a != b:
+            prefix_len = i
+            break
+    else:
+        prefix_len = min(len(original), len(modified))
+
+    # Find common suffix
+    suffix_len = 0
+    for i, (a, b) in enumerate(zip(reversed(original), reversed(modified))):
+        if a != b:
+            suffix_len = i
+            break
+    else:
+        suffix_len = min(len(original), len(modified))
+
+    # Extract the differing parts
+    orig_diff = original[prefix_len:len(original)-suffix_len if suffix_len else None]
+    mod_diff = modified[prefix_len:len(modified)-suffix_len if suffix_len else None]
+
+    return orig_diff, mod_diff
+
+
 def inject_fixed_string_replacement(
     files: Dict[str, str],
     file_path: str,
@@ -845,6 +876,7 @@ def inject_fixed_string_replacement(
     category: BugCategory = BugCategory.LOGIC,
     multi_file_fix: bool = False,
     template_name: str = "replace",
+    fix_description: str = "",
 ) -> Optional[BugInstance]:
     """Inject a bug by a single deterministic string replacement in one file."""
     original = files.get(file_path)
@@ -853,6 +885,40 @@ def inject_fixed_string_replacement(
 
     buggy = original.replace(find, replace, 1)
     files[file_path] = buggy
+
+    # Generate specific fix description if not provided
+    # Use minimal diff to create concise description that fits in 40 chars
+    if not fix_description:
+        # Special case: detect operator changes (e.g., > to >=)
+        operators = ['<=', '>=', '!=', '==', '<', '>', '+', '-', '*', '/']
+        found_op_change = False
+        for op in operators:
+            # Check if operator was changed/added/removed
+            if op in find and op not in replace:
+                # Operator in original, removed in buggy - fix is to add it back
+                fix_description = f"Use {op} operator"
+                found_op_change = True
+                break
+            if op in replace and op not in find:
+                # Operator added in buggy, not in original - find what was replaced
+                for orig_op in operators:
+                    if orig_op in find and orig_op not in replace:
+                        fix_description = f"Change {op} to {orig_op}"
+                        found_op_change = True
+                        break
+                if found_op_change:
+                    break
+
+        if not found_op_change:
+            orig_part, mod_part = _extract_minimal_diff(find, replace)
+            if orig_part and mod_part:
+                fix_description = f"Change {mod_part} to {orig_part}"
+            elif orig_part:
+                fix_description = f"Insert {orig_part}"
+            elif mod_part:
+                fix_description = f"Remove {mod_part}"
+            else:
+                fix_description = hint or "Fix the code"
 
     template = BugTemplate(
         name=f"{template_name}:{file_path}",
@@ -870,6 +936,7 @@ def inject_fixed_string_replacement(
         fix_code=original,
         line_number=_compute_bug_line(original, buggy),
         hint=hint,
+        fix_description=fix_description,
     )
 
 
@@ -943,6 +1010,7 @@ def inject_data_pipeline_bug(
                 difficulty=difficulty,
                 hint="Check Record.is_valid() boundary conditions",
                 template_name="data_pipeline:is_valid",
+                fix_description="Change >= to >",  # Explicit: fix uses vocab 10
             ),
         ]
     else:
@@ -956,6 +1024,7 @@ def inject_data_pipeline_bug(
                 difficulty=difficulty,
                 hint="Check Record.is_valid() boundary conditions",
                 template_name="data_pipeline:is_valid",
+                fix_description="Change >= to >",  # Explicit: fix uses vocab 10
             ),
             lambda: inject_fixed_string_replacement(
                 files,
@@ -965,6 +1034,7 @@ def inject_data_pipeline_bug(
                 difficulty=difficulty,
                 hint="Check DataProcessor.transform_record() string casing",
                 template_name="data_pipeline:transform_record",
+                fix_description="Change lower to upper",  # Explicit: fix uses vocab 31
             ),
             lambda: inject_fixed_string_replacement(
                 files,
@@ -974,6 +1044,7 @@ def inject_data_pipeline_bug(
                 difficulty=difficulty,
                 hint="Check DataProcessor.process_batch() batch_id formatting",
                 template_name="data_pipeline:process_batch",
+                fix_description="Add _processed suffix",  # Explicit
             ),
         ]
     random.shuffle(candidates)
@@ -1052,6 +1123,7 @@ def inject_rest_api_bug(
                 difficulty=difficulty,
                 hint="Check Config.validate() port bounds",
                 template_name="rest_api:config_validate",
+                fix_description="Change 0 to 1",  # Explicit: fix uses vocab 22
             ),
         ]
         random.shuffle(candidates)
@@ -1261,7 +1333,11 @@ class RepoGenerator:
             difficulty=difficulty,
             multi_file=multi_file and any(b.template.multi_file_fix for b in bugs),
             original_files=original_files,
-            fix_description="; ".join(b.hint for b in bugs if b.hint),
+            # Use specific fix_description if available, fallback to hint
+            fix_description="; ".join(
+                b.fix_description if b.fix_description else b.hint
+                for b in bugs if b.fix_description or b.hint
+            ),
         )
 
     def _inject_bug(
@@ -1354,6 +1430,7 @@ class RepoGenerator:
                     fix_code=content,
                     line_number=bug_line,
                     hint=hint,
+                    fix_description=fix_desc,  # Store specific fix description
                 )
 
         return None

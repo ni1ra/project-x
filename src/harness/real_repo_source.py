@@ -327,6 +327,7 @@ def inject_bug_into_real_code(
                     fix_code=content,
                     line_number=bug_line,
                     hint=hint,
+                    fix_description=fix_desc,  # Store specific fix description
                 )
 
                 return buggy_files, bug_instance
@@ -392,7 +393,8 @@ def generate_real_repo_task(
             difficulty=difficulty,
             multi_file=len([f for f in file_objs if not file_objs[f].is_test]) > 1,
             original_files=cached.files,
-            fix_description=bug_instance.hint or "",
+            # Use specific fix_description if available, fallback to hint
+            fix_description=bug_instance.fix_description or bug_instance.hint or "",
         )
 
     return None
