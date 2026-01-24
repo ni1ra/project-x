@@ -50,6 +50,60 @@ from src.harness.actions import ACTION_BYTES_V2, ActionType
 from src.harness.expert_trajectories import create_sequential_bc_dataset
 
 
+def amplify_step_signal(phi_obs: torch.Tensor, meta_offset: int = 448) -> torch.Tensor:
+    """
+    JARVIS 420 FIX: Amplify step signal in observations.
+
+    The step byte (at meta_offset + 6) after phi() normalization produces
+    nearly identical values: step 0 = -1.0, step 1 = -0.988, step 2 = -0.976, step 3 = -0.965.
+    These 0.012 differences are too small for the model to distinguish.
+
+    This function amplifies the step signal by adding a sinusoidal encoding
+    of the step position to the last few bytes, making step differences salient.
+
+    Args:
+        phi_obs: Normalized observation [batch, obs_dim] with values in [-1, 1]
+        meta_offset: Offset to metadata section (default 448)
+
+    Returns:
+        Modified phi_obs with amplified step signal
+    """
+    # Extract step byte (at meta_offset + 6, which is byte 454)
+    # In normalized space: step_val = (step_byte - 127.5) / 127.5
+    # To recover step_byte: step_byte = step_val * 127.5 + 127.5
+    step_byte_idx = meta_offset + 6
+    step_normalized = phi_obs[:, step_byte_idx]  # [batch]
+    step_raw = (step_normalized * 127.5 + 127.5).round().long().clamp(0, 255)  # [batch]
+
+    # Create amplified step encoding
+    # Use sinusoidal encoding with different frequencies
+    batch_size = phi_obs.size(0)
+    device = phi_obs.device
+
+    # Encode step as sinusoidal pattern (like positional encoding)
+    # This creates distinct patterns for each step value
+    step_float = step_raw.float()  # [batch]
+
+    # Create 4 encoding dimensions with different frequencies
+    # freq_i = 2^(-i) for i in [0, 1, 2, 3]
+    freqs = torch.tensor([1.0, 0.5, 0.25, 0.125], device=device)  # [4]
+    angles = step_float.unsqueeze(1) * freqs.unsqueeze(0) * 3.14159  # [batch, 4]
+
+    # sin and cos for each frequency
+    sin_enc = torch.sin(angles)  # [batch, 4]
+    cos_enc = torch.cos(angles)  # [batch, 4]
+
+    # Interleave sin and cos: [sin0, cos0, sin1, cos1, ...]
+    step_encoding = torch.stack([sin_enc, cos_enc], dim=2).view(batch_size, 8)  # [batch, 8]
+
+    # Replace last 8 bytes of phi_obs with step encoding
+    # This overwrites the focus_preview region (bytes 504-511)
+    phi_obs_amplified = phi_obs.clone()
+    phi_obs_amplified[:, -8:] = step_encoding
+
+    return phi_obs_amplified
+
+
 class HeterogeneousBrain(nn.Module):
     """
     Heterogeneous brain with optimized structure for JARVIS harness.
@@ -58,6 +112,8 @@ class HeterogeneousBrain(nn.Module):
 
     Phase 8 Fix: Added evaluate_actions() method for proper BC training
     with entropy regularization to prevent action collapse.
+
+    JARVIS 420 FIX: Added amplify_step_signal to make step differences salient.
     """
 
     def __init__(
@@ -66,6 +122,7 @@ class HeterogeneousBrain(nn.Module):
         obs_dim: int = OBS_TOTAL_BYTES,
         action_bytes: int = ACTION_BYTES_V2,
         vocab_size: int = 35,
+        amplify_step: bool = True,  # JARVIS 420 FIX
     ):
         super().__init__()
 
@@ -94,6 +151,7 @@ class HeterogeneousBrain(nn.Module):
         self.action_bytes = action_bytes
         self.obs_dim = obs_dim
         self.vocab_size = vocab_size
+        self.amplify_step = amplify_step  # JARVIS 420 FIX
 
     def init_state(self, batch_size: int, device: torch.device):
         h = self.substrate.init_hidden(batch_size, device)
@@ -119,6 +177,11 @@ class HeterogeneousBrain(nn.Module):
         training: bool = True,
     ):
         phi_obs = phi(obs_bytes)
+
+        # JARVIS 420 FIX: Amplify step signal to make step differences salient
+        if self.amplify_step:
+            phi_obs = amplify_step_signal(phi_obs)
+
         z_t = self.encode(phi_obs)
 
         output = self.substrate(
@@ -165,6 +228,9 @@ class HeterogeneousBrain(nn.Module):
         Phase 8 Fix: This is critical for proper BC training. Without this,
         the heterogeneous model suffered action collapse (0% solve rate).
 
+        JARVIS 420 FIX: Must apply same step amplification as forward() to
+        maintain train/eval consistency.
+
         Returns:
             log_probs: Log prob of actions [batch, action_bytes]
             entropy: Action distribution entropy [batch]
@@ -173,6 +239,11 @@ class HeterogeneousBrain(nn.Module):
             h_next: New hidden state [batch, hidden_dim]
         """
         phi_obs = phi(obs_bytes)
+
+        # JARVIS 420 FIX: Apply step amplification (same as forward())
+        if self.amplify_step:
+            phi_obs = amplify_step_signal(phi_obs)
+
         z_t = self.encode(phi_obs)
 
         output = self.substrate(
