@@ -1,3 +1,30 @@
+<!--
+================================================================================
+WIRED-BRAIN ROOT DOCUMENTATION STRUCTURE
+================================================================================
+
+ROOT FILES ARE STATIC - DO NOT ADD NEW FILES TO ROOT.
+New content must go into existing docs or subdirectories (scripts/, src/, etc.)
+
+Root Documents:
+- README.md        : Project overview, quick start, current results
+- BLUEPRINT.md     : Core thesis, architecture design, falsification criteria
+- PLAN_TO_JARVIS.md: Phased roadmap to Jarvis (Phase 1-10 plans, future work)
+- HANDOFF.md       : Context for continuing work in new Claude instances
+- MISTAKES.md      : Failure log with patterns and lessons learned
+- paper.md         : Academic write-up of methodology and results
+
+Subdirectories:
+- src/             : Source code (core/, harness/, utils/)
+- scripts/         : Training, evaluation, and diagnostic scripts
+- results/         : Checkpoints and evaluation outputs
+- tests/           : Unit and integration tests
+
+RULE: If you need to create a new doc, integrate it into an existing root doc
+or place it in the appropriate subdirectory. Single files in root = violation.
+================================================================================
+-->
+
 # WIRED-BRAIN: Reward‑per‑Joule as an Engine of Structure
 
 **A long, story-driven field report.**
@@ -1884,6 +1911,17 @@ Once these gates pass, unified curriculum becomes the NEXT major milestone—rep
 *The meter is running. The entropy is being watched. The author is refreshing tensorboard obsessively.*
 
 *Last verified: 2026-01-22 — Sprint 1 COMPLETE (all difficulty targets exceeded, HARD 73.1%). Phase 8 Structural Plasticity: concept validated (Optuna found 3-region optimal architecture), but heterogeneous training suffered action collapse (0% solve rate). Homogeneous baseline remains production model. "We did not build these structures. We priced the resources, and the structures emerged."*
+
+---
+
+## Appendix M — Future Work
+
+See **PLAN_TO_JARVIS.md** for detailed Phase 8-12 roadmaps including:
+- Phase 8: Structural Plasticity
+- Phase 9: Real Codebase Integration
+- Phase 10: Natural Language Interface
+- Phase 11: Tool Diversity
+- Phase 12: WIRED Integration
 
 
 

@@ -22,7 +22,7 @@ import torch
 
 from src.harness.actions import (
     ActionType, JarvisAction, ACTION_BYTES_V2,
-    encode_action_v2, decode_action_v2,
+    encode_action, encode_action_v2, encode_action_v2_vocab, decode_action_v2,
     TRIVIAL_VOCAB, EASY_VOCAB, COMBINED_VOCAB,  # Vocab definitions
 )
 from src.harness.bug_templates import BugDifficulty, BugCategory
@@ -86,6 +86,116 @@ class MultiStepTrajectory:
 
     # Final state info
     solved: bool  # Would this trajectory solve the bug?
+
+
+def generate_realistic_pytest_output(
+    file_path: str,
+    bug_line: int,
+    bug_type: str,
+    focus_text: str,
+) -> str:
+    """
+    Generate realistic pytest failure output for a bug.
+
+    This matches the format that the eval env produces after RUN_TESTS,
+    ensuring BC training observations match eval observations.
+
+    Args:
+        file_path: Path to the buggy file (e.g., "models.py", "config.py")
+        bug_line: Line number where the bug is located
+        bug_type: Type of bug (e.g., "data_pipeline:is_valid:models.py")
+        focus_text: The buggy code snippet
+
+    Returns:
+        Pytest-style failure output matching eval env format
+    """
+    # FIX (2026-01-23): Handle actual template names from repo_generator
+    # Templates are like "data_pipeline:is_valid:models.py" or "rest_api:config_validate:config.py"
+
+    # Template-specific pytest output that matches actual test files
+    template_pytest = {
+        # data_pipeline template uses test_pipeline.py
+        "data_pipeline": {
+            "test_file": "test_pipeline.py",
+            "test_class": "TestRecord",
+            "test_name": "test_invalid_id",
+            "test_line": 14,
+            "assertion": "assert r.is_valid() == False",
+            "error": "assert True == False",
+        },
+        # rest_api template uses test_app.py
+        "rest_api": {
+            "test_file": "test_app.py",
+            "test_class": "TestConfig",
+            "test_name": "test_invalid_port",
+            "test_line": 10,
+            "assertion": "assert c.validate() == False",
+            "error": "assert True == False",
+        },
+    }
+
+    # Phase 9: Real repo templates
+    real_repo_pytest = {
+        # string_utils / strings.py
+        "strings.py": {
+            "test_file": "test_strings.py",
+            "test_name": "test_truncate",
+            "test_line": 35,
+            "assertion": 'assert truncate("testing", 7) == "testing"',
+            "error": "assert 'test...' == 'testing'",
+        },
+        # mini_calc / calculator.py
+        "calculator.py": {
+            "test_file": "test_calculator.py",
+            "test_name": "test_power",
+            "test_line": 28,
+            "assertion": "assert power(2, 3) == 8",
+            "error": "assert 9 == 8",
+        },
+        # data_validator / validator.py
+        "validator.py": {
+            "test_file": "test_validator.py",
+            "test_name": "test_positive_int",
+            "test_line": 45,
+            "assertion": "assert is_positive_int(1) == True",
+            "error": "assert False == True",
+        },
+    }
+
+    # Determine which template this is
+    template_key = None
+    for key in template_pytest:
+        if key in bug_type:
+            template_key = key
+            break
+
+    info = None
+    if template_key:
+        info = template_pytest[template_key]
+    else:
+        # Phase 9: Check real repo templates by file_path
+        for file_key in real_repo_pytest:
+            if file_key in file_path or file_path.endswith(file_key):
+                info = real_repo_pytest[file_key]
+                break
+
+    if info:
+        pytest_output = (
+            f"{info['test_file']}:{info['test_line']}: in {info['test_name']}\n"
+            f"    {info['assertion']}\n"
+            f"E   AssertionError: {info['error']}\n"
+        )
+    else:
+        # Fallback for unknown templates
+        module_name = file_path.replace(".py", "")
+        test_file = f"test_{module_name}.py"
+        pytest_output = (
+            f"{test_file}:16: in test_unknown\n"
+            f"    assert result == expected\n"
+            f"E   AssertionError: assert False == True\n"
+        )
+
+    return pytest_output
 
 
 def find_diff_position(original: str, buggy: str) -> int:
@@ -193,20 +303,26 @@ def compute_fix_offset_in_focus(
 
 
 def get_vocab_idx_for_fix(fix_char: str) -> int:
-    """Map fix character(s) to TRIVIAL_VOCAB index."""
-    # Try exact match first
-    for idx, vocab in enumerate(TRIVIAL_VOCAB):
+    """Map fix character(s) to COMBINED_VOCAB index.
+
+    Phase 9: Search full COMBINED_VOCAB (80 items) which includes:
+    - TRIVIAL_VOCAB (0-4): syntax tokens
+    - EASY_VOCAB (5-32): operators, digits, HARD tokens
+    - REAL_REPO_VOCAB (33-79): Python keywords + builtins for typo fixes
+    """
+    # Try exact match first in full COMBINED_VOCAB
+    for idx, vocab in enumerate(COMBINED_VOCAB):
         if vocab == fix_char:
             return idx
 
     # Try with newline appended (common for colon fixes)
     fix_with_newline = fix_char + '\n'
-    for idx, vocab in enumerate(TRIVIAL_VOCAB):
+    for idx, vocab in enumerate(COMBINED_VOCAB):
         if vocab == fix_with_newline:
             return idx
 
     # Try partial match
-    for idx, vocab in enumerate(TRIVIAL_VOCAB):
+    for idx, vocab in enumerate(COMBINED_VOCAB):
         if vocab.startswith(fix_char) or fix_char.startswith(vocab):
             return idx
 
@@ -652,31 +768,52 @@ def compute_correct_action_for_typo(
     """
     Compute correct action for typo keyword bugs.
 
-    Requires MICRO_VOCAB to fix (vocab_mode=1) since the correct keywords
-    like 'return', 'import', etc. are multi-character tokens.
+    Uses COMBINED_VOCAB (vocab_mode=0) since Python keywords and builtins
+    are now included in the expanded vocabulary.
 
     Examples:
-    - 'retrun' -> 'return' (MICRO_VOCAB index for 'return')
-    - 'improt' -> 'import' (MICRO_VOCAB index for 'import')
+    - 'retrun' -> 'return' (COMBINED_VOCAB index 33)
+    - 'improt' -> 'import' (COMBINED_VOCAB index 45)
+    - 'pritn' -> 'print' (COMBINED_VOCAB index 64)
     """
-    from src.harness.actions import MICRO_VOCAB
+    from src.harness.actions import COMBINED_VOCAB
 
     # Known typo pairs (buggy -> correct)
+    # Phase 9: Action decoder expanded to 0-15 length range (was 0-3)
+    # Same-length typos only (different lengths require more complex fixes)
     typo_pairs = [
-        ('retrun', 'return'),
-        ('improt', 'import'),
-        ('form', 'from'),
-        ('calss', 'class'),
-        ('elfi', 'elif'),
-        ('Ture', 'True'),
-        ('Flase', 'False'),
-        ('Nonee', 'None'),
-        ('slef', 'self'),
-        ('defitn', 'define'),
+        # Keywords (same-length)
+        ('retrun', 'return'),   # 6->6
+        ('improt', 'import'),   # 6->6
+        ('excpet', 'except'),   # 6->6
+        ('lmabda', 'lambda'),   # 6->6
+        ('form', 'from'),       # 4->4
+        ('calss', 'class'),     # 5->5
+        ('elfi', 'elif'),       # 4->4
+        ('Ture', 'True'),       # 4->4
+        ('Flase', 'False'),     # 5->5
+        ('slef', 'self'),       # 4->4
+        ('whlie', 'while'),     # 5->5
+        ('fro', 'for'),         # 3->3
+        ('yiled', 'yield'),     # 5->5
+        # Builtins (same-length)
+        ('pritn', 'print'),     # 5->5
+        ('pirnt', 'print'),     # 5->5
+        ('lne', 'len'),         # 3->3
+        ('rnage', 'range'),     # 5->5
+        ('opne', 'open'),       # 4->4
+        ('tpye', 'type'),       # 4->4
+        ('lsit', 'list'),       # 4->4
+        ('dcit', 'dict'),       # 4->4
+        ('ste', 'set'),         # 3->3
     ]
 
     # Find which typo is present
     for typo, correct in typo_pairs:
+        # Only support same-length replacements
+        if len(typo) != len(correct):
+            continue
+
         if typo in buggy and correct in original:
             # Find the typo position in buggy code
             typo_pos = buggy.find(typo)
@@ -688,22 +825,22 @@ def compute_correct_action_for_typo(
             if offset_in_focus < 0 or offset_in_focus >= 256:
                 continue
 
-            # Find the correct token in MICRO_VOCAB
-            if correct not in MICRO_VOCAB:
+            # Find the correct token in COMBINED_VOCAB
+            if correct not in COMBINED_VOCAB:
                 continue
 
-            vocab_idx = MICRO_VOCAB.index(correct)
+            vocab_idx = COMBINED_VOCAB.index(correct)
 
-            # Replace the typo with correct token
-            # Length = len(typo) to replace the entire typo
-            length = min(len(typo), 3)  # Constrained to 0-3
+            # For same-length typos: delete len(typo) chars, insert vocab token
+            # Phase 9: length range expanded to 0-15 (was 0-3)
+            length = min(len(typo), 15)  # Now supports up to 15 chars
 
             action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
             action_bytes[0] = ActionType.WRITE_FOCUS.value
             action_bytes[1] = max(0, min(255, offset_in_focus))
-            action_bytes[3] = length % 4
+            action_bytes[3] = length
             action_bytes[25] = vocab_idx
-            action_bytes[26] = 1  # MICRO_VOCAB mode
+            action_bytes[26] = 0  # COMBINED_VOCAB mode (default)
 
             return ExpertAction(
                 offset=offset_in_focus,
@@ -713,6 +850,60 @@ def compute_correct_action_for_typo(
             )
 
     return None
+
+
+def compute_correct_action_for_digit_change(
+    original: str,
+    buggy: str,
+    focus_start: int,
+) -> Optional[ExpertAction]:
+    """
+    Compute correct action for digit literal changes.
+
+    Handles cases like:
+    - '< 1' -> '< 0' (fix: replace '0' with '1')
+    - '> 9' -> '> 8' (fix: replace '8' with '9')
+    - 'range(10)' -> 'range(11)' (fix: replace '11' with '10')
+
+    COMBINED_VOCAB digit indices: 21='0', 22='1', ..., 30='9'
+    """
+    diff_pos = find_diff_position(original, buggy)
+
+    # Check if the diff is a single digit change
+    if diff_pos >= len(original) or diff_pos >= len(buggy):
+        return None
+
+    orig_char = original[diff_pos]
+    buggy_char = buggy[diff_pos]
+
+    # Check if both are digits
+    if not (orig_char.isdigit() and buggy_char.isdigit()):
+        return None
+
+    # Map digit to COMBINED_VOCAB index (21='0', 22='1', etc.)
+    vocab_idx = 21 + int(orig_char)
+
+    # Compute offset in focus window
+    offset_in_focus = diff_pos - focus_start
+    if offset_in_focus < 0 or offset_in_focus >= 256:
+        return None
+
+    # Replace 1 character
+    length = 1
+
+    action_bytes = torch.zeros(ACTION_BYTES_V2, dtype=torch.uint8)
+    action_bytes[0] = ActionType.WRITE_FOCUS.value
+    action_bytes[1] = max(0, min(255, offset_in_focus))
+    action_bytes[3] = length % 4
+    action_bytes[25] = vocab_idx
+    action_bytes[26] = 0  # COMBINED_VOCAB mode
+
+    return ExpertAction(
+        offset=offset_in_focus,
+        vocab_idx=vocab_idx,
+        length=length,
+        action_bytes=action_bytes,
+    )
 
 
 def generate_expert_trajectory(
@@ -761,9 +952,15 @@ def generate_expert_trajectory(
     correct_char = original[diff_pos] if diff_pos < len(original) else ""
     correct_two = original[diff_pos:diff_pos+2] if diff_pos+1 < len(original) else correct_char
 
-    # Operator detection: check if diff position has operator-like chars
+    # Operator detection: check if diff position (or nearby) has operator-like chars
+    # Also check char before diff_pos, since operators like '>=' have the '>' before the '='
     operator_chars = {'<', '>', '=', '!', '+', '-', '*', '/'}
-    is_operator_fix = correct_char in operator_chars or any(c in correct_two for c in operator_chars)
+    prev_char = original[diff_pos - 1] if diff_pos > 0 else ""
+    is_operator_fix = (
+        correct_char in operator_chars or
+        any(c in correct_two for c in operator_chars) or
+        prev_char in operator_chars
+    )
 
     action = None
 
@@ -792,6 +989,12 @@ def generate_expert_trajectory(
             action = compute_correct_action_for_off_by_one(
                 original, buggy_content, focus_start
             )
+
+    # Try digit change (handles < 1 -> < 0, etc.)
+    if action is None:
+        action = compute_correct_action_for_digit_change(
+            original, buggy_content, focus_start
+        )
 
     # Fallback to hint-based detection
     if action is None:
@@ -825,19 +1028,42 @@ def generate_expert_trajectory(
     if action is None:
         return None
 
-    # Validate: offset should be in valid range
-    if action.offset < 0 or action.offset >= 64:
+    # Validate: offset should be in valid range (0-255 for 8-bit action byte)
+    # FIX (2026-01-23): Was 64, but action bytes support 0-255. This caused
+    # all demos to cluster at low offsets, killing diversity.
+    if action.offset < 0 or action.offset >= 256:
         # Bug is outside focus window, skip
         return None
 
-    # FIX: Create COMPLETE observation matching RL environment
-    # Previously only filled focus_text (320-448) and preview (480-512)
-    # Now we fill ALL fields to match what RL sees
+    # FIX (2026-01-23): Create observation matching eval env EXACTLY
+    # The eval env terminal_buffer after RUN_TESTS contains:
+    # 1. Task/repo info header
+    # 2. [Step 0] RUN_TESTS action marker
+    # 3. [Tests completed: ...] X/Y passing
+    # 4. ACTUAL PYTEST OUTPUT (stacktrace, assertion errors)
+    #
+    # The key insight: the pytest output at the END is what the model sees
+    # because the terminal buffer keeps only last 2000 chars.
+    goal_str = f"Fix the bugs and make tests pass. Hint: {fix_hint[:40]}"
+
+    # FIX (2026-01-23): Generate realistic pytest output to match eval env!
+    bug_type = bug.template.name if bug.template else "wrong_operator"
+    pytest_output = generate_realistic_pytest_output(
+        file_path=bug.file_path,
+        bug_line=bug.line_number if hasattr(bug, 'line_number') else 10,
+        bug_type=bug_type,
+        focus_text=focus_text,
+    )
+
     jarvis_obs = JarvisObservation(
-        # Terminal: show the buggy code context (like RL would see after a command)
-        terminal_output=f"$ cat {bug.file_path}\n{buggy_content[:200]}",
-        # Goal: task description
-        goal=f"Fix bug: {fix_hint[:60]}",
+        # Terminal: Match eval env format after RUN_TESTS with REAL pytest output
+        terminal_output=(
+            f"[Step 0] RUN_TESTS\n"
+            f"[Tests completed: repo] 0/1 passing\n"
+            f"{pytest_output}"
+        ),
+        # Goal: Must match eval env task.description format
+        goal=f"{goal_str[:60]}",
         # Focus text: the actual code to edit
         focus_text=focus_text,
         focus_preview=focus_text[:32],
@@ -849,7 +1075,7 @@ def generate_expert_trajectory(
         energy_remaining=1.0,
         time_remaining=1.0,
         actions_remaining=100,
-        step=0,
+        step=1,  # FIX: This is AFTER RUN_TESTS, so step=1 not 0
         last_reward=0.0,
         tests_passing=0,
         tests_total=1,
@@ -1039,6 +1265,7 @@ def create_initial_observation(
 def generate_multistep_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
+    jitter: int = 0,
 ) -> Optional[MultiStepTrajectory]:
     """
     Generate a multi-step trajectory with RUN_TESTS as first action.
@@ -1049,6 +1276,7 @@ def generate_multistep_trajectory(
     Args:
         repo: Generated repo with bugs
         focus_length: Size of focus window
+        jitter: If > 0, add random jitter +/- this value to focus offset (for diversity)
 
     Returns:
         MultiStepTrajectory with 2 steps, or None if can't generate
@@ -1066,7 +1294,7 @@ def generate_multistep_trajectory(
     buggy_content = buggy.content
 
     # Generate the single-step trajectory to get the correct WRITE_FOCUS action
-    single_step = generate_expert_trajectory(repo, focus_length)
+    single_step = generate_expert_trajectory(repo, focus_length, jitter=jitter)
     if single_step is None:
         return None
 
@@ -1075,11 +1303,13 @@ def generate_multistep_trajectory(
 
     # Step 1: Initial observation (tests not run yet)
     # Agent should call RUN_TESTS to discover where the bug is
-    # FIX: Include focus_text to match eval env behavior (auto_focus_target)
+    # FIX (2026-01-23): Match eval env EXACTLY - focus on bug location from start!
+    # The eval env focuses on bug_line when set, not file start.
     initial_obs = create_initial_observation(
         repo_name=repo.name,
         goal=goal,
-        focus_text=buggy_content[:256],  # Match eval env: focus_text is set from start
+        # FIX (2026-01-23): Use bug-location focus (same as eval env)
+        focus_text=single_step.focus_text,  # Bug location focus (matches eval env)
         tests_passing=0,
         tests_total=0,  # FIX: Match eval env when run_tests_on_reset=False
     )
@@ -1109,6 +1339,7 @@ def generate_multistep_demos(
     num_tasks: int = 1000,
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     seed: int = 42,
+    jitter: int = 0,
 ) -> List[MultiStepTrajectory]:
     """
     Generate multi-step expert demonstrations for navigation + fix.
@@ -1117,6 +1348,7 @@ def generate_multistep_demos(
         num_tasks: Number of demonstrations to generate
         difficulty: Bug difficulty level
         seed: Random seed
+        jitter: If > 0, add random jitter +/- this value to focus offset (for diversity)
 
     Returns:
         List of MultiStepTrajectory objects
@@ -1129,7 +1361,7 @@ def generate_multistep_demos(
 
     trajectories = []
     for repo in repos:
-        traj = generate_multistep_trajectory(repo)
+        traj = generate_multistep_trajectory(repo, jitter=jitter)
         if traj is not None:
             trajectories.append(traj)
 
@@ -1141,6 +1373,7 @@ def create_multistep_bc_dataset(
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     seed: int = 42,
     include_single_step: bool = True,
+    jitter: int = 16,  # FIX (2026-01-23): Default to 16 for diversity
 ) -> Dict[str, torch.Tensor]:
     """
     Create a behavioral cloning dataset with multi-step trajectories.
@@ -1154,13 +1387,14 @@ def create_multistep_bc_dataset(
         difficulty: Bug difficulty level
         seed: Random seed
         include_single_step: If True, also include single-step demos (for diversity)
+        jitter: Random jitter +/- this value for focus offset diversity (default: 16)
 
     Returns dict with:
         - observations: [N, 512]
         - action_bytes: [N, 64] - full action byte sequences
         - num_samples: int
     """
-    multistep_trajs = generate_multistep_demos(num_tasks, difficulty, seed)
+    multistep_trajs = generate_multistep_demos(num_tasks, difficulty, seed, jitter=jitter)
 
     all_obs = []
     all_actions = []
@@ -1172,7 +1406,7 @@ def create_multistep_bc_dataset(
 
     # Optionally add single-step demos for diversity
     if include_single_step:
-        single_trajs = generate_expert_demos(num_tasks // 2, difficulty, seed + 1000)
+        single_trajs = generate_expert_demos(num_tasks // 2, difficulty, seed + 1000, jitter=jitter)
         for traj in single_trajs:
             all_obs.append(traj.observation)
             all_actions.append(traj.correct_action.action_bytes)
@@ -1207,6 +1441,32 @@ def create_complete_task_action() -> torch.Tensor:
     return action_bytes
 
 
+def create_navigate_action(target_file: str) -> torch.Tensor:
+    """
+    Create a NAVIGATE action to switch focus to a different file.
+
+    This is used in HARD multi-file bugs where the agent must fix bugs
+    in multiple files. After fixing the first file, NAVIGATE switches
+    focus to the second file.
+
+    Args:
+        target_file: Path to the file to navigate to (e.g., "processor.py")
+
+    Returns:
+        action_bytes: [ACTION_BYTES_V2] tensor with NAVIGATE action
+    """
+    action = JarvisAction(
+        action_type=ActionType.NAVIGATE,
+        target=target_file,
+        content="",
+        offset=0,
+        length=256,  # Default focus window size
+    )
+    # Use 32-byte encoding (same as EASY training)
+    action_bytes = encode_action(action, max_bytes=ACTION_BYTES_V2)
+    return action_bytes
+
+
 def create_post_run_tests_observation(
     repo_name: str,
     goal: str,
@@ -1216,6 +1476,7 @@ def create_post_run_tests_observation(
     tests_passing: int,
     tests_total: int,
     step: int = 1,
+    bug_type: str = "",  # FIX: Add bug_type for realistic pytest output
 ) -> torch.Tensor:
     """
     Create an observation for AFTER RUN_TESTS is called.
@@ -1227,14 +1488,20 @@ def create_post_run_tests_observation(
 
     The agent should emit WRITE_FOCUS in this state.
     """
-    # Simulate test failure output (what eval env would show)
-    failed = tests_total - tests_passing
+    # FIX (2026-01-23): Use realistic pytest output to match eval env!
+    # The eval env terminal_buffer contains actual pytest stacktraces after RUN_TESTS.
+    pytest_output = generate_realistic_pytest_output(
+        file_path=file_path,
+        bug_line=10,
+        bug_type=bug_type,
+        focus_text=focus_text,
+    )
+
+    # Match eval env terminal format after RUN_TESTS
     terminal = (
-        f"Task: {goal[:60]}\nRepo ready.\nInitial tests: (skipped)\n"
         f"[Step {step - 1}] RUN_TESTS\n"
         f"[Tests completed: fast] {tests_passing}/{tests_total} passing\n"
-        f"FAILED - {failed} tests failed\n"
-        f"[Focus] {file_path}\n"
+        f"{pytest_output}"
     )
     jarvis_obs = JarvisObservation(
         terminal_output=terminal,
@@ -1262,6 +1529,9 @@ def create_post_fix_observation(
     tests_passing: int,
     tests_total: int,
     step: int = 2,
+    file_path: str = "models.py",
+    offset: int = 23,
+    content: str = "1",
 ) -> torch.Tensor:
     """
     Create an observation for after WRITE_FOCUS is applied (before verify RUN_TESTS).
@@ -1271,11 +1541,24 @@ def create_post_fix_observation(
     2. WRITE_FOCUS (step 1) - applied fix
 
     The agent should emit RUN_TESTS in this state to verify.
+
+    FIX (2026-01-24): The observation encodes LAST 256 bytes of terminal.
+    After WRITE_FOCUS, the terminal ends with write confirmation, NOT pytest errors.
+    The pytest output from RUN_TESTS is ~70 chars earlier and gets truncated.
+
+    Key signal: "Syntax OK" at end → RUN_TESTS (to verify fix)
+    vs step 1: pytest errors at end → WRITE_FOCUS
+
+    DO NOT add pytest_prefix - that makes step 1 and step 2 indistinguishable!
     """
+    content_preview = content[:20] + "..." if len(content) > 20 else content
+
+    # NO pytest_prefix! After WRITE_FOCUS, terminal ends with write confirmation.
+    # The last 256 bytes should show WRITE_FOCUS output, NOT pytest errors.
     terminal = (
-        f"Task: {goal[:60]}\nRepo ready.\n"
-        f"[Step 1] WRITE_FOCUS\n"
-        f"Write OK: Syntax OK\n"
+        f"[Step {step - 1}] WRITE_FOCUS[{offset}:{offset + len(content)}] = '{content_preview}'\n"
+        f"Wrote {len(content)} bytes to focus {file_path}\n"
+        f"Syntax OK\n"
     )
     jarvis_obs = JarvisObservation(
         terminal_output=terminal,
@@ -1399,9 +1682,11 @@ def generate_persistent_trajectory(
 
     # Step 1: Initial observation (tests not run yet)
     # Agent should call RUN_TESTS to discover where the bug is
-    # FIX: Include focus_text to match eval env behavior
-    # The eval env sets focus_text from the start (auto_focus_target)
-    # Model must learn: tests_passing==0 → RUN_TESTS (not empty focus_text → RUN_TESTS)
+    # FIX (2026-01-23): Match eval env EXACTLY - focus on bug location from start!
+    # The eval env (when bug_line is set and auto_focus_target=True) focuses on the
+    # bug location, NOT the file start. BC training must match this exactly.
+    # Otherwise the model learns: "file docstring" → RUN_TESTS, "bug code" → WRITE_FOCUS
+    # which causes it to WRITE_FOCUS immediately in eval (where focus is at bug).
     # Use EXACT same goal format as eval env
     # Eval uses: f"Fix the bugs and make tests pass. Hint: {repo.fix_description}"
     goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
@@ -1409,7 +1694,10 @@ def generate_persistent_trajectory(
     initial_obs = create_initial_observation(
         repo_name=repo.name,
         goal=goal,
-        focus_text=buggy_content[:256],  # Match eval env: focus_text is set from start
+        # FIX (2026-01-23): Use bug-location focus, not file start!
+        # single_step.focus_text is already centered on the bug location,
+        # matching what eval env produces when bug_line is set.
+        focus_text=single_step.focus_text,  # Bug location focus (matches eval env)
         tests_passing=0,
         tests_total=0,  # FIX: Match eval env when run_tests_on_reset=False
     )
@@ -1418,28 +1706,37 @@ def generate_persistent_trajectory(
     # Step 2: After RUN_TESTS, focus is set to bug location by env
     # Agent should call WRITE_FOCUS with the correct fix
     # FIX: Use proper observation with step=1, not step=0 from single_step
+    # FIX (2026-01-23): Use eval-like test counts (1/2 from fast tests, not 7/11)
+    # With async_tests=True, the model sees 1/2 (or similar) after async completes.
+    # Must match eval distribution so model generalizes correctly.
     post_discovery_obs = create_post_run_tests_observation(
         repo_name=repo.name,
         goal=goal,
         focus_text=single_step.focus_text,  # Focus on bug location
         focus_offset=single_step.focus_offset,
         file_path=single_step.focus_file,
-        tests_passing=7,  # Some tests pass, but not all
-        tests_total=11,
+        tests_passing=1,  # FIX: Match eval env fast tests (1/2)
+        tests_total=2,    # FIX: Match eval env fast tests (1/2)
         step=1,  # CRITICAL: After RUN_TESTS, step=1
+        bug_type=single_step.bug_type,  # FIX: Pass bug type for realistic pytest output
     )
     write_focus_action = single_step.correct_action.action_bytes
 
     # Step 3: After WRITE_FOCUS, run tests again to verify
     # Create observation showing code context (post-fix)
     # The agent should call RUN_TESTS again to verify
+    # FIX (2026-01-23): Pass file_path, offset, content to match eval env terminal format
+    fix_content = COMBINED_VOCAB[single_step.correct_action.vocab_idx]
     post_fix_obs = create_post_fix_observation(
         repo_name=repo.name,
         goal=goal,  # Use consistent goal
         focus_text=original[:focus_length],  # Now shows the fixed code
-        tests_passing=7,  # Same as before (haven't run tests yet)
-        tests_total=11,
+        tests_passing=1,  # FIX: Same test count pattern (not verified yet)
+        tests_total=2,    # FIX: Match eval env
         step=2,  # After WRITE_FOCUS, step=2
+        file_path=single_step.focus_file,
+        offset=single_step.correct_action.offset,
+        content=fix_content,
     )
     verify_tests_action = create_run_tests_action()
 
@@ -1449,8 +1746,8 @@ def generate_persistent_trajectory(
         repo_name=repo.name,
         goal=goal,  # Use consistent goal
         focus_text=original[:focus_length],  # Fixed code
-        tests_passing=11,  # All tests pass now
-        tests_total=11,
+        tests_passing=2,  # FIX: All tests pass (2/2)
+        tests_total=2,    # FIX: Match eval env
         step=3,  # After verify RUN_TESTS, step=3
     )
     complete_task_action = create_complete_task_action()
@@ -1471,6 +1768,285 @@ def generate_persistent_trajectory(
     )
 
 
+def generate_multifile_trajectory(
+    repo: GeneratedRepo,
+    focus_length: int = 256,
+) -> Optional[PersistentTrajectory]:
+    """
+    Generate a 6-step trajectory for HARD multi-file bugs.
+
+    Step 1: RUN_TESTS - discover bugs
+    Step 2: WRITE_FOCUS - fix bug in primary file
+    Step 3: NAVIGATE - switch to secondary file
+    Step 4: WRITE_FOCUS - fix bug in secondary file
+    Step 5: RUN_TESTS - verify fix
+    Step 6: COMPLETE_TASK - mark done
+
+    Args:
+        repo: Generated repo with multi-file bugs
+        focus_length: Size of focus window
+
+    Returns:
+        PersistentTrajectory with 6 steps, or None if can't generate
+    """
+    if not repo.bugs:
+        return None
+
+    bug = repo.bugs[0]
+
+    # Check if this is a multi-file bug
+    if not bug.secondary_files:
+        # Single-file bug - use regular 4-step trajectory
+        return generate_persistent_trajectory(repo, focus_length)
+
+    # Get primary bug info
+    primary_file = bug.file_path
+    primary_original = repo.original_files.get(primary_file, "")
+    primary_buggy = repo.files.get(primary_file)
+    if primary_buggy is None:
+        return None
+    primary_buggy_content = primary_buggy.content
+
+    # Get secondary bug info
+    secondary_file = list(bug.secondary_files.keys())[0]
+    secondary_original, secondary_buggy, secondary_fix = bug.secondary_files[secondary_file]
+
+    # Generate single-step trajectories for both bugs
+    single_step_primary = generate_expert_trajectory(repo, focus_length)
+    if single_step_primary is None:
+        return None
+
+    # Create action for secondary bug fix
+    # The secondary file is stored in repo.files with the buggy content
+    secondary_content = repo.files.get(secondary_file)
+    if secondary_content is None:
+        return None
+    secondary_buggy_full = secondary_content.content  # This is the buggy version
+
+    # secondary_files contains: (original_code, buggy_code, fix_code)
+    # These are FULL FILE contents. We need to find the diff location.
+    # For rest_api: original has 'del self._users[user_id]', buggy has 'pass  # BUG...'
+    # For data_pipeline: original has '.upper()', buggy has '.lower()'
+    # We need to find where these patterns appear in the buggy file.
+
+    # Find the bug location by searching for the specific buggy pattern
+    # The bug INJECTS the buggy pattern, so we search for it in the buggy file.
+    # The FIX replaces the buggy pattern with the original code.
+    if "data_pipeline" in bug.template.name:
+        # Buggy code has: .lower() - FIX needs: .upper()
+        bug_marker = "lower"
+        bug_pos = secondary_buggy_full.find(".lower()")
+        if bug_pos >= 0:
+            bug_pos += 1  # Position after the '.' to target 'lower'
+    elif "rest_api" in bug.template.name:
+        # Buggy code has: pass  # BUG... - FIX needs: del self._users[user_id]
+        bug_marker = "pass  # BUG"
+        bug_pos = secondary_buggy_full.find("pass  # BUG")
+    else:
+        bug_pos = -1
+
+    if bug_pos < 0:
+        # Can't find bug pattern - fall back to single-file trajectory
+        return generate_persistent_trajectory(repo, focus_length)
+
+    # Calculate focus window for secondary file
+    focus_start = max(0, bug_pos - focus_length // 4)
+    focus_end = min(len(secondary_buggy_full), focus_start + focus_length)
+    secondary_focus_text = secondary_buggy_full[focus_start:focus_end]
+    secondary_offset = bug_pos - focus_start
+
+    # Compute vocab_idx for secondary fix based on template type
+    # COMBINED_VOCAB indices for HARD fixes:
+    # - 31: 'upper' (for data_pipeline secondary: lower→upper)
+    # - 32: 'del self._users[user_id]' (for rest_api secondary: pass→del)
+    secondary_vocab_idx = None
+    secondary_length = 0
+
+    if "data_pipeline" in bug.template.name:
+        # Secondary bug: .lower() (buggy) → .upper() (fix)
+        # Find 'lower' in focus and replace with 'upper' (vocab_idx=31)
+        lower_pos = secondary_focus_text.find("lower")
+        if lower_pos >= 0:
+            secondary_offset = lower_pos
+            secondary_vocab_idx = 31  # 'upper'
+            secondary_length = 5  # len('lower') = 5
+
+    elif "rest_api" in bug.template.name:
+        # Secondary bug: pass  # BUG... (buggy) → del self._users[user_id] (fix)
+        # Find 'pass  # BUG' and replace with deletion code (vocab_idx=32)
+        pass_pos = secondary_focus_text.find("pass  # BUG")
+        if pass_pos >= 0:
+            secondary_offset = pass_pos
+            secondary_vocab_idx = 32  # 'del self._users[user_id]'
+            # Length of buggy code to replace (entire 'pass  # BUG: user not deleted' line)
+            buggy_end = secondary_focus_text.find("\n", pass_pos)
+            if buggy_end < 0:
+                buggy_end = len(secondary_focus_text)
+            secondary_length = min(buggy_end - pass_pos, 255)  # Cap at byte max
+
+    # If we can't compute vocab action, fall back to single-file trajectory
+    if secondary_vocab_idx is None:
+        # Can't encode secondary fix with current vocab - use single-file trajectory
+        return generate_persistent_trajectory(repo, focus_length)
+
+    # Build the goal string
+    goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
+
+    # Step 1: Initial observation - RUN_TESTS
+    initial_obs = create_initial_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=single_step_primary.focus_text,
+        tests_passing=0,
+        tests_total=0,
+    )
+    run_tests_action = create_run_tests_action()
+
+    # Step 2: After RUN_TESTS - WRITE_FOCUS for primary bug
+    post_discovery_obs = create_post_run_tests_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=single_step_primary.focus_text,
+        focus_offset=single_step_primary.focus_offset,
+        file_path=primary_file,
+        tests_passing=1,
+        tests_total=3,  # More tests for HARD
+        step=1,
+        bug_type=single_step_primary.bug_type,
+    )
+    write_focus_action_1 = single_step_primary.correct_action.action_bytes
+
+    # Step 3: After first fix - NAVIGATE to secondary file
+    # FIX (2026-01-23): Pass file_path, offset, content to match eval env terminal format
+    primary_fix_content = COMBINED_VOCAB[single_step_primary.correct_action.vocab_idx]
+    post_first_fix_obs = create_post_write_focus_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=primary_original[:focus_length],  # Fixed code
+        step=2,
+        file_path=primary_file,
+        offset=single_step_primary.correct_action.offset,
+        content=primary_fix_content,
+    )
+    navigate_action = create_navigate_action(secondary_file)
+
+    # Step 4: After NAVIGATE - WRITE_FOCUS for secondary bug
+    post_navigate_obs = create_post_navigate_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=secondary_focus_text,
+        focus_file=secondary_file,
+        step=3,
+    )
+    write_focus_action_2 = encode_action_v2_vocab(
+        action_type=ActionType.WRITE_FOCUS,
+        offset=secondary_offset,
+        length=secondary_length,
+        vocab_idx=secondary_vocab_idx,
+        vocab_mode=0,
+    )
+
+    # Step 5: After second fix - RUN_TESTS to verify
+    # FIX (2026-01-23): Pass file_path, offset, content to match eval env terminal format
+    secondary_fix_content = COMBINED_VOCAB[secondary_vocab_idx]
+    post_second_fix_obs = create_post_write_focus_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=secondary_original[:focus_length],  # Fixed code
+        step=4,
+        file_path=secondary_file,
+        offset=secondary_offset,
+        content=secondary_fix_content,
+    )
+    verify_tests_action = create_run_tests_action()
+
+    # Step 6: After verify - COMPLETE_TASK
+    post_verify_obs = create_post_verify_observation(
+        repo_name=repo.name,
+        goal=goal,
+        focus_text=secondary_original[:focus_length],
+        tests_passing=3,
+        tests_total=3,
+        step=5,
+    )
+    complete_task_action = create_complete_task_action()
+
+    steps = [
+        (initial_obs, run_tests_action),           # Step 1: RUN_TESTS
+        (post_discovery_obs, write_focus_action_1),  # Step 2: WRITE_FOCUS (primary)
+        (post_first_fix_obs, navigate_action),      # Step 3: NAVIGATE
+        (post_navigate_obs, write_focus_action_2),  # Step 4: WRITE_FOCUS (secondary)
+        (post_second_fix_obs, verify_tests_action), # Step 5: RUN_TESTS (verify)
+        (post_verify_obs, complete_task_action),    # Step 6: COMPLETE_TASK
+    ]
+
+    return PersistentTrajectory(
+        repo_name=repo.name,
+        bug_type=single_step_primary.bug_type,
+        fix_description=repo.fix_description,
+        steps=steps,
+        solved=True,
+    )
+
+
+def create_post_write_focus_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    step: int,
+    file_path: str = "models.py",
+    offset: int = 0,
+    content: str = "fix",
+) -> torch.Tensor:
+    """Create observation after WRITE_FOCUS action.
+
+    FIX (2026-01-23): Match eval env terminal format EXACTLY!
+    Include truncated pytest output prefix to match eval env behavior.
+    """
+    content_preview = content[:20] + "..." if len(content) > 20 else content
+
+    # Prepend truncated pytest output to match eval env behavior
+    pytest_prefix = (
+        f"E   AssertionError: assert True == False\n"
+        f"E    +  where True = function()\n"
+        f"\n"
+    )
+
+    terminal = (
+        pytest_prefix +
+        f"[Step {step - 1}] WRITE_FOCUS[{offset}:{offset + len(content)}] = '{content_preview}'\n"
+        f"Wrote {len(content)} bytes to focus {file_path}\n"
+        f"Syntax OK\n"
+    )
+    return encode_observation(JarvisObservation(
+        terminal_output=terminal[:256],
+        goal=goal[:64],
+        focus_text=focus_text[:128],
+        step=step,
+        tests_passing=0,
+        tests_total=0,
+    ))
+
+
+def create_post_navigate_observation(
+    repo_name: str,
+    goal: str,
+    focus_text: str,
+    focus_file: str,
+    step: int,
+) -> torch.Tensor:
+    """Create observation after NAVIGATE action."""
+    terminal = f"[Step {step - 1}] NAVIGATE\nNavigated to {focus_file}.\n"
+    return encode_observation(JarvisObservation(
+        terminal_output=terminal[:256],
+        goal=goal[:64],
+        focus_text=focus_text[:128],
+        step=step,
+        tests_passing=0,
+        tests_total=0,
+    ))
+
+
 def generate_persistent_demos(
     num_tasks: int = 1000,
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
@@ -1479,8 +2055,11 @@ def generate_persistent_demos(
     """
     Generate persistent mode expert demonstrations.
 
-    Each demo is a 4-step trajectory:
-    RUN_TESTS → WRITE_FOCUS → RUN_TESTS → COMPLETE_TASK
+    For TRIVIAL/EASY/MEDIUM: 4-step trajectory
+        RUN_TESTS → WRITE_FOCUS → RUN_TESTS → COMPLETE_TASK
+
+    For HARD (multi-file bugs): 6-step trajectory
+        RUN_TESTS → WRITE_FOCUS → NAVIGATE → WRITE_FOCUS → RUN_TESTS → COMPLETE_TASK
 
     Args:
         num_tasks: Number of demonstrations to generate
@@ -1498,7 +2077,13 @@ def generate_persistent_demos(
 
     trajectories = []
     for repo in repos:
-        traj = generate_persistent_trajectory(repo)
+        # For HARD difficulty, try multi-file trajectory first
+        # generate_multifile_trajectory() falls back to 4-step if not multi-file
+        if difficulty == BugDifficulty.HARD:
+            traj = generate_multifile_trajectory(repo)
+        else:
+            traj = generate_persistent_trajectory(repo)
+
         if traj is not None:
             trajectories.append(traj)
 
@@ -1509,7 +2094,7 @@ def create_sequential_bc_dataset(
     num_tasks: int = 1000,
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     seed: int = 42,
-    seq_len: int = 4,
+    seq_len: int = None,  # Auto-detect: 4 for EASY, 6 for HARD
     include_closer_demos: bool = True,
     closer_ratio: float = 0.05,
 ) -> Dict[str, torch.Tensor]:
@@ -1517,8 +2102,9 @@ def create_sequential_bc_dataset(
     Create a behavioral cloning dataset that preserves trajectory structure.
 
     This is critical for training RNNs: the model must learn to use its hidden
-    state to track where it is in the 4-step loop:
-    RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK
+    state to track where it is in the multi-step loop:
+    - TRIVIAL/EASY/MEDIUM: RUN_TESTS -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK (4 steps)
+    - HARD: RUN_TESTS -> WRITE_FOCUS -> NAVIGATE -> WRITE_FOCUS -> RUN_TESTS -> COMPLETE_TASK (6 steps)
 
     Unlike create_persistent_bc_dataset which flattens to individual samples,
     this returns padded sequences grouped by trajectory.
@@ -1534,7 +2120,7 @@ def create_sequential_bc_dataset(
         num_tasks: Number of trajectories to generate
         difficulty: Bug difficulty level
         seed: Random seed
-        seq_len: Sequence length (default 4 for persistent loop)
+        seq_len: Sequence length (default: 4 for EASY, 6 for HARD)
         include_closer_demos: If True, add 2-step (RUN_TESTS→COMPLETE_TASK) demos
             Phase 7.5 fix: 2-step avoids h=0 toxic attractor from original 1-step demos
         closer_ratio: Ratio of closer demos to add (default 0.05 = 1:20 ratio)
@@ -1547,7 +2133,11 @@ def create_sequential_bc_dataset(
         - num_run_tests: int
         - num_write_focus: int
         - num_complete_task: int
+        - num_navigate: int (for HARD)
     """
+    # Auto-detect seq_len based on difficulty
+    if seq_len is None:
+        seq_len = 6 if difficulty == BugDifficulty.HARD else 4
     persistent_trajs = generate_persistent_demos(num_tasks, difficulty, seed)
 
     if not persistent_trajs:
@@ -1566,8 +2156,9 @@ def create_sequential_bc_dataset(
     num_run_tests = 0
     num_write_focus = 0
     num_complete_task = 0
+    num_navigate = 0
 
-    # Add full 4-step trajectories
+    # Add full trajectories (4-step for EASY, up to 6-step for HARD)
     for i, traj in enumerate(persistent_trajs):
         for step_idx, (obs, action) in enumerate(traj.steps):
             if step_idx >= seq_len:
@@ -1584,6 +2175,8 @@ def create_sequential_bc_dataset(
                 num_write_focus += 1
             elif action_type == ActionType.COMPLETE_TASK.value:
                 num_complete_task += 1
+            elif action_type == ActionType.NAVIGATE.value:
+                num_navigate += 1
 
     # Add "Closer Demos" - 2-step (RUN_TESTS → COMPLETE_TASK) trajectories
     # Phase 7.5 fix: Use 2-step instead of 1-step to avoid h=0 toxic attractor.
@@ -1637,6 +2230,7 @@ def create_sequential_bc_dataset(
         "num_run_tests": num_run_tests,
         "num_write_focus": num_write_focus,
         "num_complete_task": num_complete_task,
+        "num_navigate": num_navigate,  # HARD multi-file only
     }
 
 
