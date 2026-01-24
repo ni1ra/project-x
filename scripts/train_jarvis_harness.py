@@ -835,6 +835,8 @@ class JarvisHarnessTrainer:
         bc_lr: float = 1e-3,
         difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
         seq_len: int = 4,
+        jitter: int = 0,
+        real_ratio: float = 0.0,
     ) -> Dict[str, Any]:
         """
         Sequential BC pre-training for RNNs.
@@ -872,6 +874,8 @@ class JarvisHarnessTrainer:
             difficulty=difficulty,
             seed=42,
             seq_len=seq_len,
+            jitter=jitter,
+            real_ratio=real_ratio,
         )
 
         num_traj = dataset["num_trajectories"]
@@ -2507,6 +2511,8 @@ def main():
                     bc_lr=args.bc_lr,
                     difficulty=difficulty,
                     seq_len=bc_seq_len,
+                    jitter=args.focus_jitter,
+                    real_ratio=args.real_ratio,
                 )
                 bc_metrics = {"bc_loss": bc_result["bc_loss"], "bc_accuracy": bc_result["bc_accuracy"]}
             else:

@@ -1647,6 +1647,7 @@ class PersistentTrajectory:
 def generate_persistent_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
+    jitter: int = 0,
 ) -> Optional[PersistentTrajectory]:
     """
     Generate a 4-step trajectory for the persistent developer loop.
@@ -1676,7 +1677,7 @@ def generate_persistent_trajectory(
     buggy_content = buggy.content
 
     # Generate the single-step trajectory to get the correct WRITE_FOCUS action
-    single_step = generate_expert_trajectory(repo, focus_length)
+    single_step = generate_expert_trajectory(repo, focus_length, jitter=jitter)
     if single_step is None:
         return None
 
@@ -1771,6 +1772,7 @@ def generate_persistent_trajectory(
 def generate_multifile_trajectory(
     repo: GeneratedRepo,
     focus_length: int = 256,
+    jitter: int = 0,
 ) -> Optional[PersistentTrajectory]:
     """
     Generate a 6-step trajectory for HARD multi-file bugs.
@@ -1797,7 +1799,7 @@ def generate_multifile_trajectory(
     # Check if this is a multi-file bug
     if not bug.secondary_files:
         # Single-file bug - use regular 4-step trajectory
-        return generate_persistent_trajectory(repo, focus_length)
+        return generate_persistent_trajectory(repo, focus_length, jitter=jitter)
 
     # Get primary bug info
     primary_file = bug.file_path
@@ -1812,7 +1814,7 @@ def generate_multifile_trajectory(
     secondary_original, secondary_buggy, secondary_fix = bug.secondary_files[secondary_file]
 
     # Generate single-step trajectories for both bugs
-    single_step_primary = generate_expert_trajectory(repo, focus_length)
+    single_step_primary = generate_expert_trajectory(repo, focus_length, jitter=jitter)
     if single_step_primary is None:
         return None
 
@@ -1847,7 +1849,7 @@ def generate_multifile_trajectory(
 
     if bug_pos < 0:
         # Can't find bug pattern - fall back to single-file trajectory
-        return generate_persistent_trajectory(repo, focus_length)
+        return generate_persistent_trajectory(repo, focus_length, jitter=jitter)
 
     # Calculate focus window for secondary file
     focus_start = max(0, bug_pos - focus_length // 4)
@@ -1887,7 +1889,7 @@ def generate_multifile_trajectory(
     # If we can't compute vocab action, fall back to single-file trajectory
     if secondary_vocab_idx is None:
         # Can't encode secondary fix with current vocab - use single-file trajectory
-        return generate_persistent_trajectory(repo, focus_length)
+        return generate_persistent_trajectory(repo, focus_length, jitter=jitter)
 
     # Build the goal string
     goal = f"Fix the bugs and make tests pass. Hint: {repo.fix_description[:40]}"
@@ -2051,6 +2053,8 @@ def generate_persistent_demos(
     num_tasks: int = 1000,
     difficulty: BugDifficulty = BugDifficulty.TRIVIAL,
     seed: int = 42,
+    jitter: int = 0,
+    real_ratio: float = 0.0,
 ) -> List[PersistentTrajectory]:
     """
     Generate persistent mode expert demonstrations.
@@ -2065,24 +2069,37 @@ def generate_persistent_demos(
         num_tasks: Number of demonstrations to generate
         difficulty: Bug difficulty level
         seed: Random seed
+        jitter: Focus offset jitter for diversity
+        real_ratio: Fraction of tasks from real repos (Phase 9)
 
     Returns:
         List of PersistentTrajectory objects
     """
-    repos = generate_task_batch(
-        num_tasks=num_tasks,
-        difficulty_range=(difficulty, difficulty),
-        seed=seed,
-    )
+    # Phase 9: Support mixed synthetic+real demos
+    if real_ratio > 0:
+        from src.harness.real_repo_source import generate_mixed_task_batch, setup_real_repo_fixtures
+        setup_real_repo_fixtures()
+        repos = generate_mixed_task_batch(
+            num_tasks=num_tasks,
+            real_ratio=real_ratio,
+            difficulty_range=(difficulty, difficulty),
+            seed=seed,
+        )
+    else:
+        repos = generate_task_batch(
+            num_tasks=num_tasks,
+            difficulty_range=(difficulty, difficulty),
+            seed=seed,
+        )
 
     trajectories = []
     for repo in repos:
         # For HARD difficulty, try multi-file trajectory first
         # generate_multifile_trajectory() falls back to 4-step if not multi-file
         if difficulty == BugDifficulty.HARD:
-            traj = generate_multifile_trajectory(repo)
+            traj = generate_multifile_trajectory(repo, jitter=jitter)
         else:
-            traj = generate_persistent_trajectory(repo)
+            traj = generate_persistent_trajectory(repo, jitter=jitter)
 
         if traj is not None:
             trajectories.append(traj)
@@ -2097,6 +2114,8 @@ def create_sequential_bc_dataset(
     seq_len: int = None,  # Auto-detect: 4 for EASY, 6 for HARD
     include_closer_demos: bool = True,
     closer_ratio: float = 0.05,
+    jitter: int = 0,
+    real_ratio: float = 0.0,
 ) -> Dict[str, torch.Tensor]:
     """
     Create a behavioral cloning dataset that preserves trajectory structure.
@@ -2138,7 +2157,9 @@ def create_sequential_bc_dataset(
     # Auto-detect seq_len based on difficulty
     if seq_len is None:
         seq_len = 6 if difficulty == BugDifficulty.HARD else 4
-    persistent_trajs = generate_persistent_demos(num_tasks, difficulty, seed)
+    persistent_trajs = generate_persistent_demos(
+        num_tasks, difficulty, seed, jitter=jitter, real_ratio=real_ratio
+    )
 
     if not persistent_trajs:
         raise ValueError("No valid trajectories generated")
