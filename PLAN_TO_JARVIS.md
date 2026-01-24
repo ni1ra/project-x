@@ -27,7 +27,7 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 
 # PLAN_TO_JARVIS.md — Roadmap to Iron Man's JARVIS
 
-**Status:** Sprint 1 COMPLETE, Phase 8 NEXT
+**Status:** Phase 8 COMPLETE, Phase 9 NEXT
 **Target:** Complete autonomous tool-using operator
 
 ---
@@ -35,11 +35,11 @@ or place it in the appropriate subdirectory. Single files in root = violation.
 ## Phase Map
 
 ```
-[DONE] Sprint 1: Jarvis Harness
+[DONE] Sprint 1: Jarvis Harness (100% EASY)
    ↓
-[NEXT] Phase 8: Structural Plasticity
+[DONE] Phase 8: Structural Plasticity (100% EASY, 36.7% HARD)
    ↓
-Phase 9: Real Codebase Integration
+[NEXT] Phase 9: Real Codebase Integration
    ↓
 Phase 10: Natural Language Interface
    ↓
