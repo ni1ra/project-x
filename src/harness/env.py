@@ -693,6 +693,15 @@ class JarvisHarnessEnv:
         self.state.last_reward = reward
         self.state.episode_return += reward
 
+        # FIX (2026-01-24): Sync state.done to local done flag
+        # COMPLETE_TASK action sets state.done=True but the local done variable
+        # was never updated, causing done=False to be returned even after COMPLETE_TASK.
+        # This broke evaluation metrics for trained models.
+        if self.state.done:
+            done = True
+            if not reason:
+                reason = "success"  # Task completed successfully
+
         if done:
             self.state.done = True
             # Best-effort: terminate any still-running test process.
