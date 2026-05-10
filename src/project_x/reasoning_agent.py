@@ -36,11 +36,16 @@ which the test suite catches.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
 
-from project_x.reasoning.physics import free_fall_time
+from project_x.reasoning.physics import (
+    free_fall_time,
+    large_angle_pendulum_period,
+    pendulum_period,
+)
 from project_x.reasoning.symbolic import (
     Lemma,
     expand_characteristic_polynomial_2x2,
@@ -87,6 +92,72 @@ def _parse_free_fall(prompt: str) -> tuple[float, float] | None:
     if not h_match or not g_match:
         return None
     return (float(h_match.group(1)), float(g_match.group(1)))
+
+
+# Pendulum length parser: matches "L = 1.0 m" or "length L = 0.5 m" forms.
+_LENGTH_PATTERN = re.compile(r"L\s*=\s*(\d+\.?\d*)\s*m\b", re.IGNORECASE)
+
+# Pendulum amplitude parser: matches "from a Nθ angle" / "(θ₀ = N rad)" / "at N degrees"
+# / "at N°". Captures BOTH a numeric value AND a unit indicator (rad/deg/° absent → deg
+# typical-default, but we require explicit unit to avoid ambiguity).
+_AMPLITUDE_PATTERN = re.compile(
+    r"(?:θ_?0?\s*=\s*|amplitude[^0-9]*|angle[^0-9]*|from a\s+|at\s+)(\d+\.?\d*)\s*(?:°|deg(?:ree)?s?|rad(?:ian)?s?|π/\d+)",
+    re.IGNORECASE,
+)
+
+
+def _parse_pendulum(prompt: str) -> tuple[float, float, float | None] | None:
+    """Extract (L, g, theta_0_rad) from a pendulum prompt.
+
+    `theta_0_rad` is None for small-angle prompts (the substrate doesn't need it); a
+    positive radians value for large-angle prompts. Caller dispatches to small-angle
+    or large-angle substrate based on the None-vs-float status.
+
+    Three-gate filter: prompt must name pendulum AND length match AND gravity match.
+    Small-angle keyword (\"small-angle\") or large-angle keyword (\"elliptic\" / \"large\")
+    branches the dispatch.
+    """
+    lower = prompt.lower()
+    if "pendulum" not in lower:
+        return None
+    L_match = _LENGTH_PATTERN.search(prompt)
+    g_match = _GRAVITY_PATTERN.search(prompt)
+    if not L_match or not g_match:
+        return None
+    L = float(L_match.group(1))
+    g = float(g_match.group(1))
+
+    # Large-angle detection: explicit "elliptic" / "large-angle" / amplitude θ in prompt
+    is_large_angle = (
+        "elliptic" in lower
+        or "large-angle" in lower
+        or "large angle" in lower
+        or "not the small-angle" in lower
+    )
+    if not is_large_angle:
+        return (L, g, None)
+
+    # Try to extract amplitude in radians. Handle "θ₀ = π/3 rad" / "π/3 rad" forms first
+    # (π/N pattern), then fall back to numeric+unit. Captures the radians value.
+    pi_frac = re.search(r"π/(\d+\.?\d*)", prompt)
+    if pi_frac:
+        theta_0 = math.pi / float(pi_frac.group(1))
+        return (L, g, theta_0)
+    # Numeric amplitude with explicit unit
+    amp_match = _AMPLITUDE_PATTERN.search(prompt)
+    if amp_match:
+        value = float(amp_match.group(1))
+        # Detect unit from match suffix
+        matched_text = amp_match.group(0).lower()
+        if "rad" in matched_text:
+            theta_0 = value
+        elif "°" in matched_text or "deg" in matched_text:
+            theta_0 = value * math.pi / 180.0
+        else:
+            theta_0 = value  # assume radians as conservative default
+        return (L, g, theta_0)
+    # Large-angle prompt without parseable amplitude → can't dispatch
+    return None
 
 
 # 2x2 matrix regex: matches `[[a, b], [c, d]]` with optional whitespace.
@@ -175,8 +246,14 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
-        # Physics free-fall — covers physics-001/008. Domain-keyword gate prevents
-        # misrouting (only fires on drop/fall prompts).
+        # Physics pendulum (small-angle + large-angle) — covers physics-002/009/010.
+        # Pendulum-keyword gate; checked before free-fall (pendulum prompts could
+        # incidentally contain "drop"/"fall" but pendulum keyword is specific).
+        response = self._try_pendulum(prompt)
+        if response is not None:
+            return response
+
+        # Physics free-fall — covers physics-001/008. Domain-keyword gate.
         response = self._try_free_fall(prompt)
         if response is not None:
             return response
@@ -246,6 +323,33 @@ class ReasoningAgent:
             domain="physics",
             problem_shape="free_fall",
             parsed_inputs={"h_meters": h, "g_m_per_s_squared": g},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_pendulum(self, prompt: str) -> AgentResponse | None:
+        params = _parse_pendulum(prompt)
+        if params is None:
+            return None
+        L, g, theta_0 = params
+        if theta_0 is None:
+            # Small-angle: physics-002 / physics-009 shape
+            lemma = pendulum_period(L, g)
+            return AgentResponse(
+                domain="physics",
+                problem_shape="pendulum_small_angle",
+                parsed_inputs={"L_meters": L, "g_m_per_s_squared": g},
+                lemma=lemma,
+                answer_text=lemma.render(),
+                confidence="high",
+            )
+        # Large-angle: physics-010 shape (elliptic-integral series)
+        lemma = large_angle_pendulum_period(L, g, theta_0)
+        return AgentResponse(
+            domain="physics",
+            problem_shape="pendulum_large_angle",
+            parsed_inputs={"L_meters": L, "g_m_per_s_squared": g, "theta_0_rad": theta_0},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",

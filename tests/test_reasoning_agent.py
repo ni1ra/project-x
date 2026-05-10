@@ -268,3 +268,66 @@ def test_reasoning_agent_solves_physics_008():
     t = response.lemma.actual_value
     expected = math.sqrt(2 * 50 / 3.71)
     assert abs(t - expected) < 1e-6
+
+
+# --- Pendulum dispatch (small-angle + large-angle) ---
+
+
+def test_reasoning_agent_solves_physics_002_small_angle_pendulum():
+    """Physics-002: L=1.0, g=9.81 → T ≈ 2π√(1/9.81) ≈ 2.007s."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A simple pendulum has length L = 1.0 m. In the small-angle approximation, "
+        "what is the period T of oscillation? Use g = 9.81 m/s^2."
+    )
+
+    assert response.confidence == "high"
+    assert response.problem_shape == "pendulum_small_angle"
+    assert response.parsed_inputs == {"L_meters": 1.0, "g_m_per_s_squared": 9.81}
+    T = response.lemma.actual_value
+    expected = 2 * math.pi * math.sqrt(1.0 / 9.81)
+    assert abs(T - expected) < 1e-6
+
+
+def test_reasoning_agent_solves_physics_009_pendulum_moon():
+    """Physics-009: L=0.5, g=1.62 (Moon) → T ≈ 2π√(0.5/1.62)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A simple pendulum on the Moon (g = 1.62 m/s²) has length L = 0.5 m. "
+        "In the small-angle approximation, what is its period?"
+    )
+
+    assert response.confidence == "high"
+    assert response.parsed_inputs == {"L_meters": 0.5, "g_m_per_s_squared": 1.62}
+    T = response.lemma.actual_value
+    expected = 2 * math.pi * math.sqrt(0.5 / 1.62)
+    assert abs(T - expected) < 1e-6
+
+
+def test_reasoning_agent_solves_physics_010_large_angle_pendulum():
+    """Physics-010: L=1.0, g=9.81, θ₀=π/3 (60°) → elliptic-integral series correction."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A pendulum of length L = 1.0 m on Earth (g = 9.81 m/s²) is released from "
+        "a 60° angle (θ₀ = π/3 rad). Compute its period using the elliptic-integral "
+        "correction (NOT the small-angle approximation). Report in seconds."
+    )
+
+    assert response.confidence == "high"
+    assert response.problem_shape == "pendulum_large_angle"
+    assert response.parsed_inputs["L_meters"] == 1.0
+    assert response.parsed_inputs["g_m_per_s_squared"] == 9.81
+    assert abs(response.parsed_inputs["theta_0_rad"] - math.pi / 3) < 1e-6
+    T = response.lemma.actual_value
+    # Reference: T/T₀ ≈ 1.073 at 60°; T₀ ≈ 2.007 → T ≈ 2.154
+    T0 = 2 * math.pi * math.sqrt(1.0 / 9.81)
+    assert T > T0  # large-angle correction makes T longer than small-angle
+    assert abs(T - T0 * 1.073) < 0.02  # truncation tolerance
+
+
+def test_reasoning_agent_pendulum_no_pendulum_keyword():
+    """Non-pendulum prompt with L + g values → don't route."""
+    agent = ReasoningAgent()
+    response = agent.process("A spring with L = 2.0 m has g = 9.81 m/s^2. Find oscillation.")
+    # No "pendulum" keyword → refuses
+    assert response.confidence == "refused"
