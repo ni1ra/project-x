@@ -1,3 +1,22 @@
+"""Phase 1-3 compressed-memory transformer-style historical-control experiment.
+
+QUARANTINED — DO NOT IMPORT IN ORGANIC-THESIS CODE (audit-C2).
+
+Part of the Phase 1-6 transformer-style scaffolding family (alongside
+`legacy/transformer_scaffolding.py` and `experiments/tasks.py`). Preserved as
+a historical control for cross-phase comparisons; lain's 2026-05-09 standing
+constraint disqualifies pretrained transformer derivatives at every layer of
+the live organic stack.
+
+Torch is required for this module and is an OPTIONAL `[legacy]` extra in
+pyproject.toml — install via `pip install -e .[legacy]`. The live Phase 9-10
+organic stack (semantic_hdc_memory, semantic_memory_agent, encoder,
+random_index_hebbian, hdc_substrate) does NOT import torch; quarantine is
+enforced at install-time, not just by convention.
+
+Phase: 1-3 (historical control)
+"""
+
 from __future__ import annotations
 
 import argparse

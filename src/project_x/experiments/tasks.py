@@ -1,5 +1,9 @@
 """Task registry for compressed_memory experiments.
 
+QUARANTINED — DO NOT IMPORT IN ORGANIC-THESIS CODE (audit-C2). Part of the
+Phase 1-6 historical-control surface; torch-dependent (optional `[legacy]`
+extra in pyproject.toml). The live Phase 9-10 organic stack does NOT use this.
+
 Each task is a callable `(cfg, device) -> (input_tensor, target_tensor)` that produces
 a batch where the model's last-position prediction tests a specific retrieval property.
 

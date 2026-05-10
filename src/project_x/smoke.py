@@ -1,3 +1,11 @@
+"""Smoke entry-point for the Phase 1-6 legacy transformer scaffolding (ProjectXModel).
+
+QUARANTINED — torch-dependent. Torch is an OPTIONAL `[legacy]` extra in
+pyproject.toml (audit-C2); install via `pip install -e .[legacy]` to run this.
+The live Phase 9-10 organic stack does NOT need this entry-point — it has its
+own benchmarks under `experiments/` and `gpt-codex/benchmark/`.
+"""
+
 from __future__ import annotations
 
 import json
