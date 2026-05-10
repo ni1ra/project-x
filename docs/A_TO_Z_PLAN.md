@@ -56,7 +56,7 @@
 
 | Cycle | Persona | When (CEST) | Position | Status |
 |---|---|---|---|---|
-| C1 | Execute-Raphael (plan-setup; OVERRIDE Plan-navi default per pre-existing-plan rule) | 2026-05-10 03:32 | 1 of 8 | 🚧 in-flight |
+| C1 | Execute-Raphael (plan-setup; OVERRIDE Plan-navi default per pre-existing-plan rule) | 2026-05-10 03:32 | 1 of 8 | ✅ closed 04:01 — initial commit `5611c2b` force-pushed to https://github.com/ni1ra/project-x (hijacked from legacy WIRED-BRAIN per lain 03:55 + renamed to project-x per lain 03:56) |
 | C2 | Execute-Raphael (physics + cycle-1.5 deliverables) | 2026-05-10 04:12 | 2 of 8 | pending (cron `31970f0b`) |
 | C3 | Execute-Raphael (maths) | 2026-05-10 04:52 | 3 of 8 | pending (cron `44c5524c`) |
 | C4 | Execute-Raphael (memory) | 2026-05-10 05:32 | 4 of 8 | pending (cron `77fd72fe`) |
