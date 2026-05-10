@@ -4,11 +4,11 @@
 
 ## What this project is
 
-Project X is **lain's post-transformer memory + agent stack** — the engineering substrate that, over time, becomes Raphael (lain's all-knowing internal computer). The thesis: organic from the core, no pretrained transformer derivatives, slow-and-methodical, every layer earns its place. Phase 1-8 explored compressed-memory architectures and beyond-transformer organic memory. Phase 9 shipped the semantic HDC memory agent with from-scratch organic encoders. Phase 10 closed end-to-end (51/51 → 52/52 pytest, killer-milestone EXIT GATE met). Phase 11 (live, this run) ships the **Raphael Domain Benchmark Suite** — 36 hand-crafted entries across 6 domains spanning easy→unsolved, audit-ready for external GPT/lain grading.
+Project X is **lain's post-transformer memory + agent stack** — the engineering substrate that, over time, becomes Raphael (lain's all-knowing internal computer). The thesis: organic from the core, no pretrained transformer derivatives, slow-and-methodical, every layer earns its place. Phase 1-8 explored compressed-memory architectures and beyond-transformer organic memory. Phase 9 shipped the semantic HDC memory agent with from-scratch organic encoders. Phase 10 closed end-to-end (51/51 → 52/52 pytest, killer-milestone EXIT GATE met). Phase 11 shipped the **Raphael Domain Benchmark Suite** — 36 hand-crafted entries across 6 domains spanning easy→unsolved (closed at 9 green / 2 red / 21 rubric-pending / 4 ungradeable). Phase 12 closed the two memory-ladder reds via retrieval-mode disambiguation (memory ladder → 5 green / 0 red / 0 rubric / 1 ungradeable; full benchmark → **11 green / 0 red / 21 rubric-pending / 4 ungradeable**) at commit `8d734e3`.
 
 ## Active phase
 
-**Phase 11 — Raphael Domain Benchmark Suite.** Running as a 6h godify-app APOTHEOSIS cycle (2026-05-10 03:32-09:00 CEST). 8 cycles × 40m. ALL cycles Execute-Raphael (no Plan-navi inside this run; previous instance was Plan-Raphael; plan file at `/home/nira/.claude/plans/6h-im-going-to-serene-giraffe.md` is the contract). Live phase plan: `docs/A_TO_Z_PLAN.md`. Cycle handoff: `docs/DO_THIS_NEXT.md`. Project intent: `docs/MANIFESTO.md` (heartbeat-tracked).
+**Audit-fix run (NORMAL mode).** Phase 12 closed; lain ran a GPT audit on the post-Phase-12 codebase and surfaced 16 findings across 8 categories (4 HIGH code bugs, 4 HIGH/MED doc-sync, 2 MED structural, 3 MED infrastructure, 1 MED coverage, 2 LOW polish). The current run ships those 16 atomic per-issue commits in NORMAL mode (no godify-app APOTHEOSIS, no time-window). Per-tier skill variety per universal CLAUDE.md directive (keep-docs-fresh / hunt-bug / design-before-build / pick-one / consult-advisor / simplify rotated by section shape). Live audit-fix handoff: `docs/DO_THIS_NEXT.md`. Phase 11/12 verdicts (frozen): `docs/artifacts/PHASE_11_BENCHMARK.md` (with Phase 12 closure addendum) + `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md`. Phase 13 framing inputs (lain-gated, NOT this run's contract): `docs/artifacts/PHASE_13_CANDIDATES.md`. Project intent: `docs/MANIFESTO.md` (heartbeat-tracked).
 
 ## Standing constraints (project-specific)
 
@@ -34,7 +34,7 @@ Disqualified at every layer: BGE, MiniLM, sentence-transformers, llama.cpp, Qwen
 
 ### Append-as-you-go writes (crash survival, lain 2026-05-10)
 
-3 power outages in 2 days. Threat model: power loss possible at any point during a 6h godify run. Discipline:
+3 power outages in 2 days. Threat model: power loss possible at any point during a long autonomous run. Discipline:
 
 - **Per-entry durable write.** Each `gpt-codex/benchmark/<domain>/ladder.jsonl` entry written via append (`>>`), flushed before next entry generates. Mid-cycle power loss ≤ 1 entry in flight; all prior entries preserved on disk.
 - **Per-cycle git commit + push.** Cycle close ALWAYS commits the cycle's deltas with conventional message + push to `origin main`. NO `git add -A`.
@@ -64,7 +64,7 @@ The plan file's line-315 schema-check (`'self_score'` asserted) is intentionally
 
 | Path | What |
 |---|---|
-| `docs/A_TO_Z_PLAN.md` | Phase 11 live plan |
+| `docs/A_TO_Z_PLAN.md` | Last live phase plan (Phase 12 archived; Phase 13 framing pending) |
 | `docs/DO_THIS_NEXT.md` | Current cycle scope |
 | `docs/MANIFESTO.md` | lain's intent for the repo |
 | `docs/artifacts/PHASE_*.md` | Phase verdicts (Phase 9 = `PHASE_9_SEMANTIC_HDC_MEMORY.md` with Phase 10 closure addendum) |
@@ -83,6 +83,10 @@ The plan file's line-315 schema-check (`'self_score'` asserted) is intentionally
 
 `Project X Session Mistakes` wiki page (M-PROJECTX-001 through M-PROJECTX-014). Read at session start before substantive work; log new failures via `wiki_log_mistake` to that page. Recent (2026-05-10): M-PROJECTX-014 design-bias-in-the-probe (sister of M-PROJECTX-013 claim-without-measuring) drives the Phase 11 split-grading firewall.
 
-## Phase exit (when 09:00 hits)
+## Audit-fix run exit (current contract)
 
-`docs/A_TO_Z_PLAN.md` §0.4 lists 10 mechanical-proof exit conditions (E1-E10). E3 schema-firewall is the M-PROJECTX-014 enforcement. E10 git-state is the crash-survival enforcement. Cycle 8 verdict at `docs/artifacts/PHASE_11_BENCHMARK.md` reports honestly — auto-graded counts + rubric-pending counts + named deferrals (audio listening → Phase 12; live training → Phase 12+; >6-entry ladders → future). Lain reads when he wakes; silence = pass.
+The 16 #00audit-XX deliverables in `docs/DO_THIS_NEXT.md` § DONE CONDITION are the current run's exit conditions: all 16 TaskList rows `completed`, pytest ≥58 (likely 60+ post A1/A2/A4), grep-clean of root CLAUDE.md + README + pyproject for stale framing, working tree clean, atomic commit per finding referencing its `#00audit-XX` ID. Final Discord SLAUGHTER COMPLETE post = run done. M-PROJECTX-014 schema-firewall remains live (`grep -r self_score gpt-codex/benchmark/*/ladder.jsonl` returns 0 hits across 36 entries).
+
+## Historical phase-exit pattern
+
+Each phase had its own mechanical-proof exit. Phase 11 closed at 9 green / 2 red / 21 rubric-pending / 4 ungradeable (`PHASE_11_BENCHMARK.md`). Phase 12 closed both reds via retrieval-mode disambiguation (`PHASE_12_RETRIEVAL_DISAMBIGUATION.md`). Phase 13 framing is lain-gated; candidates inventoried in `PHASE_13_CANDIDATES.md` (not this run's contract).
