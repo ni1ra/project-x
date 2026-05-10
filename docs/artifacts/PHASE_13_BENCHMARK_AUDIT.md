@@ -84,18 +84,18 @@ Reasoning: with 1 entry per cell, the AI either passes or fails the cell — no 
 | philosophy-006 | ungraded; rubric-pending | (NOT ungradeable — in scope) |
 | persona-006 | ungraded; rubric-pending | (NOT ungradeable — in scope) |
 
-**Question for lain (cannot proceed past audit without answer):**
+**Lain directive 2026-05-10 (Discord verbatim):** *"Aren't there mathematical unsolved problems that could be proven objectivly? Also, if there is no known answer and no objective measurement for a valid answer, you can just audit it yourself, no?"*
 
-What does "passing" an unsolved-tier rank-6 entry mean operationally? Four candidate mechanisms:
+**Decision: HYBRID per-entry mechanism**, shaped by entry type:
 
-| Option | Grading mechanism | Feasibility | Honesty |
-|---|---|---|---|
-| A | `audit_status: "ungradeable; unsolved tier"` permanent. Rank-6 = capability-range markers, not passing tests. AGENT can attempt; cannot mechanically PASS. | **Easiest.** Existing pattern (4 entries already this way). | Highest. No false-PASS possible. |
-| B | Lain grades each AGENT attempt manually. Verdict = lain's. | Feasible. Requires lain time per attempt. | High. Single auditor; transparent. |
-| C | External panel grades (Hassabis-tier domain experts). Verdict = panel consensus. | Hard logistically. | Highest external validity if achievable. |
-| D | Hybrid rubric: agent attempt graded on dimensions (correctness-of-known-results / novelty / mathematical-rigor / etc) without requiring a CANONICAL answer. Floor-gate + per-criterion thresholds. | Feasible. Builder writes rubric; lain ratifies. Builder-grader bias caveat applies (cycle 3-4 lesson). | Medium-high. Honest if bias documented. |
+| Entry type | Grading mechanism | Honesty framing |
+|---|---|---|
+| Mathematical unsolved with objectively-verifiable proofs (Riemann hypothesis, P=NP, Goldbach, BSD, etc.) | If AGENT produces a valid proof → mechanical PASS via existing `numerical_close` / `symbolic_match` / structural-correctness check. Until then: `audit_status: "ungradeable; awaiting proof"`. | Highest objectivity. A real proof IS a real PASS. |
+| Conceptual frontier with no canonical answer (cosmological constant interpretation, multiverse measure, qualitative open problems) | BUILDER self-audit via rubric-graded-builder pattern with explicit `no_canonical_answer: true` caveat. Per-criterion floor where defensible (correctness-of-known-results / novelty / no-false-certainty / honesty-about-gaps). Builder-grader bias documented per cycle 3-4 lesson. | Medium-high. Self-audit is the only feasible mechanism for genuinely qualitative frontier; honesty discipline (cycle 3-4 advisor framework) keeps the bias visible. |
 
-**Recommendation (advisor pre-commit input):** Default to A for unsolved tier; offer B/D selectively per entry where lain has domain conviction. Surface to lain.
+**Why this is the right call:** lain's catch is correct. A bona-fide proof of an unsolved problem is objective regardless of who produces it; not a special case requiring lain or a panel. For genuinely-no-objective-answer frontier entries, builder self-audit with documented bias is the only operationally feasible mechanism. The previous "Option A/B/C/D" framing was over-asking — the right mechanism varies per entry, not per ladder rank.
+
+**Cycle 6 #02 + #03 implication:** rank-6 entries get authored with explicit per-entry `audit_status` reflecting the right mechanism for that problem shape. No blocking on lain; no waiting for external panel.
 
 ### 2.4 Domain breadth observations
 
