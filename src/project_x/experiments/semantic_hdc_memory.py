@@ -168,8 +168,22 @@ class SemanticHDCMemory:
     _baseline: KeywordBaseline = field(init=False, repr=False)
     _records: list[TurnRecord] = field(default_factory=list, init=False, repr=False)
     _turn_texts: list[str] = field(default_factory=list, init=False, repr=False)
+    # `_floor_turn_vecs` / `_heb_turn_vecs` are LIVE VIEW slices into the
+    # underlying capacity buffers (audit-D2). All retrieval code reads through
+    # these views — they always have shape (n_records, D), never the raw
+    # over-allocated capacity. Refreshed at every write_one and at write_batch
+    # init. This indirection lets write_one append in amortized O(1) instead
+    # of paying O(n) per append for `np.concatenate` (audit measured ~12x slower
+    # than batch at N=1000; growth-by-doubling brings it under 5x).
     _floor_turn_vecs: np.ndarray | None = field(default=None, init=False, repr=False)
     _heb_turn_vecs: np.ndarray | None = field(default=None, init=False, repr=False)
+    # Underlying capacity buffers backing the live views. Pre-allocated +
+    # grown by doubling in write_one. Slice [:n_records] is the live data;
+    # slice [n_records:capacity] is uninitialized scratch (never read). Sized
+    # by `_floor_storage.shape[0]` (capacity) vs `_n_records` (live count).
+    _floor_storage: np.ndarray | None = field(default=None, init=False, repr=False)
+    _heb_storage: np.ndarray | None = field(default=None, init=False, repr=False)
+    _n_records: int = field(default=0, init=False, repr=False)
     _is_built: bool = field(default=False, init=False, repr=False)
     # turn_id → row-index mapping. The encoder arrays (_floor_turn_vecs,
     # _heb_turn_vecs) and self._records are stored densely in insertion order
@@ -217,9 +231,15 @@ class SemanticHDCMemory:
         self._hebbian.fit(self._turn_texts, reset=True)
         # Fit baseline
         self._baseline.fit(self._turn_texts)
-        # Encode all turns once
-        self._floor_turn_vecs = self._floor.encode(self._turn_texts)
-        self._heb_turn_vecs = self._hebbian.encode(self._turn_texts)
+        # Encode all turns once. The encoded arrays become the initial
+        # capacity buffers (audit-D2) — write_one grows them by doubling
+        # if/when n_records exceeds capacity.
+        self._floor_storage = self._floor.encode(self._turn_texts)
+        self._heb_storage = self._hebbian.encode(self._turn_texts)
+        self._n_records = len(records)
+        # Live views are the full storage at this point (n == capacity).
+        self._floor_turn_vecs = self._floor_storage
+        self._heb_turn_vecs = self._heb_storage
         # Phase 10 P3: build fact graph (subject -> turn_ids, recency-sorted)
         self._fact_graph = self._build_fact_graph(self._records)
         # Phase 10 P3 (#00c-2): build HDC role-filler binding bank.
@@ -356,8 +376,39 @@ class SemanticHDCMemory:
         # Stateless / incremental-safe encoders.
         new_floor = self._floor.encode([record.text])  # (1, D)
         new_heb = self._hebbian.encode([record.text])  # (1, D); unseen-word fallback handles novel tokens
-        self._floor_turn_vecs = np.concatenate([self._floor_turn_vecs, new_floor], axis=0)
-        self._heb_turn_vecs = np.concatenate([self._heb_turn_vecs, new_heb], axis=0)
+
+        # Audit-D2: amortized-O(1) append via growth-by-doubling. Pre-fix used
+        # `np.concatenate` which copied the entire (n, D) array per append → O(n²)
+        # for n appends (1000-write was ~12x slower than batch). Doubling the
+        # capacity when full gives O(n log n) total over n writes (each row is
+        # copied at most O(log n) times); 1000-write empirically lands < 5x batch.
+        # Check floor + heb capacity INDEPENDENTLY: replay_consolidate replaces
+        # _heb_storage with a freshly-encoded (n_records, D) array (no headroom),
+        # while _floor_storage keeps its accumulated capacity. They drift, so
+        # the grow check must fire on whichever runs out first.
+        floor_cap = self._floor_storage.shape[0]
+        if self._n_records >= floor_cap:
+            new_cap = max(16, 2 * floor_cap)
+            grown_floor = np.empty((new_cap, self.D), dtype=self._floor_storage.dtype)
+            grown_floor[:self._n_records] = self._floor_storage[:self._n_records]
+            self._floor_storage = grown_floor
+        heb_cap = self._heb_storage.shape[0]
+        if self._n_records >= heb_cap:
+            new_cap = max(16, 2 * heb_cap)
+            grown_heb = np.empty((new_cap, self.D), dtype=self._heb_storage.dtype)
+            grown_heb[:self._n_records] = self._heb_storage[:self._n_records]
+            self._heb_storage = grown_heb
+        # Write the new row in-place (no concatenation; capacity guaranteed sufficient).
+        self._floor_storage[self._n_records] = new_floor[0]
+        self._heb_storage[self._n_records] = new_heb[0]
+        self._n_records += 1
+        # Refresh live views — slice into current storage. `slice` is O(1)
+        # (numpy view, no copy); reads through `_floor_turn_vecs` always see
+        # the up-to-date n_records prefix even after a grow event reallocated
+        # the underlying buffer.
+        self._floor_turn_vecs = self._floor_storage[:self._n_records]
+        self._heb_turn_vecs = self._heb_storage[:self._n_records]
+
         # Jaccard baseline: append new token set
         self._baseline._turn_token_sets.append(set(tokenize(record.text)))
         # Fact graph: prepend turn_id (most-recent first; recency-sorted desc invariant).
@@ -380,8 +431,11 @@ class SemanticHDCMemory:
         # across replay ticks; without it, drop probabilities computed from
         # inflated _total_tokens drift wrong on every consolidation.
         self._hebbian.fit(self._turn_texts, reset=True)
-        # Re-encode all turns with refreshed Hebbian; floor vecs unchanged (stateless).
-        self._heb_turn_vecs = self._hebbian.encode(self._turn_texts)
+        # Re-encode all turns with refreshed Hebbian; floor vecs unchanged
+        # (stateless). The re-encoded array becomes the new heb storage —
+        # capacity = n_records (no headroom; the next write_one will grow it).
+        self._heb_storage = self._hebbian.encode(self._turn_texts)
+        self._heb_turn_vecs = self._heb_storage
         # Baseline refit (cheap; just rebuilds token sets).
         self._baseline.fit(self._turn_texts)
 

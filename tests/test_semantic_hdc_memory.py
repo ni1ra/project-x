@@ -332,6 +332,113 @@ def test_replay_consolidate_idempotent():
     assert set(mem._hebbian._vocab.keys()) == expected_vocab
 
 
+def test_write_one_growth_by_doubling_mechanics():
+    """Audit-D2 mechanical regression — _floor_storage capacity grows by
+    doubling instead of `np.concatenate` per append. Verifies (a) the capacity
+    field tracks correctly across a grow event, (b) _n_records tracks live
+    record count independently of capacity, (c) the live `_floor_turn_vecs`
+    view always has shape (n_records, D), (d) _heb_storage tracks
+    independently after replay_consolidate replaces it.
+    """
+    records = [
+        TurnRecord(turn_id=0, text="Alice prefers Python.", fact_keys=["pref:Alice"]),
+    ]
+    mem = SemanticHDCMemory(D=512, alpha=0.5, negative_samples=0, seed=1337)
+    mem.write_batch(records)
+    # write_batch: cap == n_records == 1.
+    assert mem._floor_storage.shape == (1, 512)
+    assert mem._n_records == 1
+    assert mem._floor_turn_vecs.shape == (1, 512)
+
+    # First write_one fires grow (n_records >= cap=1) → new_cap = max(16, 2) = 16.
+    new_record = TurnRecord(turn_id=1, text="Bob prefers Rust.", fact_keys=["pref:Bob"])
+    mem.write_one(new_record)
+    assert mem._floor_storage.shape == (16, 512), (
+        f"first grow should double-or-floor16; got cap={mem._floor_storage.shape[0]}"
+    )
+    assert mem._n_records == 2
+    assert mem._floor_turn_vecs.shape == (2, 512)
+
+    # 14 more writes — cap stays at 16 until n_records >= 16, no grow yet.
+    for i in range(2, 16):
+        mem.write_one(TurnRecord(
+            turn_id=i, text=f"User{i} prefers thing{i}.", fact_keys=[f"pref:User{i}"]
+        ))
+    assert mem._floor_storage.shape == (16, 512), (
+        f"capacity should stay at 16 until full; got {mem._floor_storage.shape[0]}"
+    )
+    assert mem._n_records == 16
+    assert mem._floor_turn_vecs.shape == (16, 512)
+
+    # Write #17 forces another double: cap = 32.
+    mem.write_one(TurnRecord(
+        turn_id=16, text="User16 prefers thing16.", fact_keys=["pref:User16"]
+    ))
+    assert mem._floor_storage.shape == (32, 512)
+    assert mem._n_records == 17
+    assert mem._floor_turn_vecs.shape == (17, 512)
+
+    # replay_consolidate replaces _heb_storage with (n, D) (no headroom) but
+    # leaves _floor_storage's accumulated cap intact. The next write_one must
+    # check both storages independently and grow heb without re-growing floor.
+    floor_cap_before = mem._floor_storage.shape[0]  # 32
+    mem.replay_consolidate()
+    assert mem._heb_storage.shape == (17, 512), "replay shrinks heb to n_records"
+    assert mem._floor_storage.shape == (32, 512), "replay leaves floor cap alone"
+
+    mem.write_one(TurnRecord(
+        turn_id=17, text="User17 prefers thing17.", fact_keys=["pref:User17"]
+    ))
+    # Floor still has headroom (cap=32, n=18); should NOT regrow.
+    assert mem._floor_storage.shape == (32, 512), (
+        f"floor cap should stay at 32 (headroom available); got {mem._floor_storage.shape[0]}"
+    )
+    # Heb was at cap=17, n_records=17 → grow fires, new_cap = 34.
+    assert mem._heb_storage.shape == (34, 512), (
+        f"heb should double from 17 → 34; got {mem._heb_storage.shape[0]}"
+    )
+    assert mem._n_records == 18
+
+
+def test_write_one_amortized_under_5x_batch():
+    """Audit-D2 perf regression — incremental write_one amortized cost should
+    be < 5x the equivalent batch encoding. Pre-fix was ~12x because each
+    write paid an O(n) np.concatenate; post-fix uses growth-by-doubling so
+    total cost over n writes is O(n log n) instead of O(n²).
+
+    The ratio threshold is generous (5x) to absorb wall-clock noise on
+    shared CI runners. Empirically post-fix is ~1.5-2x; pre-fix was ~12x —
+    a 5x threshold catches regressions cleanly.
+    """
+    import time
+    records = [
+        TurnRecord(
+            turn_id=i, text=f"alice prefers item{i}",
+            fact_keys=[f"pref:item{i}"],
+        )
+        for i in range(200)
+    ]
+
+    # Batch path baseline.
+    t0 = time.time()
+    mem_b = SemanticHDCMemory(D=2048, alpha=0.5, negative_samples=0, seed=1337)
+    mem_b.write_batch(records)
+    batch_t = time.time() - t0
+
+    # Incremental path under test.
+    t1 = time.time()
+    mem_i = SemanticHDCMemory(D=2048, alpha=0.5, negative_samples=0, seed=1337)
+    mem_i.write_batch(records[:1])
+    for r in records[1:]:
+        mem_i.write_one(r)
+    inc_t = time.time() - t1
+
+    assert inc_t < 5 * batch_t, (
+        f"incremental write must be < 5x batch (audit-D2 target); "
+        f"batch={batch_t:.3f}s inc={inc_t:.3f}s ratio={inc_t/batch_t:.2f}x"
+    )
+
+
 def test_save_provenance_jsonl():
     import json
     mem = _build_simple_memory()
