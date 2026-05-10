@@ -14,13 +14,16 @@
 
 ## Phase 13 cycle 1 deliverables (#00P13c1-XX — pin in TaskList immediately)
 
+**Revised post-advisor (2026-05-10):** original draft was 3 infrastructure deliverables — exactly the deferral pattern lain just flagged. Revised: substrate slimmed to minimum-viable + a real **baseline-attempt** capability touchpoint so cycle 1 closes with a measured capability gap, not pure scaffolding.
+
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c1-sandbox** | HIGH | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + reset script + named snapshot/restore + tool registry expansion (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox; all sandbox-path-validated; subprocess env stripped — NO direct internet) |
-| **#00P13c1-grader** | HIGH | `gpt-codex/grade_pipeline/` (new) | Bulk manual-grade harness; agent JSONL → Claude Code rubric → feedback store → agent next-gen pulls top-graded examples as in-context priming. Two domains target: poetry, philosophy. |
+| **#00P13c1-sandbox** | MED | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + path validation + 4 tools (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox). MINIMUM viable; defer prod-hardening to a later cycle. |
 | **#00P13c1-persona** | MED | `src/project_x/persona/` (new) + `semantic_memory_agent.py` | Project X Raphael persona scaffolding: humor templates + persona-consistent voice markers + in-character rubric (lain test: humor must LAND). |
+| **#00P13c1-grader-min** | MED | `gpt-codex/grade_pipeline/` (new) | MINIMAL: agent JSONL output schema + Claude Code reads + writes scores to JSONL. NO feedback-loop integration yet — defer to cycle 3 when there's a real iterative generator. |
+| **#00P13c1-baseline-attempt** | **HIGH** | `gpt-codex/grade_pipeline/baseline_2026-05-10/` (new) | **The capability touchpoint.** Project X Raphael attempts ONE poetry-001 + ONE philosophy-001 entry via current `compose_answer` (post-persona scaffolding). Claude Code grades immediately using grader-min. Output: baseline score + "what would raise this" diff. Score may be brutal — that's the honest measurement. |
 | **#00P13c1-bench-replay** | MED | `gpt-codex/benchmark/run_audit.py` | D3 harness run; expect 11/0/21/4 (no regressions). |
-| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + this file | Cycle reflection at `dev-cycle-1.md`; rewrite this file as cycle 2 handoff (math reasoning substrate). |
+| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + this file | Cycle reflection includes baseline-attempt scores + concrete tensions surfaced (e.g., "no-pretrained-transformer constraint vs Terminus quality bar — what does the baseline score say?"). Rewrite this file as cycle 2 handoff. |
 
 ## Identity disambiguation (CRITICAL — lain 2026-05-10 binding)
 
@@ -81,7 +84,7 @@ See `docs/MANIFESTO.md` § Standing orders. Specifically for cycle 1:
 
 ## Done condition (cycle 1, mechanical)
 
-- All 5 #00P13c1-XX TaskList rows = `completed`
+- All 6 #00P13c1-XX TaskList rows = `completed`
 - `pytest -q` ≥ 87 (baseline; expect ≥ 90 with new tests)
 - Three new REPO_CONTROL rows landed in same commits as their dirs (`sandbox/`, `gpt-codex/grade_pipeline/`, `src/project_x/persona/`)
 - `gpt-codex/benchmark/run_audit.py` reports 11/0/21/4 (no regressions)

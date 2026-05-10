@@ -23,13 +23,16 @@ Project X Raphael (the agent — distinct from Claude Code Raphael, the builder;
 
 ### §0.2 Cycle 1 deliverables (#00P13c1-XX — pin in TaskList immediately)
 
+**Revised post-advisor (2026-05-10):** original cycle 1 was 3 infrastructure deliverables — exactly the deferral pattern lain just flagged ("all you have done so far is just minor work"). Revised: sandbox + persona stay slimmed-to-minimum-viable; grader splits into **minimal harness** + **real baseline attempt** so cycle 1 closes with a measured capability gap, not just scaffolding.
+
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c1-sandbox** | HIGH | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + reset script + named snapshot/restore + tool registry expansion (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox; all sandbox-path-validated; NO direct internet — subprocess env stripped + path-rejected) |
-| **#00P13c1-grader** | HIGH | `gpt-codex/grade_pipeline/` (new) | Manual-grade harness: agent emits N candidate outputs to JSONL; harness CLI presents structured rubric for Claude Code (the builder) to grade in bulks of 50+ per session; grades written to JSONL feedback store; agent's next generation pulls top-graded examples as in-context priming. Two domains target initially: poetry, philosophy. |
-| **#00P13c1-persona** | MED | `src/project_x/persona/` (new) + `src/project_x/experiments/semantic_memory_agent.py` | Project X Raphael persona scaffolding: humor templates + persona-consistent voice markers across response types (factual, retrieval, refusal, error, write-ack); in-character rubric (lain test: sample output reads as Raphael with a sense of humor that LANDS, not cringes); `compose_answer` wraps responses with persona signature. |
+| **#00P13c1-sandbox** | MED | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + path-validation + 4 tools (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox). MINIMUM viable — defer prod-hardening (subprocess env stripping, urllib/socket blocking) to a later cycle when something runs in there worth protecting. |
+| **#00P13c1-persona** | MED | `src/project_x/persona/` (new) + `src/project_x/experiments/semantic_memory_agent.py` | Project X Raphael persona scaffolding: humor templates + persona-consistent voice markers across response types; in-character rubric (lain test: humor must LAND, not cringe); `compose_answer` wraps responses with persona signature. |
+| **#00P13c1-grader-min** | MED | `gpt-codex/grade_pipeline/` (new) | MINIMAL manual-grade harness: agent JSONL output schema + Claude Code reads + writes scores to JSONL feedback store. NO feedback-loop integration into agent generation yet — defer to cycle 3 when there's a real iterative generator to feed. Cycle 1 ships only the read+grade+write round-trip. |
+| **#00P13c1-baseline-attempt** | **HIGH** | `gpt-codex/grade_pipeline/baseline_2026-05-10/` (new) | **The capability touchpoint.** Project X Raphael (the agent) attempts ONE poetry-001 entry + ONE philosophy-001 entry via current `compose_answer` (post-persona-scaffolding). Outputs to JSONL. Claude Code (the builder) grades using the cycle 1 grader-min. Output: baseline score per entry + "what would raise this score" diff for cycles 2+. **This is what makes cycle 1 capability-touching, not pure infrastructure.** Score may be brutal (template composer is not a poetry generator) — that's the honest measurement. |
 | **#00P13c1-bench-replay** | MED | `gpt-codex/benchmark/run_audit.py` | D3 harness run; expect 11/0/21/4 (no regressions from cycle 1 substrate). |
-| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + `docs/DO_THIS_NEXT.md` | Cycle reflection at `dev-cycle-1.md`; rewrite DO_THIS_NEXT as cycle 2 handoff (math reasoning substrate). |
+| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + `docs/DO_THIS_NEXT.md` | Cycle reflection includes the baseline-attempt scores + "what would raise this score" notes (architectural tensions surfaced concretely, not as opinions). Rewrite DO_THIS_NEXT as cycle 2 handoff (math reasoning substrate, refined per cycle 1 lessons). |
 
 ### §0.3 What cycle 1 does NOT include (cycle 2-N scope)
 
@@ -40,7 +43,7 @@ Project X Raphael (the agent — distinct from Claude Code Raphael, the builder;
 - Multi-domain integration + full benchmark assault — later cycles
 
 **Stop conditions (cycle 1 only):**
-1. All 5 #00P13c1-XX rows shipped + cycle reflection landed → pivot to cycle 2 (no pause)
+1. All 6 #00P13c1-XX rows shipped + cycle reflection landed → pivot to cycle 2 (no pause)
 2. Rate-limit cap
 3. Explicit lain stop ("stop", "i'm back", "freeze for X")
 
@@ -87,7 +90,7 @@ See `docs/MANIFESTO.md` § Standing orders. Cycle 1 specifically must honor:
 
 ## §4. CYCLE 1 EXIT CONDITIONS (mechanical)
 
-- All 5 #00P13c1-XX TaskList rows = `completed`
+- All 6 #00P13c1-XX TaskList rows = `completed`
 - pytest -q ≥ 87 (baseline; expect ≥ 90 with new tests for sandbox + grader + persona)
 - Three new REPO_CONTROL rows landed in same commits as their dirs (`sandbox/`, `gpt-codex/grade_pipeline/`, `src/project_x/persona/`)
 - D3 harness reports 11/0/21/4 (no regressions)
@@ -120,7 +123,7 @@ See `docs/MANIFESTO.md` § Standing orders. Cycle 1 specifically must honor:
 
 ### §7.C1 — Substrate (current handoff target)
 
-5 deliverables per §0.2. Order: sandbox first (substrate other deliverables smoke-test against) → persona second (voice scaffolding before generation work) → grader third (grades persona-consistent output) → bench replay → cycle reflection. Atomic per-deliverable commits with REPO_CONTROL rows landing in the same commit as new dirs.
+6 deliverables per §0.2. Order: sandbox first (minimum-viable folder + 4 tools) → persona second (voice scaffolding so the agent emits in-character before the baseline attempt runs) → grader-min third (the JSONL round-trip the baseline attempt depends on) → **baseline-attempt fourth (the capability touchpoint — agent attempts ONE poetry-001 + ONE philosophy-001, Claude Code grades immediately, score recorded)** → bench replay → cycle reflection (with baseline scores + concrete tensions). Atomic per-deliverable commits with REPO_CONTROL rows landing in the same commit as new dirs.
 
 ### §7.C2 — Math reasoning substrate (provisional)
 
