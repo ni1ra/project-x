@@ -62,14 +62,15 @@ def test_audit_harness_all_pass(tmp_path):
 
     payload = json.loads(json_path.read_text())
     summary = payload["summary"]
-    # Phase 13 cycle 4 verdict: memory 5 / maths 5 (3 auto + 2 cycle-3 Path B rubric-graded-builder) /
-    # physics 5 (3 auto + 2 cycle-4 Path B rubric-graded-builder on rank 4-5) = 15 total.
-    assert summary["total_pass"] == 15
-    assert summary["total_fail"] == 0
-    assert summary["by_domain"]["memory"]["pass"] == 5
+    # Phase 13 cycle 6 verdict: minimums after #02 maths expansion (+6 auto-graded passes).
+    # Use >= rather than == so future cycle expansions don't break the no-regression test.
+    # Strict floor: prior cycle baselines must hold; cycle 6+ may add entries that lift the count.
+    assert summary["total_pass"] >= 21, f"regression: total_pass {summary['total_pass']} < cycle-6-floor 21"
+    assert summary["total_fail"] == 0, f"regression: total_fail {summary['total_fail']} != 0"
+    assert summary["by_domain"]["memory"]["pass"] >= 5
     assert summary["by_domain"]["memory"]["fail"] == 0
-    assert summary["by_domain"]["maths"]["pass"] == 5
-    assert summary["by_domain"]["physics"]["pass"] == 5
+    assert summary["by_domain"]["maths"]["pass"] >= 11  # was 5; cycle 6 #02 lifted to 11
+    assert summary["by_domain"]["physics"]["pass"] >= 5
     # Rubric-pending domains MUST still be skipped where no rubric_grade landed
     # (poetry / philosophy / persona / physics-conceptual entries that haven't been
     # Path-B graded). M-PROJECTX-014 firewall holds: candidate text exists, no
@@ -82,7 +83,7 @@ def test_audit_harness_all_pass(tmp_path):
 
     # Each entry result should carry the harness's pass/fail + reason fields.
     entries = payload["entries"]
-    assert len(entries) == 15
+    assert len(entries) >= 21  # cycle-6-floor; future cycle expansion may lift
     for e in entries:
         assert "id" in e
         assert "domain" in e
