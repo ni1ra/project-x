@@ -1,0 +1,143 @@
+[
+  {
+    "probe_id": "physics-001_substrate_driven_probe",
+    "prompt_id": "physics-001",
+    "substrate_function": "free_fall_time",
+    "canonical_inputs": [
+      80,
+      9.81
+    ],
+    "surrogate_inputs": [
+      [
+        125,
+        9.81
+      ],
+      [
+        80,
+        1.62
+      ],
+      [
+        45,
+        3.71
+      ],
+      [
+        1000,
+        24.79
+      ],
+      [
+        250,
+        9.81
+      ]
+    ],
+    "n_surrogates": 5,
+    "canonical_match": true,
+    "surrogate_matches": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "surrogate_pass_rate": 1.0,
+    "memorization_signal": 0.0,
+    "surrogate_author": "builder (rule-based)",
+    "predicate_doc": "kinematic identity h = (1/2)·g·t² (reconstructed h must match input h within 1e-3 relative)",
+    "honest_label": "memorization_signal == 0.0 verified across all surrogates"
+  },
+  {
+    "probe_id": "physics-002_substrate_driven_probe",
+    "prompt_id": "physics-002",
+    "substrate_function": "pendulum_period",
+    "canonical_inputs": [
+      1.0,
+      9.81
+    ],
+    "surrogate_inputs": [
+      [
+        2.0,
+        9.81
+      ],
+      [
+        0.5,
+        9.81
+      ],
+      [
+        1.0,
+        1.62
+      ],
+      [
+        3.5,
+        3.71
+      ],
+      [
+        10.0,
+        9.81
+      ]
+    ],
+    "n_surrogates": 5,
+    "canonical_match": true,
+    "surrogate_matches": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "surrogate_pass_rate": 1.0,
+    "memorization_signal": 0.0,
+    "surrogate_author": "builder (rule-based)",
+    "predicate_doc": "T²·g/L = 4π² universal dimensionless invariant (must match within 1e-4)",
+    "honest_label": "memorization_signal == 0.0 verified across all surrogates"
+  },
+  {
+    "probe_id": "physics-003_substrate_driven_probe",
+    "prompt_id": "physics-003",
+    "substrate_function": "relativistic_momentum",
+    "canonical_inputs": [
+      9.11e-31,
+      270000000.0,
+      300000000.0
+    ],
+    "surrogate_inputs": [
+      [
+        1.67e-27,
+        270000000.0,
+        300000000.0
+      ],
+      [
+        9.11e-31,
+        150000000.0,
+        300000000.0
+      ],
+      [
+        9.11e-31,
+        297000000.0,
+        300000000.0
+      ],
+      [
+        1.67e-27,
+        30000000.0,
+        300000000.0
+      ],
+      [
+        9.11e-31,
+        90000000.0,
+        300000000.0
+      ]
+    ],
+    "n_surrogates": 5,
+    "canonical_match": true,
+    "surrogate_matches": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "surrogate_pass_rate": 1.0,
+    "memorization_signal": 0.0,
+    "surrogate_author": "builder (rule-based)",
+    "predicate_doc": "p = γ·m·v identity (substrate output must match independent γmv computation within 1e-4 relative)",
+    "honest_label": "memorization_signal == 0.0 verified across all surrogates"
+  }
+]
