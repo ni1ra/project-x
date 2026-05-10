@@ -38,6 +38,7 @@ from project_x.experiments.semantic_hdc_memory import (
     SemanticHDCMemory,
     TurnRecord,
 )
+from project_x.persona import wrap_response as _persona_wrap
 
 
 # =============================================================================
@@ -165,8 +166,14 @@ def compose_answer(
       - Single high-confidence evidence → quote turn text + cite turn_id + cosine.
       - Multi-evidence (e.g. multi_hop) → joint citation with AND-glued evidence.
     """
+    # Phase 13 #00P13c1-02-persona: each return path is wrapped via
+    # persona.wrap_response with the appropriate response_type tag. Decision
+    # label stays the same (downstream callers route on it); persona prefix +
+    # optional humor are presentational only. The query is passed as the
+    # stable hash seed for deterministic humor selection.
     if not evidence:
-        return ("No evidence found in conversation memory.", "absent", 0.0)
+        text = "No evidence found in conversation memory."
+        return (_persona_wrap(text, "absent", query), "absent", 0.0)
 
     # Phase 12 #00P12: full-history short-circuit — cite all evidence in
     # chronological order without applying cosine_threshold. Older turns
@@ -179,27 +186,28 @@ def compose_answer(
         ids = [str(e.turn_id) for e in evidence]
         parts = [f"'{e.text}'" for e in evidence]
         top_cos = max(e.cosine for e in evidence)
+        text = f"Based on turns {', '.join(ids)}: {' AND '.join(parts)}"
         return (
-            f"Based on turns {', '.join(ids)}: {' AND '.join(parts)}",
+            _persona_wrap(text, "retrieve_full_history", query),
             "retrieve_full_history",
             top_cos,
         )
 
     top_cos = max(e.cosine for e in evidence)
     if top_cos < cosine_threshold:
-        return (
+        text = (
             f"No evidence found in conversation memory "
-            f"(top cosine {top_cos:.3f} below threshold {cosine_threshold}).",
-            "absent",
-            top_cos,
+            f"(top cosine {top_cos:.3f} below threshold {cosine_threshold})."
         )
+        return (_persona_wrap(text, "absent", query), "absent", top_cos)
 
     # Pick evidence above the threshold for citation
     cited = [e for e in evidence if e.cosine >= cosine_threshold]
     if len(cited) == 1:
         e = cited[0]
+        text = f"Based on turn {e.turn_id}: '{e.text}' (cosine {e.cosine:.3f})"
         return (
-            f"Based on turn {e.turn_id}: '{e.text}' (cosine {e.cosine:.3f})",
+            _persona_wrap(text, "factual_retrieval", query),
             "retrieve",
             e.cosine,
         )
@@ -207,9 +215,12 @@ def compose_answer(
     # Multi-evidence
     parts = [f"'{e.text}'" for e in cited[:3]]   # cap at 3 to keep concise
     ids = [str(e.turn_id) for e in cited[:3]]
-    return (
+    text = (
         f"Based on turns {', '.join(ids)}: {' AND '.join(parts)} "
-        f"(top cosine {cited[0].cosine:.3f})",
+        f"(top cosine {cited[0].cosine:.3f})"
+    )
+    return (
+        _persona_wrap(text, "multi_evidence", query),
         "retrieve",
         cited[0].cosine,
     )
