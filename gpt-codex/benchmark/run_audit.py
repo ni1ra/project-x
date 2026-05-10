@@ -54,6 +54,7 @@ from project_x.experiments.semantic_hdc_memory import (  # noqa: E402
     TurnRecord,
 )
 from project_x.experiments.semantic_memory_agent import MemoryAgent  # noqa: E402
+from project_x.reasoning_agent import ReasoningAgent  # noqa: E402
 
 
 BENCHMARK_DIR = REPO_ROOT / "gpt-codex" / "benchmark"
@@ -142,9 +143,10 @@ def _verify_frozen_entry(entry: dict) -> EntryResult:
     """Verify the pre-computed auto_grade.match flag for non-replayable domains.
 
     maths/physics auto_grades carry frozen symbolic / numerical results that
-    this harness doesn't re-evaluate (no sympy, no closed-form-numerical
-    evaluator wired in this run). Asserting the recorded `match == True`
-    surfaces any tampering with frozen verdicts.
+    this harness doesn't re-evaluate by default (no sympy, no closed-form-numerical
+    evaluator wired). Asserting the recorded `match == True` surfaces any tampering
+    with frozen verdicts. Use `--agent-runtime` flag (cycle 7 #00P13c7-NEW) to
+    instead invoke ReasoningAgent on the prompt and verify runtime-computed value.
     """
     auto = entry["auto_grade"]
     method = auto.get("method")
@@ -158,6 +160,83 @@ def _verify_frozen_entry(entry: dict) -> EntryResult:
         pass_=pass_,
         reason=reason,
     )
+
+
+def _verify_via_agent_runtime(entry: dict, agent: ReasoningAgent) -> EntryResult:
+    """Cycle 7 #00P13c7-NEW: invoke ReasoningAgent on the prompt and verify the
+    runtime-computed answer matches `auto_grade.expected` within tolerance.
+
+    Replaces the frozen-verdict verification with an actual-AGENT-solves verdict.
+    Returns PASS iff (a) agent returned a high-confidence answer, (b) `lemma.actual_value`
+    is within `auto_grade.tolerance` of `auto_grade.expected`. Refusal or mismatch → FAIL.
+
+    Mismatches are honest signal (M-PROJECTX-013 measure-don't-claim): the agent didn't
+    handle this prompt shape OR returned a wrong number; either way the entry doesn't
+    count as a real-runtime PASS until the agent's dispatcher covers it.
+    """
+    auto = entry["auto_grade"]
+    method = auto.get("method")
+    # Expected value field name varies by entry generation: cycle 1-2 used domain-specific
+    # names (`expected_roots`, `expected_eigenvalues_sorted`); cycle 6+ uses generic
+    # `expected`. Try both so all entries route cleanly.
+    expected = (
+        auto.get("expected")
+        or auto.get("expected_roots")
+        or auto.get("expected_eigenvalues_sorted")
+        or auto.get("expected_value")
+    )
+    tolerance = auto.get("tolerance", 1e-4)
+    prompt = entry.get("prompt", "")
+    response = agent.process(prompt)
+    domain = entry.get("domain", "unknown")
+
+    if response.confidence == "refused":
+        return EntryResult(
+            id=entry["id"],
+            domain=domain,
+            method=method,
+            pass_=False,
+            reason=f"agent-runtime refused: {response.answer_text[:140]}",
+        )
+
+    actual = response.lemma.actual_value if response.lemma is not None else None
+    if actual is None:
+        return EntryResult(
+            id=entry["id"], domain=domain, method=method, pass_=False,
+            reason="agent-runtime returned no actual_value",
+        )
+
+    if _close_enough(actual, expected, tolerance):
+        return EntryResult(
+            id=entry["id"], domain=domain, method=method, pass_=True,
+            reason=f"agent-runtime computed {actual} vs expected {expected} (tol {tolerance})",
+        )
+    return EntryResult(
+        id=entry["id"], domain=domain, method=method, pass_=False,
+        reason=f"agent-runtime computed {actual} vs expected {expected} — mismatch beyond tolerance {tolerance}",
+    )
+
+
+def _close_enough(actual: Any, expected: Any, tolerance: float) -> bool:
+    """Tolerance comparison for scalar OR unordered-list-of-floats answers.
+
+    Lists are treated as UNORDERED sets — roots/eigenvalues are mathematically
+    unordered, so [-0.33, 5.0] equals [5.0, -0.33]. Both lists are sorted then
+    compared element-wise with the same tolerance semantics as scalars.
+    """
+    if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
+        # Relative tolerance for very small magnitudes (e.g. relativistic momentum ~1e-22)
+        if abs(expected) < 1e-15:
+            return abs(actual - expected) < max(tolerance, 1e-30)
+        return abs(actual - expected) / abs(expected) < tolerance or abs(actual - expected) < tolerance
+    if isinstance(actual, list) and isinstance(expected, list):
+        if len(actual) != len(expected):
+            return False
+        # Sort both ascending so roots/eigenvalues compare unordered.
+        a_sorted = sorted(actual)
+        e_sorted = sorted(expected)
+        return all(_close_enough(a, e, tolerance) for a, e in zip(a_sorted, e_sorted))
+    return False
 
 
 def _verify_rubric_graded_entry(entry: dict) -> EntryResult:
@@ -238,20 +317,25 @@ def _verify_rubric_graded_entry(entry: dict) -> EntryResult:
     )
 
 
-def _run_one(entry: dict) -> EntryResult | None:
+def _run_one(entry: dict, *, agent: ReasoningAgent | None = None) -> EntryResult | None:
     """Returns an EntryResult, or None if the entry is rubric-pending (skip).
 
     Three paths:
-    - `auto_grade` block present: auto-graded entry (cycle 1+2 maths/physics
-      frozen-verdicts; memory live-replay). _verify_frozen_entry / _replay_memory_entry.
-    - `rubric_grade` block present (Phase 13 cycle 3+ Path B): rubric-graded-green
-      entry. _verify_rubric_graded_entry.
+    - `auto_grade` block present: auto-graded entry (maths/physics frozen-verdict OR
+      agent-runtime when `agent` is provided; memory always live-replay).
+    - `rubric_grade` block present (Phase 13 cycle 3+ Path B): rubric-graded entry.
     - Neither present: rubric-pending; skip per M-PROJECTX-014 firewall.
+
+    When `agent` is not None and the entry is maths/physics auto-graded, the AGENT
+    runtime path replaces the frozen verdict — bench-replay reports whether the agent
+    actually solves the prompt at runtime, not whether BUILDER pre-computed match=True.
     """
     if "auto_grade" in entry:
         domain = entry.get("domain", "unknown")
         if domain == "memory":
             return _replay_memory_entry(entry)
+        if agent is not None and domain in ("maths", "physics"):
+            return _verify_via_agent_runtime(entry, agent)
         return _verify_frozen_entry(entry)
     if "rubric_grade" in entry:
         return _verify_rubric_graded_entry(entry)
@@ -271,7 +355,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Suppress per-entry stdout; print only the summary table",
     )
+    parser.add_argument(
+        "--agent-runtime",
+        action="store_true",
+        help=(
+            "Cycle 7 #00P13c7-NEW: invoke ReasoningAgent on each maths/physics auto-graded "
+            "prompt and verify the agent's runtime-computed answer matches expected. "
+            "Replaces the BUILDER-pre-computed frozen-verdict path with an AGENT-actually-solves "
+            "verdict. Memory always live-replays; subjective rubric domains unchanged."
+        ),
+    )
     args = parser.parse_args(argv)
+    agent = ReasoningAgent() if args.agent_runtime else None
 
     if not BENCHMARK_DIR.exists():
         print(f"ERROR: benchmark dir not found: {BENCHMARK_DIR}", file=sys.stderr)
@@ -283,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for domain in domains:
         for entry in _load_ladder(domain):
-            res = _run_one(entry)
+            res = _run_one(entry, agent=agent)
             if res is None:
                 skipped_count += 1
                 continue
