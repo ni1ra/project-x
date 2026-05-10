@@ -1,70 +1,74 @@
-# Do This Next — Project X — Phase 13 cycle 5 (predicate-strength fix + Newton-verifier tests + surrogate-author independence + per-criterion floor gates + substrate Tier 3 OR pivot)
+# Do This Next — Project X — Phase 13 cycle 6 (BENCHMARK PRISTINE CONDITION + GRANULAR LADDER + RANK EXPANSION TO UNSOLVED-TIER)
 
-**Updated:** 2026-05-10 (cycle 5 handoff; cycle 4 closed at THIS commit)
+**Updated:** 2026-05-10 (cycle 6 handoff; cycle 5 closed at THIS commit)
 **Mode:** NORMAL (not godify-app)
-**Status:** Cycle 4 CLOSED — 7/7 #00P13c4 shipped (5 Tier B + 2 Tier A; Tier A added mid-cycle via lain's anti-cheat directive) + 2 universal /docs exemption commits + 1 mid-flight handoff sync (9 atomic commits this cycle). pytest 256 passing. D3 harness 15 PASS / 0 FAIL. Anti-cheat mechanism operationalized; physics PASS 3/0 → 5/0; substrate physics 3 primitives shipped anti-cheat-aware; substrate-driven capability touchpoint with measured `memorization_signal == 0.0` across N=5 surrogates per primitive.
+**Status:** Cycle 5 CLOSED — 5/7 #00P13c5 fully shipped + 1 partially blocked on lain ack + 1 read-only verify + 2 universal /instruction-change codifications (4 atomic project commits + 0 project commits for universal patches). pytest 276 passing. D3 harness 15 PASS / 0 FAIL maintained.
 
-## Cycle 4 shipped (full ledger)
+## lain mid-cycle-5-close directive (Discord 2026-05-10 — supersedes pre-directive cycle-6 scope)
+
+**Verbatim:** *"Alright make sure you have the benchmark in prestine condition, rich and broad, so we can get a real idea of how smart the AI really is. And your job is to make it smart enough to pass all tests, including the still unsolved problems humans still have not solved. Must be granular ladder up there, easy to test and see how good the AI actually is."*
+
+**Translation in cycle-shape:** measurement-before-capability. Cycle 6 PRIMARY ARTIFACT = expanded benchmark; substrate growth defers to cycle 7+. Karpathy/Hassabis "evaluation is the bottleneck" doctrine, operationalized.
+
+## Cycle 5 shipped (full ledger)
 
 | Commit | Deliverable | Visible result |
 |---|---|---|
-| `c953180` | **#00P13c4-01** Path B physics grader-flip | physics PASS 3/0 → 5/0 (rank 4-5 rubric-graded-builder; 4.33/5 + 4.75/5 differentiated lift) |
-| `e30b9df` | **#00P13c4-23** anti-cheat-leakage-audit (TIER A) | `docs/artifacts/PHASE_13_ANTICHEAT_AUDIT.md` (318 lines; 7 surfaces mapped; 6 mitigation candidates) |
-| `69c6b65` | **#00P13c4-24** anti-cheat mechanism (TIER A) | `src/project_x/anti_cheat.py` + 20 tests; AntiCheatProbe + differential_capability_test + Newton's-method divergent verifier; closes Surfaces 1+2+5 |
-| `71fced1` | **#00P13c4-02** substrate physics Tier 2 | `src/project_x/reasoning/physics.py` + 15 tests; 3 primitives anti-cheat-aware (free_fall_time + pendulum_period + relativistic_momentum) |
-| `e1ddbf6` | docs(REPO_CONTROL) `/docs` exemption | lain mid-cycle-4 follow-up codified |
-| `5891da3` | docs(MANIFESTO) `/docs` exemption alignment | contradiction-delete pass |
-| `5c6e6d6` | docs(DO_THIS_NEXT) -ni handoff sync | mid-flight Plan→Execute Raphael handoff |
-| `6ce457d` | **#00P13c4-03** substrate-driven attempt | `gpt-codex/grade_pipeline/baseline_2026-05-10_physics_tier2/` (4 artifacts) — `memorization_signal == 0.0` verified across N=5 surrogates per primitive; capability TOUCHPOINT |
-| THIS commit | **#00P13c4-05** cycle reflect + cycle 5 handoff | dev-cycle-4.md + this rewrite + A_TO_Z changelog |
+| `fc9bebd` | **#00P13c5-01** predicate-strength fix | physics-003 predicate replaced via energy-momentum route; predicate-strength STRONG uniformly across substrate physics primitives; cycle 4 advisor catch closed |
+| `ab57b74` | **#00P13c5-02** Newton-verifier tests | 8 dedicated tests for `verify_quadratic_via_newton`; cycle 4 #24 acknowledged-gap closed |
+| `1c38946` | **#00P13c5-04** per-criterion floor gate | Surface 3 partial mitigation (Candidate B); default-disabled mechanism; preserves cycle 3-4 PASSes; ratchet-per-entry in cycle 7+ |
+| `489df30` | **#00P13c5-05** substrate Tier 3 large-angle pendulum | Elliptic-integral series; 4-term truncation through k⁸; ~3e-3 accuracy at θ₀=π/2; predicate-strength STRONG via ratio-recursion |
+| THIS commit | **#00P13c5-07** cycle reflect | dev-cycle-5.md + this rewrite + A_TO_Z changelog |
+| (universal codification — `~/.claude/`; lain commits at his cadence) | **fake-stop drift patch** to Named Curse #15 (3 new canonical phrases) + **Discord teaching-style + 4-metric progression rubric** to § R4 + § THE SUMMONER | Universal cross-project leverage: future Discord posts + future fake-stop variants fire mechanically against the new lists |
 
 Three visible axes this cycle:
-- **physics PASS: 3/0 → 5/0** (cycle 4 #01 Path B; SECOND Phase-13 PASS-count lift)
-- **substrate physics quality:** 0 → 3 primitives anti-cheat-aware
-- **anti-cheat surface:** ungrounded → mechanism shipped + capability touchpoint with measured `mem_sig == 0.0`
+- **Predicate-strength:** WEAK on physics-003 → STRONG (energy-momentum-route)
+- **Divergent-verifier:** untested → 8 dedicated tests
+- **Substrate Tier 3:** linear-only → large-angle non-linear primitive
 
-## Phase 13 cycle 5 corpse-provisional deliverables
+Plus universal codifications: Discord teaching tone + progression-metrics rubric mandatory; fake-stop variants caught.
+
+## Phase 13 cycle 6 deliverables (REVISED per directive)
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c5-01-predicate-strength-fix** | HIGH | `src/project_x/anti_cheat.py` (or `tests/test_reasoning_physics.py` predicate module) + cycle 4 baseline_physics_tier2 re-run | Replace physics-003's `_relativistic_momentum_predicate` with energy-momentum-relation predicate `E² = (pc)² + (mc²)²` for genuine independence (advisor catch 2026-05-10). Re-run anti-cheat probe; confirm `memorization_signal == 0.0` still holds. Update bias_notes + improvement_directions in baseline_physics_tier2/. |
-| **#00P13c5-02-newton-verifier-tests** | MED | `tests/test_reasoning_verifier.py` (extension) | Cycle 4 #24 acknowledged-gap closure: dedicated tests for `verify_quadratic_via_newton`. Newton's-method convergence + Vieta deflation + sentinel handling + non-convergent canonical termination. |
-| **#00P13c5-03-surrogate-author-independence** | HIGH | `src/project_x/anti_cheat.py` + new probe set | Introduce lain-authored or textbook-derived surrogates for at least one primitive. `AntiCheatProbe.surrogate_author = "lain"` or `"textbook:<ref>"` taxonomy. Materially strengthens anti-cheat verdict. Audit Candidate C operationalization. |
-| **#00P13c5-04-per-criterion-floor-gates** | MED | `gpt-codex/benchmark/run_audit.py` + rubric.md surfaces | Audit Candidate B operationalization: programmatic per-dimension floor gates (aggregate ≥ 4.0 AND each dimension ≥ floor). Closes Surface 3 partial — programmatic half. |
-| **#00P13c5-05-substrate-tier3 OR pivot** | DEPENDENT | TBD per lain direction at cycle 5 open | Substrate Tier 3 (vector calculus / large-angle pendulum / air-resistance free-fall) OR pivot to next capability domain (memory million-turn? always-on chat daemon?). |
-| **#00P13c5-06-bench-replay** | MED | `python3 gpt-codex/benchmark/run_audit.py` | Verify 15 PASS / 0 FAIL maintained. |
-| **#00P13c5-07-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-5.md` + DO_THIS_NEXT cycle 6 handoff + A_TO_Z changelog | advisor() pre-commit. Discord cycle 5 close. Propose -ni at cycle 6 boundary. |
+| **#00P13c6-01-benchmark-pristine-audit** | HIGH | `gpt-codex/benchmark/` (all 6 domain dirs) → `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md` (NEW) | Inventory current 36 entries: rank distribution per domain, gaps at rank 4-5-6, redundancies, blank-domain stubs (persona/poetry/philosophy). Map cycle 6 expansion targets per domain. Surface honest assessment: which domains are thin, which ranks are stubs, which entries are placeholders rather than real benchmarks. **Sub-item — rank 6 grading mechanism (lain-decision; advisor catch 2026-05-10):** lain's directive says *"pass all tests including unsolved problems"* but unsolved problems by definition have no canonical answer. Audit must surface options for lain: (a) rank 6 stays `audit_status: "ungradeable; unsolved tier"` as capability-range markers (existing physics-006 pattern; AGENT attempts but cannot mechanically PASS); (b) rank 6 gets lain-graded after each AGENT attempt; (c) rank 6 gets external-panel-graded; (d) hybrid — partial-credit rubric per dimension. Cycle 6 cannot proceed past audit without this decision; cycle 6 #02 expansion shape depends on it. |
+| **#00P13c6-02-benchmark-rank-expansion** | HIGH | `gpt-codex/benchmark/{maths,physics,memory}/ladder.jsonl` | Fill rank 4-5-6 gaps per domain; ensure each rank has ≥3 entries per domain; **rank 6 = honestly-unsolved** (cite open problems where relevant: Riemann hypothesis, P=NP, Yang-Mills mass gap, dark matter composition, etc.). Granular ladder — capability progress visible at every step. |
+| **#00P13c6-03-thin-domain-expansion** | HIGH | `gpt-codex/benchmark/{poetry,philosophy,persona}/ladder.jsonl` | Build out per-domain ladders to ≥6 entries per domain across rank 1-6. Subjective domains use rubric-graded-builder pattern from Path B. **Floor-gate default for NEW entries:** `per_criterion_floor=None` (opt-in mechanism; preserves cycle-5 default-disabled stance). Cycle 7+ activates floors per-entry as confidence in dimensions builds. Persona consistency + humor-lands criteria from cycle 1 #02 persona scaffolding. |
+| **#00P13c6-04-surrogate-author-independence-resume** | MED | `src/project_x/anti_cheat.py` + new probe set | Cycle 5 #03 carry-forward: when lain provides surrogates OR if the new benchmark expansion includes lain-authored / textbook-cited entries, those become surrogate-author-independent by definition. Lain's own benchmark entries qualify as `surrogate_author = "lain"`. **Honesty caveat (cycle 5 #03 carry):** if cycle 6 expansion uses BUILDER-authored entries with citations to textbooks BUILDER doesn't have on disk, those are NOT surrogate-author-independent — they're builder-modeled-on-textbook-patterns wearing a citation costume. Real independence requires either lain-authored OR genuine textbook access (BUILDER reads the actual problem). |
+| **#00P13c6-05-bench-replay** | MED | `python3 gpt-codex/benchmark/run_audit.py` | Verify expanded ladder runs cleanly. New denominator (was 36; will be ~50-70+); some rank-6 entries may be `ungradeable` (per existing audit_status pattern from physics-006). Honest gap report on which capabilities the AI demonstrably lacks. |
+| **#00P13c6-06-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-6.md` + DO_THIS_NEXT cycle 7 handoff + A_TO_Z changelog | advisor() pre-commit. Discord cycle 6 close. Propose -ni at cycle 7 boundary. |
 
-## Recommended cycle 5 order (rationale per dependency)
+**Adversarial-surrogate extension + per-criterion floor activation + substrate Tier 3 path 2** defer to cycle 7+ (capability layer; lain's directive puts measurement layer first).
 
-1. **#01 predicate-strength fix** FIRST — advisor catch from cycle 4; quick win that materially strengthens cycle 4's deliverable. Confirms cycle 4 anti-cheat verdict holds with stronger predicate. No new substrate; reuses cycle 4 #02 + #24.
-2. **#02 Newton-verifier tests** SECOND — closes cycle 4 acknowledged-gap; isolated test work; no new code paths beyond extending `test_reasoning_verifier.py`.
-3. **#03 surrogate-author independence** THIRD — needs lain ack on textbook source or hand-authored surrogate set. Discord-propose pattern fits: "proposing 5 textbook problems from <Halliday/Marion/Griffiths> as surrogate set; ack to proceed."
-4. **#04 per-criterion floor gates** FOURTH — depends on rubric.md per-domain inspection; isolated audit + programmatic check; can layer alongside #01-#03.
-5. **#05 substrate Tier 3 OR pivot** — lain-direction-dependent. If substrate Tier 3: vector-calculus primitives bridge to E&M / GR scope. If pivot: memory or always-on chat or unsolved-tier physics.
-6. **#06 bench-replay** + **#07 cycle reflect** at cycle close.
+## Recommended cycle 6 order (rationale per dependency)
 
-## #1 predicate-strength fix — exact next-action (~30-45 min, 6 mechanical steps)
+1. **#01 benchmark pristine audit** FIRST — read everything; emit gap-map. No commits; produces `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md` only.
+2. **#02 rank expansion (objective domains)** SECOND — maths, physics, memory have existing structure to extend. Granular rank-4-5-6 entries with auto-graded fields where possible; rubric-pending where subjective.
+3. **#03 thin domain expansion** THIRD — poetry, philosophy, persona currently stubs / blank. Build from scratch with rubric-graded-builder pattern.
+4. **#04 surrogate-author absorption** FOURTH — happens naturally as new entries land (lain-cited textbook problems = surrogate-author = "textbook:<ref>" with real citation).
+5. **#05 bench-replay** + **#06 cycle reflect** at cycle close.
 
-1. **Define `_relativistic_momentum_e_p_predicate`** — operates on substrate output `p` and inputs `(m, v, c)`. Independent identity: `E_total = γ·m·c²`, `(p·c)² + (m·c²)² = E_total²`. Substrate's `γ·m·v` doesn't directly yield `E`, so verifying via independently-computed γ closes the asymmetry. Place in shared module or test module.
-2. **Update cycle 4 baseline_physics_tier2 generation** — re-author or directly edit grades.jsonl + probe_results.json to use new predicate. (Or write a `cycle5_repredicate.py` script that re-runs probes with new predicate and patches the artifacts.)
-3. **Verify `memorization_signal == 0.0` still holds** under the stronger predicate (it should — substrate genuinely computes; only the predicate's ability to discriminate library-import improves).
-4. **Update bias_notes** in physics-003 grade entry: replace asymmetry-addendum with verified-independence note. Update `improvement_directions.md` cross-prompt asymmetry table to mark physics-003 STRONG.
-5. **REPO_CONTROL row update** — note in physics_tier2 row that asymmetry was closed cycle 5.
-6. **Atomic commit:** `feat(P13c5-01): predicate-strength fix — physics-003 E² = (pc)² + (mc²)² predicate (verified-independence; cycle 4 advisor catch closed) — closes #00P13c5-01`. Push. TaskUpdate. Discord one-liner.
+## #1 benchmark pristine audit — exact next-action (~30-45 min)
+
+1. **List all current entries:** `ls gpt-codex/benchmark/*/ladder.jsonl` + count entries per file.
+2. **Per-rank breakdown:** for each domain, count entries at each `difficulty_rank` (1-6).
+3. **Identify gap shape:** which (domain, rank) cells have <3 entries? Which are empty?
+4. **Audit-status distribution:** how many auto-graded? rubric-graded-builder? rubric-pending? ungradeable?
+5. **Identify placeholder vs real:** are there entries that are stubs (single line, no real `raphael_response`, no auto_grade block)?
+6. **Output `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md`** with gap-map + per-cell expansion priorities + recommendation order for cycle 6 #02 + #03.
 
 ## Identity disambiguation (CRITICAL — lain 2026-05-10 binding)
 
-Claude Code Raphael (the BUILDER, this Claude Code instance) ≠ Project X Raphael (the AGENT, in `src/project_x/`). Don't write builder's voice into agent's templates. Cycle 5 #1 predicate-strength fix is BUILDER work (test/verification surface); cycle 5 #5 substrate Tier 3 (if chosen) is BUILDER work that the AGENT consumes at inference. See `docs/MANIFESTO.md` § Identity discipline.
+Claude Code Raphael (the BUILDER, this Claude Code instance) ≠ Project X Raphael (the AGENT, in `src/project_x/`). Cycle 6 BUILDER work: build the benchmark — pose problems, write `raphael_response` snapshots if needed, set rubrics, set thresholds. Cycle 6 AGENT work happens later when AGENT's substrate runs the benchmark + records performance. Don't write builder's voice into agent's response templates.
 
 ## Standing rules — RELEVANT THIS RUN
 
 See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 
-**Codified universal during cycle 4 (binding for cycle 5+):**
-- **Anti-cheat discipline (cycle 4 #24 binding):** substrate-driven capability touchpoints MUST record `memorization_signal` alongside grade. Honest framing: "memorization_signal == 0.0 verified across N surrogates" — or honest gap report.
-- **`/docs` REPO_CONTROL exemption** (commits `e1ddbf6` + `5891da3`; universal `~/.claude/CLAUDE.md` § REPO_CONTROL upkeep also updated). New `docs/` files do NOT need REPO_CONTROL row co-landing. Only `src/` + `tests/` + `gpt-codex/` + `scripts/` + `ref/` + `sandbox/` + repo-root files need rows.
-- **Predicate-strength discipline (cycle 4 advisor catch):** anti-cheat predicates SHOULD use independent identities (different from substrate's computation), not re-derivations. Asymmetry must be documented when present + closed where possible.
+**Codified universal during cycle 5 (binding for cycle 6+):**
+- **Discord teaching style + 4-metric progression rubric** (~/.claude/CLAUDE.md § R4 + § THE SUMMONER): every Discord post claiming progress includes denominator+%, expert-tier impression framing, plain-English achievement, counter-claim guard. Teacher tone; no internal var/function names on Discord.
+- **Fake-stop drift expanded** (~/.claude/CLAUDE.md Named Curse #15): "-ni proposal sent — standing down to idle" / "corpse stop-(a) condition met" added to canonical fake-stop phrase list. Cycle close = pivot to N+1 NOW; NORMAL has no rest authorization.
 
 **Persistent (unchanged):**
 - NO pretrained transformer derivatives at any layer
@@ -73,31 +77,32 @@ See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 - Identity discipline (Claude Code Raphael ≠ Project X Raphael)
 - M-PROJECTX-013 measure-don't-claim; M-PROJECTX-014 split-grading firewall
 - M-NAVI-013/016/018/019/020 (skills + pillars + listener + heartbeat-armed-while-queued)
-- Named Curse #20 (combined-task pinning) + #21 (-ni auto-invoked)
+- Named Curse #20 (combined-task pinning) + #21 (-ni auto-invoked) + #15 (fake-stop drift, expanded)
 
 ## What this cycle is NOT
 
 - NOT shipping the Terminus (multi-cycle; Phase 13 has many cycles ahead).
-- NOT extending substrate to GR / quantum-gravity (out of cycle 5 scope; substrate Tier 3 candidate is conservative — vector calculus / large-angle / air-resistance).
-- NOT closing without re-verifying `memorization_signal == 0.0` post-predicate-fix on cycle 4 baseline_physics_tier2 (M-PROJECTX-013 measure-don't-claim — the cycle 4 verdict must hold under the strengthened predicate).
+- NOT solving unsolved-tier problems (cycle 6 BUILDS the unsolved-tier ladder; AGENT's attempt at climbing is cycle 7+).
+- NOT extending substrate (cycle 7+ scope; capability layer comes after measurement layer per directive).
+- NOT closing without the gap-map artifact (`PHASE_13_BENCHMARK_AUDIT.md`) AND visible expansion in ladder.jsonl files.
 
 ## Anti-laziness gates (lain frustration-load-bearing — re-read before cycle close)
 
-- *"all you have done so far is just minor work"* — cycle 4 shipped **anti-cheat mechanism operationalization** + physics PASS lift + 3 substrate primitives + capability touchpoint with measurable `mem_sig == 0.0`. Cycle 5 closes the predicate-strength asymmetry advisor caught + cycle-5+ deferred items.
-- *"its more important to try to make it pass all the benchmark tests first"* — cycle 4 already lifted physics PASS 3→5; cycle 5 #04 per-criterion floor gates + #03 surrogate-author independence harden the PASS judgments under stronger anti-cheat.
-- *"unless its super-human in every domain ... YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR. Cycle 5 is one step.
-- *"honest and honorable work ethics. If all tests pass, but the model falls apart in real tests, or it sees the answer in advance in some hidden way, the test passes are meaningless"* — cycle 5 #01 predicate-strength fix + #03 surrogate-author independence harden the operationalization.
+- *"all you have done so far is just minor work"* — cycle 5 shipped predicate-strength uniformity + Newton coverage + Tier 3 substrate + universal Discord-style codification. Cycle 6 rebuilds the measurement infrastructure so future substrate work attaches to concrete ladder progression.
+- *"its more important to try to make it pass all the benchmark tests first"* — cycle 6 directly serves this. Pristine + granular ladder makes the PASS-count the load-bearing metric.
+- *"unless its super-human in every domain ... YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR. Cycle 6 builds the visible ladder to it.
+- *"honest and honorable work ethics. If all tests pass, but the model falls apart in real tests, or it sees the answer in advance in some hidden way, the test passes are meaningless"* — cycle 4 #24 + cycle 5 #01 hardened anti-cheat; cycle 6 expands the test surface so passing actually demonstrates capability range, not sample bias.
 
-## Done condition (cycle 5, mechanical)
+## Done condition (cycle 6, mechanical)
 
-- All 7 #00P13c5-XX TaskList rows = `completed`.
-- pytest -q ≥ 256 (no regression; expect ≥ 270 with new tests for #02 Newton verifier).
-- D3 harness reports 15 PASS / 0 FAIL maintained (no expected change from cycle 5 work).
-- Maths PASS 5/0; memory 5/0; physics 5/0. ZERO regressions.
-- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-5.md`.
-- THIS file rewritten as cycle 6 handoff.
+- All 6 #00P13c6-XX TaskList rows = `completed`.
+- pytest -q ≥ 276 (no regression; new tests for any new auto-graded entries).
+- D3 harness reports new total (was 15 PASS / 0 FAIL / 21 rubric-pending; will be larger; some new rank-6 entries may be `ungradeable`-tier).
+- Each domain has ≥6 entries spanning rank 1-6; each (domain, rank) cell has ≥3 entries where applicable.
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-6.md`.
+- THIS file rewritten as cycle 7 handoff.
 - `git status -s` empty.
-- Discord cycle 5 close post sent.
-- Cycle 6 picked up immediately OR `-ni` proposal at cycle 5 close.
+- Discord cycle 6 close post sent.
+- Cycle 7 picked up immediately OR `-ni` proposal at cycle 6 close.
 
-— Update this file at cycle 5 close: replace cycle 5 deliverables table with cycle 6 deliverables table; refine cycle 6 scope based on cycle 5 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.
+— Update this file at cycle 6 close: replace cycle 6 deliverables table with cycle 7 deliverables table; refine cycle 7 scope based on cycle 6 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.
