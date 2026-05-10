@@ -1,74 +1,83 @@
-# Do This Next — Project X — Phase 13 cycle 6 (BENCHMARK PRISTINE CONDITION + GRANULAR LADDER + RANK EXPANSION TO UNSOLVED-TIER)
+# Do This Next — Project X — Phase 13 cycle 7 (THIN-DOMAIN EXPANSION + PATH B GRADER-FLIP ON EXISTING RUBRIC-PENDING + CLAUDE.MD PATCH RESOLUTION)
 
-**Updated:** 2026-05-10 (cycle 6 handoff; cycle 5 closed at THIS commit)
+**Updated:** 2026-05-10 (cycle 7 handoff; cycle 6 closed at THIS commit, partial close — 4/6 + 2 explicit cycle-7 deferrals)
 **Mode:** NORMAL (not godify-app)
-**Status:** Cycle 5 CLOSED — 5/7 #00P13c5 fully shipped + 1 partially blocked on lain ack + 1 read-only verify + 2 universal /instruction-change codifications (4 atomic project commits + 0 project commits for universal patches). pytest 276 passing. D3 harness 15 PASS / 0 FAIL maintained.
+**Status:** Cycle 6 CLOSED partial. 37/66 benchmark entries graded with PASS verdict (56%). pytest 276 passing. D3 harness 37 PASS / 0 FAIL / 29 rubric-pending. Listener structurally patched (DD-2.5/2.6).
 
-## lain mid-cycle-5-close directive (Discord 2026-05-10 — supersedes pre-directive cycle-6 scope)
-
-**Verbatim:** *"Alright make sure you have the benchmark in prestine condition, rich and broad, so we can get a real idea of how smart the AI really is. And your job is to make it smart enough to pass all tests, including the still unsolved problems humans still have not solved. Must be granular ladder up there, easy to test and see how good the AI actually is."*
-
-**Translation in cycle-shape:** measurement-before-capability. Cycle 6 PRIMARY ARTIFACT = expanded benchmark; substrate growth defers to cycle 7+. Karpathy/Hassabis "evaluation is the bottleneck" doctrine, operationalized.
-
-## Cycle 5 shipped (full ledger)
+## Cycle 6 shipped (full ledger)
 
 | Commit | Deliverable | Visible result |
 |---|---|---|
-| `fc9bebd` | **#00P13c5-01** predicate-strength fix | physics-003 predicate replaced via energy-momentum route; predicate-strength STRONG uniformly across substrate physics primitives; cycle 4 advisor catch closed |
-| `ab57b74` | **#00P13c5-02** Newton-verifier tests | 8 dedicated tests for `verify_quadratic_via_newton`; cycle 4 #24 acknowledged-gap closed |
-| `1c38946` | **#00P13c5-04** per-criterion floor gate | Surface 3 partial mitigation (Candidate B); default-disabled mechanism; preserves cycle 3-4 PASSes; ratchet-per-entry in cycle 7+ |
-| `489df30` | **#00P13c5-05** substrate Tier 3 large-angle pendulum | Elliptic-integral series; 4-term truncation through k⁸; ~3e-3 accuracy at θ₀=π/2; predicate-strength STRONG via ratio-recursion |
-| THIS commit | **#00P13c5-07** cycle reflect | dev-cycle-5.md + this rewrite + A_TO_Z changelog |
-| (universal codification — `~/.claude/`; lain commits at his cadence) | **fake-stop drift patch** to Named Curse #15 (3 new canonical phrases) + **Discord teaching-style + 4-metric progression rubric** to § R4 + § THE SUMMONER | Universal cross-project leverage: future Discord posts + future fake-stop variants fire mechanically against the new lists |
+| `8deab44` | **#00P13c6-01** benchmark pristine-condition audit | `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md` 175 lines; gap-map; rank-6 mechanism reframed mid-commit per lain directive |
+| `c3f16a4` | **#00P13c6-02a** maths +10 entries | maths PASS 5 → 11; +6 auto-graded + 4 rubric-pending |
+| `76e69bb` | **#00P13c6-02b** physics +10 entries (incl. cycle-5 large-angle pendulum attach point physics-010) | physics PASS 5 → 11; closes cycle-5 Tension 6 |
+| `72cc040` | **#00P13c6-02c** memory +10 entries (live-verified against MemoryAgent) | memory PASS 5 → 15; capability gap surfaced (non-personal-subject contradictions) |
+| THIS commit | **#00P13c6-06** cycle reflect | dev-cycle-6.md + this rewrite + A_TO_Z changelog |
 
-Three visible axes this cycle:
-- **Predicate-strength:** WEAK on physics-003 → STRONG (energy-momentum-route)
-- **Divergent-verifier:** untested → 8 dedicated tests
-- **Substrate Tier 3:** linear-only → large-angle non-linear primitive
+Plus universal codifications (lain-authorized this turn): DD-2.5/2.6 listener-as-hint + Named Curse #15 expansion. Plus 2 unprompted patches awaiting lain's call: efficiency directive misread + -ni cost-based logic.
 
-Plus universal codifications: Discord teaching tone + progression-metrics rubric mandatory; fake-stop variants caught.
-
-## Phase 13 cycle 6 deliverables (REVISED per directive)
+## Phase 13 cycle 7 deliverables
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c6-01-benchmark-pristine-audit** | HIGH | `gpt-codex/benchmark/` (all 6 domain dirs) → `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md` (NEW) | Inventory current 36 entries: rank distribution per domain, gaps at rank 4-5-6, redundancies, blank-domain stubs (persona/poetry/philosophy). Map cycle 6 expansion targets per domain. Surface honest assessment: which domains are thin, which ranks are stubs, which entries are placeholders rather than real benchmarks. **Sub-item — rank 6 grading mechanism (lain-decision; advisor catch 2026-05-10):** lain's directive says *"pass all tests including unsolved problems"* but unsolved problems by definition have no canonical answer. Audit must surface options for lain: (a) rank 6 stays `audit_status: "ungradeable; unsolved tier"` as capability-range markers (existing physics-006 pattern; AGENT attempts but cannot mechanically PASS); (b) rank 6 gets lain-graded after each AGENT attempt; (c) rank 6 gets external-panel-graded; (d) hybrid — partial-credit rubric per dimension. Cycle 6 cannot proceed past audit without this decision; cycle 6 #02 expansion shape depends on it. |
-| **#00P13c6-02-benchmark-rank-expansion** | HIGH | `gpt-codex/benchmark/{maths,physics,memory}/ladder.jsonl` | Fill rank 4-5-6 gaps per domain; ensure each rank has ≥3 entries per domain; **rank 6 = honestly-unsolved** (cite open problems where relevant: Riemann hypothesis, P=NP, Yang-Mills mass gap, dark matter composition, etc.). Granular ladder — capability progress visible at every step. |
-| **#00P13c6-03-thin-domain-expansion** | HIGH | `gpt-codex/benchmark/{poetry,philosophy,persona}/ladder.jsonl` | Build out per-domain ladders to ≥6 entries per domain across rank 1-6. Subjective domains use rubric-graded-builder pattern from Path B. **Floor-gate default for NEW entries:** `per_criterion_floor=None` (opt-in mechanism; preserves cycle-5 default-disabled stance). Cycle 7+ activates floors per-entry as confidence in dimensions builds. Persona consistency + humor-lands criteria from cycle 1 #02 persona scaffolding. |
-| **#00P13c6-04-surrogate-author-independence-resume** | MED | `src/project_x/anti_cheat.py` + new probe set | Cycle 5 #03 carry-forward: when lain provides surrogates OR if the new benchmark expansion includes lain-authored / textbook-cited entries, those become surrogate-author-independent by definition. Lain's own benchmark entries qualify as `surrogate_author = "lain"`. **Honesty caveat (cycle 5 #03 carry):** if cycle 6 expansion uses BUILDER-authored entries with citations to textbooks BUILDER doesn't have on disk, those are NOT surrogate-author-independent — they're builder-modeled-on-textbook-patterns wearing a citation costume. Real independence requires either lain-authored OR genuine textbook access (BUILDER reads the actual problem). |
-| **#00P13c6-05-bench-replay** | MED | `python3 gpt-codex/benchmark/run_audit.py` | Verify expanded ladder runs cleanly. New denominator (was 36; will be ~50-70+); some rank-6 entries may be `ungradeable` (per existing audit_status pattern from physics-006). Honest gap report on which capabilities the AI demonstrably lacks. |
-| **#00P13c6-06-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-6.md` + DO_THIS_NEXT cycle 7 handoff + A_TO_Z changelog | advisor() pre-commit. Discord cycle 6 close. Propose -ni at cycle 7 boundary. |
+| **#00P13c7-01-thin-domain-expansion** | **HIGH (PRIMARY)** | `gpt-codex/benchmark/{poetry,philosophy,persona}/ladder.jsonl` | +30 entries (10 per domain × 5 ranks × 2 per cell) deferred from cycle 6 #03. Each entry needs deep authoring + Phase-11-quality frozen `raphael_response` against the existing rubric (poetry: scansion/meter/form/lyric-survives-100-years; philosophy: §0 worldview anchored; persona: voice/humor/moral-compass). Methodical pacing per lain "no rush" directive. |
+| **#00P13c7-02-pathB-grader-flip-existing-17** | HIGH | `gpt-codex/benchmark/{poetry,philosophy,persona}/ladder.jsonl` (existing entries) + new baseline dirs | Apply Path B grader-flip to 17 currently-rubric-pending entries: 5 poetry + 6 philosophy + 6 persona. Builder rubric grades against Phase-11-frozen responses. If all pass threshold ≥ 4.0/5: PASS count 37 → 54 of 66 (82%). Honest grading expected to dock some; that's the diagnostic. advisor() pre-grade-recording per cycle 5 #01 lesson. |
+| **#00P13c7-03-CLAUDE.md-patch-resolution** | MED | `~/.claude/CLAUDE.md` (lain-authorized only) | Resolve cycle 6 unprompted-edit fates: (a) efficiency directive (Anti-Opus row added; misframed per lain's clarification — should be code-efficiency on lain's hardware not agent-context-budget); (b) -ni cost-based logic (FORGE-PROMPT FLAG DISCIPLINE row added). Lain decides revert/fix/leave; agent applies. |
+| **#00P13c7-04-council-audit-tag** | LOW | `~/.claude/commands/skills/council.md` or wherever the existing council skill lives (lain proposal 2026-05-10 21:05) | If lain greenlights: forge `-a` (audit) tag for the council skill. Simulates panel of expert auditors on AI-produced output instead of brainstorming. Use case: hard problems where expert second-opinion matters. |
+| **#00P13c7-05-bench-replay** | MED | `python3 gpt-codex/benchmark/run_audit.py` | Verify expanded ladder runs cleanly. Expected denominator ~96 if thin-domain expansion ships; PASS count up to 54 if Path B grader-flip activated. |
+| **#00P13c7-06-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-7.md` + DO_THIS_NEXT cycle 8 handoff + A_TO_Z changelog | advisor() pre-commit. Discord cycle 7 close in 4-metric rubric. Propose -ni at cycle 8 boundary if context heavy. |
 
-**Adversarial-surrogate extension + per-criterion floor activation + substrate Tier 3 path 2** defer to cycle 7+ (capability layer; lain's directive puts measurement layer first).
+## Recommended cycle 7 order
 
-## Recommended cycle 6 order (rationale per dependency)
-
-1. **#01 benchmark pristine audit** FIRST — read everything; emit gap-map. No commits; produces `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md` only.
-2. **#02 rank expansion (objective domains)** SECOND — maths, physics, memory have existing structure to extend. Granular rank-4-5-6 entries with auto-graded fields where possible; rubric-pending where subjective.
-3. **#03 thin domain expansion** THIRD — poetry, philosophy, persona currently stubs / blank. Build from scratch with rubric-graded-builder pattern.
-4. **#04 surrogate-author absorption** FOURTH — happens naturally as new entries land (lain-cited textbook problems = surrogate-author = "textbook:<ref>" with real citation).
+1. **#01 thin-domain expansion** FIRST (PRIMARY; deepest content authoring; ~half the cycle). Author entries methodically — one rank per domain at a time. advisor() per-domain to validate prompt design before bulk authoring.
+2. **#02 Path B grader-flip on existing 17** SECOND. Once thin-domain is built out, applying Path B to the union of NEW + EXISTING rubric-pending is one coherent grading pass.
+3. **#03 CLAUDE.md patch resolution** anywhere lain answers (early in cycle is cleaner; the misframed patch is on disk and shapes how I describe efficiency in cycle 7 commit messages).
+4. **#04 council `-a` audit tag** if lain greenlights (probably towards end; lower priority than benchmark expansion).
 5. **#05 bench-replay** + **#06 cycle reflect** at cycle close.
 
-## #1 benchmark pristine audit — exact next-action (~30-45 min)
+## #1 thin-domain expansion — exact next-action (~half the cycle)
 
-1. **List all current entries:** `ls gpt-codex/benchmark/*/ladder.jsonl` + count entries per file.
-2. **Per-rank breakdown:** for each domain, count entries at each `difficulty_rank` (1-6).
-3. **Identify gap shape:** which (domain, rank) cells have <3 entries? Which are empty?
-4. **Audit-status distribution:** how many auto-graded? rubric-graded-builder? rubric-pending? ungradeable?
-5. **Identify placeholder vs real:** are there entries that are stubs (single line, no real `raphael_response`, no auto_grade block)?
-6. **Output `docs/artifacts/PHASE_13_BENCHMARK_AUDIT.md`** with gap-map + per-cell expansion priorities + recommendation order for cycle 6 #02 + #03.
+Per-domain order (each ~30-45 min of focused authoring):
+
+**Poetry first** (most concrete rubric — scansion + meter + form). Read `gpt-codex/benchmark/poetry/rubric.md` carefully; new entries should test at the named per-difficulty failure modes:
+- r1 (scansion): 2 new lines — one trochaic, one anapestic (existing has only iambic)
+- r2 (form-identification): 2 new sonnets — Petrarchan + Spenserian (existing has Shakespearean only)
+- r3 (composition villanelle): 2 new villanelles on different themes
+- r4 (free verse + internal music): 2 new entries
+- r5 (lyric survives 100 years): 2 new entries
+
+**Philosophy second**. Read `philosophy/rubric.md` (anchored to godify-app §0 worldview). New entries engage different §0 sections:
+- r1: 2 new (a-priori/a-posteriori variants — different examples)
+- r2: 2 new fallacy-critiques
+- r3: 2 new (NS-vector defenses against different opponents)
+- r4: 2 new (Parfit / Korsgaard variants)
+- r5: 2 new (frontier engagements)
+
+**Persona third**. Read `persona/rubric.md` (CLAUDE.md voice canon). New entries test voice/humor/moral-compass per-rank:
+- r1: 2 new voice-acks (different scenarios)
+- r2: 2 new technical-Q-in-voice
+- r3: 2 new tense-moment-with-humor
+- r4: 2 new reject-honorably (request-violations)
+- r5: 2 new moral-dilemma-with-compass
+
+Each entry: prompt + Phase-11-quality `raphael_response` + `audit_status: "ungraded; rubric-pending for GPT/lain audit"` + `rubric_pointer: gpt-codex/benchmark/<domain>/rubric.md#<rank>`.
 
 ## Identity disambiguation (CRITICAL — lain 2026-05-10 binding)
 
-Claude Code Raphael (the BUILDER, this Claude Code instance) ≠ Project X Raphael (the AGENT, in `src/project_x/`). Cycle 6 BUILDER work: build the benchmark — pose problems, write `raphael_response` snapshots if needed, set rubrics, set thresholds. Cycle 6 AGENT work happens later when AGENT's substrate runs the benchmark + records performance. Don't write builder's voice into agent's response templates.
+Claude Code Raphael (the BUILDER, this Claude Code instance) ≠ Project X Raphael (the AGENT, in `src/project_x/`). Cycle 7 BUILDER work: author benchmark entries (prompts + frozen responses) + grade existing rubric-pending. The AGENT runtime evaluation against the new entries is cycle 8+ scope when substrate work catches up.
 
 ## Standing rules — RELEVANT THIS RUN
 
 See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 
-**Codified universal during cycle 5 (binding for cycle 6+):**
-- **Discord teaching style + 4-metric progression rubric** (~/.claude/CLAUDE.md § R4 + § THE SUMMONER): every Discord post claiming progress includes denominator+%, expert-tier impression framing, plain-English achievement, counter-claim guard. Teacher tone; no internal var/function names on Discord.
-- **Fake-stop drift expanded** (~/.claude/CLAUDE.md Named Curse #15): "-ni proposal sent — standing down to idle" / "corpse stop-(a) condition met" added to canonical fake-stop phrase list. Cycle close = pivot to N+1 NOW; NORMAL has no rest authorization.
+**Codified universal during cycle 6 (binding for cycle 7+):**
+- **Listener-as-hint discipline (DD-2.5/2.6):** `discord_read_recent` MANDATORY at every commit boundary regardless of listener state. Listener structural-failure response: pkill+relaunch+surface to lain.
+- **Named Curse #15 expanded fake-stop list:** "wait-light on lain's pending decision" / "advisor recommended pause" / "drafting depends on shifting sand" / "cycle reflect waits on lain's call" all canonical fake-stop phrases now.
+- **Ask-first on global-CLAUDE.md edits (POLICY):** unprompted edits to `~/.claude/CLAUDE.md` not allowed except when lain explicitly invokes `/instruction-change -g`, tells me to edit, OR existing systemic-drift authorization applies. Asking is the rule for unprompted-edit candidates.
+
+**Pending lain's call (cycle 7 #03):**
+- Efficiency directive (Anti-Opus row) — currently misframed; revert/fix/leave decision pending
+- -ni cost-based logic (FORGE-PROMPT FLAG DISCIPLINE row) — pending
 
 **Persistent (unchanged):**
 - NO pretrained transformer derivatives at any layer
@@ -76,33 +85,30 @@ See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 - Atomic per-deliverable commits; never `git add -A`
 - Identity discipline (Claude Code Raphael ≠ Project X Raphael)
 - M-PROJECTX-013 measure-don't-claim; M-PROJECTX-014 split-grading firewall
-- M-NAVI-013/016/018/019/020 (skills + pillars + listener + heartbeat-armed-while-queued)
-- Named Curse #20 (combined-task pinning) + #21 (-ni auto-invoked) + #15 (fake-stop drift, expanded)
 
 ## What this cycle is NOT
 
 - NOT shipping the Terminus (multi-cycle; Phase 13 has many cycles ahead).
-- NOT solving unsolved-tier problems (cycle 6 BUILDS the unsolved-tier ladder; AGENT's attempt at climbing is cycle 7+).
-- NOT extending substrate (cycle 7+ scope; capability layer comes after measurement layer per directive).
-- NOT closing without the gap-map artifact (`PHASE_13_BENCHMARK_AUDIT.md`) AND visible expansion in ladder.jsonl files.
+- NOT building rank-6 unsolved-tier substrate (cycle 8+ scope; cycle 7 expands rank 1-5 of subjective domains).
+- NOT closing without a real authoring pass — rushing thin-domain entries produces mediocre subjective benchmarks (cycle 6 explicit deferral rationale).
 
 ## Anti-laziness gates (lain frustration-load-bearing — re-read before cycle close)
 
-- *"all you have done so far is just minor work"* — cycle 5 shipped predicate-strength uniformity + Newton coverage + Tier 3 substrate + universal Discord-style codification. Cycle 6 rebuilds the measurement infrastructure so future substrate work attaches to concrete ladder progression.
-- *"its more important to try to make it pass all the benchmark tests first"* — cycle 6 directly serves this. Pristine + granular ladder makes the PASS-count the load-bearing metric.
-- *"unless its super-human in every domain ... YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR. Cycle 6 builds the visible ladder to it.
-- *"honest and honorable work ethics. If all tests pass, but the model falls apart in real tests, or it sees the answer in advance in some hidden way, the test passes are meaningless"* — cycle 4 #24 + cycle 5 #01 hardened anti-cheat; cycle 6 expands the test surface so passing actually demonstrates capability range, not sample bias.
+- *"all you have done so far is just minor work"* — cycle 6 lifted PASS 15→37 across objective domains. Cycle 7 lifts subjective domains + grades existing rubric-pending. Substantive measurement-stick build.
+- *"its more important to try to make it pass all the benchmark tests first"* — cycle 7 #02 Path B grader-flip directly serves this (potentially 37→54 PASS via honest grading).
+- *"unless its super-human in every domain ... YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR.
+- *"honest and honorable work ethics. If all tests pass, but the model falls apart in real tests"* — cycle 7 thin-domain entries must be REAL benchmarks (not filler). advisor() per-domain pre-bulk-authoring.
 
-## Done condition (cycle 6, mechanical)
+## Done condition (cycle 7, mechanical)
 
-- All 6 #00P13c6-XX TaskList rows = `completed`.
+- All 6 #00P13c7-XX TaskList rows = `completed` (or explicitly deferred with rationale).
 - pytest -q ≥ 276 (no regression; new tests for any new auto-graded entries).
-- D3 harness reports new total (was 15 PASS / 0 FAIL / 21 rubric-pending; will be larger; some new rank-6 entries may be `ungradeable`-tier).
-- Each domain has ≥6 entries spanning rank 1-6; each (domain, rank) cell has ≥3 entries where applicable.
-- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-6.md`.
-- THIS file rewritten as cycle 7 handoff.
+- D3 harness reports new total (was 37 PASS / 0 FAIL / 29 rubric-pending; expected up to ~54 PASS / 0 FAIL / ~12 rubric-pending if Path B fires).
+- Each subjective domain has ≥3 entries per cell at ranks 1-5.
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-7.md`.
+- THIS file rewritten as cycle 8 handoff.
 - `git status -s` empty.
-- Discord cycle 6 close post sent.
-- Cycle 7 picked up immediately OR `-ni` proposal at cycle 6 close.
+- Discord cycle 7 close post sent in 4-metric rubric.
+- Cycle 8 picked up immediately OR `-ni` proposal at cycle 7 close.
 
-— Update this file at cycle 6 close: replace cycle 6 deliverables table with cycle 7 deliverables table; refine cycle 7 scope based on cycle 6 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.
+— Update this file at cycle 7 close: replace cycle 7 deliverables table with cycle 8 deliverables table; refine cycle 8 scope based on cycle 7 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.
