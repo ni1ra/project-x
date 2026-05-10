@@ -48,6 +48,16 @@ This is where the real work shipped. Phase 9 built the from-scratch organic enco
 - **Code-comment-ratio rule** (GLOBAL POLICY) — WHY-comments justifying complex code's existence + comments preserving important info (e.g. *"strict-dominance boost +1.0 guarantees latest turn wins regardless of cosine variance — see Phase 10 P3 binding"*). Never WHAT-comments.
 - **Phase 11 verdict surfaced one architectural finding here:** Phase 10's strict-dominance recency boost (in `semantic_hdc_memory.py` `_structural_cosines` / `retrieve_structural`) collapses on "list all changes" prompts. Phase 12+ candidate work area: prompt-shape disambiguation in `MemoryAgent.process` controller + `retrieve_structural_full_history` mode that bypasses dominance collapse.
 
+## Coverage policy (audit-E1)
+
+Library-shape modules (test-coverable; tests under `tests/test_<module>.py`) and research-script modules (CLI-driven; coverage 0% by design) are tracked separately. The coverage target of 70%+ applies to library-shape only.
+
+| Tier | Modules | Coverage policy |
+|---|---|---|
+| **Library (test-coverable)** | `semantic_hdc_memory.py`, `semantic_memory_agent.py`, `encoder.py`, `random_index_hebbian.py`, `ensemble_encoder.py`, `hdc_substrate.py`, `semantic_memory_dataset.py` | Target 70%+. `hdc_substrate.py` lifted from 24% → 89% in audit-E1. `ensemble_encoder.py` is the prototypical Phase 9 Cycle 4 module whose alpha-blend logic was inlined into `SemanticHDCMemory._ensemble_cosines` — superseded; coverage low because there's no live caller. Decision: **retire** by leaving it as historical reference (don't delete; future cycles may revisit max / per-type ensemble strategies). |
+| **Research scripts (CLI-driven)** | `hdc_capacity.py`, `hdc_compose.py`, `hdc_continual.py`, `hdc_conversation_demo.py`, `hdc_vs_naive_comparison.py`, `hopfield_lens.py`, `hdc_snn_bridge.py` | Coverage policy: **none**. These run via `python -m project_x.experiments.<name>` for experiment outputs (`result.json`); `main()` is the only entry-point; their internal helper functions are exercised exclusively from main(). Adding pytest cases would mean reproducing the full experiment runs, which is what the CLI already does. Decision: **document as scripts** (already done in the file inventory above). |
+| **Quarantined surface** | `compressed_memory.py`, `tasks.py`, `util_harness.py` | Phase 1-3 historical control + GPU harness. Tests `test_compressed_memory.py` exists (run only when `[legacy]` extra installed via `pytest.importorskip("torch")` per audit-C2). `tasks.py` + `util_harness.py` are exclusively-used by `compressed_memory.py` — coverage tied. Decision: **already covered by audit-C2** (quarantine + optional install path). |
+
 ## Last reviewed
 
 2026-05-10 by Raphael (Phase 11 cycle 8 sweep).
