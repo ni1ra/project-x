@@ -32,8 +32,10 @@ from project_x.reasoning.verifier import (
     _close_enough,
     _eigenvalue_2x2_verification_script,
     _parse_sandbox_output,
+    _quadratic_newton_verification_script,
     _quadratic_verification_script,
     numerical_verify,
+    verify_quadratic_via_newton,
 )
 
 
@@ -202,3 +204,68 @@ class TestVerificationScripts:
         script = _quadratic_verification_script(1, 0, 1)
         run_result = sma._tool_run_python_sandbox(script, timeout=10)
         assert "NEGATIVE_DISCRIMINANT" in run_result
+
+
+class TestVerifyQuadraticViaNewton:
+    """Phase 13 cycle 5 #00P13c5-02 — Newton's-method divergent-verifier-path tests
+    (closes cycle 4 #24 acknowledged-gap; Newton extension shipped without dedicated tests).
+
+    Coverage shapes:
+    - Convergence: Newton iterates to one real root; Vieta deflation recovers the second.
+    - Closed-form equivalence: agrees with `_quadratic_verification_script` on shared canonicals.
+    - Negative discriminant: sentinel-detected → returns False (graceful, not exception).
+    - Tolerance: returns True iff sorted-roots match expected within tolerance.
+    - Edge regimes: repeated root + irrational roots + scaled coefficients (Newton must converge
+      across magnitude regimes; Vieta deflation must hold without re-using closed-form).
+
+    The whole point of this verifier is to be ALGORITHMICALLY DIFFERENT from substrate's
+    closed-form `solve_quadratic` — same answer space via different code path. These tests
+    verify the convergence + equivalence properties; they do NOT verify substrate (that's
+    `TestNumericalVerifyQuadratic`).
+    """
+
+    def test_newton_converges_on_distinct_real_roots(self, sandbox_isolated):
+        # Ladder maths-001 shape: 3x² - 14x - 5 = 0 → roots [-1/3, 5.0]
+        assert verify_quadratic_via_newton(3, -14, -5, expected=[-1 / 3, 5.0], tolerance=0.001) is True
+
+    def test_newton_repeated_root(self, sandbox_isolated):
+        # x² - 2x + 1 = 0 → discriminant = 0; Newton converges to 1.0; Vieta deflates to 1.0.
+        assert verify_quadratic_via_newton(1, -2, 1, expected=[1.0, 1.0], tolerance=0.001) is True
+
+    def test_newton_irrational_roots(self, sandbox_isolated):
+        # x² - 2 = 0 → roots ±√2; Newton converges to one, Vieta yields -that.
+        assert verify_quadratic_via_newton(1, 0, -2, expected=[-math.sqrt(2), math.sqrt(2)], tolerance=0.001) is True
+
+    def test_newton_negative_discriminant_returns_false(self, sandbox_isolated):
+        # x² + 1 = 0 → D = -4 → sentinel; verifier refuses to claim a match.
+        assert verify_quadratic_via_newton(1, 0, 1, expected=[0.0, 0.0]) is False
+
+    def test_newton_mismatch_caught_outside_tolerance(self, sandbox_isolated):
+        # Right roots [-1/3, 5.0]; expected wrong-by-2.0 → outside default tolerance.
+        assert verify_quadratic_via_newton(3, -14, -5, expected=[-1 / 3 + 2.0, 5.0 + 2.0]) is False
+
+    def test_newton_match_within_loose_tolerance(self, sandbox_isolated):
+        # Right roots ≈ [-0.333, 5.000]; expected slightly off but within loose tolerance.
+        assert verify_quadratic_via_newton(3, -14, -5, expected=[-0.34, 4.99], tolerance=0.05) is True
+
+    def test_newton_agrees_with_closed_form_on_canonical(self, sandbox_isolated):
+        # Newton + closed-form must produce equivalent root sets on the same input.
+        # If the two paths disagree, that signals a divergent-verifier inconsistency
+        # (the whole point of cycle 4 #24's Newton extension is "different algorithm,
+        # same answer" — divergence here would falsify the design).
+        closed_form = _quadratic_verification_script(2, -7, 3)
+        newton_form = _quadratic_newton_verification_script(2, -7, 3)
+        cf_run = sma._tool_run_python_sandbox(closed_form, timeout=10)
+        nm_run = sma._tool_run_python_sandbox(newton_form, timeout=10)
+        cf_parsed = _parse_sandbox_output(cf_run)
+        nm_parsed = _parse_sandbox_output(nm_run)
+        assert cf_parsed is not None and nm_parsed is not None
+        assert len(cf_parsed) == 2 and len(nm_parsed) == 2
+        # Both sorted ascending; element-wise tight match.
+        assert math.isclose(cf_parsed[0], nm_parsed[0], abs_tol=1e-6)
+        assert math.isclose(cf_parsed[1], nm_parsed[1], abs_tol=1e-6)
+
+    def test_newton_scaled_coefficients(self, sandbox_isolated):
+        # Order-of-magnitude scaling: Newton must converge across coefficient regimes.
+        # 100x² - 300x + 200 = 0 → roots [1.0, 2.0] (factored: 100(x-1)(x-2)).
+        assert verify_quadratic_via_newton(100, -300, 200, expected=[1.0, 2.0], tolerance=0.001) is True
