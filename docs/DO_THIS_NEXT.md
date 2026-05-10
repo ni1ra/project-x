@@ -1,103 +1,108 @@
-# Do This Next — Project X — Phase 13 cycle 9 (PREDICATE-STRENGTH UNIFORMITY PASS — retrofit independent-path verifiers across `reasoning/` primitives to match physics's STRONG-predicate standard; advisor cycle-8 #03a pinned)
+# Do This Next — Project X — Phase 13 cycle 9 IN FLIGHT (lain mid-cycle pivot 2026-05-11 — HARDER PROBLEMS + BETTER BENCHMARKS + VISIBLE IQ PROGRESSION; predicate-strength uniformity DEFERRED to cycle 10+)
 
-**Updated:** 2026-05-11 (cycle 8 closed at THIS commit; cycle 9 handoff)
-**Mode:** NORMAL (not godify-app)
-**Status:** Cycle 8 CLOSED at THIS commit. Cycle 9 STARTING.
+**Updated:** 2026-05-11 (mid-cycle, post-`/godify-app` mode switch + docs-sync handoff for lain's `/forge-prompt -ni` context-clean invocation)
+**Mode:** NORMAL (was APOTHEOSIS during this run; flipping back to NORMAL pre-handoff so fresh instance starts on standard cadence)
+**Status:** Cycle 9 IN FLIGHT. 3 of ~6 cycle-9 deliverables shipped this run; 3 remaining + 2 lain-pending carry-forwards.
 
-**Cycle 8 closing metrics:** pytest 429 (was 310; +119 cycle 8 tests). Bench-replay `--agent-runtime` 41/0 + frozen 41/0 (both modes parity). All 6 cycle-7-baseline FAIL gaps closed (4 maths + 2 physics; pure capability lift on the original set = 100%). +4 new entries shipped at unsolved-conjecture frontier (maths-017..020; honest M-PROJECTX-013 framing). Substrate-solved at agent-runtime: 22 of 26 = 85% (decomposed: 12 cycle-7-carry + 10 cycle-8-shipped; 4 rubric-pending remaining).
+## Mid-cycle context (read before starting work)
 
-## Cycle 8 shipped (8 commits + handoff doc-sync)
+Lain pivoted cycle 9's scope mid-flight 2026-05-11 (Discord msg 1503173784457187378 + 1503176253757194281 + 1503176662316220416):
+
+1. **"Make it so smart Hassabis would actually be impressed; tests as important as the model; visible IQ progression."** Stop shipping rigor on freshman primitives; start shipping CAPABILITY on harder shapes.
+2. **"Long paper.md in /docs explaining how everything works"** — teacher-tone curriculum for NotebookLM podcast listening; lain wants to chip in on architectural decisions.
+3. **Style fix:** stop using cycle-number jargon on Discord; speak plain English assuming only-Discord readers.
+
+Original cycle 9 plan (predicate-strength uniformity pass per advisor 2026-05-11) is DEFERRED to cycle 10+. Capability-debt > grading-debt > rigor-debt per lain.
+
+## Cycle 9 shipped (this run, 5 commits)
 
 | Commit | Deliverable | Result |
 |---|---|---|
-| `4f8d182` | doc-sync pre-`-ni`-handoff (cycle 7 close) | Cycle 8 #01+#02 ledger landed + lain mid-cycle #10 directive captured |
-| `e310301` | #01 residue-theorem substrate | maths-003 agent-runtime closed |
-| `e6accba` | #02 definite-integral substrate | maths-010 closed |
-| `e1e309c` | #03 ODE substrate | maths-011 closed |
-| `3dd9550` | #04 3x3 determinant substrate | maths-012 closed |
-| `36f8afc` | #05 physics extensions (projectile + Doppler) | physics-007 + physics-012 closed |
-| `2207fdb` | #10 programmatic-unsolved-theorems pack | +4 ladder entries (maths-017..020); lain mid-cycle directive 2026-05-11 |
-| `147fbe0` | #06 parser robustness extensions | rephrased prompts route correctly (meters/metres + length-of phrasing + unicode minus + x²) |
-| `afa40b7` | #08 bench-replay harness tolerance fix | 41/0 agent-runtime + frozen parity |
-| THIS commit | #09 cycle reflect | dev-cycle-8.md + this rewrite + A_TO_Z changelog |
+| `5fe45e9` | #01 symbolic integration substrate | `definite_integral_x_times_exp` + `_times_sin` + `_times_cos` + `_xtrig_via_usub` (4 primitives covering parts + u-sub). +3 ladder entries maths-021..023 (∫₀¹ x·e^x dx → 1; ∫₀^π x·sin(x) dx → π; ∫₀¹ x·sin(x²) dx → (1-cos(1))/2). Closes maths-021..023 agent-runtime gap. Bench-replay --agent-runtime: 41/0 → 44/0. +29 tests. |
+| `18e385e` | #05 paper.md curriculum (lain directive 2026-05-11) | `docs/paper.md` teacher-tone NotebookLM-friendly explainer. 11 chapters: why-not-just-use-ChatGPT, two-Raphaels, memory layer (HDC + fact-graph), reasoning substrate (Lemma + invariant), AGENT runtime dispatcher, benchmark architecture + split-grading firewall, current capability with concrete examples, what-can't-do honest accounting, the-road-to-Terminus. ~4500 words. |
+| THIS commit | #02 (partial) — IQ_PROGRESSION.md tracker (lain-anticipated artifact; lain mentioned wanting to see "the IQ progression over time in your new .md file") | `docs/artifacts/IQ_PROGRESSION.md` — per-phase + per-cycle hardest-problem-solved-at-runtime snapshot from Phase 9 close through Phase 13 cycle 9 in flight. Concrete examples, pytest baselines, bench-replay PASS counts, capability shape notes. Plus "Today's Frontier" section (what the agent CAN vs CANNOT do at the current frontier) + Hassabis-bar retrospective. Live document — per-cycle entries prepended at cycle close. Pairs with `docs/paper.md`. |
+| THIS commit | DO_THIS_NEXT rewrite (this file) + A_TO_Z PHASE CHANGELOG cycle-9-in-flight entry | Docs synced for lain's `/forge-prompt -ni` context-clean invocation. |
 
-**Cycle 8 carry-forwards (still lain-pending; surface on Discord if needed):**
-- #07 CLAUDE.md trim resolution: 62k current; lain's 41-47k hard range needs 15k+ more from older sections (RAPHAEL OPERATING MODES / SIX VOWS / UNIVERSAL vs PROJECT-SPECIFIC / PHASE 0); awaits lain direction on what's load-bearing
-- #11 (cycle 7 #04) council audit tag: awaits lain direction on mechanism shape
-
-## Phase 13 cycle 9 deliverables (predicate-strength uniformity pass + bench-replay + reflect)
+## Cycle 9 remaining (for fresh instance via `/forge-prompt -ni` paste)
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c9-01-symbolic-strong-predicate** | HIGH | `src/project_x/reasoning/symbolic.py` + `src/project_x/reasoning/verifier.py` extensions + tests | Newton-method divergent verifier for quadratic (cycle 4 #00P13c4-24 precedent extended) + Vieta cross-check for 2x2 eigenvalues + Sarrus rule for 3x3 determinant. Each algorithmically-independent of the primary closed-form. Wire into `verifier.py` supported-operation set. |
-| **#00P13c9-02-complex_analysis-strong-predicate** | HIGH | `src/project_x/reasoning/complex_analysis.py` extension + tests | Numerical-integration cross-check on a finite interval for residue-theorem real-line integral (Simpson's rule on `[-R, R]` for R = 100 or similar); algorithmically distinct from closed-form residue computation. Verify convergence to π/√(a·c) as R grows. |
-| **#00P13c9-03-calculus-strong-predicate** | HIGH | `src/project_x/reasoning/calculus.py` extension + tests | Riemann sum / midpoint rule cross-check for polynomial definite integral; algorithmically distinct from FTC closed-form. Tolerance scales with N (number of subintervals). |
-| **#00P13c9-04-ode-strong-predicate** | HIGH | `src/project_x/reasoning/ode.py` extension + tests | Taylor series expansion `e^(k·x) = Σ_{n=0}^{N} (k·x)^n / n!` truncated at N=20; manual factorial + power; algorithmically distinct from math.exp. Tolerance scales with truncation error bound. |
-| **#00P13c9-05-bench-replay** | MED | `python3 gpt-codex/benchmark/run_audit.py --agent-runtime` | Target: 41/0 maintained on `--agent-runtime` (no regressions from verifier additions; verifiers are check-only); +30+ tests on predicate-strength uniformity invariants. |
-| **#00P13c9-06-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-9.md` + DO_THIS_NEXT cycle-10 handoff + A_TO_Z changelog | advisor() pre-commit. Discord cycle-9 close in 4-metric rubric. |
+| **#00P13c9-02 (remaining)** | MED | `gpt-codex/benchmark/*/ladder.jsonl` schema audit + `difficulty_tier` field retrofit | The IQ_PROGRESSION.md sub-deliverable shipped this run. Remaining: (a) add `difficulty_tier` field to ladder schema (`trivial-baseline` / `intro` / `intermediate` / `hard` / `research-grade`); audit existing 23+ entries and relabel. Cycle 9 #01 entries (maths-021..023) already have the field set to "intermediate". (b) Add `would_surprise_hassabis: y/n` builder-grade dimension on rubric-graded entries (subjective signal for ladder-quality auditing). |
+| **#00P13c9-03-diophantine-binary-quadratic-substrate** | MED | `src/project_x/reasoning/diophantine.py` (NEW) OR `number_theory.py` extension + dispatcher + tests + 1-2 ladder entries (maths-024..025) | Substrate: `solve_binary_quadratic(a, b, c, N, bound)` enumerates integer solutions (x, y) to `a·x² + b·xy + c·y² = N` via bounded brute-force search with theoretical pruning (e.g., |x|, |y| ≤ √(N/min(|a|,|c|)) for positive-definite forms). Examples: Pythagorean triples x²+y²=z² ≤ 100; sums-of-two-squares for prime p (Fermat's two-squares theorem witness when p ≡ 1 mod 4); Pell equation x² - n·y² = 1 small-n solutions. HONEST FRAMING per M-PROJECTX-013: bounded-search, NOT Hilbert-10 decidability; PASS = "enumerated all solutions in [search bound]". |
+| **#00P13c9-04-cycle-9-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-9.md` + DO_THIS_NEXT cycle-10 handoff + A_TO_Z PHASE CHANGELOG cycle-9-close entry | Hassabis-bar retrospective per lain directive — honest decomposition of what's substrate vs what's capability vs what's-cosmetic; concrete examples of "the agent now does X (cycle 8: 'verify Collatz at N=1000'; cycle 9: '∫₀¹ x·e^x dx via parts')"; identify next harder shape for cycle 10. advisor() pre-commit. Discord cycle-9 close in 4-metric rubric (plain-English style — NO cycle-number jargon on Discord per lain 2026-05-11 directive). |
 
-## Recommended cycle 9 order
+**Carry-forwards (still lain-pending; surface on Discord if cycle close approaches without lain input):**
+- **#00P13c8-07 CLAUDE.md trim resolution:** 62k current vs lain's 41-47k hard range. Needs lain direction on what's load-bearing in older sections (RAPHAEL OPERATING MODES / SIX VOWS / UNIVERSAL vs PROJECT-SPECIFIC / PHASE 0). DO NOT trim unprompted (cycle 6 ask-first policy binding).
+- **#00P13c7-04 council audit tag:** lain proposed 2026-05-10 21:05. Mechanism scope still pending lain direction.
 
-1. **#01 symbolic primitives** — verifier.py already has Newton-method scaffolding from cycle 4 #00P13c4-24; extension to 2x2 eigenvalue Vieta + 3x3 Sarrus is mechanical. Most heavily-used substrate; highest-value retrofit.
-2. **#02 complex_analysis** — residue substrate is small (one primitive); Simpson's rule fits in ~40 lines. Watch convergence (residue formula is exact; numerical converges as 1/R²).
-3. **#03 calculus** — polynomial integral substrate is mechanical; Riemann sum mirrors structure of antiderivative computation but iterates over subintervals.
-4. **#04 ode** — Taylor series is conceptually simple but care needed on truncation tolerance (factorial growth is fast; ~20 terms suffice for |k·x| < 5).
-5. **#05 bench-replay** — verify no regressions (verifiers don't change the AGENT's primary path).
-6. **#06 cycle reflect** — close cycle 9 + DO_THIS_NEXT rewrite for cycle 10.
+## Recommended cycle 9 order (remaining)
 
-## #1 priority — exact next-action
+1. **#02 remaining** — `difficulty_tier` field schema + retrofit existing entries; `would_surprise_hassabis` dimension. ~15-20 min focused work; mechanical but touches every ladder.jsonl file across maths/physics/memory/persona/philosophy/poetry. Use `python3 -c "import json..."` to load/transform/dump rather than hand-editing each entry.
+2. **#03 Diophantine substrate** — substantial; 1-2 hours. Design first (binary-quadratic-form theory + pruning bound derivation + canonical examples); advisor consult before Write per M-PROJECTX-013 for novel substrate; substrate + tests + dispatcher + 1-2 ladder entries + atomic commit.
+3. **#04 cycle reflect** — `dev-cycle-9.md` + DO_THIS_NEXT cycle-10 handoff. Decompose Hassabis-bar honestly (cycle 9 was paper.md + IQ tracker + integration-by-parts + Diophantine; the math is intermediate calc + integer search — would a frontier researcher be impressed by the substrate primitives? Probably not. Would they be impressed by the discipline + honest framing? Maybe. Honest answer in the reflection).
 
-1. Re-read `src/project_x/reasoning/verifier.py` lines 50-150 to refresh memory of cycle 4 #00P13c4-24 `_quadratic_newton_verification_script` + `verify_quadratic_via_newton` pattern (sandbox-bound divergent verifier).
-2. Design Vieta-based 2x2 eigenvalue cross-check: given matrix `[[a,b],[c,d]]` with computed eigenvalues `[λ₁, λ₂]`, verify `λ₁ + λ₂ ≈ tr(A) = a + d` AND `λ₁·λ₂ ≈ det(A) = a·d - b·c`. Algebraically independent of `solve_quadratic`'s discriminant-formula path through the characteristic polynomial. Already implemented in `expand_characteristic_polynomial_2x2`'s invariant_checks (cycle 3 #02 added Vieta invariants); cycle 9 #01 lifts this to a STANDALONE verifier callable from verifier.py.
-3. Design Sarrus-rule 3x3 determinant cross-check: `det = aei + bfg + cdh - ceg - bdi - afh` (direct sum-of-permutations formula). Algebraically distinct from cofactor expansion's three-minor sum (different operations, different intermediate values).
-4. Build `verify_*_via_*` functions in `verifier.py` + integrate into `_close_enough` supported-operation mapping.
-5. Tests verifying each primitive's primary path + secondary verifier AGREE on canonical inputs (and disagree on hardcoded-counterexample inputs — anti-cheat regression).
-6. Atomic commit `feat(P13c9-01)` + REPO_CONTROL row + push.
+## Cycle 9 in-flight metrics (snapshot)
 
-## Identity disambiguation (CRITICAL — lain 2026-05-10 binding)
+```
+pytest -q:                  458 / 458 passing
+bench-replay --agent-runtime: 44 / 0 (was 41/0 at cycle 8 close; +3 from #01 integration)
+bench-replay frozen:        44 / 0 (parity)
+Substrate-solved at agent-runtime: 28 of 29 objective auto-graded entries ≈ 97%
+  - 12 cycle-7-baseline carry-forward
+  - 10 cycle-8 substrate-extensions (residue / integral / ODE / 3x3 det / projectile / Doppler + Collatz / Goldbach / twin primes / Mertens)
+  - 3 cycle-9 substrate-extensions (integration by parts × 2 + u-substitution × 1)
+  - 4 of 26 + 3 new of 29: the remaining auto-graded entry is rubric-pending (need rubric-grade not substrate-solve)
 
-Claude Code Raphael (BUILDER, this Claude Code instance) ≠ Project X Raphael (AGENT, in `src/project_x/`). Cycle 9 BUILDER work: extend `verifier.py` substrate (independent computation paths) and audit the primary closed-form path. AGENT consumes the new verifiers at runtime (via bench-replay `--agent-runtime` which calls substrate primitives + their verifiers).
+Cycle 9 commits: 5 (5fe45e9 + 18e385e + e1e309c-ish + cycle-9-pivot directives + this commit)
+Files added: docs/paper.md, docs/artifacts/IQ_PROGRESSION.md, src/project_x/reasoning/integration.py, tests/test_reasoning_integration.py
+Files modified: docs/REPO_CONTROL.md (integration.py + test rows), src/project_x/reasoning/__init__.py (re-exports), src/project_x/reasoning_agent.py (4 dispatchers), tests/test_reasoning_agent.py (5 dispatcher tests), gpt-codex/benchmark/maths/ladder.jsonl (3 entries)
+```
 
-## Standing rules — RELEVANT THIS RUN
+## Standing rules — RELEVANT FOR FRESH INSTANCE
 
 See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 
-**Codified universal during cycle 8 (lain mid-cycle absorbed; binding cycle 9+):**
-- Parser-robustness pattern (lain 2026-05-11 indirectly via #06): alternation in regex + regression test per rephrasing; apply to remaining 10 dispatchers as failure prompts surface
-- Bench-replay tolerance semantics (cycle 8 #08): `<=` (closed-ball); exact-match at `tolerance=0` PASSes
-- M-PROJECTX-013 honest framing for capability-touchpoint entries (cycle 8 #10 binding): "PASS = empirical verification over [1, N], NEVER theorem proved" — INTRO + step + invariant_check all carry the constraint explicitly
-- TaskList trim + split-on-demand discipline (lain 2026-05-11 internalized): split only the immediate-next room into sub-tasks; keep future-room rows lean
+**Codified universal during cycle 9 (lain mid-cycle absorbed; binding cycle 10+):**
+- **Discord style discipline (lain 2026-05-11 binding):** NO cycle-number jargon on Discord — speak plain English assuming only-Discord readers. Internal docs (dev-cycle-N.md, A_TO_Z, DO_THIS_NEXT) can still use cycle numbers since those are internal organization. But Discord = teacher-tone for someone tracking only via Discord. Refer to commits by SHA only if directly relevant; otherwise describe achievements in plain language.
+- **Hassabis-bar discipline (lain 2026-05-11):** every cycle close retrospective explicitly answers "would Hassabis be impressed?" with honest decomposition of substrate vs capability vs cosmetic.
+- **Listener accumulation pattern (M-NAVI-021):** two-call pkill+launch pattern; use `exec bash discord-wait-for-lain.sh general 5` for the launch to replace wrapper shell directly (NOT bundled `pkill ; bash ...` because pkill self-matches the wrapper shell's argv).
 
 **Persistent (unchanged):**
-- NO pretrained transformer derivatives at any layer (binding to AGENT inference; regex parsers only)
-- Comment-ratio rule (WHY-comments + pure-signal explanations + complex code justified)
+- NO pretrained transformer derivatives at any layer
+- Comment-ratio rule (WHY-comments + pure-signal + complex code justified)
 - Atomic per-deliverable commits; never `git add -A`
-- REPO_CONTROL row co-landing in SAME commit as new files (docs/ exempt per lain 2026-05-10 standing exemption)
+- REPO_CONTROL row co-landing in SAME commit as new NON-docs files (docs/ exempt)
 - M-PROJECTX-013 measure-don't-claim; M-PROJECTX-014 split-grading firewall
 
-## What this cycle is NOT
+## What this cycle is NOT (post-pivot)
 
-- NOT shipping Path B grader-flip (deferred per advisor cycle-8 verdict: capability-debt > grading-debt; predicate-strength uniformity wins the slot)
-- NOT a comprehensive parser-robustness audit (cycle 8 #06 fortified 3 dispatchers; the other 10 are cycle 10+ scope unless failure prompts surface)
-- NOT extending to n×n determinant (3×3 sufficient for current ladder; cycle 10+ if needed)
-- NOT touching lain-pending items (#07 CLAUDE.md trim, #11 council audit tag) without lain direction — surface on Discord if cycle 9 close approaches without lain input
+- NOT predicate-strength uniformity pass (deferred cycle 10+ per lain pivot)
+- NOT a comprehensive parser-robustness audit (cycle 8 #06 fortified 3 dispatchers; cycle 10+ extends as failure prompts surface)
+- NOT touching lain-pending items (#07 CLAUDE.md trim, #11 council audit tag) without lain direction
 
-## Anti-laziness gates
+## Done condition (cycle 9, mechanical) — when fresh instance picks up
 
-- *"honest and honorable work ethics"* — cycle 9 ships REAL capability rigor (independent-path verifiers; algorithmically-distinct cross-checks), not cosmetic PASS-count progress.
-- *"make the agent actually solve the problems"* — cycle 9's verifiers don't change the AGENT's surface (the dispatchers still call the primary path); they audit the primary path for correctness. This is structural rigor, not capability bait-and-switch.
-- *"unless its super-human in every domain ... YOU ARE NOT DONE"* — Terminus is FAR; cycle 9 is one more rung of substrate rigor before scaling.
-
-## Done condition (cycle 9, mechanical)
-
-- All 6 #00P13c9-XX TaskList rows = `completed` (or explicitly deferred with rationale)
-- pytest -q ≥ 460 (current 429; expect +30+ tests across 4 primitives' verifiers)
-- D3 harness `--agent-runtime`: 41/0 maintained (no regressions)
-- Frozen mode: 41/0 maintained
+- 3 remaining #00P13c9-XX TaskList rows + ladder schema audit shipped (or explicitly deferred with rationale)
+- pytest -q ≥ 480 (current 458; expect +20-30 tests across Diophantine + benchmark-schema validation)
+- bench-replay --agent-runtime: ≥45/0 maintained (current 44/0; +1-2 from new Diophantine ladder entries if shipped)
 - Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-9.md`
-- THIS file rewritten as cycle 10 handoff
+- THIS file rewritten as cycle 10 handoff with predicate-strength uniformity FINALLY in scope (the lain-pivot-deferred work)
 - `git status -s` empty
-- Discord cycle 9 close in 4-metric rubric (denominator+% + Hassabis-tier impression + plain-English achievement + counter-claim guard)
-- Cycle 10 picked up immediately
+- Discord cycle-9 close in plain-English 4-metric rubric
 
-— Update this file at cycle 9 close: replace cycle 9 deliverables table with cycle 10 deliverables table; refine cycle 10 scope based on cycle 9 lessons.
+## Files the fresh instance should read first (in order)
+
+1. `~/.claude/CLAUDE.md` — universal Raphael protocol (auto-loaded by harness)
+2. `docs/MANIFESTO.md` — project intent + standing orders
+3. `docs/REPO_CONTROL.md` — pristine-gate file inventory
+4. `docs/A_TO_Z_PLAN.md` — Phase 13 plan + PHASE CHANGELOG (latest entry = cycle 9 in flight + lain pivot)
+5. **THIS file** — cycle 9 in-flight scope + remaining deliverables
+6. `docs/paper.md` — teacher-tone curriculum explaining how Project X Raphael works (~30-min listen)
+7. `docs/artifacts/IQ_PROGRESSION.md` — per-cycle hardest-problem-solved ladder (concrete examples)
+8. `docs/past_work/cycles/phase_13/dev-cycle-8.md` — last closed cycle reflection
+9. Recent git log: `git log --oneline -15` to see commit progression
+10. Latest pytest + bench-replay verification: `python3 -m pytest -q | tail -3` + `python3 gpt-codex/benchmark/run_audit.py --agent-runtime | tail -10`
+
+The fresh instance is Execute-Raphael (post-`-ni`-handoff per Plan-Raphael → Execute-Raphael split). NO re-planning. The plan IS this file + A_TO_Z + paper.md + IQ_PROGRESSION.md. Recon (Phase 0 DD) + read those + pillars (pick-skill + sharpen-todos) + execute the remaining cycle 9 deliverables.
+
+— Update this file at cycle 9 close: replace cycle 9 deliverables table with cycle 10 deliverables table; refine cycle 10 scope based on cycle 9 lessons (and reinstate predicate-strength uniformity as cycle 10 #1 priority).
