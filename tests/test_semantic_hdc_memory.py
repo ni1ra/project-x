@@ -291,6 +291,47 @@ def test_non_contiguous_turn_ids():
     assert 42 in post_ids, f"Dave's turn (id=42) should surface post-write_one; got {post_ids}"
 
 
+def test_replay_consolidate_idempotent():
+    """Audit-A3 regression guard — replay_consolidate() re-fits Hebbian on the
+    current corpus. Pre-fix it called `_hebbian.fit(texts)` without reset, so
+    every replay tick accumulated _freq + _total_tokens on top of the prior
+    fit's state. After K replay ticks, _total_tokens ≈ K × actual_corpus_tokens
+    and Mikolov subsample probabilities (computed from f(w) = freq/_total_tokens)
+    drifted toward zero.
+
+    Post-fix: replay_consolidate calls fit(reset=True). _total_tokens after
+    any number of replays equals the actual corpus token count, NOT a multiple
+    of it.
+    """
+    from project_x.experiments.random_index_hebbian import tokenize
+    records = [
+        TurnRecord(turn_id=0, text="Alice prefers Python.", fact_keys=["pref:Alice"]),
+        TurnRecord(turn_id=1, text="Bob settled on Rust.", fact_keys=["pref:Bob"]),
+    ]
+    mem = SemanticHDCMemory(D=1024, alpha=0.5, negative_samples=0, seed=1337)
+    mem.write_batch(records)
+    expected_tokens_after_batch = sum(len(tokenize(r.text)) for r in records)
+    assert mem._hebbian._total_tokens == expected_tokens_after_batch
+
+    # write_one extends the corpus; expected token count grows accordingly.
+    new_record = TurnRecord(turn_id=2, text="Carol picked Postgres.", fact_keys=["pref:Carol"])
+    mem.write_one(new_record)
+    expected_after_write_one = expected_tokens_after_batch + len(tokenize(new_record.text))
+
+    # Three replay ticks. Pre-fix: _total_tokens would be ~3× expected.
+    for _ in range(3):
+        mem.replay_consolidate()
+    assert mem._hebbian._total_tokens == expected_after_write_one, (
+        f"replay_consolidate must be idempotent on _total_tokens; "
+        f"expected {expected_after_write_one}, got {mem._hebbian._total_tokens}"
+    )
+    # Vocab also stays clean (no duplicate inflation).
+    expected_vocab = set()
+    for r in mem._records:
+        expected_vocab.update(tokenize(r.text))
+    assert set(mem._hebbian._vocab.keys()) == expected_vocab
+
+
 def test_save_provenance_jsonl():
     import json
     mem = _build_simple_memory()

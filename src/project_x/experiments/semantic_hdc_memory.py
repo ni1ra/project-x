@@ -211,8 +211,10 @@ class SemanticHDCMemory:
         # Build turn_id → row-index map (audit-A1) so subsequent indexing into
         # encoder arrays / record list doesn't assume contiguous-from-zero IDs.
         self._turn_id_to_row = {r.turn_id: i for i, r in enumerate(records)}
-        # Fit Hebbian (needs full corpus for vocab + co-occurrence)
-        self._hebbian.fit(self._turn_texts)
+        # Fit Hebbian (needs full corpus for vocab + co-occurrence). reset=True
+        # (audit-A2/A3) makes write_batch safe to call repeatedly on the same
+        # SemanticHDCMemory — without it, vocab/_total_tokens leak across calls.
+        self._hebbian.fit(self._turn_texts, reset=True)
         # Fit baseline
         self._baseline.fit(self._turn_texts)
         # Encode all turns once
@@ -372,8 +374,12 @@ class SemanticHDCMemory:
         consolidation half of Council Idea #4 (Incremental Hebbian Replay)."""
         if not self._is_built:
             return
-        # Re-fit Hebbian on the full current corpus (includes incrementally-written turns).
-        self._hebbian.fit(self._turn_texts)
+        # Re-fit Hebbian on the full current corpus (includes incrementally-
+        # written turns). reset=True (audit-A3 — coupled to audit-A2) prevents
+        # _freq + _total_tokens + _trained_vecs from accumulating stale state
+        # across replay ticks; without it, drop probabilities computed from
+        # inflated _total_tokens drift wrong on every consolidation.
+        self._hebbian.fit(self._turn_texts, reset=True)
         # Re-encode all turns with refreshed Hebbian; floor vecs unchanged (stateless).
         self._heb_turn_vecs = self._hebbian.encode(self._turn_texts)
         # Baseline refit (cheap; just rebuilds token sets).
