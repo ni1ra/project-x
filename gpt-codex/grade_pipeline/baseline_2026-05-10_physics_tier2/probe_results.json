@@ -137,7 +137,8 @@
     "surrogate_pass_rate": 1.0,
     "memorization_signal": 0.0,
     "surrogate_author": "builder (rule-based)",
-    "predicate_doc": "p = γ·m·v identity (substrate output must match independent γmv computation within 1e-4 relative)",
-    "honest_label": "memorization_signal == 0.0 verified across all surrogates"
+    "predicate_doc": "p → E = √((pc)² + (mc²)²) → v_recovered = pc²/E; verify v_recovered ≈ input v. Energy-momentum relation route — independent of substrate's γmv algebra (cycle 5 #01 strengthening per cycle 4 advisor catch).",
+    "honest_label": "memorization_signal == 0.0 verified across all surrogates — energy-momentum-route predicate (cycle 5 #01 strengthened from cycle 4 γmv predicate)",
+    "cycle5_strengthening_note": "Cycle 4's predicate re-computed γmv (advisor catch 2026-05-10: shared substrate's formula, weakening discrimination of library-import-vs-derivation). Cycle 5 #01 replaced with energy-momentum-relation route that preserves memorization-vs-computation discrimination AND gains computational independence from substrate's algebra."
   }
 ]

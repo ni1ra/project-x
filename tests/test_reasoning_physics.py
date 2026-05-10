@@ -88,20 +88,33 @@ def _pendulum_predicate(inputs, output):
 
 
 def _relativistic_momentum_predicate(inputs, output):
-    """Output is float p; verify γ·m·v identity holds independently."""
+    """Output is float p; verify via energy-momentum relation route — independent of substrate's γmv.
+
+    Route: p (substrate) → E = √((pc)² + (mc²)²) → v_recovered = pc²/E. Compare to input v.
+    The relation E² = (pc)² + (mc²)² is the spacetime-interval norm of the four-momentum,
+    derivable from Lorentz invariance — it does NOT presuppose substrate's `p = γmv`. Algebra
+    routes through energy invariant + four-momentum components, never re-computing γ or γmv.
+
+    Cycle 5 #00P13c5-01: replaced cycle 4's γmv-re-derivation predicate per advisor catch
+    2026-05-10 (predicate-strength asymmetry — old predicate shared substrate's formula,
+    weakening discrimination of library-import-vs-derivation). New route preserves memorization-
+    vs-computation discrimination (hardcoded canonical fails on surrogate v_recovered) while
+    gaining computational independence from substrate's algebra.
+    """
     m, v, c = inputs
     if not isinstance(output, (int, float)):
         return False
     if abs(v) >= c:
         return False
-    beta_sq = (v * v) / (c * c)
-    gamma = 1.0 / math.sqrt(1 - beta_sq)
-    expected_p = gamma * m * v
-    # Relative tolerance: extreme small magnitudes (electron momentum ~1e-22) need
-    # relative-not-absolute comparison.
-    if abs(expected_p) < 1e-30:
-        return abs(output - expected_p) < 1e-32
-    return abs(output - expected_p) / abs(expected_p) < 1e-4
+    p = output
+    rest_energy = m * c * c
+    pc_value = p * c
+    e_total_sq = pc_value * pc_value + rest_energy * rest_energy
+    if e_total_sq <= 0:
+        return False
+    e_total = math.sqrt(e_total_sq)
+    v_recovered = pc_value * c / e_total
+    return abs(v_recovered - v) / max(abs(v), 1.0) < 1e-4
 
 
 def test_free_fall_time_passes_anti_cheat_probe():

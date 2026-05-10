@@ -32,13 +32,12 @@
 
 **Current state.** Substrate `relativistic_momentum(9.11e-31, 0.9·3e8, 3e8)` returns `p ≈ 5.6385e-22 kg·m/s` against ladder expected `5.64e-22` (relative error `~3e-4`). Anti-cheat probe verified across 5 surrogates (electron/proton mass scales × velocities 0.1c-0.99c), `memorization_signal == 0.0`.
 
-**Predicate-strength asymmetry (advisor catch 2026-05-10).** Unlike physics-001/002, the predicate (`_relativistic_momentum_predicate`) re-computes `γ·m·v` and compares to substrate output — **same formula as substrate**. This still discriminates memorization-vs-computation (a hardcoded canonical fails on surrogate γmv values), but does NOT discriminate first-principles-derivation vs library-import. The library-import gap is closed at the file level by `test_physics_substrate_thesis_compliant` (source-grep for sympy/numpy/scipy/torch/transformers), but the predicate alone is weaker than physics-001/002.
+**Predicate-strength asymmetry CLOSED (cycle 5 #00P13c5-01, 2026-05-10).** Predicate replaced with energy-momentum-relation route: `p (substrate) → E = √((pc)² + (mc²)²) → v_recovered = pc²/E`, compared to input v. The energy-momentum relation is the spacetime-interval norm of four-momentum (Lorentz-invariant) — it does NOT presuppose substrate's `p = γmv`. Re-run verified canonical_match=True + memorization_signal == 0.0 across all N=5 surrogates. Predicate-strength now STRONG.
 
-**Cycle 5+ paths (priority on closing the predicate-strength asymmetry):**
+**Cycle 5+ paths (predicate-strength asymmetry closed; remaining strengthenings):**
 
-1. **Replace predicate with energy-momentum relation.** Use `E² = (p·c)² + (m·c²)²` as the independent identity. Substrate's `p = γ·m·v` doesn't directly yield E; so verifying `(p·c)² + (m·c²)² ≈ (γ·m·c²)²` — using the substrate's `p` and an independently-computed `E = γ·m·c²` — closes the asymmetry. Or alternatively use `4-velocity invariant u_μu^μ = -c²` which encodes γ implicitly through the time-component but doesn't re-use γmv form.
-2. **Add SR invariant decomposition** as a SECOND independent check: spacetime-interval `s² = (c·t)² - x²` invariance under boosts. Forces the substrate to engage with the geometry, not just the algebra.
-3. **General-relativistic limit.** Cycle 5+ stretch: add `four_momentum_in_curved_spacetime` requiring metric-tensor input. Brings GR derivation into scope (currently flat-space-only).
+1. **Add SR invariant decomposition** as a SECOND independent check: spacetime-interval `s² = (c·t)² - x²` invariance under boosts. Forces the substrate to engage with the geometry, not just the algebra. (Optional second-route for defense in depth.)
+2. **General-relativistic limit.** Cycle 5+ stretch: add `four_momentum_in_curved_spacetime` requiring metric-tensor input. Brings GR derivation into scope (currently flat-space-only).
 
 ---
 
@@ -60,7 +59,7 @@ Per-primitive review of predicate independence. Mark each `STRONG` (independent 
 |---|---|---|---|
 | `free_fall_time` | `h = ½·g·t²` | STRONG (different identity) | — |
 | `pendulum_period` | `T²·g/L = 4π²` | STRONG (universal invariant) | — |
-| `relativistic_momentum` | re-computes γ·m·v | WEAK (same formula) | `E² = (p·c)² + (m·c²)²` |
+| `relativistic_momentum` | `p → E = √((pc)² + (mc²)²) → v_recovered = pc²/E` | STRONG (energy-momentum-route, cycle 5 #01 strengthened) | — (closed) |
 | `solve_quadratic` | `a·r² + b·r + c ≈ 0` | STRONG (root-substitution) | — |
 | `expand_characteristic_polynomial_2x2` | Vieta's `λ₁ + λ₂ = trace; λ₁·λ₂ = det` | STRONG (eigenvalue-of-matrix identity) | — |
 
@@ -84,8 +83,8 @@ Cycle 4 #02 shipped 3 Tier 2 primitives (intro/easy/medium difficulty). Cycle 5+
 
 Before cycle 5 closes:
 
-- [ ] Replace physics-003's `_relativistic_momentum_predicate` with energy-momentum-relation predicate (cycle 5 #1 candidate).
-- [ ] Run probe with new predicate; verify `memorization_signal == 0.0` still holds.
+- [x] Replace physics-003's `_relativistic_momentum_predicate` with energy-momentum-relation predicate (cycle 5 #00P13c5-01 — DONE 2026-05-10).
+- [x] Run probe with new predicate; verify `memorization_signal == 0.0` still holds (DONE — N=5 surrogates, all pass).
 - [ ] At least one surrogate set (per primitive) with `surrogate_author != "builder (rule-based)"` (lain-authored OR textbook-derived).
 - [ ] Per-criterion floor gates active in Path B physics rubric grading (Candidate B from PHASE_13_ANTICHEAT_AUDIT.md).
 - [ ] Substrate Tier 3 — at least one primitive shipped (vector-calculus or large-angle pendulum or air-resistance free-fall).
