@@ -41,6 +41,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
 from project_x.reasoning.physics import (
     free_fall_time,
@@ -94,6 +95,44 @@ def _parse_free_fall(prompt: str) -> tuple[float, float] | None:
     if not h_match or not g_match:
         return None
     return (float(h_match.group(1)), float(g_match.group(1)))
+
+
+# Definite-integral parsers: extract bounds + quadratic-polynomial coefficients.
+# Cycle 8 #02 minimum-viable scope: quadratic integrand `ax^2 + bx + c` over [lower, upper].
+# Cycle 8+ parser-robustness extends to higher-degree + arbitrary phrasings.
+_INTEGRAL_BOUNDS_PATTERN = re.compile(
+    r"from\s+(-?\d+\.?\d*)\s+to\s+(-?\d+\.?\d*)", re.IGNORECASE
+)
+_INTEGRAL_QUADRATIC_POLY_PATTERN = re.compile(
+    r"(-?\d+\.?\d*)\s*\*?\s*x\^2\s*([+-]\s*\d+\.?\d*)\s*\*?\s*x\s*([+-]\s*\d+\.?\d*)"
+)
+
+
+def _parse_definite_integral_quadratic(prompt: str) -> tuple[list[float], float, float] | None:
+    """Extract (coeffs_descending, lower, upper) from a quadratic-integrand definite integral.
+
+    Four-gate filter: prompt names integral / ∫ AND bounds match AND quadratic polynomial
+    match. Cycle 8 #02 covers maths-010 specifically (∫₀² (3x² + 2x - 1) dx); higher-degree
+    polynomials defer to cycle 8+ parser robustness work.
+    """
+    lower = prompt.lower()
+    if "integral" not in lower and "∫" not in prompt:
+        return None
+    # Must NOT contain "residue theorem" or it would route to residue-theorem dispatcher.
+    if "residue theorem" in lower or "contour integral" in lower:
+        return None
+    bounds_match = _INTEGRAL_BOUNDS_PATTERN.search(prompt)
+    if not bounds_match:
+        return None
+    lower_b = float(bounds_match.group(1))
+    upper_b = float(bounds_match.group(2))
+    poly_match = _INTEGRAL_QUADRATIC_POLY_PATTERN.search(prompt)
+    if not poly_match:
+        return None
+    a = float(poly_match.group(1).strip())
+    b = float(poly_match.group(2).replace(" ", ""))
+    c = float(poly_match.group(3).replace(" ", ""))
+    return ([a, b, c], lower_b, upper_b)
 
 
 # Residue-theorem real-line integral: matches `1/(a*x^2 + c)` or `1/(x^2 + c)` integrand.
@@ -313,6 +352,12 @@ class ReasoningAgent:
         if response is not None:
             return response
 
+        # Maths definite integral (quadratic) — covers maths-010. Checked AFTER residue theorem
+        # so residue-form integrals don't accidentally route here (residue check excludes those anyway).
+        response = self._try_definite_integral_quadratic(prompt)
+        if response is not None:
+            return response
+
         # Physics relativistic momentum — covers physics-003/011. Specific keyword.
         response = self._try_relativistic_momentum(prompt)
         if response is not None:
@@ -394,6 +439,21 @@ class ReasoningAgent:
             domain="physics",
             problem_shape="free_fall",
             parsed_inputs={"h_meters": h, "g_m_per_s_squared": g},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_definite_integral_quadratic(self, prompt: str) -> AgentResponse | None:
+        params = _parse_definite_integral_quadratic(prompt)
+        if params is None:
+            return None
+        coeffs, lower, upper = params
+        lemma = polynomial_definite_integral(coeffs, lower, upper)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="definite_integral_quadratic",
+            parsed_inputs={"coeffs_descending": coeffs, "lower": lower, "upper": upper},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",

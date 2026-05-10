@@ -419,3 +419,31 @@ def test_reasoning_agent_residue_theorem_no_keyword():
     agent = ReasoningAgent()
     response = agent.process("Evaluate the integral from -infinity to +infinity of 1/(x^2 + 1) dx.")
     assert response.confidence == "refused"
+
+
+# --- Definite integral (quadratic) dispatch (maths-010) ---
+
+
+def test_reasoning_agent_solves_maths_010():
+    """Maths-010: ∫₀² (3x² + 2x - 1) dx = 10."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Compute the value of the definite integral from 0 to 2 of (3x^2 + 2x - 1) dx."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "definite_integral_quadratic"
+    assert response.parsed_inputs == {
+        "coeffs_descending": [3.0, 2.0, -1.0], "lower": 0.0, "upper": 2.0,
+    }
+    assert abs(response.lemma.actual_value - 10.0) < 1e-9
+
+
+def test_reasoning_agent_definite_integral_negative_bound():
+    """∫_{-1}^{1} (x² + 0x + 0) dx via the same dispatcher = 2/3."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Compute the value of the definite integral from -1 to 1 of (1x^2 + 0x + 0) dx."
+    )
+    assert response.confidence == "high"
+    assert abs(response.lemma.actual_value - 2 / 3) < 1e-9
