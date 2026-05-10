@@ -225,10 +225,13 @@ def _close_enough(actual: Any, expected: Any, tolerance: float) -> bool:
     compared element-wise with the same tolerance semantics as scalars.
     """
     if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
-        # Relative tolerance for very small magnitudes (e.g. relativistic momentum ~1e-22)
+        # Relative tolerance for very small magnitudes (e.g. relativistic momentum ~1e-22).
+        # Cycle 8 #08 — closed-ball `<=` (was strict `<`): allows exact equality with
+        # tolerance=0 to PASS (count-based entries like maths-017..020 use tolerance=0
+        # for "exact integer match required"; off-by-one still fails since |1-0|=1 > 0).
         if abs(expected) < 1e-15:
-            return abs(actual - expected) < max(tolerance, 1e-30)
-        return abs(actual - expected) / abs(expected) < tolerance or abs(actual - expected) < tolerance
+            return abs(actual - expected) <= max(tolerance, 1e-30)
+        return abs(actual - expected) / abs(expected) <= tolerance or abs(actual - expected) <= tolerance
     if isinstance(actual, list) and isinstance(expected, list):
         if len(actual) != len(expected):
             return False
