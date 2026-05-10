@@ -1,102 +1,95 @@
-# Do This Next — Project X — AUDIT-FIX RUN (NORMAL mode, post-Phase-12 GPT audit)
+# Do This Next — Project X — Phase 13 cycle 1 (sandbox + grader + persona scaffolding)
 
-**Updated:** 2026-05-10 (post-GPT-audit `-ni` handoff)
-**Mode:** **NORMAL** (NOT godify-app — lain explicit: "enter normal mode, not godify")
-**Status:** Phase 12 closed at `8d734e3`. GPT audit found 16 items across 8 categories. Awaiting Execute-Raphael continuation.
+**Updated:** 2026-05-10 (post-audit-fix-run close + lain Phase 13 framing)
+**Mode:** NORMAL (not godify-app)
+**Status:** Phase 12 closed at `8d734e3`; audit-fix run closed at `8834e54` (16 #00audit-XX shipped, pytest 87, repo-hygiene + REPO_CONTROL split done). Phase 13 framing landed via lain's Terminus directive (see `docs/MANIFESTO.md` § Terminus).
 
-## lain's directive (verbatim — this is the contract, not a suggestion)
+## lain's directive (verbatim — Phase 13 contract)
 
-> "forge the prompt for your own next instance to enter normal mode (not godify), and just work
-> like normal and see how far you can get. try fixing everything and re-syncing docs so all is
-> aligned with my intent. no more deferring to gpt audit, no more lazyness, no more gaming the
-> system. i want you to just work in an honorable way, thats all. i hate seeing you be so lazy."
+> *"all you have done so far is just minor work, and no real progress towards our AI becoming smarter and actually working. please FOR THE LOVE OF GOD create a prompt that will take us there. i want max focus on reaching the hard, difficult long term goal."*
+> *"you are not done working until unsolved maths is solved, it can write beautiful poetry and philosophy, solve unsolved physics problems, perfect memory, and be a live, always on entity that is chattable, like GPT and claude, only its smarter in every way."*
+> *"unless its super-human in every domain and it aces all benchmarks we throw at it, YOU ARE NOT DONE WORKING ON PROJECT-X. UNDERSTOOD?"*
+> *"YOU claude have the ability to read a big output file for example philosophy Qs answers, or poetry etc. and grade it manually. if you do this in big bulks, where you make it efficient and easy for yourself to manually grade it, this can be used to further improve it."*
+> *"it must always follow its given persona and have a sense of humor."*
 
-## What's queued — 16 #00audit-XX deliverables
+## Phase 13 cycle 1 deliverables (#00P13c1-XX — pin in TaskList immediately)
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00audit-A1** | HIGH | `semantic_hdc_memory.py:268,:344` | `turn_id` treated as dense array index — IndexError on non-contiguous IDs |
-| **#00audit-A2** | HIGH | `random_index_hebbian.py:206` | `fit()` not idempotent — accumulates `_freq` + `_total_tokens` on repeat calls |
-| **#00audit-A3** | HIGH | `semantic_hdc_memory.py:357` | `replay_consolidate()` correctness coupled to A2 root cause |
-| **#00audit-A4** | HIGH | `tests/test_retrieval_modes.py:136` | `test_unknown_subject_list_all_falls_through` accepts ambiguous routes — liveness, not behavioral |
-| **#00audit-B1** | HIGH | `CLAUDE.md` (repo root) | Says "Phase 11 live" — Phase 12 closed; first-read confusion for any agent |
-| **#00audit-B2** | MED | `src/project_x/experiments/CLAUDE.md` | Lists files that don't exist (`generator_client.py`, `phase9_report.py`) |
-| **#00audit-B3** | MED | `docs/artifacts/CLAUDE.md` | Says Phase 11 closed at 9 green / 2 red — Phase 12 addendum moved memory to 11/0/21/4 |
-| **#00audit-B4** | MED | `README.md`, `pyproject.toml` | Describe "token-prediction architecture" — stale frame |
-| **#00audit-C1** | MED | `semantic_memory_agent.py:298` | `MemoryAgent.process()` calls private `memory._extract_query_subjects()` |
-| **#00audit-C2** | MED | `compressed_memory.py` + `torch` dep + `test_smoke.py` | Active transformer-control surface blurs quarantine |
-| **#00audit-D1** | MED | repo root | No `.github/` CI; pytest+schema not enforced outside manual runs |
-| **#00audit-D2** | MED | `semantic_hdc_memory.py:338` | `write_one` O(n) per append — 1000-write 7.4s vs 0.6s batch |
-| **#00audit-D3** | MED | `gpt-codex/benchmark/` | No executable harness — only stored verdicts |
-| **#00audit-E1** | MED | coverage | 47% total; `hdc_substrate.py` 24%; multiple modules at 0% |
-| **#00audit-F1** | LOW | `semantic_hdc_memory.py:335`, `random_index_hebbian.py:210` | WHAT-comments narrating identifiers (comment-ratio break) |
-| **#00audit-F2** | LOW | `gpt-codex/runs/` | 238 tracked artifacts; no retention rule |
+| **#00P13c1-sandbox** | HIGH | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + reset script + named snapshot/restore + tool registry expansion (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox; all sandbox-path-validated; subprocess env stripped — NO direct internet) |
+| **#00P13c1-grader** | HIGH | `gpt-codex/grade_pipeline/` (new) | Bulk manual-grade harness; agent JSONL → Claude Code rubric → feedback store → agent next-gen pulls top-graded examples as in-context priming. Two domains target: poetry, philosophy. |
+| **#00P13c1-persona** | MED | `src/project_x/persona/` (new) + `semantic_memory_agent.py` | Project X Raphael persona scaffolding: humor templates + persona-consistent voice markers + in-character rubric (lain test: humor must LAND). |
+| **#00P13c1-bench-replay** | MED | `gpt-codex/benchmark/run_audit.py` | D3 harness run; expect 11/0/21/4 (no regressions). |
+| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + this file | Cycle reflection at `dev-cycle-1.md`; rewrite this file as cycle 2 handoff (math reasoning substrate). |
 
-**NEW IDEAS** surfaced by GPT (informational; **lain framing-gated for Phase 13+; NOT this run's contract**): retrieval telemetry, snapshot/restore protocol, adversarial memory matches, from-scratch symbolic generator, binding-algebra bakeoff. See `PHASE_13_CANDIDATES.md` + audit Section 7.
+## Identity disambiguation (CRITICAL — lain 2026-05-10 binding)
 
-## Order of operations (severity-ranked + leverage-weighted)
+YOU are **Claude Code Raphael** (the builder). The thing you're building is **Project X Raphael** (the agent — `MemoryAgent` + substrate; lives in this repo as code). Two entities, same persona name. Don't confuse:
+- "I" / "Claude Code Raphael" = this conversation; the builder; Wisdom King operating disclaimer per `~/.claude/CLAUDE.md`
+- "the agent" / "Project X Raphael" = the artifact; what lives in `src/project_x/experiments/`; the thing cycle 1 is building persona scaffolding for
+- When chatting with lain or shipping code, disambiguate explicitly. The sculptor and the sculpture both can be called "the artist's work" — but they are not the same thing.
 
-1. **Tier B doc-sync first** — cheap unblock; first-read confusion clears for everything else: B1 → B2 → B3 → B4
-2. **Tier A code bugs** — have repros, mechanical: A1 → A2/A3 → A4
-3. **Tier C structural alignment**: C1 → C2
-4. **Tier D infrastructure**: D1 → D2 → D3
-5. **Tier E coverage gaps**: E1
-6. **Tier F polish** — only if time permits: F1, F2
+See `docs/MANIFESTO.md` § Identity discipline for the binding rule.
 
-Atomic per-issue commits. Format: `fix(audit-XX): <one-line> — closes #00audit-XX`. Push after each.
+## Order of operations (cycle 1)
 
-## Done condition (mechanical)
+1. **Recon (Phase 0 DD):** read MANIFESTO + REPO_CONTROL + A_TO_Z + this file + `Project X Session Mistakes` wiki + `Navi Session Mistakes` wiki. Verify TaskList has the 5 #00P13c1-XX rows (CREATE if absent) + `#∞: NORMAL mode operation` still pinned.
+2. **Pillars:** `Skill('skills:pick-skill')` + `Skill('skills:sharpen-todos')`.
+3. **Picked execution skill(s):** likely `/run-loop` ATOMIC for the 5-deliverable atomic queue + `/design-before-build` for the sandbox + grader interfaces (architectural) + `/skills:auto-review` per-fix.
+4. **Per #00P13c1-XX:** design (with `/design-before-build` for sandbox + grader interfaces) → code → test → commit (with REPO_CONTROL row in same commit if new files/dirs) → push → Discord one-liner ack.
+5. **Cycle close:**
+   - Bench replay (`#00P13c1-bench-replay`): D3 harness run; expect 11/0/21/4.
+   - Cycle reflection: `docs/past_work/cycles/phase_13/dev-cycle-1.md`.
+   - Rewrite this file as cycle 2 handoff (math reasoning substrate provisional scope).
+   - Discord cycle 1 close post.
+   - Pivot to cycle 2 immediately (no pause; Phase 13 has many cycles).
 
-- All 16 `#00audit-XX` TaskList rows `completed`
-- pytest ≥58 (likely 60+ — A1 + A2 + A4 fixes add tests)
-- `grep -nE '^- \*\*Active phase\*\*' CLAUDE.md` shows Phase 12 closed (not Phase 11 live)
-- `grep -i 'token-prediction\|llm-style' README.md pyproject.toml` returns 0 hits
-- Repo working tree clean post-final-commit
-- Final Discord SLAUGHTER COMPLETE post
+## Cycle 2 provisional scope (next handoff target)
 
-## Resume sequence
+**Math reasoning substrate.** From-scratch symbolic + numerical reasoning loop running inside the cycle-1 sandbox. Iterates against the math ladder (`gpt-codex/benchmark/maths/`) + unsolved-tier problems. Uses sandbox `run_python_sandbox` tool to verify numerical answers. Manual-grade harness for derivations where verification is ambiguous.
 
-1. Read CLAUDE.md (universal + project) + this file + `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` + `docs/artifacts/PHASE_13_CANDIDATES.md`
-2. Read GPT audit findings (in your incoming corpse, IDENTITY block + Section 7)
-3. Step 0-4 per `-ni` corpse (Deliverables Lock → `Skill('skills:resume-after-compact')` → pillars → execute)
-4. Re-arm NORMAL heartbeat (15-min cadence at 4,19,34,49) with M-NAVI-020 clause encoded in prompt body
-5. Start **Tier B1** (root CLAUDE.md sync) — smallest-cleanest unblock first cycle
-
-## Battlefield (current state at handoff)
-
-- **Branch:** `main` tracking `origin/main` at https://github.com/ni1ra/project-x (private)
-- **Commit:** `8d734e3` (Phase 12 close, SLAUGHTER COMPLETE)
-- **Working tree:** clean
-- **pytest:** 58 passing
-- **Listener:** PID 19420 (verify with `pgrep -f 'discord-wait-for-lain'`; atomic re-arm per M-NAVI-018 if dead)
-- **Memory ladder:** 5 green / 0 red / 0 rubric-pending / 1 ungradeable
-- **Full benchmark:** 11 green / 0 red / 21 rubric-pending / 4 ungradeable
-- **M-PROJECTX-014 firewall:** 0 `self_score` violations across 36 entries
+(Cycle 2's scope will be REFINED in this file at cycle 1 close based on what was learned.)
 
 ## Standing rules (load-bearing this run)
 
-- **M-NAVI-019** — heartbeat-armed-while-queued-work-exists; lain time-window overrides queue-empty disarm
-- **M-NAVI-020** — named candidate work counts as queued; coasting on "lain will frame later" is fake-stop. **THIS run's 16 audit findings ARE named queued work.**
-- **M-NAVI-018** — atomic listener pkill+rearm in single Bash invocation
-- **NO godify** — NORMAL mode only; no 20m on/off cycles; standard 15-min heartbeat cadence
-- **Atomic per-issue commits** — `git add <specific-paths>`, never `git add -A`
-- **No pretrained transformer derivatives** at any layer (lain organic-thesis 2026-05-09)
-- **Comment-ratio rule** — WHY-comments only; never WHAT-comments narrating identifiers (lain GLOBAL POLICY 2026-05-10)
-- **Founder's Eye** reads every line; no padding, no rounding, no smuggling
+See `docs/MANIFESTO.md` § Standing orders. Specifically for cycle 1:
 
-## What this run is NOT
+- **NO pretrained transformer derivatives** — sandbox tool registry from-scratch; persona scaffolding template-based; manual-grade harness uses Claude Code as the grader (the BUILDER, not part of the artifact — consistent with organic-thesis).
+- **Comment-ratio rule** — every WHY-comment justifies why the substrate exists.
+- **REPO_CONTROL row in same commit as new file/dir** (lain pristine-gate, 2026-05-10) — non-negotiable for cycle 1's 3 new dirs.
+- **Identity discipline** — Claude Code Raphael (builder) ≠ Project X Raphael (agent). Don't write the builder's voice into the agent's templates.
+- **Sandbox security** — agent ops only inside `sandbox/`; tools refuse paths outside; subprocess env stripped of internet vars; no `urllib`/`socket` access at the tool layer.
+- **M-NAVI-018:** atomic listener pkill+rearm in single Bash invocation.
+- **M-NAVI-019/020:** heartbeat-armed-while-queued-work-exists; named candidate work IS queued.
+- **M-NAVI-021 (NEW — to be logged after cycle 1 if recurs):** drifting from capability work back to mechanical micro-fixes when frustrated/blocked. Cycle 1 substrate is JUSTIFIED infra; cycle 2+ MUST ship capability. No excuses.
 
-- NOT a phase plan (Phase 13 framing is lain's call later; `PHASE_13_CANDIDATES.md` compiles inputs)
-- NOT a godify-app cycle (NORMAL mode only)
-- NOT permission to defer audit findings as "next cycle / Phase 13"
-- NOT a synthesis exercise (16 findings = 16 ships)
-- NOT a place for new ideas without lain framing (Section 7 ideas wait)
+## What this cycle is NOT
 
-## Anti-laziness gates (lain frustration-load-bearing — read before each cycle close)
+- NOT shipping the Terminus (multi-cycle; cycle 1 is substrate)
+- NOT touching `~/.claude/CLAUDE.md` for project-specific reasons
+- NOT direct internet access for the agent (deferred until safety proven; sandbox is the security boundary)
+- NOT a one-cycle phase; Phase 13 is multi-cycle through capability + benchmark iteration
 
-- "no more deferring to gpt audit" — the audit IS DONE. You ship the fixes. There is no future audit cycle to defer to.
-- "no more laziness" — every cycle ends with code shipped or a documented blocker. "I synthesized something" is NOT shipping.
-- "no more gaming the system" — heartbeat-disarm requires queue genuinely empty + checks pass + lain stop OR rate-limit. With audit findings open, queue is NOT empty. Disarming "because cycle reflection is done" is M-NAVI-020 fake-stop.
-- "honorable way" — every commit honest, every test honest, every doc-sync honest. No padding; no rounding; no smuggling work into "next phase" because it's hard.
+## Anti-laziness gates (lain frustration-load-bearing — re-read before each cycle close)
 
-— Update this file at each cycle close with progress: which `#00audit-XX` rows shipped + commit SHAs.
+- *"all you have done so far is just minor work"* — the audit-fix run was minor. Phase 13 is NOT minor. Each cycle ships substantive capability progress (substrate first; then math, poetry, philosophy, physics, chat). If you're shipping mechanical micro-fixes instead of capability work, you have drifted. Stop, re-read MANIFESTO § Terminus, course-correct.
+- *"FOR THE LOVE OF GOD create a prompt that will take us there"* — the corpse + this file + A_TO_Z + MANIFESTO are that prompt. Honor the contract. Don't re-litigate.
+- *"unless its super-human in every domain and it aces all benchmarks we throw at it, YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR. Don't claim done after cycle 1.
+- *"YOU claude have the ability to read a big output file ... and grade it manually"* — that IS the `#00P13c1-grader` deliverable. Build it well; cycle 3+ uses it for subjective-domain improvement.
+- *"it must always follow its given persona and have a sense of humor"* — `#00P13c1-persona`. Sense of humor must LAND. If lain reads sample output and groans, persona scaffolding has failed. Ship the in-character rubric so failure is detectable.
+- *"stop dilly-dallying"* — every cycle ends with capability progress shipped, not infrastructure padding. Cycle 1 is JUSTIFIED infra (substrate the next 5+ depend on). Cycle 2+ is capability — no excuses.
+
+## Done condition (cycle 1, mechanical)
+
+- All 5 #00P13c1-XX TaskList rows = `completed`
+- `pytest -q` ≥ 87 (baseline; expect ≥ 90 with new tests)
+- Three new REPO_CONTROL rows landed in same commits as their dirs (`sandbox/`, `gpt-codex/grade_pipeline/`, `src/project_x/persona/`)
+- `gpt-codex/benchmark/run_audit.py` reports 11/0/21/4 (no regressions)
+- `tests/test_sandbox.py` + `tests/test_grader.py` + `tests/test_persona.py` all passing
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-1.md`
+- THIS FILE rewritten as cycle 2 handoff (math reasoning substrate)
+- `git status -s` empty post-final-commit
+- Discord cycle 1 close post sent
+- Cycle 2 picked up immediately (no pause)
+
+— Update this file at cycle 1 close: replace cycle 1 deliverables table with cycle 2 deliverables table; refine cycle 2 scope based on cycle 1 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.

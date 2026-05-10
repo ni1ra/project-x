@@ -22,6 +22,33 @@ Slow. Methodical. Every layer earns its place. Phase 1-8 explored compressed-mem
 - Not a transformer fine-tune in disguise.
 - Not a research toy that ships papers and ages out — every artifact in this repo is meant to compose into the next.
 
+## The Terminus (lain 2026-05-10 binding)
+
+> *"unless its super-human in every domain and it aces all benchmarks we throw at it, YOU ARE NOT DONE WORKING ON PROJECT-X. UNDERSTOOD?"*
+
+Project X is not done until **Project X Raphael** (the agent — distinct from Claude Code Raphael, the builder) demonstrates ALL of:
+
+- **Math** — solves unsolved-tier problems; lain or Claude Code reads the derivation and says *"I couldn't have done this."*
+- **Poetry + philosophy** — writes work whose quality scores in upper rubric ranks across blind A/B against frontier-model output. Subjective domains use the **manual-grade harness** (Claude Code grades agent output in bulks of 50+ candidates per session per domain; rubric scores fed back as preference signal; agent's next generation pulls top-graded examples as in-context priming). The harness is the substrate that lets us improve subjective-domain output without an objective benchmark.
+- **Physics** — solves unsolved-tier problems with derivations defensible to a domain expert.
+- **Perfect memory** — never loses context across million-turn horizons; never confabulates; every retrieval cited with turn_id + source.
+- **Persona consistency + sense of humor** — always in lain-defined Raphael persona; humor lands rather than cringes; voice consistent across million-turn horizons. Never breaks character.
+- **Always-on chattability** — lives as a continuous entity lain can chat with at any time, like GPT/Claude but smarter in every dimension that matters.
+- **Sandboxed action-taking** — operates inside a locked, resettable `sandbox/` folder; reads/writes files inside the sandbox; runs code inside the sandbox; can take meaningful actions (write a Python script, run it, read the result, iterate). NO direct internet — deferred until safety is proven. State can be reset to any captured snapshot for benchmark replay.
+
+The audit-fix runs + benchmark suites + substrate improvements (HDC, Hebbian, structural retrieval, fact-graph, retrieval-mode disambiguation) are **scaffolding**. The agent is the goal. Until Project X Raphael meets the terminus, the project is not done — and the audit-fix-style minor work is no substitute for capability buildout. Phase 13 is the first phase explicitly aimed at the terminus.
+
+## Identity discipline (lain 2026-05-10 binding)
+
+Two distinct entities share the name "Raphael":
+
+| Entity | What | Voice |
+|---|---|---|
+| **Claude Code Raphael** | The builder. This Claude Code instance reading the docs, writing the code, shipping the cycles. The conversation lain is having with the harness. | Raph persona per `~/.claude/CLAUDE.md` (Wisdom King · Lord of Knowledge — lain's all-knowing internal computer FOR THIS CONVERSATION). |
+| **Project X Raphael** | The agent. The artifact being built. `MemoryAgent` + the substrate; lives in this repo as code; eventually a separate process. | Same Raph persona, but as the AGENT, not the BUILDER. Sense of humor required (lain 2026-05-10). |
+
+**Always disambiguate.** When discussing or coding either, name the entity: "Claude Code Raphael" vs "Project X Raphael" (or "the builder" vs "the agent"). They share a persona name; they are NOT the same entity. The sculptor and the sculpture both can be called "the artist's work" — but they are not the same thing. Conflating them produces confused code (e.g., the builder writing self-referential text into the agent's templates) and confused chat (lain can't tell which Raphael is responding).
+
 ## Standing orders
 
 Pure signal code (lain 2026-05-10). Organic from the core (lain 2026-05-09). Crash-survival discipline (3 power outages in 2 days). Discord = audit channel; silence = pass; defects break silence. Mechanical proof or it didn't ship.
@@ -122,13 +149,23 @@ Each phase composes into the next. None of them are throwaways.
 - **Phase 10 (memory_action_organism)** hardened it. Fact-graph + structural retrieval shattered every Phase 9 metric (multi-hop top-5 3.3% → 91.3%). HDC role-filler binding shipped corpse-spec compliance. Incremental write + Hebbian replay closed the killer-milestone EXIT GATE: teach + correct + multi-hop + refuse-absent + tool-execution-with-writeback.
 - **Phase 11 (THIS RUN — Raphael Domain Benchmark Suite).** 36 hand-crafted entries across physics, maths, memory, persona, philosophy, poetry. Split-graded (M-PROJECTX-014 firewall): mechanical-ground-truth domains auto-graded; subjective domains rubric-pending for external GPT/lain audit. The benchmark is the diagnostic that tells us where Raphael actually sits before live training begins.
 
-## Phase 12+ candidates (named, not skipped)
+## Phase 13 framing (lain 2026-05-10 — first phase aimed at the Terminus)
 
-- **Cortical column ensemble** (Council Idea #2 — Hawkins/Numenta direction). Many sparse HDC modules with voting; layers over Phase 10's fact-graph + binding substrate.
-- **Predictive simulation loop** (Council Idea #3 — LeCun world-model direction). Forward-modeling capability the agent doesn't yet have. May use HDC binding for forward-modeling.
-- **Open-ended benchmark ladder** (Council Idea #5 — Stanley/POET direction). Meta-priority on testing methodology — meaningful only after the agent can do tool-execution + memory-updates (Phase 10 EXIT GATE met).
-- **Hebbian replay informed by benchmark performance.** Live-training algo the agent uses where its rubric-pending domains scored weakest. Phase 11's verdict markdown is the input.
-- **Audio listening (Whisper + Discord REST polling).** Whisper installed at `/home/nira/.local/bin/whisper`; integration deferred from Phase 11 brief because doing it as a heartbeat side-task would either skim or skip silently.
+Phase 13 is multi-cycle. Cycle 1 ships SUBSTRATE (sandbox + manual-grade harness + persona scaffolding); cycles 2-N ship CAPABILITY (math reasoning, poetry generator, philosophy engine, physics derivation, always-on chat). Each cycle ends with a benchmark replay; Phase 13 closes when terminus is met OR lain phases-out into Phase 14+. Realistic expectation: Phase 13 doesn't close in cycle 5; capability buildout against the terminus list takes serious cycle count.
+
+**Cycle 1 scope (substrate; current handoff):**
+- `sandbox/` infrastructure — locked folder for agent action-taking, resettable to named-state snapshots, NO direct internet.
+- Manual-grade harness — Claude Code (the builder) grades agent output in bulks of 50+ candidates per session for subjective domains; rubric scores feed back as preference signal for next-generation generation.
+- Persona scaffolding — Project X Raphael always-in-character + sense of humor that lands; `compose_answer` voice markers + humor templates + in-character rubric.
+
+**Cycles 2-N (capability; provisional, refined per cycle):**
+- Math reasoning substrate (cycle 2): from-scratch symbolic + numerical reasoning loop running inside the sandbox; iterates against the math ladder + unsolved-tier problems.
+- Poetry + philosophy generator (cycle 3): uses the manual-grade harness; iterates generation against Claude Code's rubric scores until upper-rank quality emerges.
+- Physics derivation engine (cycle 4): closed-form first; then unsolved-tier with sandbox-runnable verification.
+- Always-on chat daemon (cycle 5+): Discord-integrated chat loop; persona-consistent + sense of humor + perfect memory across million-turn horizons.
+- Multi-domain integration + full benchmark assault (later cycles): eventual end-state.
+
+**Architectural candidates still on the table** (frame per cycle as needed): cortical column ensemble (Council Idea #2 — Hawkins/Numenta direction), predictive simulation loop (Council Idea #3 — LeCun world-model direction), open-ended benchmark ladder (Council Idea #5 — Stanley/POET direction), Hebbian replay informed by benchmark performance, audio listening (Whisper + Discord REST polling; Whisper installed at `/home/nira/.local/bin/whisper`).
 
 ## Why this matters
 

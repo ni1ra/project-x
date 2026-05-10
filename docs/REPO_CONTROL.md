@@ -38,7 +38,7 @@ Exemptions (don't need rows):
 | `docs/REPO_CONTROL.md` | THIS file — pristine-condition gate; mirror of repo structure with justification. Heartbeat-tracked alongside MANIFESTO. |
 | `docs/ci/test.yml` | Audit-D1 CI workflow template (paste-ready). Cannot ship to `.github/workflows/` directly because Claude Code OAuth lacks `workflow` scope; lain installs via web UI or grants the scope and the agent retries. |
 | `docs/artifacts/` | Phase verdicts (frozen-with-addendum convention) + research notes. See sub-section. |
-| `docs/past_work/phases/` | Archived phase plans. One file per closed phase: `phase_<N>_<theme>.md`. |
+| `docs/past_work/phases/` | Archived phase plans. One file per closed phase: `phase_<N>_<theme>.md`. Inter-phase repair runs (e.g. `audit_fix_run_2026-05-10.md`) are archived here too, un-numbered. |
 | `docs/past_work/cycles/phase_<N>/` | Per-cycle reflections — `dev-cycle-<M>.md` written at each cycle close. Phases 1, 4-12 represented. |
 
 ### `docs/artifacts/` (frozen verdicts + research notes)

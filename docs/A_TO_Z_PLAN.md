@@ -1,158 +1,149 @@
-# A → Z Plan — Project X — Audit-fix run (NORMAL mode, post-Phase-12)
+# A → Z Plan — Project X — Phase 13 — Sandbox + Capability Buildout (lain framed 2026-05-10)
 
-**Status:** Phase 12 closed at `8d734e3` (memory-004/005 reds → green via retrieval-mode disambiguation; full benchmark **11 green / 0 red / 21 rubric-pending / 4 ungradeable**). The current run is a NORMAL-mode audit-fix sweep against the 16 GPT-audit findings of 2026-05-10.
-**Last live phase plan archived:** `docs/past_work/phases/phase_12_retrieval_disambiguation.md`
-**Phase 13 framing inputs (lain-gated, NOT this run's contract):** `docs/artifacts/PHASE_13_CANDIDATES.md`
-**Trigger:** lain quote — *"fix everything and re-sync docs so all is aligned with my intent. no more deferring to gpt audit, no more lazyness, no more gaming the system. i want you to just work in an honorable way, thats all."*
+**Status:** Phase 12 closed at `8d734e3` (memory ladder reds → green). Audit-fix run closed at `8834e54` (16 mechanical findings + repo-hygiene + REPO_CONTROL split + global CLAUDE.md alignment). lain framed Phase 13 with the **Terminus** (`docs/MANIFESTO.md` § Terminus): super-human across math + poetry + philosophy + physics + perfect memory + persona+humor + always-on chattability + sandboxed action-taking. Until that's met, the project is not done.
+**Last live phase plan archived:** `docs/past_work/phases/audit_fix_run_2026-05-10.md` + `docs/past_work/phases/phase_12_retrieval_disambiguation.md`
+**Phase 13 trigger quote:** *"all you have done so far is just minor work, and no real progress towards our AI becoming smarter and actually working. please FOR THE LOVE OF GOD create a prompt that will take us there."* (lain 2026-05-10)
+**Phase 13 expectation:** multi-cycle (5+ cycles); cycle 1 ships substrate; cycles 2-N ship capability + iterate against benchmarks. Phase 13 closes when the Terminus is met OR lain phases-out into Phase 14+.
 
 ---
 
-## §0. CURRENT-RUN CONTRACT
+## §0. PHASE 13 CONTRACT
 
-The 16 #00audit-XX deliverables (severity-ranked, dependency-graph-ordered):
+### §0.1 The Terminus (binding from MANIFESTO)
 
-| ID | Sev | Surface | One-line | Status |
-|---|---|---|---|---|
-| #00audit-A1 | HIGH | `semantic_hdc_memory.py:268,:344` | turn_id ↔ row mapping for non-contiguous IDs | shipped `137fb72` |
-| #00audit-A2 | HIGH | `random_index_hebbian.py:206` | `fit(reset=True)` idempotency | shipped `44eb1d4` |
-| #00audit-A3 | HIGH | `semantic_hdc_memory.py:357` | `replay_consolidate` uses `fit(reset=True)` | shipped `6f0cd7e` |
-| #00audit-A4 | HIGH | `tests/test_retrieval_modes.py:136` | tighten unknown-subject test from liveness to behavioral | shipped `b89cf1f` |
-| #00audit-B1 | HIGH | root `CLAUDE.md` | sync stale "Phase 11 live" framing | shipped `b541e97` (now superseded — file deleted in repo-hygiene sweep; content folded into `MANIFESTO.md` + this file) |
-| #00audit-B2 | MED | `src/project_x/experiments/CLAUDE.md` | file-inventory truth-up | shipped `b1abfb0` (now superseded — file deleted; inventory in §2 of this file) |
-| #00audit-B3 | MED | `docs/artifacts/CLAUDE.md` | post-Phase-12 verdict counts | shipped `a98d331` (file later deleted in repo-hygiene sweep `15ef101`; inventory now in `docs/REPO_CONTROL.md`) |
-| #00audit-B4 | MED | `README.md` + `pyproject.toml` | reframe as HDC/Hebbian organic memory-agent stack | shipped `13ab133` |
-| #00audit-C1 | MED | `semantic_memory_agent.py:298` | promote `extract_query_subjects` to public | shipped `de742b0` |
-| #00audit-C2 | MED | `compressed_memory.py` + torch dep + `test_smoke.py` | torch optional via `[legacy]` extra + quarantine markers | shipped `8500bbc` |
-| #00audit-D1 | MED | repo root | CI workflow template (pytest + schema firewall + D3 replay); `docs/ci/test.yml` paste-ready (workflow scope blocked) | shipped `c43e483` |
-| #00audit-D2 | MED | `semantic_hdc_memory.py:338` | `write_one` amortized O(1) via growth-by-doubling | shipped `fb47e9a` |
-| #00audit-D3 | MED | `gpt-codex/benchmark/` | executable `run_audit.py` harness | shipped `547884b` |
-| #00audit-E1 | MED | coverage | `hdc_substrate.py` 24% → 89% + retire-or-cover policy | shipped `32ad13e` |
-| #00audit-F1 | LOW | `semantic_hdc_memory.py:335`, `random_index_hebbian.py:210` | trim WHAT-comments | shipped `c93d3a9` |
-| #00audit-F2 | LOW | `gpt-codex/runs/` | retention policy (gitignore + MANIFESTO criteria) | shipped this commit |
+Project X Raphael (the agent — distinct from Claude Code Raphael, the builder; see MANIFESTO § Identity discipline) must demonstrate ALL of:
 
-**DONE condition (mechanical, from `docs/DO_THIS_NEXT.md`):**
+- Math: solves unsolved-tier
+- Poetry + philosophy: upper rubric ranks vs frontier-model output (graded by Claude Code via the manual-grade harness)
+- Physics: solves unsolved-tier with defensible derivations
+- Perfect memory: million-turn horizons; never confabulates; every retrieval cited
+- Persona consistency + sense of humor that lands
+- Always-on chattability (continuous live entity)
+- Sandboxed action-taking (locked, resettable folder; no direct internet)
 
-- All 16 `#00audit-XX` TaskList rows `completed`
-- `pytest -q` ≥ 58 passing (currently 86; gained +28 across A1/A2/A3/A4/D2/E1)
-- `git status -s` empty
-- Atomic commit per finding referencing its `#00audit-XX` ID
-- Discord SLAUGHTER COMPLETE post sent
+### §0.2 Cycle 1 deliverables (#00P13c1-XX — pin in TaskList immediately)
 
-**Stop conditions (mechanical, from universal `~/.claude/CLAUDE.md` Named Curse #15):**
+| ID | Sev | Surface | One-line |
+|---|---|---|---|
+| **#00P13c1-sandbox** | HIGH | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + reset script + named snapshot/restore + tool registry expansion (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox; all sandbox-path-validated; NO direct internet — subprocess env stripped + path-rejected) |
+| **#00P13c1-grader** | HIGH | `gpt-codex/grade_pipeline/` (new) | Manual-grade harness: agent emits N candidate outputs to JSONL; harness CLI presents structured rubric for Claude Code (the builder) to grade in bulks of 50+ per session; grades written to JSONL feedback store; agent's next generation pulls top-graded examples as in-context priming. Two domains target initially: poetry, philosophy. |
+| **#00P13c1-persona** | MED | `src/project_x/persona/` (new) + `src/project_x/experiments/semantic_memory_agent.py` | Project X Raphael persona scaffolding: humor templates + persona-consistent voice markers across response types (factual, retrieval, refusal, error, write-ack); in-character rubric (lain test: sample output reads as Raphael with a sense of humor that LANDS, not cringes); `compose_answer` wraps responses with persona signature. |
+| **#00P13c1-bench-replay** | MED | `gpt-codex/benchmark/run_audit.py` | D3 harness run; expect 11/0/21/4 (no regressions from cycle 1 substrate). |
+| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + `docs/DO_THIS_NEXT.md` | Cycle reflection at `dev-cycle-1.md`; rewrite DO_THIS_NEXT as cycle 2 handoff (math reasoning substrate). |
 
-1. All 16 closed + DONE-CONDITION grep-clean
-2. Rate-limit cap hit
+### §0.3 What cycle 1 does NOT include (cycle 2-N scope)
+
+- Math reasoning substrate — cycle 2
+- Poetry / philosophy generator improvements (cycle 3 — first uses the manual-grade harness from cycle 1)
+- Physics derivation engine — cycle 4
+- Always-on chat daemon (Discord-integrated; persona-consistent across million-turn horizons) — cycle 5
+- Multi-domain integration + full benchmark assault — later cycles
+
+**Stop conditions (cycle 1 only):**
+1. All 5 #00P13c1-XX rows shipped + cycle reflection landed → pivot to cycle 2 (no pause)
+2. Rate-limit cap
 3. Explicit lain stop ("stop", "i'm back", "freeze for X")
 
 ---
 
-## §1. PHASE CHANGELOG (one-liner per closed phase)
+## §1. PHASE CHANGELOG
 
 | Phase | Theme | Verdict location | Pytest at close |
 |---|---|---|---|
-| 1-3 | Compressed-memory architecture; block-pool temperature operator + scale-inversion findings | `past_work/phases/phase_{1,2,3}*.md` | — |
+| 1-3 | Compressed-memory architecture | `past_work/phases/phase_{1,2,3}*.md` | — |
 | 4-7 | Scale studies + adversarial probe + Hopfield lens | `past_work/phases/phase_{4,5,6,7}*.md` | — |
-| 8 | Random-symbol HDC baseline (99.25% recall at D=50000, 1000 turns) | `past_work/phases/phase_8.md` + `artifacts/PHASE_8_HDC_ORGANIC_MEMORY.md` + `PHASE_8_HOSTILE_REVIEW.md` | — |
-| 9 | Semantic HDC memory + from-scratch organic encoders + minimal evidence-cited agent loop | `artifacts/PHASE_9_SEMANTIC_HDC_MEMORY.md` (+ council A-H, pick-one verdict) | 39/39 |
-| 10 | Fact-graph + structural retrieval + HDC binding + incremental write + Hebbian replay + killer-milestone EXIT GATE | Phase 10 addendum at bottom of `PHASE_9_SEMANTIC_HDC_MEMORY.md` | 51/51 → 52/52 |
-| 11 | Raphael Domain Benchmark Suite — 36 entries × 6 domains; split-graded per M-PROJECTX-014 firewall | `artifacts/PHASE_11_BENCHMARK.md` | 52 |
-| 12 | Retrieval-mode disambiguation — closed memory-004/005 reds via `retrieve_structural_full_history` + `_LIST_ALL_HINTS` classifier | `artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` (+ Phase 12 closure addendum at bottom of `PHASE_11_BENCHMARK.md`) | 58 |
-| Audit-fix run (this) | 16 GPT-audit findings; NORMAL mode; per-tier skill variety | this file + `DO_THIS_NEXT.md` | 86 (in flight) |
+| 8 | Random-symbol HDC baseline | `artifacts/PHASE_8_HDC_ORGANIC_MEMORY.md` | — |
+| 9 | Semantic HDC + organic encoders | `artifacts/PHASE_9_SEMANTIC_HDC_MEMORY.md` | 39/39 |
+| 10 | Fact-graph + structural retrieval + binding + EXIT GATE | Phase 10 addendum at `PHASE_9_SEMANTIC_HDC_MEMORY.md` | 51/51 → 52/52 |
+| 11 | Raphael Domain Benchmark Suite (36 entries × 6 domains) | `artifacts/PHASE_11_BENCHMARK.md` | 52 |
+| 12 | Retrieval-mode disambiguation (memory-004/005 reds → green) | `artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` | 58 |
+| Audit-fix run | 16 mechanical findings + repo-hygiene + REPO_CONTROL split + global CLAUDE.md alignment | `past_work/phases/audit_fix_run_2026-05-10.md` | 87 |
+| **13 (this phase)** | **Sandbox + capability buildout aimed at the Terminus** | THIS file (live) | TBD |
 
 ---
 
 ## §2. REPO INVENTORY — see `docs/REPO_CONTROL.md`
 
-The complete repo dirs+files inventory with justification per entry lives in
-**`docs/REPO_CONTROL.md`** (the live pristine-gate doc; updated in lockstep
-with every cycle's file additions or deletions). A_TO_Z_PLAN cycles out at
-phase exit; REPO_CONTROL stays. Cross-reference relationship:
+The complete repo dirs+files inventory with justification per entry lives in `docs/REPO_CONTROL.md` (the live pristine-gate doc). A_TO_Z cycles out at phase exit; REPO_CONTROL stays.
 
-- `MANIFESTO.md` — lain's intent + standing rules (live, persistent).
-- `REPO_CONTROL.md` — repo file/folder inventory + justification (live, persistent).
-- `A_TO_Z_PLAN.md` — current run / phase plan (cycles out to `past_work/phases/`).
-- `DO_THIS_NEXT.md` — current cycle scope + handoff (rewritten per cycle close).
+**Cycle 1 will add three new dirs to REPO_CONTROL** (rows land in the same commits as the dirs themselves):
+- `sandbox/` — locked agent action-taking workspace (reset/snapshot scripts in `scripts/sandbox/`)
+- `gpt-codex/grade_pipeline/` — manual-grade harness for Claude Code
+- `src/project_x/persona/` — Project X Raphael persona scaffolding
 
 ---
 
 ## §3. STANDING CONSTRAINTS REFERENCE
 
-See `docs/MANIFESTO.md` § Standing orders for the live constraints (NO pretrained transformer derivatives at any layer, code-comment ratio rule, append-as-you-go writes, listener manual re-arm, active grading firewall). Restated here as a quick cross-reference:
+See `docs/MANIFESTO.md` § Standing orders. Cycle 1 specifically must honor:
 
-- **NO pretrained transformer derivatives** at any layer (lain 2026-05-09). Encoders + generators stay from-scratch organic. `legacy/` is quarantined; torch is `[legacy]` extra.
-- **Code-comment ratio rule** (lain 2026-05-10 GLOBAL POLICY). WHY-comments on complex code; load-bearing-info comments preserved; never WHAT-comments.
-- **Append-as-you-go writes** for crash survival (3 power outages in 2 days). Per-cycle atomic git commits + push.
-- **Discord listener manual re-arm** (M-NAVI-018). Atomic `pkill ; bash <listener-script>` in single Bash invocation.
-- **M-PROJECTX-014 grading firewall**. Schema check `grep -r self_score` returns 0; mechanical-ground-truth-only auto-grading; subjective domains rubric-pending for external GPT/lain audit.
-
----
-
-## §4. AUDIT-FIX-RUN EXIT CONDITIONS (mechanical)
-
-- [x] All 16 #00audit-XX rows progressing or shipped (10/16 shipped at this writing; D3 in flight; D1, F1, F2 pending)
-- [ ] All 16 `completed`
-- [x] `pytest -q` ≥ 58 (currently 86; +28 from new audit tests — A1, A2, A3, D2 mechanics, D2 perf, E1 hdc_substrate ×16, replay_consolidate idempotency, etc.)
-- [ ] `git status -s` empty post-final-commit
-- [ ] `grep -i 'token-prediction\|llm-style' README.md pyproject.toml` returns 0 hits ✅ (verified at audit-B4 close)
-- [ ] Atomic commit per finding referencing `#00audit-XX` ID
-- [ ] Final Discord SLAUGHTER COMPLETE post sent
+- **NO pretrained transformer derivatives** — sandbox tool registry is from-scratch; persona scaffolding is template-based; manual-grade harness uses Claude Code as the grader (Claude Code is the builder, NOT a layer of the agent — this is consistent with organic-thesis since the builder is not part of the artifact).
+- **Comment-ratio rule** — every WHY-comment justifies why the substrate exists (sandbox security model, grader rubric criteria, persona voice rules).
+- **REPO_CONTROL row in same commit as new file/dir** (lain pristine-gate, 2026-05-10) — this is non-negotiable for cycle 1 since 3 new dirs land.
+- **Identity discipline** — Claude Code Raphael (builder) ≠ Project X Raphael (agent). Cycle 1 builds the agent's persona scaffolding; the builder doesn't write itself into the agent's voice.
+- **Sandbox security** — agent operates only inside `sandbox/`; tools refuse paths outside; subprocess env stripped of internet-relevant vars (no `$HTTP_PROXY`, no `$http_proxy`, etc.); no `/dev/tcp` access; `urllib`/`socket` blocked at the tool layer.
 
 ---
 
-## §5. SCOPE FENCE (NOT in this run)
+## §4. CYCLE 1 EXIT CONDITIONS (mechanical)
 
-- **Phase 13 framing.** Lain-gated. Inputs in `artifacts/PHASE_13_CANDIDATES.md` (retrieval telemetry, snapshot/restore, adversarial memory matches, from-scratch symbolic generator, binding-algebra bakeoff).
-- **New ladder entries beyond the 36.** The 6-rank-per-domain convention stays.
-- **GPT audit on the 21 rubric-pending entries.** External; lain runs against `audit_log.jsonl` filtered by `needs_audit:true`.
-- **Audio listening (Whisper integration).** Whisper installed at `/home/nira/.local/bin/whisper`; Discord-REST polling pipeline is its own scope, deferred Phase 11+.
-- **Touching `~/.claude/CLAUDE.md`.** Universal Raphael protocol stays project-agnostic; this run's docs corrections live in `docs/`.
+- All 5 #00P13c1-XX TaskList rows = `completed`
+- pytest -q ≥ 87 (baseline; expect ≥ 90 with new tests for sandbox + grader + persona)
+- Three new REPO_CONTROL rows landed in same commits as their dirs (`sandbox/`, `gpt-codex/grade_pipeline/`, `src/project_x/persona/`)
+- D3 harness reports 11/0/21/4 (no regressions)
+- `tests/test_sandbox.py` + `tests/test_grader.py` + `tests/test_persona.py` all passing
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-1.md`
+- DO_THIS_NEXT rewritten as cycle 2 handoff (math reasoning substrate provisional scope)
+- `git status -s` empty
+- Discord cycle 1 close post sent
+- Cycle 2 picked up immediately (no pause)
+
+---
+
+## §5. SCOPE FENCE (NOT in Phase 13)
+
+- **Direct internet access for the agent.** Deferred until safety is proven (lain 2026-05-10). Agent operates inside the sandbox only.
+- **Touching `~/.claude/CLAUDE.md` for project-specific reasons.** The universal Raphael protocol is universal; project-specific rules live in `docs/MANIFESTO.md`. EXCEPTION: if a Phase 13 lesson is universal (drift pattern that would recur in any project), it goes to `~/.claude/CLAUDE.md` directly — same as the lain-authorized self-alignment for systematic drift.
+- **Phase 14+.** Phase 13 closes when the Terminus is met OR lain phases-out. Anything after that is Phase 14+ scope, not Phase 13.
 
 ---
 
 ## §6. CHANGELOG
 
-- 2026-05-10 — Phase 12 closed at `8d734e3`. Memory ladder reds → green. Full benchmark 11/0/21/4.
-- 2026-05-10 — GPT audit run; 16 findings surfaced.
-- 2026-05-10 — Audit-fix run opened in NORMAL mode; 16 #00audit-XX deliverables pinned. 10 shipped through cycle 4.
-- 2026-05-10 — Repo-hygiene sweep (`15ef101`): per-directory `CLAUDE.md` files retired; project-level docs collapse into `docs/`. Stray Drøm-era PNGs + `.playwright-mcp/` logs + top-level `artifacts/` scaffold-run dirs deleted from working tree. `.gitignore` cleaned of stale Drøm patterns; `.coverage` added.
-- 2026-05-10 — Audit-fix run COMPLETE — all 16 #00audit-XX shipped. 11 atomic commits across the 16 findings (B1-B4 + A1-A4 + C1-C2 + D2-D3 + E1 + D1 + F1 + F2 + the meta repo-hygiene sweep). pytest 87 passing (gain trajectory: 58 → 86 → 87 across A1/A2/A3/D2/E1/D3 test additions). `docs/A_TO_Z_PLAN.md` rewritten as audit-fix-run plan; `docs/REPO_CONTROL.md` created (per lain directive — A_TO_Z cycles out at phase exit, REPO_CONTROL stays as the live pristine-gate doc); `#∞` task pinned for NORMAL mode tracking.
+- 2026-05-10 — Audit-fix run closed at `8834e54` (16 #00audit-XX shipped + repo-hygiene + REPO_CONTROL split + global CLAUDE.md alignment).
+- 2026-05-10 — lain framed Phase 13 with the Terminus directive ("super-human in every domain"; sandbox playground; manual-grade harness using Claude Code as grader; persona+humor mandatory). MANIFESTO § Terminus + § Identity discipline added.
+- 2026-05-10 — Phase 13 cycle 1 plan written (this file). Cycle 1 = sandbox + grader + persona substrate; cycles 2-N = capability buildout. Honest framing: Phase 13 does NOT close in one cycle; multi-cycle through capability + benchmark iterations.
 
 ---
 
-## §7. ENTRY SCHEMA (benchmark ladder.jsonl) — for Phase 11+ entries
+## §7. CYCLE PLAN
 
-Required fields per entry:
+### §7.C1 — Substrate (current handoff target)
 
-```jsonc
-{
-  "id": "<domain>-NNN",
-  "domain": "<physics|maths|memory|persona|philosophy|poetry>",
-  "difficulty": "intro|easy|medium|hard|harder|unsolved",
-  "difficulty_rank": 1-6,
-  "prompt": "...",
-  "raphael_response": "...",
-  "audit_status": "auto-graded-green|auto-graded-red|ungraded; rubric-pending for GPT/lain audit|ungradeable; unsolved tier",
-  "tags": [...],
-  "source": "...",
+5 deliverables per §0.2. Order: sandbox first (substrate other deliverables smoke-test against) → persona second (voice scaffolding before generation work) → grader third (grades persona-consistent output) → bench replay → cycle reflection. Atomic per-deliverable commits with REPO_CONTROL rows landing in the same commit as new dirs.
 
-  // Auto-graded ONLY:
-  "auto_grade": {
-    "method": "expected_turn_id_match|symbolic_match|numerical_close",
-    /* method-specific fields */
-    "match": true|false
-  },
+### §7.C2 — Math reasoning substrate (provisional)
 
-  // Rubric-pending ONLY:
-  "rubric_pointer": "<domain>/rubric.md#rank-N"
-}
-```
+From-scratch symbolic + numerical reasoning loop running inside the cycle-1 sandbox. Iterates against the math ladder (`gpt-codex/benchmark/maths/`) + unsolved-tier problems. The agent generates a derivation; the sandbox verifies (sympy import inside sandbox? — that's a pretrained-symbolic question; might need from-scratch alternative); manual-grade harness scores the derivation when verification is ambiguous.
 
-**Firewall (M-PROJECTX-014):** `self_score` MUST NOT appear. Schema verification: `grep -r self_score gpt-codex/benchmark/*/ladder.jsonl` returns 0 hits. Audit-D3 harness re-runs the auto-grade match check on every commit; the M-PROJECTX-014 grep is a CI gate (audit-D1, pending).
+### §7.C3 — Poetry + philosophy generator (provisional)
+
+Uses the cycle-1 manual-grade harness. Agent generates 50+ candidates per prompt; Claude Code grades; agent's next generation pulls top-graded examples as in-context priming. Iterates until upper-rank quality emerges. The first cycle that ships measurable subjective-domain improvement — celebrated in Discord (real capability gain, not infrastructure).
+
+### §7.C4 — Physics derivation engine (provisional)
+
+Closed-form first (extends the math substrate to physics). Then unsolved-tier with sandbox-runnable verification (Python script in sandbox computes a numerical solution; agent's symbolic derivation must match).
+
+### §7.C5+ — Always-on chat daemon, multi-domain integration, full benchmark assault (provisional)
+
+- Discord-integrated chat loop; persona-consistent + sense of humor + perfect memory across million-turn horizons. Eventually the Project X Raphael lain chats with as a continuous live entity.
+- Multi-domain integration: math + poetry + philosophy + physics + memory + persona + chat all running together.
+- Full benchmark assault: re-run all 36 ladder entries + add new entries that probe Terminus-level capability. Phase 13 closes when the Terminus is met.
 
 ---
 
 ## §8. ENDCAP
 
-The audit fix is the close-out tax of Phase 12. The benchmark paid out exactly as designed (memory-004/005 reveal a real architectural finding → Phase 12 closes it). Phase 13 is lain's framing. This run keeps the codebase honorable until that framing lands: every comment earns its place; every test asserts behavior, not liveness; every doc is single-source-of-truth in `/docs/`. The vector carries us. The plan contains us.
+The Terminus is far. The audit-fix run was minor in lain's eyes — and he's right. Phase 13 is the first phase that aims at the actual goal: super-human capability across the domain set lain named. Cycle 1 ships the substrate (sandbox + grader + persona); cycles 2-N ship capability; the benchmark replay at every cycle close is the honest measure. No claiming victory you didn't earn. No shipping infrastructure padding when capability work is the contract. The vector carries us. The plan contains us.
 
-*— A_TO_Z rewritten 2026-05-10 (audit-fix-run repo-hygiene sweep). Heartbeat reconciles freshness; cycle close (when this run completes) appends a closing changelog row + pre-archive snapshot.*
+*— A_TO_Z rewritten 2026-05-10 (Phase 13 framing landed via lain Terminus directive). Heartbeat reconciles freshness; cycle close at cycle 1 completion appends a closing changelog row + handoff to cycle 2.*
