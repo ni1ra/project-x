@@ -127,6 +127,7 @@ Exemptions (don't need rows):
 | `test_smoke.py` | Phase 1-6 legacy scaffolding smoke. `pytest.importorskip("torch")` (audit-C2). |
 | `test_benchmark_harness.py` | Audit-D3 — invokes `gpt-codex/benchmark/run_audit.py` in-process; asserts auto-graded entries replay green. |
 | `test_sandbox.py` | Phase 13 #00P13c1-01-sandbox — covers `_validate_sandbox_path` primitive + 4 sandbox tools + `MemoryAgent.tools` registration + escape-attempt refusal (absolute path / `..` traversal / symlink-out). 18 tests; isolation via `monkeypatch.setattr(sma, "SANDBOX_ROOT", tmp_path/"sandbox")`. |
+| `test_grader.py` | Phase 13 #00P13c1-03-grader-min — covers `Candidate` + `Grade` dataclasses, M-PROJECTX-014 firewall (parametrized over each forbidden field), Grade score-range validation (1-5 + non-int + empty-grader rejected), JSONL save/load round-trip with line-number-tagged errors, CLI subprocess invocation (`present` / `validate` / `validate-candidates` exit codes + outputs). 22 tests; loads `gpt-codex/grade_pipeline/schema.py` via `importlib.util.spec_from_file_location` because hyphenated parent dir prevents direct import. |
 
 ## `gpt-codex/` — Phase 9-12 inputs + benchmark + run results
 
@@ -134,6 +135,7 @@ Exemptions (don't need rows):
 |---|---|
 | `gpt-codex/benchmark/` | Phase 11 Raphael Domain Benchmark Suite. 6 domain ladders × 6 entries (`physics/`, `maths/`, `memory/`, `persona/`, `philosophy/`, `poetry/`), each with `ladder.jsonl` + `rubric.md`. M-PROJECTX-014 firewall: NO `self_score` field. Aggregate `audit_log.jsonl` + `verdict.md`. |
 | `gpt-codex/benchmark/run_audit.py` | Audit-D3 harness — replays auto-graded entries against the live stack each commit. |
+| `gpt-codex/grade_pipeline/` | Phase 13 #00P13c1-03 — manual-grade harness (cycle 1: read+grade+write JSONL round-trip; cycle 3+ wires iterative loop into agent generation). Files: `__init__.py` (package marker), `schema.py` (Candidate + Grade dataclasses + load/save helpers; `FORBIDDEN_CANDIDATE_FIELDS` enforces M-PROJECTX-014 firewall — `self_score`, `self_grade`, `self_rating`, `agent_score` rejected at load with line-number-tagged ValueError), `cli.py` (subcommands: `present` → grading worksheet to stdout, `validate` → grades JSONL schema check, `validate-candidates` → firewall lint), `README.md` (usage + cycle 1 baseline-attempt context). |
 | `gpt-codex/runs/` | Per-run aggregate `result.json` directories (Phase 1-9 sweeps + Phase 9 encoders). Frozen-per-phase. **Audit-F2 retention policy**: NEW dirs gitignored by default (`gpt-codex/runs/*/`); already-tracked Phase 1-10 evidence stays tracked; promotion via `git add -f` after a verdict cites the run. See MANIFESTO § retention policy. |
 
 ## `sandbox/` — Project X Raphael action-taking workspace (Phase 13 #00P13c1-01)
