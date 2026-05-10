@@ -382,3 +382,40 @@ def test_reasoning_agent_relativistic_momentum_no_keyword():
         "An electron of m = 9.11e-31 kg moves at v = 0.9c with c = 3.0e8 m/s. Comment."
     )
     assert response.confidence == "refused"
+
+
+# --- Residue theorem real-line integral dispatch (maths-003) ---
+
+
+def test_reasoning_agent_solves_maths_003():
+    """Maths-003: ∫_{-∞}^{+∞} dx/(x²+1) via residue theorem → π."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Use the residue theorem to evaluate the integral from -infinity to "
+        "+infinity of 1/(x^2 + 1) dx."
+    )
+
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "residue_theorem_unit_quadratic"
+    assert response.parsed_inputs == {"a": 1.0, "c": 1.0}
+    assert abs(response.lemma.actual_value - math.pi) < 1e-9
+
+
+def test_reasoning_agent_residue_theorem_scaled_denominator():
+    """∫_{-∞}^{+∞} dx/(x²+4) via residue theorem → π/2."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Use the residue theorem to evaluate the integral from -infinity to "
+        "+infinity of 1/(x^2 + 4) dx."
+    )
+    assert response.confidence == "high"
+    assert response.parsed_inputs == {"a": 1.0, "c": 4.0}
+    assert abs(response.lemma.actual_value - math.pi / 2) < 1e-9
+
+
+def test_reasoning_agent_residue_theorem_no_keyword():
+    """Prompt has integrand but no "residue theorem" / "contour integral" → don't route."""
+    agent = ReasoningAgent()
+    response = agent.process("Evaluate the integral from -infinity to +infinity of 1/(x^2 + 1) dx.")
+    assert response.confidence == "refused"

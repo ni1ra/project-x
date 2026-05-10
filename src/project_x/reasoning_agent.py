@@ -41,6 +41,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
 from project_x.reasoning.physics import (
     free_fall_time,
     large_angle_pendulum_period,
@@ -93,6 +94,34 @@ def _parse_free_fall(prompt: str) -> tuple[float, float] | None:
     if not h_match or not g_match:
         return None
     return (float(h_match.group(1)), float(g_match.group(1)))
+
+
+# Residue-theorem real-line integral: matches `1/(a*x^2 + c)` or `1/(x^2 + c)` integrand.
+# Coefficient `a` is captured as optional; defaults to 1 if absent. Used by maths-003 dispatch.
+_RESIDUE_UNIT_QUADRATIC_PATTERN = re.compile(
+    r"1\s*/\s*\(\s*(?P<a>\d*\.?\d*)\s*\*?\s*x\^2\s*\+\s*(?P<c>\d+\.?\d*)\s*\)"
+)
+
+
+def _parse_residue_unit_quadratic(prompt: str) -> tuple[float, float] | None:
+    """Extract (a, c) from a residue-theorem real-line integral prompt of form 1/(a·x²+c).
+
+    Three-gate filter prevents misrouting: (1) prompt names residue theorem (or contour
+    integral), (2) prompt integrates over the real line (-infinity to infinity), (3) the
+    integrand matches the 1/(a·x²+c) pattern.
+    """
+    lower = prompt.lower()
+    if "residue theorem" not in lower and "contour integral" not in lower:
+        return None
+    if not ("infinity" in lower or "infty" in lower or "∞" in prompt):
+        return None
+    match = _RESIDUE_UNIT_QUADRATIC_PATTERN.search(prompt)
+    if not match:
+        return None
+    a_str = match.group("a").strip()
+    a = 1.0 if not a_str else float(a_str)
+    c = float(match.group("c"))
+    return (a, c)
 
 
 # Relativistic-momentum parsers: extract mass (scientific notation), velocity-as-fraction-of-c,
@@ -279,6 +308,11 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
+        # Maths residue theorem — covers maths-003. Specific keyword gate.
+        response = self._try_residue_theorem(prompt)
+        if response is not None:
+            return response
+
         # Physics relativistic momentum — covers physics-003/011. Specific keyword.
         response = self._try_relativistic_momentum(prompt)
         if response is not None:
@@ -360,6 +394,21 @@ class ReasoningAgent:
             domain="physics",
             problem_shape="free_fall",
             parsed_inputs={"h_meters": h, "g_m_per_s_squared": g},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_residue_theorem(self, prompt: str) -> AgentResponse | None:
+        params = _parse_residue_unit_quadratic(prompt)
+        if params is None:
+            return None
+        a, c = params
+        lemma = residue_theorem_unit_quadratic(a, c)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="residue_theorem_unit_quadratic",
+            parsed_inputs={"a": a, "c": c},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",
