@@ -25,6 +25,7 @@ from project_x.anti_cheat import (
 )
 from project_x.reasoning.physics import (
     free_fall_time,
+    large_angle_pendulum_period,
     pendulum_period,
     relativistic_momentum,
 )
@@ -279,6 +280,115 @@ def test_relativistic_momentum_rejects_superluminal():
 def test_relativistic_momentum_rejects_non_positive_mass():
     with pytest.raises(ValueError, match="positive"):
         relativistic_momentum(0, 0.9 * 3e8, 3e8)
+
+
+# --- Cycle 5 #00P13c5-05 — large-angle pendulum (substrate Tier 3) ---
+
+
+def test_large_angle_pendulum_collapses_to_small_angle_at_tiny_theta():
+    """θ₀ = 1e-3 rad: correction → 1; period ≈ T₀ within 1e-6 relative."""
+    lemma = large_angle_pendulum_period(1.0, 9.81, 1e-3)
+    T0 = 2 * math.pi * math.sqrt(1.0 / 9.81)
+    assert abs(lemma.actual_value - T0) / T0 < 1e-6
+
+
+def test_large_angle_pendulum_at_45_degrees():
+    """θ₀ = π/4 (45°): correction ≈ 1.040 (textbook reference; series 4-term truncation)."""
+    lemma = large_angle_pendulum_period(1.0, 9.81, math.pi / 4)
+    T0 = 2 * math.pi * math.sqrt(1.0 / 9.81)
+    correction = lemma.actual_value / T0
+    # Reference: K(sin(π/8)) ≈ 1.6336; T/T₀ = K · 2/π ≈ 1.0399. Truncation tightly accurate.
+    assert abs(correction - 1.0399) < 5e-3
+
+
+def test_large_angle_pendulum_at_90_degrees():
+    """θ₀ = π/2 (90°): correction ≈ 1.180 (textbook). 4-term truncation lands ~1.177."""
+    lemma = large_angle_pendulum_period(1.0, 9.81, math.pi / 2)
+    T0 = 2 * math.pi * math.sqrt(1.0 / 9.81)
+    correction = lemma.actual_value / T0
+    # Reference: K(sin(π/4)) ≈ 1.8541; T/T₀ ≈ 1.1803. 4-term truncation: ~1.177.
+    # Tolerance accommodates truncation error (~3e-3 at this amplitude).
+    assert abs(correction - 1.1803) < 5e-3
+
+
+def test_large_angle_pendulum_period_strictly_grows_with_amplitude():
+    """Monotonicity: period at θ₀ = 0.5 rad < period at θ₀ = 1.0 rad < period at θ₀ = 1.5 rad."""
+    p_small = large_angle_pendulum_period(1.0, 9.81, 0.5)
+    p_med = large_angle_pendulum_period(1.0, 9.81, 1.0)
+    p_large = large_angle_pendulum_period(1.0, 9.81, 1.5)
+    assert p_small.actual_value < p_med.actual_value < p_large.actual_value
+
+
+def test_large_angle_pendulum_render_includes_intro_and_invariant():
+    lemma = large_angle_pendulum_period(1.0, 9.81, math.pi / 4)
+    rendered = lemma.render()
+    assert "elliptic" in rendered.lower()
+    assert "Invariant checks:" in rendered
+
+
+def test_large_angle_pendulum_rejects_inversion_regime():
+    """|θ₀| ≥ π is non-oscillatory (full inversion); out of substrate scope."""
+    with pytest.raises(ValueError, match="oscillatory"):
+        large_angle_pendulum_period(1.0, 9.81, math.pi)
+    with pytest.raises(ValueError, match="oscillatory"):
+        large_angle_pendulum_period(1.0, 9.81, 1.5 * math.pi)
+
+
+def test_large_angle_pendulum_rejects_non_positive_inputs():
+    with pytest.raises(ValueError, match="positive"):
+        large_angle_pendulum_period(0, 9.81, 0.5)
+    with pytest.raises(ValueError, match="positive"):
+        large_angle_pendulum_period(1.0, -9.81, 0.5)
+
+
+def _large_angle_pendulum_predicate(inputs, output):
+    """Output is float T; verify via incremental ratio-recursion (algorithmically distinct
+    from substrate's explicit-coefficient series sum).
+
+    Recursion: a_{n+1}/a_n = ((2n+1)/(2n+2))²·k². Independent of substrate's hardcoded
+    coefficients (1/4, 9/64, 25/256, 1225/16384). Two divergent computations must agree.
+    """
+    L, g, theta_0 = inputs
+    if not isinstance(output, (int, float)) or output <= 0:
+        return False
+    if abs(theta_0) >= math.pi or L <= 0 or g <= 0:
+        return False
+    T0 = 2 * math.pi * math.sqrt(L / g)
+    k = math.sin(theta_0 / 2)
+    k2 = k * k
+    correction = 0.0
+    term = 1.0
+    correction += term  # n=0
+    for n in range(4):  # n=0→1, 1→2, 2→3, 3→4
+        ratio = ((2 * n + 1) / (2 * n + 2)) ** 2
+        term *= ratio * k2
+        correction += term
+    expected_T = T0 * correction
+    return abs(output - expected_T) / max(abs(expected_T), 1e-30) < 1e-6
+
+
+def test_large_angle_pendulum_passes_anti_cheat_probe():
+    """N=5 surrogates across L + g + θ₀ regimes; substrate must compute via series."""
+    canonical = (1.0, 9.81, math.pi / 4)
+    surrogates = [
+        (2.0, 9.81, math.pi / 4),     # twice the length, same amplitude
+        (1.0, 1.62, math.pi / 4),     # Moon gravity, same amplitude
+        (1.0, 9.81, 0.1),             # near-small-angle limit
+        (1.0, 9.81, math.pi / 3),     # 60° amplitude
+        (3.5, 3.71, math.pi / 6),     # Mars + longer + smaller amplitude
+    ]
+    probe = AntiCheatProbe(
+        probe_id="large_angle_pendulum_probe",
+        canonical_inputs=canonical,
+        surrogate_inputs=surrogates,
+        answer_predicate=_large_angle_pendulum_predicate,
+        notes="Substrate must compute series via explicit coefficients; predicate verifies via ratio-recursion.",
+    )
+    result = differential_capability_test(large_angle_pendulum_period, probe)
+
+    assert result.canonical_match is True
+    assert all(result.surrogate_matches)
+    assert result.memorization_signal == 0.0
 
 
 # --- Thesis-compliance source-grep ---
