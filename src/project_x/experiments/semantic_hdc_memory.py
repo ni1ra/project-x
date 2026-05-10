@@ -373,8 +373,7 @@ class SemanticHDCMemory:
         # Maintain turn_id → row-index map (audit-A1). The new row's index is
         # len(_records) - 1 (i.e., the index of the just-appended record).
         self._turn_id_to_row[record.turn_id] = len(self._records) - 1
-        # Stateless / incremental-safe encoders.
-        new_floor = self._floor.encode([record.text])  # (1, D)
+        new_floor = self._floor.encode([record.text])  # (1, D); CharNgram is stateless
         new_heb = self._hebbian.encode([record.text])  # (1, D); unseen-word fallback handles novel tokens
 
         # Audit-D2: amortized-O(1) append via growth-by-doubling. Pre-fix used

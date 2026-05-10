@@ -226,7 +226,6 @@ class RandomIndexHebbianEncoder:
 
         rng = np.random.default_rng(self.seed)
 
-        # 1. Tokenize, build vocab + frequencies.
         all_tokens: list[list[str]] = []
         for text in conversation_texts:
             toks = tokenize(text)
@@ -236,10 +235,11 @@ class RandomIndexHebbianEncoder:
                 self._total_tokens += 1
         self._vocab = {w: i for i, w in enumerate(self._freq.keys())}
 
-        # 2. Subsample probabilities.
         self._compute_drop_probs()
 
-        # 3. Pre-materialize all index vectors (deterministic via word hash).
+        # Pre-materialize all index vectors. Deterministic per (word, D, n_active,
+        # seed_offset) via blake2b hash → cross-process / cross-session stable;
+        # `reset=True` callers can rebuild vocab without re-randomizing assignments.
         for w in self._vocab:
             self._get_index_vec(w)
 
@@ -256,7 +256,6 @@ class RandomIndexHebbianEncoder:
             for w in self._vocab
         }
 
-        # 5. Hebbian co-occurrence pass (+ optional Mikolov negative sampling).
         vocab_keys = list(self._vocab.keys())
         n_vocab = len(vocab_keys)
         for toks in all_tokens:
