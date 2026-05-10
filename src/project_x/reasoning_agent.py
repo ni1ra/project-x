@@ -40,7 +40,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from project_x.reasoning.symbolic import Lemma, solve_quadratic
+from project_x.reasoning.symbolic import (
+    Lemma,
+    expand_characteristic_polynomial_2x2,
+    solve_quadratic,
+)
 
 
 @dataclass
@@ -58,6 +62,30 @@ class AgentResponse:
     lemma: Lemma | None
     answer_text: str
     confidence: str  # "high" (parsed cleanly, substrate ran) / "low" (parser uncertain) / "refused" (no match)
+
+
+# 2x2 matrix regex: matches `[[a, b], [c, d]]` with optional whitespace.
+# All four entries captured as signed decimal strings; whitespace inside brackets allowed.
+_MATRIX_2X2_PATTERN = re.compile(
+    r"\[\s*\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]\s*,"
+    r"\s*\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]\s*\]"
+)
+
+
+def _parse_matrix_2x2(prompt: str) -> list[list[float]] | None:
+    """Extract `[[a, b], [c, d]]` matrix from a prompt that mentions eigenvalues.
+
+    Two gates must both pass: (1) the prompt names eigenvalues (or characteristic
+    polynomial) so we don't accidentally route a non-eigenvalue matrix prompt here;
+    (2) the regex matches a 2x2 matrix literal. Both gates failing → None.
+    """
+    if "eigenvalue" not in prompt.lower() and "characteristic polynomial" not in prompt.lower():
+        return None
+    match = _MATRIX_2X2_PATTERN.search(prompt)
+    if not match:
+        return None
+    a, b, c, d = (float(x) for x in match.groups())
+    return [[a, b], [c, d]]
 
 
 # Quadratic regex: matches `a x^2 [+-] b x [+-] c = 0` with optional whitespace and *.
@@ -122,6 +150,13 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
+        # Maths 2x2 eigenvalues — covers maths-002/009 on the current ladder.
+        # Check this BEFORE quadratic so the eigenvalue-naming gate wins on prompts
+        # that mention both "eigenvalues" and a polynomial form (unlikely but safe).
+        response = self._try_char_poly_2x2(prompt)
+        if response is not None:
+            return response
+
         # Maths quadratic — covers maths-001/007/008 on the current ladder.
         response = self._try_quadratic(prompt)
         if response is not None:
@@ -153,6 +188,20 @@ class ReasoningAgent:
             domain="maths",
             problem_shape="quadratic",
             parsed_inputs={"a": a, "b": b, "c": c},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_char_poly_2x2(self, prompt: str) -> AgentResponse | None:
+        matrix = _parse_matrix_2x2(prompt)
+        if matrix is None:
+            return None
+        lemma = expand_characteristic_polynomial_2x2(matrix)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="char_poly_2x2",
+            parsed_inputs={"matrix": matrix},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",

@@ -14,6 +14,7 @@ from __future__ import annotations
 from project_x.reasoning_agent import (
     AgentResponse,
     ReasoningAgent,
+    _parse_matrix_2x2,
     _parse_quadratic,
     _parse_signed_coefficient,
 )
@@ -139,10 +140,65 @@ def test_reasoning_agent_refuses_unrecognized_shape():
     assert "M-PROJECTX-013" in response.answer_text or "not match" in response.answer_text.lower()
 
 
-def test_reasoning_agent_refuses_eigenvalue_problem_for_now():
-    """Cycle 7 minimum-viable is quadratic only; eigenvalues defer to cycle 7+."""
+def test_reasoning_agent_refuses_integral_problem():
+    """Cycle 7 dispatch covers quadratic + 2x2 eigenvalues; integrals refuse (cycle 7+)."""
+    agent = ReasoningAgent()
+    response = agent.process("Compute the integral of sin(x) from 0 to pi.")
+    assert response.confidence == "refused"
+
+
+# --- _parse_matrix_2x2 + 2x2 eigenvalue dispatch ---
+
+
+def test_parse_matrix_2x2_maths_002():
+    # Ladder maths-002: "Find the eigenvalues of the 2x2 matrix [[2, 1], [1, 2]]."
+    matrix = _parse_matrix_2x2("Find the eigenvalues of the 2x2 matrix [[2, 1], [1, 2]].")
+    assert matrix == [[2.0, 1.0], [1.0, 2.0]]
+
+
+def test_parse_matrix_2x2_maths_009():
+    # Ladder maths-009: "Find the eigenvalues of the 2x2 matrix [[3, 2], [4, 1]]."
+    matrix = _parse_matrix_2x2("Find the eigenvalues of the 2x2 matrix [[3, 2], [4, 1]].")
+    assert matrix == [[3.0, 2.0], [4.0, 1.0]]
+
+
+def test_parse_matrix_2x2_needs_eigenvalue_keyword():
+    # Matrix literal alone without naming eigenvalues → don't claim this prompt-shape.
+    # Honest gating: routing a bare matrix prompt to the eigenvalue substrate would
+    # be confabulation per M-PROJECTX-013.
+    matrix = _parse_matrix_2x2("Here is a matrix: [[2, 1], [1, 2]]. Comment on its symmetry.")
+    assert matrix is None
+
+
+def test_parse_matrix_2x2_no_match():
+    matrix = _parse_matrix_2x2("Find the eigenvalues but no matrix is given.")
+    assert matrix is None
+
+
+def test_reasoning_agent_solves_maths_002():
+    """Maths-002: eigenvalues of [[2,1],[1,2]] → 1.0 and 3.0."""
     agent = ReasoningAgent()
     response = agent.process("Find the eigenvalues of the 2x2 matrix [[2, 1], [1, 2]].")
 
-    # Eigenvalue prompt should NOT match quadratic pattern (no `x^2` form).
-    assert response.confidence == "refused"
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "char_poly_2x2"
+    assert response.parsed_inputs == {"matrix": [[2.0, 1.0], [1.0, 2.0]]}
+    assert response.lemma is not None
+    eigs = response.lemma.actual_value
+    # eigenvalues sorted ascending: 1.0 and 3.0 (trace=4, det=3 → λ²-4λ+3 → (λ-1)(λ-3))
+    assert abs(eigs[0] - 1.0) < 1e-4
+    assert abs(eigs[1] - 3.0) < 1e-4
+
+
+def test_reasoning_agent_solves_maths_009():
+    """Maths-009: eigenvalues of [[3,2],[4,1]] → -1.0 and 5.0."""
+    agent = ReasoningAgent()
+    response = agent.process("Find the eigenvalues of the 2x2 matrix [[3, 2], [4, 1]].")
+
+    assert response.confidence == "high"
+    assert response.parsed_inputs == {"matrix": [[3.0, 2.0], [4.0, 1.0]]}
+    eigs = response.lemma.actual_value
+    # trace=4, det=-5 → λ²-4λ-5 → (λ-5)(λ+1) → eigenvalues -1, 5
+    assert abs(eigs[0] - (-1.0)) < 1e-4
+    assert abs(eigs[1] - 5.0) < 1e-4
