@@ -78,6 +78,13 @@ Exemptions (don't need rows):
 | `hdc_substrate.py` | HDC primitives — `bind`, `unbind`, `superpose`, `write`, `read`, `cleanup`, `random_vector`, `bit_accuracy`. Self-test CLI via `--self-test`. Coverage 24% → 89% (audit-E1). |
 | `hdc_snn_bridge.py` | SNN spike-train bridge — Phase 13+ candidate substrate (research script, CLI-driven). |
 
+### Project X Raphael reasoning substrate — `src/project_x/reasoning/` (Phase 13 #00P13c2-02)
+
+| Path | Justification |
+|---|---|
+| `src/project_x/reasoning/__init__.py` | Package marker + identity-discipline note (the AGENT's reasoning layer, not the BUILDER's). Re-exports `DerivationStep`, `Lemma`, `solve_quadratic`, `expand_characteristic_polynomial_2x2`. |
+| `src/project_x/reasoning/symbolic.py` | Phase 13 #00P13c2-02 — from-scratch symbolic reasoning primitives. `DerivationStep` (operation/inputs/output/justification) + `Lemma` (claim + chain + verification metadata + Raphael-voice render). `solve_quadratic` hand-rolled discriminant + root formula (3-step chain, math.sqrt only — NO sympy). `expand_characteristic_polynomial_2x2` reuses solve_quadratic via λ² - tr(A)λ + det(A) = 0 (4-step chain, hand-rolled trace + det — NO numpy.linalg). Negative discriminant raises NotImplementedError (complex roots beyond cycle 2 scope). Drives D4 baseline-attempt against maths-001 (definite scope-fit) + maths-002 (stretch scope-fit). |
+
 ### Project X Raphael persona scaffolding — `src/project_x/persona/` (Phase 13 #00P13c1-02)
 
 | Path | Justification |
@@ -139,6 +146,7 @@ Exemptions (don't need rows):
 | `test_sandbox.py` | Phase 13 #00P13c1-01-sandbox — covers `_validate_sandbox_path` primitive + 4 sandbox tools + `MemoryAgent.tools` registration + escape-attempt refusal (absolute path / `..` traversal / symlink-out). 18 tests; isolation via `monkeypatch.setattr(sma, "SANDBOX_ROOT", tmp_path/"sandbox")`. |
 | `test_grader.py` | Phase 13 #00P13c1-03-grader-min — covers `Candidate` + `Grade` dataclasses, M-PROJECTX-014 firewall (parametrized over each forbidden field), Grade score-range validation (1-5 + non-int + empty-grader rejected), JSONL save/load round-trip with line-number-tagged errors, CLI subprocess invocation (`present` / `validate` / `validate-candidates` exit codes + outputs). 22 tests; loads `gpt-codex/grade_pipeline/schema.py` via `importlib.util.spec_from_file_location` because hyphenated parent dir prevents direct import. |
 | `test_persona.py` | Phase 13 #00P13c1-02-persona — covers `VOICE_MARKERS` coverage, humor template structure + frequency (~30% across 1000 prompts), `wrap_response` determinism + unknown-type passthrough, in-character rubric (forbidden phrase detection case-insensitive), 10-fixture sample test (8 expected-pass + 2 cringe-fail caught), `compose_answer` integration (memory-ladder invariants preserved under wrapping). 26 tests. |
+| `test_reasoning_symbolic.py` | Phase 13 #00P13c2-02-symbolic-substrate — covers DerivationStep + Lemma dataclass mechanics (init / add_step / render); solve_quadratic correctness against maths-001 (3x²-14x-5=0 → [-1/3, 5]) + edge cases (zero a, negative discriminant raises NotImplementedError, repeated root, zero-discriminant boundary); expand_characteristic_polynomial_2x2 correctness against maths-002 ([[2,1],[1,2]] → [1, 3]) + edge cases (non-2x2 ValueError, diagonal matrix); thesis-compliance source-grep (no sympy/numpy/torch/transformers/BGE/MiniLM/sentence_transformers/llama_cpp/Qwen/Mistral imports). 24 tests. |
 
 ## `gpt-codex/` — Phase 9-12 inputs + benchmark + run results
 
