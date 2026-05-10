@@ -117,7 +117,7 @@ Schema firewall: `grep -r self_score gpt-codex/benchmark/*/ladder.jsonl` must re
 This is the `docs/` directory. Project-level documentation lives here. The four LIVE docs (re-read at every session start; reconciled at every cycle close + heartbeat fire):
 
 - `MANIFESTO.md` — this file. lain's intent + standing orders (persistent — never cycles out).
-- `REPO_CONTROL.md` — pristine-condition gate; mirror of repo file/folder structure with justification per entry. Persistent — never cycles out. New files added in a commit MUST land with their REPO_CONTROL row in the same commit. Catches orphan tracked files + stray artifacts before they accumulate.
+- `REPO_CONTROL.md` — pristine-condition gate; mirror of repo file/folder structure with justification per entry. Persistent — never cycles out. New files added in a commit MUST land with their REPO_CONTROL row in the same commit — **EXCEPT files under `docs/`** (lain 2026-05-10 follow-up — *"the REPO_CONTROL does not need the /docs, they dont need justification"*; docs/ files are self-justifying via the live-docs system). Catches orphan tracked files + stray artifacts before they accumulate.
 - `A_TO_Z_PLAN.md` — current run / phase plan + verification gates + scope fence. **Cycles out** to `past_work/phases/<phase_N_theme>.md` on phase exit; a fresh A_TO_Z lands for the next phase.
 - `DO_THIS_NEXT.md` — current cycle scope + next-instance handoff. Rewritten at every cycle close. Power-on resume pointer.
 
@@ -130,7 +130,7 @@ Plus the archives:
 
 **Per-directory `CLAUDE.md` files were retired 2026-05-10** — their content lives here in `docs/`. The universal Raphael protocol stays at `~/.claude/CLAUDE.md` (universal, not project-specific).
 
-**Upkeep is load-bearing.** Stale docs are worse than missing docs because they actively mislead. Every commit's diff is responsible for the docs delta it implies — a new file lands with its REPO_CONTROL row; a finished cycle lands with its DO_THIS_NEXT rewrite + cycle reflection in `past_work/cycles/`; a finished phase lands with its A_TO_Z archive + a fresh A_TO_Z for the next.
+**Upkeep is load-bearing.** Stale docs are worse than missing docs because they actively mislead. Every commit's diff is responsible for the docs delta it implies — a new non-docs file lands with its REPO_CONTROL row (docs/ files exempt per the standing-rule exemption); a finished cycle lands with its DO_THIS_NEXT rewrite + cycle reflection in `past_work/cycles/`; a finished phase lands with its A_TO_Z archive + a fresh A_TO_Z for the next.
 
 ## The reading
 
