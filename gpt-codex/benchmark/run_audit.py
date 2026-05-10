@@ -160,14 +160,76 @@ def _verify_frozen_entry(entry: dict) -> EntryResult:
     )
 
 
+def _verify_rubric_graded_entry(entry: dict) -> EntryResult:
+    """Verify a Phase 13 cycle 3+ Path B rubric-graded entry.
+
+    Path B promotes rubric-pending entries (subjective proof-shape) to PASS when
+    a builder rubric grade meets threshold (default 4.0/5 weighted aggregate).
+    The grade is durable in the entry's `rubric_grade` block + a parallel grades
+    artifact JSONL at `rubric_grade.grades_artifact_path`.
+
+    Honest audit_status labels (advisor catch 2026-05-10 — DO NOT use "rubric-graded-green"
+    which overclaims external-audit-confirmation):
+    - "rubric-graded-builder; pending external confirmation" — builder-graded, threshold met,
+      pending external GPT/lain audit. PASS counts but artifact label distinguishes.
+    - "rubric-graded-external-confirmed" — external auditor confirmed builder grade. PASS counts.
+    - Anything else → fails the gate.
+
+    Refuses to PASS if (a) audit_status is not in the recognized set, or (b)
+    weighted_aggregate < threshold — guards against silent grade tampering.
+    """
+    rg = entry["rubric_grade"]
+    aggregate = rg.get("weighted_aggregate", 0)
+    # Backward-compat: accept legacy `threshold_for_green` if present, prefer
+    # `threshold_for_pass` (the honest-label name).
+    threshold = rg.get("threshold_for_pass", rg.get("threshold_for_green", 99))
+    audit_status = entry.get("audit_status", "")
+    recognized_statuses = {
+        "rubric-graded-builder; pending external confirmation",
+        "rubric-graded-external-confirmed",
+    }
+    pass_ = (
+        audit_status in recognized_statuses
+        and aggregate >= threshold
+    )
+    if pass_:
+        reason = (
+            f"rubric weighted_aggregate {aggregate}/5 >= threshold {threshold}/5; "
+            f"grader: {rg.get('grader', 'unknown')}; "
+            f"status: {audit_status}"
+        )
+    else:
+        reason = (
+            f"rubric-graded gate failed: audit_status={audit_status!r}, "
+            f"aggregate={aggregate}, threshold={threshold}"
+        )
+    return EntryResult(
+        id=entry["id"],
+        domain=entry.get("domain", "unknown"),
+        method="rubric_graded_builder",
+        pass_=pass_,
+        reason=reason,
+    )
+
+
 def _run_one(entry: dict) -> EntryResult | None:
-    """Returns an EntryResult, or None if the entry is rubric-pending (skip)."""
-    if "auto_grade" not in entry:
-        return None  # rubric-pending; skip per M-PROJECTX-014 firewall
-    domain = entry.get("domain", "unknown")
-    if domain == "memory":
-        return _replay_memory_entry(entry)
-    return _verify_frozen_entry(entry)
+    """Returns an EntryResult, or None if the entry is rubric-pending (skip).
+
+    Three paths:
+    - `auto_grade` block present: auto-graded entry (cycle 1+2 maths/physics
+      frozen-verdicts; memory live-replay). _verify_frozen_entry / _replay_memory_entry.
+    - `rubric_grade` block present (Phase 13 cycle 3+ Path B): rubric-graded-green
+      entry. _verify_rubric_graded_entry.
+    - Neither present: rubric-pending; skip per M-PROJECTX-014 firewall.
+    """
+    if "auto_grade" in entry:
+        domain = entry.get("domain", "unknown")
+        if domain == "memory":
+            return _replay_memory_entry(entry)
+        return _verify_frozen_entry(entry)
+    if "rubric_grade" in entry:
+        return _verify_rubric_graded_entry(entry)
+    return None  # rubric-pending; skip per M-PROJECTX-014 firewall
 
 
 def main(argv: list[str] | None = None) -> int:

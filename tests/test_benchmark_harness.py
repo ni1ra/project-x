@@ -2,12 +2,13 @@
 
 Invokes `gpt_codex.benchmark.run_audit.main` in-process and asserts:
   (1) the harness completes without raising (replay path works against the
-      live Phase 9-12 organic stack);
-  (2) exit code is 0 (all auto-graded entries pass — would catch a regression
-      in retrieval / encoder / controller surface);
-  (3) per-domain pass counts match the Phase 12 closure verdict (memory: 5,
-      maths: 3, physics: 3 — total 11 auto-graded green; rubric domains
-      skipped per M-PROJECTX-014 firewall).
+      live Phase 9-12 organic stack + Phase 13 cycle 3 Path B rubric-graded path);
+  (2) exit code is 0 (all auto-graded + rubric-graded-green entries pass — would
+      catch a regression in retrieval / encoder / controller surface OR a silent
+      schema-tampering of rubric grades);
+  (3) per-domain pass counts match the Phase 13 cycle 3 verdict (memory: 5,
+      maths: 5 [3 auto-graded + 2 rubric-graded-green via Path B], physics: 3 —
+      total 13; rubric-pending entries skipped per M-PROJECTX-014 firewall).
 """
 
 from __future__ import annotations
@@ -60,16 +61,18 @@ def test_audit_harness_all_pass(tmp_path):
 
     payload = json.loads(json_path.read_text())
     summary = payload["summary"]
-    # Phase 12 closure verdict: memory 5 / maths 3 / physics 3 = 11 total.
-    assert summary["total_pass"] == 11
+    # Phase 13 cycle 3 verdict: memory 5 / maths 5 (3 auto + 2 Path B rubric-graded-green) / physics 3 = 13 total.
+    assert summary["total_pass"] == 13
     assert summary["total_fail"] == 0
     assert summary["by_domain"]["memory"]["pass"] == 5
     assert summary["by_domain"]["memory"]["fail"] == 0
-    assert summary["by_domain"]["maths"]["pass"] == 3
+    assert summary["by_domain"]["maths"]["pass"] == 5
     assert summary["by_domain"]["physics"]["pass"] == 3
-    # Rubric-pending domains MUST be skipped (M-PROJECTX-014 firewall):
-    # persona / poetry / philosophy entries carry NO auto_grade block and
-    # increment the skipped counter rather than appearing in the by_domain map.
+    # Rubric-pending domains MUST still be skipped where no rubric_grade landed
+    # (poetry / philosophy / persona / physics-conceptual entries that haven't been
+    # Path-B graded). M-PROJECTX-014 firewall holds: candidate text exists, no
+    # self_score field; promotion to green requires a builder rubric_grade with
+    # weighted_aggregate >= threshold (default 4.0/5).
     assert "persona" not in summary["by_domain"]
     assert "poetry" not in summary["by_domain"]
     assert "philosophy" not in summary["by_domain"]
@@ -77,7 +80,7 @@ def test_audit_harness_all_pass(tmp_path):
 
     # Each entry result should carry the harness's pass/fail + reason fields.
     entries = payload["entries"]
-    assert len(entries) == 11
+    assert len(entries) == 13
     for e in entries:
         assert "id" in e
         assert "domain" in e
