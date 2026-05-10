@@ -1,0 +1,88 @@
+{
+  "cell_id": "phase8_conversation_D50000_T1000_V200_seed2026",
+  "config": {
+    "test": "conversation_demo",
+    "D": 50000,
+    "n_turns": 1000,
+    "n_vocab": 200,
+    "n_queried": 200,
+    "seed": 2026
+  },
+  "metrics": {
+    "retrieval_accuracy": 0.99,
+    "memory_size_kb": 195.3125,
+    "wall_seconds": 3.962845802307129
+  },
+  "sample_retrievals": [
+    {
+      "queried_turn": 601,
+      "true_vocab_idx": 40,
+      "predicted_vocab_idx": 40,
+      "cleanup_similarity_norm": 0.02148,
+      "correct": true
+    },
+    {
+      "queried_turn": 608,
+      "true_vocab_idx": 119,
+      "predicted_vocab_idx": 119,
+      "cleanup_similarity_norm": 0.02756,
+      "correct": true
+    },
+    {
+      "queried_turn": 681,
+      "true_vocab_idx": 10,
+      "predicted_vocab_idx": 10,
+      "cleanup_similarity_norm": 0.02844,
+      "correct": true
+    },
+    {
+      "queried_turn": 595,
+      "true_vocab_idx": 153,
+      "predicted_vocab_idx": 153,
+      "cleanup_similarity_norm": 0.02232,
+      "correct": true
+    },
+    {
+      "queried_turn": 773,
+      "true_vocab_idx": 6,
+      "predicted_vocab_idx": 6,
+      "cleanup_similarity_norm": 0.027,
+      "correct": true
+    },
+    {
+      "queried_turn": 94,
+      "true_vocab_idx": 3,
+      "predicted_vocab_idx": 3,
+      "cleanup_similarity_norm": 0.02436,
+      "correct": true
+    },
+    {
+      "queried_turn": 552,
+      "true_vocab_idx": 74,
+      "predicted_vocab_idx": 74,
+      "cleanup_similarity_norm": 0.02904,
+      "correct": true
+    },
+    {
+      "queried_turn": 434,
+      "true_vocab_idx": 85,
+      "predicted_vocab_idx": 85,
+      "cleanup_similarity_norm": 0.01968,
+      "correct": true
+    },
+    {
+      "queried_turn": 1,
+      "true_vocab_idx": 154,
+      "predicted_vocab_idx": 154,
+      "cleanup_similarity_norm": 0.02204,
+      "correct": true
+    },
+    {
+      "queried_turn": 993,
+      "true_vocab_idx": 167,
+      "predicted_vocab_idx": 167,
+      "cleanup_similarity_norm": 0.03168,
+      "correct": true
+    }
+  ]
+}

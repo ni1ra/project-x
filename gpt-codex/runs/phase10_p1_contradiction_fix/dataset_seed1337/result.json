@@ -1,0 +1,204 @@
+{
+  "run_id": "phase9_dataset_T1005_Q200_seed1337",
+  "config": {
+    "n_turns_requested": 1000,
+    "n_turns_actual": 1005,
+    "n_queries_requested": 200,
+    "n_queries_actual": 200,
+    "seed": 1337
+  },
+  "metrics": {
+    "wall_seconds": 0.0373,
+    "turn_category_distribution": {
+      "filler": 500,
+      "preference": 183,
+      "decision": 158,
+      "file_path": 159,
+      "contradiction": 5
+    },
+    "query_type_distribution": {
+      "exact_turn_lookup": 50,
+      "semantic_paraphrase": 60,
+      "multi_hop": 30,
+      "contradiction": 30,
+      "absent_answer": 30
+    },
+    "n_facts": 300,
+    "n_superseded_facts": 5
+  },
+  "samples": {
+    "turns": [
+      {
+        "turn_id": 0,
+        "speaker": "Grace",
+        "text": "docs updated.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 1,
+        "speaker": "Eve",
+        "text": "docs updated.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 2,
+        "speaker": "Bob",
+        "text": "Dave likes Zig.",
+        "category": "preference",
+        "fact_keys": [
+          "pref:Dave"
+        ],
+        "salience": 1.0,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 3,
+        "speaker": "Hank",
+        "text": "docs updated.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 4,
+        "speaker": "Frank",
+        "text": "For subsystem-693, we settled on Vercel.",
+        "category": "decision",
+        "fact_keys": [
+          "dec:subsystem-693"
+        ],
+        "salience": 1.0,
+        "decision_id": 349,
+        "supersedes_turn_id": null,
+        "file_path": null
+      }
+    ],
+    "queries": [
+      {
+        "query_id": 0,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-317?",
+        "expected_turn_ids": [
+          533
+        ],
+        "expected_answer": "Docker",
+        "fact_key": "dec:subsystem-317",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 1,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_36 module?",
+        "expected_turn_ids": [
+          25
+        ],
+        "expected_answer": "src/project_x/experiments/module_36.py",
+        "fact_key": "file:module_36",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 2,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_425 module?",
+        "expected_turn_ids": [
+          312
+        ],
+        "expected_answer": "src/project_x/experiments/module_425.py",
+        "fact_key": "file:module_425",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 3,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_550 module?",
+        "expected_turn_ids": [
+          681
+        ],
+        "expected_answer": "src/project_x/experiments/module_550.py",
+        "fact_key": "file:module_550",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 4,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-831?",
+        "expected_turn_ids": [
+          597
+        ],
+        "expected_answer": "Postgres",
+        "fact_key": "dec:subsystem-831",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 5,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-432?",
+        "expected_turn_ids": [
+          448
+        ],
+        "expected_answer": "Nginx",
+        "fact_key": "dec:subsystem-432",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 6,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-93?",
+        "expected_turn_ids": [
+          231
+        ],
+        "expected_answer": "Postgres",
+        "fact_key": "dec:subsystem-93",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 7,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-492?",
+        "expected_turn_ids": [
+          260
+        ],
+        "expected_answer": "Vercel",
+        "fact_key": "dec:subsystem-492",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 8,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-317?",
+        "expected_turn_ids": [
+          533
+        ],
+        "expected_answer": "Docker",
+        "fact_key": "dec:subsystem-317",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 9,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-314?",
+        "expected_turn_ids": [
+          455
+        ],
+        "expected_answer": "Redis",
+        "fact_key": "dec:subsystem-314",
+        "difficulty": "easy"
+      }
+    ]
+  }
+}

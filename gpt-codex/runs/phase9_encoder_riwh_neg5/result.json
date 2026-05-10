@@ -1,0 +1,236 @@
+{
+  "run_id": "phase9_encoder_riwh_seed1337",
+  "config": {
+    "encoder": "random_index_hebbian_D10000_act10_w3_sub1e-03_neg5_seed1337",
+    "D": 10000,
+    "n_active": 10,
+    "window": 3,
+    "subsample_threshold": 0.001,
+    "seed": 1337,
+    "n_turns": 1005,
+    "n_queries": 200,
+    "vocab_size": 491,
+    "total_tokens_seen": 4415,
+    "dataset": "gpt-codex/runs/phase9_dataset_full"
+  },
+  "metrics": {
+    "fit_wall_seconds": 0.0639,
+    "encode_wall_seconds": 0.331,
+    "retrieval_wall_seconds": 0.8528,
+    "top1_accuracy_by_type": {
+      "exact_turn_lookup": 0.62,
+      "semantic_paraphrase": 0.25,
+      "multi_hop": 0.0,
+      "contradiction": 0.2333,
+      "absent_answer": null
+    },
+    "pairwise_cosine_off_diagonal": {
+      "n_pairs": 124750,
+      "mean": 0.090713,
+      "std": 0.166218,
+      "min": -0.0108,
+      "max": 1.0,
+      "p25": 0.0248,
+      "p50": 0.0356,
+      "p75": 0.0596
+    },
+    "expected_turn_cosine": {
+      "n": 170,
+      "mean": 0.2324,
+      "std": 0.0873
+    },
+    "absent_top1_cosine": {
+      "n": 30,
+      "mean": 0.2595,
+      "std": 0.0504
+    },
+    "top_dropped_words": [
+      [
+        "for",
+        0.853
+      ],
+      [
+        "the",
+        0.849
+      ],
+      [
+        "is",
+        0.847
+      ],
+      [
+        "we",
+        0.834
+      ],
+      [
+        "on",
+        0.806
+      ],
+      [
+        "at",
+        0.792
+      ],
+      [
+        "in",
+        0.765
+      ],
+      [
+        "build",
+        0.762
+      ]
+    ]
+  },
+  "samples": [
+    {
+      "query_id": 0,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-317?",
+      "expected_turn_ids": [
+        533
+      ],
+      "top1_turn_id": 533,
+      "top1_cosine": 0.2932,
+      "correct": true
+    },
+    {
+      "query_id": 1,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_36 module?",
+      "expected_turn_ids": [
+        25
+      ],
+      "top1_turn_id": 25,
+      "top1_cosine": 0.382,
+      "correct": true
+    },
+    {
+      "query_id": 2,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_425 module?",
+      "expected_turn_ids": [
+        312
+      ],
+      "top1_turn_id": 768,
+      "top1_cosine": 0.2712,
+      "correct": false
+    },
+    {
+      "query_id": 3,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_550 module?",
+      "expected_turn_ids": [
+        681
+      ],
+      "top1_turn_id": 562,
+      "top1_cosine": 0.278,
+      "correct": false
+    },
+    {
+      "query_id": 4,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-831?",
+      "expected_turn_ids": [
+        597
+      ],
+      "top1_turn_id": 597,
+      "top1_cosine": 0.3784,
+      "correct": true
+    },
+    {
+      "query_id": 5,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-432?",
+      "expected_turn_ids": [
+        448
+      ],
+      "top1_turn_id": 448,
+      "top1_cosine": 0.3604,
+      "correct": true
+    },
+    {
+      "query_id": 6,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-93?",
+      "expected_turn_ids": [
+        231
+      ],
+      "top1_turn_id": 231,
+      "top1_cosine": 0.3948,
+      "correct": true
+    },
+    {
+      "query_id": 7,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-492?",
+      "expected_turn_ids": [
+        260
+      ],
+      "top1_turn_id": 260,
+      "top1_cosine": 0.3792,
+      "correct": true
+    },
+    {
+      "query_id": 8,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-317?",
+      "expected_turn_ids": [
+        533
+      ],
+      "top1_turn_id": 533,
+      "top1_cosine": 0.2932,
+      "correct": true
+    },
+    {
+      "query_id": 9,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-314?",
+      "expected_turn_ids": [
+        455
+      ],
+      "top1_turn_id": 455,
+      "top1_cosine": 0.3868,
+      "correct": true
+    },
+    {
+      "query_id": 10,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_74 module?",
+      "expected_turn_ids": [
+        853
+      ],
+      "top1_turn_id": 853,
+      "top1_cosine": 0.384,
+      "correct": true
+    },
+    {
+      "query_id": 11,
+      "type": "exact_turn_lookup",
+      "text": "What does Carol prefer?",
+      "expected_turn_ids": [
+        897
+      ],
+      "top1_turn_id": 15,
+      "top1_cosine": 0.266,
+      "correct": false
+    }
+  ],
+  "comparison_vs_floor": {
+    "floor_run_id": "phase9_encoder_cngram_seed1337",
+    "delta_top1_accuracy_by_type": {
+      "exact_turn_lookup": 0.32,
+      "semantic_paraphrase": -0.1333,
+      "multi_hop": 0,
+      "contradiction": 0.1666,
+      "absent_answer": 0
+    },
+    "floor_signal_gap": -0.0473,
+    "riwh_signal_gap": -0.0271,
+    "signal_gap_flipped_positive": false,
+    "delta_pairwise_cos_mean": 0.0189
+  },
+  "notes": [
+    "Council winner: Sahlgren's Random Indexing + sliding-window Hebbian + Mikolov subsampling.",
+    "Unseen-word fallback: sparse-ternary index vector (n_active nonzero bits, rest 0) \u2014 near-orthogonal to all trained vecs by construction.",
+    "If signal_gap_flipped_positive == False, the unseen-word orthogonality mechanism failed \u2192 debug index vector sparsity & encoding fallback.",
+    "If paraphrase top-1 < floor (38.3%), the Hebbian co-occurrence captured the wrong correlations \u2192 check vocab size, subsample threshold, window size."
+  ]
+}

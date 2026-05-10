@@ -1,0 +1,184 @@
+{
+  "run_id": "phase9_encoder_cngram_seed1337",
+  "config": {
+    "encoder": "char_ngram_hash_n3_F4096_D10000_seed1337",
+    "D": 10000,
+    "feature_dim": 4096,
+    "n_gram_size": 3,
+    "seed": 1337,
+    "n_turns": 1005,
+    "n_queries": 200,
+    "dataset": "gpt-codex/runs/phase9_dataset_full"
+  },
+  "metrics": {
+    "encode_wall_seconds": 0.386,
+    "retrieval_wall_seconds": 0.8375,
+    "top1_accuracy_by_type": {
+      "exact_turn_lookup": 0.3,
+      "semantic_paraphrase": 0.3833,
+      "multi_hop": 0.0,
+      "contradiction": 0.0667,
+      "absent_answer": null
+    },
+    "pairwise_cosine_off_diagonal": {
+      "n_pairs": 124750,
+      "mean": 0.071778,
+      "std": 0.176855,
+      "min": -0.043,
+      "max": 1.0,
+      "p25": 0.0024,
+      "p50": 0.0182,
+      "p75": 0.0448
+    },
+    "expected_turn_cosine": {
+      "n": 170,
+      "mean": 0.2406,
+      "std": 0.1144
+    },
+    "absent_top1_cosine": {
+      "n": 30,
+      "mean": 0.2879,
+      "std": 0.0493
+    }
+  },
+  "samples": [
+    {
+      "query_id": 0,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-317?",
+      "expected_turn_ids": [
+        533
+      ],
+      "top1_turn_id": 251,
+      "top1_cosine": 0.4358,
+      "correct": false
+    },
+    {
+      "query_id": 1,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_36 module?",
+      "expected_turn_ids": [
+        25
+      ],
+      "top1_turn_id": 25,
+      "top1_cosine": 0.4542,
+      "correct": true
+    },
+    {
+      "query_id": 2,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_425 module?",
+      "expected_turn_ids": [
+        312
+      ],
+      "top1_turn_id": 7,
+      "top1_cosine": 0.3982,
+      "correct": false
+    },
+    {
+      "query_id": 3,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_550 module?",
+      "expected_turn_ids": [
+        681
+      ],
+      "top1_turn_id": 481,
+      "top1_cosine": 0.4096,
+      "correct": false
+    },
+    {
+      "query_id": 4,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-831?",
+      "expected_turn_ids": [
+        597
+      ],
+      "top1_turn_id": 328,
+      "top1_cosine": 0.392,
+      "correct": false
+    },
+    {
+      "query_id": 5,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-432?",
+      "expected_turn_ids": [
+        448
+      ],
+      "top1_turn_id": 245,
+      "top1_cosine": 0.4016,
+      "correct": false
+    },
+    {
+      "query_id": 6,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-93?",
+      "expected_turn_ids": [
+        231
+      ],
+      "top1_turn_id": 251,
+      "top1_cosine": 0.383,
+      "correct": false
+    },
+    {
+      "query_id": 7,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-492?",
+      "expected_turn_ids": [
+        260
+      ],
+      "top1_turn_id": 245,
+      "top1_cosine": 0.4234,
+      "correct": false
+    },
+    {
+      "query_id": 8,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-317?",
+      "expected_turn_ids": [
+        533
+      ],
+      "top1_turn_id": 251,
+      "top1_cosine": 0.4358,
+      "correct": false
+    },
+    {
+      "query_id": 9,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-314?",
+      "expected_turn_ids": [
+        455
+      ],
+      "top1_turn_id": 251,
+      "top1_cosine": 0.4272,
+      "correct": false
+    },
+    {
+      "query_id": 10,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_74 module?",
+      "expected_turn_ids": [
+        853
+      ],
+      "top1_turn_id": 853,
+      "top1_cosine": 0.445,
+      "correct": true
+    },
+    {
+      "query_id": 11,
+      "type": "exact_turn_lookup",
+      "text": "What does Carol prefer?",
+      "expected_turn_ids": [
+        897
+      ],
+      "top1_turn_id": 454,
+      "top1_cosine": 0.371,
+      "correct": false
+    }
+  ],
+  "notes": [
+    "FLOOR baseline. Captures lexical/morphological overlap, NOT deep semantics.",
+    "Cycle 3 HebbianCooccurrenceEncoder must beat top1_accuracy_by_type[semantic_paraphrase].",
+    "Pairwise cosine off-diagonal mean \u2248 0 confirms HDC orthogonality property.",
+    "expected_turn_cosine vs absent_top1_cosine gap \u2248 signal-vs-noise margin for retrieval threshold calibration."
+  ]
+}

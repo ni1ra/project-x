@@ -1,0 +1,86 @@
+{
+  "run_id": "phase10_p1_contradiction_fix_5seed_aggregate",
+  "config": {
+    "D": 10000,
+    "alpha": 0.5,
+    "negative_samples": 5,
+    "seeds": [
+      1337,
+      2026,
+      3001,
+      4042,
+      5050
+    ],
+    "n_turns": 1000,
+    "n_queries": 200
+  },
+  "verdict": "Phase 9 contradiction metric was corrupted by the dataset bug fixed in #00a-1 (commit-equivalent: edit at semantic_memory_dataset.py:457 + :559). Pre-fix logic counted any fact with len(history)>1 as a contradiction; this conflated random fact-key reuse in substantive_specs with explicit revisions. Pool: 35 (pre-fix) \u2192 5 (post-fix); spurious rate ~96.7% \u2192 0%. With the fix, ensemble contradiction top-1 collapses from claimed 0.30 (seed-1337 single) to 0.0 \u00b1 0.0 across 5 seeds, and ensemble UNDERPERFORMS keyword baseline on contradiction. The Phase 9 verdict's '+27pp ensemble vs keyword on contradiction' was an artifact of the bug; the real signal is that Phase 9's HDC ensemble does NOT solve contradiction-resolution without further architectural work (P3 fact-graph + P4 incremental write are the candidate fixes).",
+  "metrics_5seed": {
+    "n_superseded_facts": {
+      "per_seed": [
+        5,
+        5,
+        5,
+        5,
+        5
+      ],
+      "mean": 5
+    },
+    "ensemble_only": {
+      "exact_turn_lookup_top1_mean": 0.624,
+      "exact_turn_lookup_top1_std": 0.04774934554525329,
+      "exact_turn_lookup_top5_mean": 0.7040000000000001,
+      "exact_turn_lookup_top5_std": 0.06542170893518451,
+      "semantic_paraphrase_top1_mean": 0.56666,
+      "semantic_paraphrase_top1_std": 0.04082484537631466,
+      "semantic_paraphrase_top5_mean": 0.68,
+      "semantic_paraphrase_top5_std": 0.029823564508623026,
+      "multi_hop_top1_mean": 0.08668,
+      "multi_hop_top1_std": 0.07676009379879625,
+      "multi_hop_top5_mean": 0.19332000000000002,
+      "multi_hop_top5_std": 0.1516531140464976,
+      "contradiction_top1_mean": 0.0,
+      "contradiction_top1_std": 0.0,
+      "contradiction_top5_mean": 0.0,
+      "contradiction_top5_std": 0.0
+    },
+    "with_multi_hop_decomposition": {
+      "multi_hop_top5_mean": 0.20666,
+      "multi_hop_top5_std": 0.13208415120672126
+    },
+    "keyword_baseline": {
+      "exact_turn_lookup_top1_mean": 0.684,
+      "exact_turn_lookup_top1_std": 0.04774934554525328,
+      "semantic_paraphrase_top1_mean": 0.42666,
+      "semantic_paraphrase_top1_std": 0.06413441353906653,
+      "contradiction_top1_mean": 0.13334,
+      "contradiction_top1_std": 0.12693393163374403,
+      "contradiction_top5_mean": 0.13334,
+      "contradiction_top5_std": 0.12693393163374403
+    },
+    "ensemble_minus_keyword": {
+      "contradiction_top1_diff": -0.13334,
+      "contradiction_top5_diff": -0.13334
+    }
+  },
+  "per_seed_run_dirs": [
+    "run_seed1337",
+    "run_seed2026",
+    "run_seed3001",
+    "run_seed4042",
+    "run_seed5050"
+  ],
+  "per_seed_dataset_dirs": [
+    "dataset_seed1337",
+    "dataset_seed2026",
+    "dataset_seed3001",
+    "dataset_seed4042",
+    "dataset_seed5050"
+  ],
+  "notes": [
+    "M-PROJECTX-012 corrective verdict: prior contradiction metric was largely artifact-of-bug.",
+    "Single-seed (1337) pre-fix Phase 9: ensemble contradiction top1=0.30, keyword top1=0.0333, +27pp.",
+    "Multi-seed (5) post-fix Phase 10 P1: ensemble contradiction top1=0.0\u00b10.0, keyword top1\u22480.13, ensemble UNDERPERFORMS.",
+    "Fix: semantic_memory_dataset.py:457 build_queries() + :559 metric \u2014 supersedes_turn_id walk."
+  ]
+}

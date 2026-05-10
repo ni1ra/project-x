@@ -1,0 +1,1 @@
+Syntax Error (7517): Invalid blend mode in ExtGState

@@ -1,0 +1,49 @@
+{"query_id": 0, "type": "exact_turn_lookup", "text": "What did we decide for subsystem-214?", "expected_turn_ids": [109], "expected_answer": "Vercel", "fact_key": "dec:subsystem-214", "difficulty": "easy"}
+{"query_id": 1, "type": "exact_turn_lookup", "text": "What does Frank prefer?", "expected_turn_ids": [189], "expected_answer": "Zig", "fact_key": "pref:Frank", "difficulty": "easy"}
+{"query_id": 2, "type": "exact_turn_lookup", "text": "What did we decide for subsystem-467?", "expected_turn_ids": [51], "expected_answer": "Docker", "fact_key": "dec:subsystem-467", "difficulty": "easy"}
+{"query_id": 3, "type": "exact_turn_lookup", "text": "Where is the router module?", "expected_turn_ids": [143], "expected_answer": "src/project_x/experiments/router.py", "fact_key": "file:router", "difficulty": "easy"}
+{"query_id": 4, "type": "exact_turn_lookup", "text": "Where is the module_47 module?", "expected_turn_ids": [137], "expected_answer": "src/project_x/experiments/module_47.py", "fact_key": "file:module_47", "difficulty": "easy"}
+{"query_id": 5, "type": "exact_turn_lookup", "text": "What did we decide for the API framework?", "expected_turn_ids": [84], "expected_answer": "Redis", "fact_key": "dec:the API framework", "difficulty": "easy"}
+{"query_id": 6, "type": "exact_turn_lookup", "text": "Where is the module_947 module?", "expected_turn_ids": [31], "expected_answer": "src/project_x/experiments/module_947.py", "fact_key": "file:module_947", "difficulty": "easy"}
+{"query_id": 7, "type": "exact_turn_lookup", "text": "What did we decide for subsystem-159?", "expected_turn_ids": [45], "expected_answer": "Redis", "fact_key": "dec:subsystem-159", "difficulty": "easy"}
+{"query_id": 8, "type": "exact_turn_lookup", "text": "What did we decide for subsystem-214?", "expected_turn_ids": [109], "expected_answer": "Vercel", "fact_key": "dec:subsystem-214", "difficulty": "easy"}
+{"query_id": 9, "type": "exact_turn_lookup", "text": "What does Carol prefer?", "expected_turn_ids": [196], "expected_answer": "Zig", "fact_key": "pref:Carol", "difficulty": "easy"}
+{"query_id": 10, "type": "exact_turn_lookup", "text": "What did we decide for subsystem-397?", "expected_turn_ids": [175], "expected_answer": "Docker", "fact_key": "dec:subsystem-397", "difficulty": "easy"}
+{"query_id": 11, "type": "exact_turn_lookup", "text": "What does Frank prefer?", "expected_turn_ids": [189], "expected_answer": "Zig", "fact_key": "pref:Frank", "difficulty": "easy"}
+{"query_id": 12, "type": "semantic_paraphrase", "text": "Remind me where router lives in the codebase?", "expected_turn_ids": [143], "expected_answer": "src/project_x/experiments/router.py", "fact_key": "file:router", "difficulty": "medium"}
+{"query_id": 13, "type": "semantic_paraphrase", "text": "what does Grace like to use for backend work?", "expected_turn_ids": [200], "expected_answer": "Go", "fact_key": "pref:Grace", "difficulty": "medium"}
+{"query_id": 14, "type": "semantic_paraphrase", "text": "what did we pick for subsystem-550?", "expected_turn_ids": [180], "expected_answer": "Nginx", "fact_key": "dec:subsystem-550", "difficulty": "medium"}
+{"query_id": 15, "type": "semantic_paraphrase", "text": "what did we pick for subsystem-564?", "expected_turn_ids": [77], "expected_answer": "FastAPI", "fact_key": "dec:subsystem-564", "difficulty": "medium"}
+{"query_id": 16, "type": "semantic_paraphrase", "text": "what does Grace usually choose?", "expected_turn_ids": [200], "expected_answer": "Go", "fact_key": "pref:Grace", "difficulty": "medium"}
+{"query_id": 17, "type": "semantic_paraphrase", "text": "what did we pick for subsystem-190?", "expected_turn_ids": [178], "expected_answer": "FastAPI", "fact_key": "dec:subsystem-190", "difficulty": "medium"}
+{"query_id": 18, "type": "semantic_paraphrase", "text": "which service did we end up with?", "expected_turn_ids": [132], "expected_answer": "Nginx", "fact_key": "dec:subsystem-610", "difficulty": "medium"}
+{"query_id": 19, "type": "semantic_paraphrase", "text": "what does Alice like to use for backend work?", "expected_turn_ids": [152], "expected_answer": "Haskell", "fact_key": "pref:Alice", "difficulty": "medium"}
+{"query_id": 20, "type": "semantic_paraphrase", "text": "Remind me where encoder lives in the codebase?", "expected_turn_ids": [139], "expected_answer": "src/project_x/experiments/encoder.py", "fact_key": "file:encoder", "difficulty": "medium"}
+{"query_id": 21, "type": "semantic_paraphrase", "text": "which service did we end up with?", "expected_turn_ids": [73], "expected_answer": "Kafka", "fact_key": "dec:subsystem-628", "difficulty": "medium"}
+{"query_id": 22, "type": "semantic_paraphrase", "text": "which service did we end up with?", "expected_turn_ids": [73], "expected_answer": "Kafka", "fact_key": "dec:subsystem-628", "difficulty": "medium"}
+{"query_id": 23, "type": "semantic_paraphrase", "text": "Remind me where module_47 lives in the codebase?", "expected_turn_ids": [137], "expected_answer": "src/project_x/experiments/module_47.py", "fact_key": "file:module_47", "difficulty": "medium"}
+{"query_id": 24, "type": "semantic_paraphrase", "text": "which language is Frank's favorite?", "expected_turn_ids": [189], "expected_answer": "Zig", "fact_key": "pref:Frank", "difficulty": "medium"}
+{"query_id": 25, "type": "semantic_paraphrase", "text": "Remind me where router lives in the codebase?", "expected_turn_ids": [143], "expected_answer": "src/project_x/experiments/router.py", "fact_key": "file:router", "difficulty": "medium"}
+{"query_id": 26, "type": "semantic_paraphrase", "text": "what was the team's choice for subsystem-987?", "expected_turn_ids": [185], "expected_answer": "Kubernetes", "fact_key": "dec:subsystem-987", "difficulty": "medium"}
+{"query_id": 27, "type": "multi_hop", "text": "What do Bob and Carol prefer?", "expected_turn_ids": [199, 196], "expected_answer": "OCaml and Zig", "fact_key": null, "difficulty": "hard"}
+{"query_id": 28, "type": "multi_hop", "text": "What do Eve and Hank prefer?", "expected_turn_ids": [183, 191], "expected_answer": "Haskell and Go", "fact_key": null, "difficulty": "hard"}
+{"query_id": 29, "type": "multi_hop", "text": "What do Hank and Grace prefer?", "expected_turn_ids": [191, 200], "expected_answer": "Go and Go", "fact_key": null, "difficulty": "hard"}
+{"query_id": 30, "type": "multi_hop", "text": "What do Alice and Grace prefer?", "expected_turn_ids": [152, 200], "expected_answer": "Haskell and Go", "fact_key": null, "difficulty": "hard"}
+{"query_id": 31, "type": "multi_hop", "text": "What do Alice and Grace prefer?", "expected_turn_ids": [152, 200], "expected_answer": "Haskell and Go", "fact_key": null, "difficulty": "hard"}
+{"query_id": 32, "type": "multi_hop", "text": "What do Bob and Hank prefer?", "expected_turn_ids": [199, 191], "expected_answer": "OCaml and Go", "fact_key": null, "difficulty": "hard"}
+{"query_id": 33, "type": "multi_hop", "text": "What do Bob and Eve prefer?", "expected_turn_ids": [199, 183], "expected_answer": "OCaml and Haskell", "fact_key": null, "difficulty": "hard"}
+{"query_id": 34, "type": "contradiction", "text": "What is Frank's current preferred tool?", "expected_turn_ids": [189], "expected_answer": "Zig", "fact_key": "pref:Frank", "difficulty": "hard"}
+{"query_id": 35, "type": "contradiction", "text": "What is the latest pick for the queue?", "expected_turn_ids": [202], "expected_answer": "Kubernetes", "fact_key": "dec:the queue", "difficulty": "hard"}
+{"query_id": 36, "type": "contradiction", "text": "What is Bob's current preferred tool?", "expected_turn_ids": [199], "expected_answer": "OCaml", "fact_key": "pref:Bob", "difficulty": "hard"}
+{"query_id": 37, "type": "contradiction", "text": "What is Dave's current preferred tool?", "expected_turn_ids": [203], "expected_answer": "Python", "fact_key": "pref:Dave", "difficulty": "hard"}
+{"query_id": 38, "type": "contradiction", "text": "What is Frank's current preferred tool?", "expected_turn_ids": [189], "expected_answer": "Zig", "fact_key": "pref:Frank", "difficulty": "hard"}
+{"query_id": 39, "type": "contradiction", "text": "What is Frank's current preferred tool?", "expected_turn_ids": [189], "expected_answer": "Zig", "fact_key": "pref:Frank", "difficulty": "hard"}
+{"query_id": 40, "type": "contradiction", "text": "Where does the module_811 module live now?", "expected_turn_ids": [204], "expected_answer": "src/project_x/experiments/module_811_v2.py", "fact_key": "file:module_811", "difficulty": "hard"}
+{"query_id": 41, "type": "absent_answer", "text": "What did we decide for phantom-system-3330?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 42, "type": "absent_answer", "text": "Where is the missing_module_4662 module?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 43, "type": "absent_answer", "text": "What did we decide for phantom-system-9919?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 44, "type": "absent_answer", "text": "What does Ghost9281 prefer?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 45, "type": "absent_answer", "text": "What did we decide for phantom-system-6405?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 46, "type": "absent_answer", "text": "What does Ghost1370 prefer?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 47, "type": "absent_answer", "text": "Where is the missing_module_1397 module?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}
+{"query_id": 48, "type": "absent_answer", "text": "What does Ghost1071 prefer?", "expected_turn_ids": [], "expected_answer": null, "fact_key": null, "difficulty": "medium"}

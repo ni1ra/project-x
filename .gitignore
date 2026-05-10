@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+*.pyc
+
+# Logs
+*.log
+
+# Claude Code session artifacts
+.claude/
+.playwright-mcp/
+
+# Reference materials (large; tracked by metadata only)
+ref/papers/*.pdf
+ref/pages/*.html
+
+# Phase 1-3 era screenshots in repo root (cycle 8 may move to docs/artifacts/screenshots/)
+/lp-en-*.png
+/tauet-*.png
+/settings-anon-*.png
+
+# Codex extracted-content blobs (large; metadata in source_inventory.md is enough)
+gpt-codex/extracted/
+gpt-codex/sources/
+
+# Phase 1-3 era root artifacts (root-only — does NOT affect docs/artifacts/)
+/artifacts/

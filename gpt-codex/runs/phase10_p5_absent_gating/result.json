@@ -1,0 +1,230 @@
+{
+  "run_id": "phase10_p5_absent_gating_v2_structural",
+  "config": {
+    "seeds": [
+      1337,
+      2026,
+      3001,
+      4042,
+      5050
+    ],
+    "thresholds": [
+      0.2,
+      0.22,
+      0.24,
+      0.26,
+      0.28,
+      0.3,
+      0.32,
+      0.34,
+      0.36,
+      0.38,
+      0.4
+    ],
+    "D": 10000,
+    "alpha": 0.5,
+    "neg": 5,
+    "cosine_source": "structural (retrieve_structural top-1)"
+  },
+  "tracks": {
+    "threshold_only_structural": {
+      "0.2": {
+        "fp_rate": 0.6933,
+        "survival": 0.9353,
+        "f1": 0.9091
+      },
+      "0.22": {
+        "fp_rate": 0.6933,
+        "survival": 0.9353,
+        "f1": 0.9091
+      },
+      "0.24": {
+        "fp_rate": 0.68,
+        "survival": 0.9353,
+        "f1": 0.9102
+      },
+      "0.26": {
+        "fp_rate": 0.32,
+        "survival": 0.9353,
+        "f1": 0.9392
+      },
+      "0.28": {
+        "fp_rate": 0.3067,
+        "survival": 0.9353,
+        "f1": 0.9403
+      },
+      "0.3": {
+        "fp_rate": 0.26,
+        "survival": 0.9353,
+        "f1": 0.9442
+      },
+      "0.32": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.34": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.36": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.38": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.4": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      }
+    },
+    "or_combined": {
+      "0.2": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.22": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.24": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.26": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.28": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.3": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.32": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.34": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.36": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.38": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      },
+      "0.4": {
+        "fp_rate": 0.0,
+        "survival": 0.1812,
+        "f1": 0.3054
+      }
+    },
+    "and_combined": {
+      "0.2": {
+        "fp_rate": 0.6933,
+        "survival": 0.9353,
+        "f1": 0.9091
+      },
+      "0.22": {
+        "fp_rate": 0.6933,
+        "survival": 0.9353,
+        "f1": 0.9091
+      },
+      "0.24": {
+        "fp_rate": 0.68,
+        "survival": 0.9353,
+        "f1": 0.9102
+      },
+      "0.26": {
+        "fp_rate": 0.32,
+        "survival": 0.9353,
+        "f1": 0.9392
+      },
+      "0.28": {
+        "fp_rate": 0.3067,
+        "survival": 0.9353,
+        "f1": 0.9403
+      },
+      "0.3": {
+        "fp_rate": 0.26,
+        "survival": 0.9353,
+        "f1": 0.9442
+      },
+      "0.32": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.34": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.36": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.38": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      },
+      "0.4": {
+        "fp_rate": 0.0933,
+        "survival": 0.9353,
+        "f1": 0.9585
+      }
+    },
+    "disagreement_only": {
+      "fp_rate": 0.0,
+      "survival": 0.1812,
+      "f1": 0.3054
+    }
+  },
+  "best": {
+    "threshold_only": {
+      "threshold": 0.32,
+      "fp_rate_mean": 0.09333333333333334,
+      "survival_mean": 0.9352941176470588,
+      "f1_mean": 0.9584617575136313,
+      "targets_met": true
+    },
+    "or_combined": {
+      "threshold": 0.2,
+      "fp_rate_mean": 0.0,
+      "survival_mean": 0.1811764705882353,
+      "f1_mean": 0.30540680184198243,
+      "targets_met": false
+    },
+    "and_combined": {
+      "threshold": 0.32,
+      "fp_rate_mean": 0.09333333333333334,
+      "survival_mean": 0.9352941176470588,
+      "f1_mean": 0.9584617575136313,
+      "targets_met": true
+    }
+  }
+}

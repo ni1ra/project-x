@@ -1,0 +1,45 @@
+{
+  "cell_id": "phase8_T1recall_D10000_N2000_seed3001",
+  "config": {
+    "test": "T1_recall",
+    "D": 10000,
+    "N": 2000,
+    "seed": 3001,
+    "encoder": "random",
+    "mode": "hetero_associative"
+  },
+  "metrics": {
+    "bit_accuracy_mean": 0.5089109539985657,
+    "bit_accuracy_std": 0.004798278212547302,
+    "item_recall_after_cleanup": 0.052,
+    "wall_seconds": 70.06419134140015
+  },
+  "theory": {
+    "plate_capacity_at_M_eq_N": 186.3951977344714,
+    "plate_capacity_at_M_eq_1000": 203.04794930499622,
+    "expected_bit_accuracy_per_plate": 0.5089221076854503
+  },
+  "sample_retrievals": [
+    {
+      "query_idx": 0,
+      "bit_accuracy_raw": 0.5081999897956848,
+      "cleanup_idx_returned": 772,
+      "cleanup_correct": false,
+      "cleanup_similarity_norm": 0.0418
+    },
+    {
+      "query_idx": 1,
+      "bit_accuracy_raw": 0.5142999887466431,
+      "cleanup_idx_returned": 1389,
+      "cleanup_correct": false,
+      "cleanup_similarity_norm": 0.0376
+    },
+    {
+      "query_idx": 2,
+      "bit_accuracy_raw": 0.510699987411499,
+      "cleanup_idx_returned": 694,
+      "cleanup_correct": false,
+      "cleanup_similarity_norm": 0.0388
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "cell_id": "phase8_T3continual_D10000_n1100_n2100_seed2026",
+  "config": {
+    "test": "T3_continual",
+    "D": 10000,
+    "n_phase1": 100,
+    "n_phase2": 100,
+    "seed": 2026
+  },
+  "metrics": {
+    "retention_at_t100": 1.0,
+    "first_100_retention_at_t200": 1.0,
+    "last_100_retention_at_t200": 1.0,
+    "first_100_retention_strict_atoms": 1.0,
+    "wall_seconds": 0.2720034122467041
+  }
+}

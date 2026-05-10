@@ -1,0 +1,204 @@
+{
+  "run_id": "phase9_dataset_T1005_Q200_seed2026",
+  "config": {
+    "n_turns_requested": 1000,
+    "n_turns_actual": 1005,
+    "n_queries_requested": 200,
+    "n_queries_actual": 200,
+    "seed": 2026
+  },
+  "metrics": {
+    "wall_seconds": 0.0442,
+    "turn_category_distribution": {
+      "filler": 500,
+      "decision": 165,
+      "file_path": 162,
+      "preference": 173,
+      "contradiction": 5
+    },
+    "query_type_distribution": {
+      "exact_turn_lookup": 50,
+      "semantic_paraphrase": 60,
+      "multi_hop": 30,
+      "contradiction": 30,
+      "absent_answer": 30
+    },
+    "n_facts": 308,
+    "n_superseded_facts": 5
+  },
+  "samples": {
+    "turns": [
+      {
+        "turn_id": 0,
+        "speaker": "Frank",
+        "text": "build is green.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 1,
+        "speaker": "Hank",
+        "text": "For subsystem-223, we decided to use Postgres.",
+        "category": "decision",
+        "fact_keys": [
+          "dec:subsystem-223"
+        ],
+        "salience": 1.0,
+        "decision_id": 502,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 2,
+        "speaker": "Frank",
+        "text": "For subsystem-238, we picked Kafka.",
+        "category": "decision",
+        "fact_keys": [
+          "dec:subsystem-238"
+        ],
+        "salience": 1.0,
+        "decision_id": 323,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 3,
+        "speaker": "Alice",
+        "text": "meeting at three.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 4,
+        "speaker": "Bob",
+        "text": "running tests now.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      }
+    ],
+    "queries": [
+      {
+        "query_id": 0,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for the database?",
+        "expected_turn_ids": [
+          454
+        ],
+        "expected_answer": "Kubernetes",
+        "fact_key": "dec:the database",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 1,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-663?",
+        "expected_turn_ids": [
+          390
+        ],
+        "expected_answer": "Kafka",
+        "fact_key": "dec:subsystem-663",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 2,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for the database?",
+        "expected_turn_ids": [
+          454
+        ],
+        "expected_answer": "Kubernetes",
+        "fact_key": "dec:the database",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 3,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_462 module?",
+        "expected_turn_ids": [
+          532
+        ],
+        "expected_answer": "src/project_x/experiments/module_462.py",
+        "fact_key": "file:module_462",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 4,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-327?",
+        "expected_turn_ids": [
+          716
+        ],
+        "expected_answer": "FastAPI",
+        "fact_key": "dec:subsystem-327",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 5,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_443 module?",
+        "expected_turn_ids": [
+          791
+        ],
+        "expected_answer": "src/project_x/experiments/module_443.py",
+        "fact_key": "file:module_443",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 6,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-384?",
+        "expected_turn_ids": [
+          844
+        ],
+        "expected_answer": "Postgres",
+        "fact_key": "dec:subsystem-384",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 7,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-106?",
+        "expected_turn_ids": [
+          210
+        ],
+        "expected_answer": "Kubernetes",
+        "fact_key": "dec:subsystem-106",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 8,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_28 module?",
+        "expected_turn_ids": [
+          173
+        ],
+        "expected_answer": "src/project_x/experiments/module_28.py",
+        "fact_key": "file:module_28",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 9,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_826 module?",
+        "expected_turn_ids": [
+          998
+        ],
+        "expected_answer": "src/project_x/experiments/module_826.py",
+        "fact_key": "file:module_826",
+        "difficulty": "easy"
+      }
+    ]
+  }
+}

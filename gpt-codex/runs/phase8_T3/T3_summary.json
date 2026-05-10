@@ -1,0 +1,39 @@
+{
+  "test": "T3_continual",
+  "D": 10000,
+  "n_phase1": 100,
+  "n_phase2": 100,
+  "seeds": [
+    1337,
+    2026,
+    3001
+  ],
+  "rows": [
+    {
+      "seed": 1337,
+      "retention_at_t100": 1.0,
+      "first_100_retention_at_t200": 1.0,
+      "last_100_retention_at_t200": 1.0,
+      "first_100_retention_strict": 1.0,
+      "wall_s": 0.2758290767669678
+    },
+    {
+      "seed": 2026,
+      "retention_at_t100": 1.0,
+      "first_100_retention_at_t200": 1.0,
+      "last_100_retention_at_t200": 1.0,
+      "first_100_retention_strict": 1.0,
+      "wall_s": 0.2720034122467041
+    },
+    {
+      "seed": 3001,
+      "retention_at_t100": 1.0,
+      "first_100_retention_at_t200": 1.0,
+      "last_100_retention_at_t200": 1.0,
+      "first_100_retention_strict": 1.0,
+      "wall_s": 0.2728574275970459
+    }
+  ],
+  "first_100_retention_at_t200_mean": 1.0,
+  "first_100_retention_at_t200_std": 0.0
+}

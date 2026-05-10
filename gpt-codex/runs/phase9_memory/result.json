@@ -1,0 +1,394 @@
+{
+  "run_id": "phase9_memory_seed1337_alpha0.5_neg5",
+  "config": {
+    "D": 10000,
+    "alpha": 0.5,
+    "negative_samples": 5,
+    "seed": 1337,
+    "n_turns": 1005,
+    "n_queries": 200
+  },
+  "metrics": {
+    "write_wall_seconds": 0.6404,
+    "ensemble_query_wall_seconds": 8.4555,
+    "multi_hop_decomp_wall_seconds": 2.536,
+    "ensemble_only": {
+      "exact_turn_lookup_top1": 0.62,
+      "exact_turn_lookup_top5": 0.66,
+      "semantic_paraphrase_top1": 0.5167,
+      "semantic_paraphrase_top5": 0.65,
+      "multi_hop_top1": 0.0,
+      "multi_hop_top5": 0.0,
+      "contradiction_top1": 0.3,
+      "contradiction_top5": 0.5333,
+      "absent_answer_top1": null,
+      "absent_answer_top5": null,
+      "signal_gap": -0.003
+    },
+    "with_multi_hop_decomposition": {
+      "exact_turn_lookup_top1": 0.62,
+      "exact_turn_lookup_top5": 0.66,
+      "semantic_paraphrase_top1": 0.5167,
+      "semantic_paraphrase_top5": 0.65,
+      "multi_hop_top1": 0.0,
+      "multi_hop_top5": 0.0333,
+      "contradiction_top1": 0.3,
+      "contradiction_top5": 0.5333,
+      "absent_answer_top1": null,
+      "absent_answer_top5": null,
+      "signal_gap": -0.0244
+    },
+    "keyword_baseline": {
+      "exact_turn_lookup_top1": 0.68,
+      "exact_turn_lookup_top5": 0.7,
+      "semantic_paraphrase_top1": 0.4,
+      "semantic_paraphrase_top5": 0.4667,
+      "multi_hop_top1": 0.0,
+      "multi_hop_top5": 0.0,
+      "contradiction_top1": 0.0333,
+      "contradiction_top5": 0.2667
+    }
+  },
+  "samples": [
+    {
+      "query_id": 0,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-317?",
+      "expected_turn_ids": [
+        533
+      ],
+      "ensemble_top3": [
+        [
+          533,
+          0.364,
+          "For subsystem-317, we decided to use Docker."
+        ],
+        [
+          251,
+          0.319,
+          "For subsystem-31, we decided to use Docker."
+        ],
+        [
+          244,
+          0.303,
+          "For subsystem-349, we decided to use FastAPI."
+        ]
+      ],
+      "keyword_top3": [
+        [
+          533,
+          0.3,
+          "For subsystem-317, we decided to use Docker."
+        ],
+        [
+          5,
+          0.222,
+          "For subsystem-78, we picked Kubernetes."
+        ],
+        [
+          6,
+          0.222,
+          "For subsystem-853, we picked Postgres."
+        ]
+      ]
+    },
+    {
+      "query_id": 1,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_36 module?",
+      "expected_turn_ids": [
+        25
+      ],
+      "ensemble_top3": [
+        [
+          25,
+          0.418,
+          "I put the module_36 module under src/project_x/experiments/m"
+        ],
+        [
+          652,
+          0.332,
+          "I put the module_332 module under src/project_x/experiments/"
+        ],
+        [
+          918,
+          0.329,
+          "I put the module_930 module under src/project_x/experiments/"
+        ]
+      ],
+      "keyword_top3": [
+        [
+          25,
+          0.333,
+          "I put the module_36 module under src/project_x/experiments/m"
+        ],
+        [
+          7,
+          0.2,
+          "I put the module_495 module under src/project_x/experiments/"
+        ],
+        [
+          31,
+          0.2,
+          "I put the module_905 module under src/project_x/experiments/"
+        ]
+      ]
+    },
+    {
+      "query_id": 2,
+      "type": "exact_turn_lookup",
+      "text": "Where is the module_425 module?",
+      "expected_turn_ids": [
+        312
+      ],
+      "ensemble_top3": [
+        [
+          7,
+          0.332,
+          "I put the module_495 module under src/project_x/experiments/"
+        ],
+        [
+          386,
+          0.332,
+          "I put the module_625 module under src/project_x/experiments/"
+        ],
+        [
+          918,
+          0.321,
+          "I put the module_930 module under src/project_x/experiments/"
+        ]
+      ],
+      "keyword_top3": [
+        [
+          7,
+          0.2,
+          "I put the module_495 module under src/project_x/experiments/"
+        ],
+        [
+          25,
+          0.2,
+          "I put the module_36 module under src/project_x/experiments/m"
+        ],
+        [
+          31,
+          0.2,
+          "I put the module_905 module under src/project_x/experiments/"
+        ]
+      ]
+    },
+    {
+      "query_id": 30,
+      "type": "exact_turn_lookup",
+      "text": "What did we decide for subsystem-397?",
+      "expected_turn_ids": [
+        368
+      ],
+      "ensemble_top3": [
+        [
+          368,
+          0.369,
+          "For subsystem-397, we decided to use Docker."
+        ],
+        [
+          889,
+          0.308,
+          "For subsystem-117, we decided to use FastAPI."
+        ],
+        [
+          244,
+          0.305,
+          "For subsystem-349, we decided to use FastAPI."
+        ]
+      ],
+      "keyword_top3": [
+        [
+          368,
+          0.3,
+          "For subsystem-397, we decided to use Docker."
+        ],
+        [
+          5,
+          0.222,
+          "For subsystem-78, we picked Kubernetes."
+        ],
+        [
+          6,
+          0.222,
+          "For subsystem-853, we picked Postgres."
+        ]
+      ]
+    },
+    {
+      "query_id": 60,
+      "type": "semantic_paraphrase",
+      "text": "what did we pick for subsystem-973?",
+      "expected_turn_ids": [
+        77
+      ],
+      "ensemble_top3": [
+        [
+          77,
+          0.359,
+          "For subsystem-973, we chose Nginx."
+        ],
+        [
+          360,
+          0.328,
+          "For subsystem-835, we picked Nginx."
+        ],
+        [
+          448,
+          0.321,
+          "For subsystem-432, we picked Nginx."
+        ]
+      ],
+      "keyword_top3": [
+        [
+          77,
+          0.375,
+          "For subsystem-973, we chose Nginx."
+        ],
+        [
+          5,
+          0.222,
+          "For subsystem-78, we picked Kubernetes."
+        ],
+        [
+          6,
+          0.222,
+          "For subsystem-853, we picked Postgres."
+        ]
+      ]
+    },
+    {
+      "query_id": 120,
+      "type": "multi_hop",
+      "text": "What do Bob and Alice prefer?",
+      "expected_turn_ids": [
+        990,
+        995
+      ],
+      "ensemble_top3": [
+        [
+          812,
+          0.253,
+          "Alice prefers Go."
+        ],
+        [
+          670,
+          0.243,
+          "Alice prefers Zig."
+        ],
+        [
+          385,
+          0.243,
+          "Alice prefers Zig."
+        ]
+      ],
+      "keyword_top3": [
+        [
+          81,
+          0.125,
+          "Alice likes Haskell."
+        ],
+        [
+          221,
+          0.125,
+          "Alice prefers Python."
+        ],
+        [
+          272,
+          0.125,
+          "Alice likes Go."
+        ]
+      ]
+    },
+    {
+      "query_id": 150,
+      "type": "contradiction",
+      "text": "What is the latest pick for subsystem-159?",
+      "expected_turn_ids": [
+        757
+      ],
+      "ensemble_top3": [
+        [
+          33,
+          0.304,
+          "For subsystem-159, we picked Redis."
+        ],
+        [
+          754,
+          0.231,
+          "For subsystem-156, we picked Postgres."
+        ],
+        [
+          360,
+          0.227,
+          "For subsystem-835, we picked Nginx."
+        ]
+      ],
+      "keyword_top3": [
+        [
+          1003,
+          0.231,
+          "Scrap that, nginx is the new pick instead of nginx."
+        ],
+        [
+          1000,
+          0.214,
+          "Scrap that, go is the new pick instead of haskell."
+        ],
+        [
+          33,
+          0.2,
+          "For subsystem-159, we picked Redis."
+        ]
+      ]
+    },
+    {
+      "query_id": 195,
+      "type": "absent_answer",
+      "text": "Where is the missing_module_7385 module?",
+      "expected_turn_ids": [],
+      "ensemble_top3": [
+        [
+          687,
+          0.303,
+          "I put the module_782 module under src/project_x/experiments/"
+        ],
+        [
+          853,
+          0.301,
+          "I put the module_74 module under src/project_x/experiments/m"
+        ],
+        [
+          457,
+          0.3,
+          "I put the module_737 module under src/project_x/experiments/"
+        ]
+      ],
+      "keyword_top3": [
+        [
+          7,
+          0.2,
+          "I put the module_495 module under src/project_x/experiments/"
+        ],
+        [
+          25,
+          0.2,
+          "I put the module_36 module under src/project_x/experiments/m"
+        ],
+        [
+          31,
+          0.2,
+          "I put the module_905 module under src/project_x/experiments/"
+        ]
+      ]
+    }
+  ],
+  "notes": [
+    "ensemble_only: standard ensemble cosines for ALL query types.",
+    "with_multi_hop_decomposition: ensemble for non-multi-hop, query-decomposition union-top-5 for multi-hop.",
+    "keyword_baseline: simple Jaccard token overlap \u2014 must lose to ensemble on paraphrase to justify HDC."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "test": "snn_bridge",
+  "D": 10000,
+  "rows": [
+    {
+      "seed": 1337,
+      "deterministic_round_trip": true,
+      "cos_sim_cross_input_mean": 0.41803999999999997,
+      "cos_sim_cross_input_std": 0.06480702431064089,
+      "self_cosine_self": 1.0,
+      "pos_fraction_in_encoding": 0.5,
+      "wall_seconds": 0.040282249450683594
+    },
+    {
+      "seed": 2026,
+      "deterministic_round_trip": true,
+      "cos_sim_cross_input_mean": 0.35944,
+      "cos_sim_cross_input_std": 0.0717230674190668,
+      "self_cosine_self": 1.0,
+      "pos_fraction_in_encoding": 0.5,
+      "wall_seconds": 0.038915395736694336
+    },
+    {
+      "seed": 3001,
+      "deterministic_round_trip": true,
+      "cos_sim_cross_input_mean": 0.36724,
+      "cos_sim_cross_input_std": 0.10549213430393756,
+      "self_cosine_self": 1.0,
+      "pos_fraction_in_encoding": 0.5,
+      "wall_seconds": 0.038663625717163086
+    }
+  ]
+}

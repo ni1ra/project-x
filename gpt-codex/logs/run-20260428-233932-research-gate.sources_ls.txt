@@ -1,0 +1,24 @@
+total 39M
+-rwxrwxrwx 1 nira nira 622K Apr 29 01:40 allmem.pdf
+-rwxrwxrwx 1 nira nira 4.9M Apr 29 01:40 deepseek-r1.pdf
+-rwxrwxrwx 1 nira nira 1.6M Apr 29 01:40 deepseek-v2.pdf
+-rwxrwxrwx 1 nira nira 1.8M Apr 29 01:40 deepseek-v3.pdf
+-rwxrwxrwx 1 nira nira 4.3M Apr 29 01:40 deepseek-v4-report.pdf
+-rwxrwxrwx 1 nira nira 717K Apr 29 01:40 deepseekmoe.pdf
+-rwxrwxrwx 1 nira nira 1.6M Apr 29 01:40 flashattention2.pdf
+-rwxrwxrwx 1 nira nira 275K Apr 29  2026 fp8-formats.pdf
+-rwxrwxrwx 1 nira nira 263K Apr 29 01:40 gqa.pdf
+-rwxrwxrwx 1 nira nira 1.7M Apr 29 01:40 gshard.pdf
+-rwxrwxrwx 1 nira nira 1.3M Apr 29 01:40 jamba.pdf
+-rwxrwxrwx 1 nira nira 1.3M Apr 29 01:40 longrope.pdf
+-rwxrwxrwx 1 nira nira 1.2M Apr 29 01:40 mamba.pdf
+-rwxrwxrwx 1 nira nira 3.4M Apr 29 01:40 memmamba.pdf
+-rwxrwxrwx 1 nira nira 827K Apr 29 01:40 mla-hardware.pdf
+-rwxrwxrwx 1 nira nira 2.0M Apr 29 01:40 muon-scalable.pdf
+-rwxrwxrwx 1 nira nira 1.4M Apr 29 01:40 native-sparse-attention.pdf
+-rwxrwxrwx 1 nira nira 2.3M Apr 29 01:40 openai-gpt-5-5-system-card.pdf
+drwxrwxrwx 1 nira nira 4.0K Apr 29 01:40 pages
+-rwxrwxrwx 1 nira nira 1.7M Apr 29 01:40 ring-attention.pdf
+-rwxrwxrwx 1 nira nira 1.3M Apr 29 01:40 switch-transformer.pdf
+-rwxrwxrwx 1 nira nira 3.5M Apr 29 01:40 titans.pdf
+-rwxrwxrwx 1 nira nira 819K Apr 29 01:40 yarn.pdf

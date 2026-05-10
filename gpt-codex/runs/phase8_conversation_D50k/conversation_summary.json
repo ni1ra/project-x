@@ -1,0 +1,22 @@
+{
+  "test": "conversation_demo",
+  "D": 50000,
+  "n_turns": 1000,
+  "n_vocab": 200,
+  "rows": [
+    {
+      "seed": 1337,
+      "retrieval_accuracy": 0.995,
+      "memory_size_kb": 195.3125,
+      "wall_s": 4.011118650436401
+    },
+    {
+      "seed": 2026,
+      "retrieval_accuracy": 0.99,
+      "memory_size_kb": 195.3125,
+      "wall_s": 3.962845802307129
+    }
+  ],
+  "retrieval_accuracy_mean": 0.9924999999999999,
+  "retrieval_accuracy_std": 0.0025000000000000022
+}

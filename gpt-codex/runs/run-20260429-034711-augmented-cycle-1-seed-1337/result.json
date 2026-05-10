@@ -1,0 +1,53 @@
+{
+  "run_id": "run-20260429-034711-augmented-cycle-1-seed-1337",
+  "mode": "test",
+  "device": "cpu",
+  "config": {
+    "vocab_size": 64,
+    "dim": 32,
+    "heads": 4,
+    "depth": 1,
+    "seq_len": 48,
+    "batch_size": 4,
+    "steps": 20,
+    "eval_batches": 3,
+    "local_window": 12,
+    "medium_block": 4,
+    "medium_top_k": 4,
+    "heavy_block": 16,
+    "assoc_loss_weight": 1.0,
+    "distill_weight": 0.1,
+    "memory_byte_weight": 0.05,
+    "lr": 0.0003,
+    "seed": 1337
+  },
+  "control": {
+    "loss": 4.312184492746989,
+    "delayed_assoc_loss": 4.351809819539388,
+    "delayed_assoc_acc": 0.0,
+    "selector_entropy": 0.0,
+    "selected_block_age": 0.0,
+    "name": "transformer_control",
+    "train_loss_last": 9.234066009521484,
+    "seconds": 0.04109048843383789,
+    "parameter_count": 18668,
+    "estimated_memory_bytes": 12288
+  },
+  "candidate": {
+    "loss": 4.30389928817749,
+    "delayed_assoc_loss": 4.3032426834106445,
+    "delayed_assoc_acc": 0.08333333333333333,
+    "selector_entropy": 1.0692565441131592,
+    "selected_block_age": 3.2029079596201577,
+    "name": "dual_rate_compressed_memory",
+    "train_loss_last": 9.154016494750977,
+    "seconds": 0.38927721977233887,
+    "parameter_count": 18668,
+    "estimated_memory_bytes": 6912
+  },
+  "comparison": {
+    "loss_regression": -0.00192134742459061,
+    "memory_improvement": 0.4375,
+    "passed_initial_gate": true
+  }
+}

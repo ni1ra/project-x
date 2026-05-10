@@ -1,0 +1,88 @@
+{
+  "cell_id": "phase8_conversation_D20000_T500_V100_seed1337",
+  "config": {
+    "test": "conversation_demo",
+    "D": 20000,
+    "n_turns": 500,
+    "n_vocab": 100,
+    "n_queried": 100,
+    "seed": 1337
+  },
+  "metrics": {
+    "retrieval_accuracy": 1.0,
+    "memory_size_kb": 78.125,
+    "wall_seconds": 0.13297462463378906
+  },
+  "sample_retrievals": [
+    {
+      "queried_turn": 57,
+      "true_vocab_idx": 67,
+      "predicted_vocab_idx": 67,
+      "cleanup_similarity_norm": 0.0184,
+      "correct": true
+    },
+    {
+      "queried_turn": 415,
+      "true_vocab_idx": 52,
+      "predicted_vocab_idx": 52,
+      "cleanup_similarity_norm": 0.0351,
+      "correct": true
+    },
+    {
+      "queried_turn": 455,
+      "true_vocab_idx": 11,
+      "predicted_vocab_idx": 11,
+      "cleanup_similarity_norm": 0.0492,
+      "correct": true
+    },
+    {
+      "queried_turn": 257,
+      "true_vocab_idx": 7,
+      "predicted_vocab_idx": 7,
+      "cleanup_similarity_norm": 0.046,
+      "correct": true
+    },
+    {
+      "queried_turn": 400,
+      "true_vocab_idx": 68,
+      "predicted_vocab_idx": 68,
+      "cleanup_similarity_norm": 0.0315,
+      "correct": true
+    },
+    {
+      "queried_turn": 204,
+      "true_vocab_idx": 44,
+      "predicted_vocab_idx": 44,
+      "cleanup_similarity_norm": 0.0423,
+      "correct": true
+    },
+    {
+      "queried_turn": 312,
+      "true_vocab_idx": 63,
+      "predicted_vocab_idx": 63,
+      "cleanup_similarity_norm": 0.0236,
+      "correct": true
+    },
+    {
+      "queried_turn": 344,
+      "true_vocab_idx": 83,
+      "predicted_vocab_idx": 83,
+      "cleanup_similarity_norm": 0.0434,
+      "correct": true
+    },
+    {
+      "queried_turn": 474,
+      "true_vocab_idx": 10,
+      "predicted_vocab_idx": 10,
+      "cleanup_similarity_norm": 0.036,
+      "correct": true
+    },
+    {
+      "queried_turn": 23,
+      "true_vocab_idx": 27,
+      "predicted_vocab_idx": 27,
+      "cleanup_similarity_norm": 0.0323,
+      "correct": true
+    }
+  ]
+}

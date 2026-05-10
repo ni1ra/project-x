@@ -1,0 +1,162 @@
+{
+  "run_id": "run-20260428-233932-research-gate",
+  "generated_utc": "2026-04-28T23:42:59Z",
+  "total": 22,
+  "extracted": 22,
+  "items": [
+    {
+      "id": "allmem",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 58414,
+      "status": "extracted"
+    },
+    {
+      "id": "deepseek-r1",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 312132,
+      "status": "extracted"
+    },
+    {
+      "id": "deepseek-v2",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 144000,
+      "status": "extracted"
+    },
+    {
+      "id": "deepseek-v3",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 194230,
+      "status": "extracted"
+    },
+    {
+      "id": "deepseek-v4-report",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 215103,
+      "status": "extracted"
+    },
+    {
+      "id": "deepseekmoe",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 137939,
+      "status": "extracted"
+    },
+    {
+      "id": "flashattention2",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 78947,
+      "status": "extracted"
+    },
+    {
+      "id": "fp8-formats",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 38455,
+      "status": "extracted"
+    },
+    {
+      "id": "gqa",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 34313,
+      "status": "extracted"
+    },
+    {
+      "id": "gshard",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 153006,
+      "status": "extracted"
+    },
+    {
+      "id": "jamba",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 63892,
+      "status": "extracted"
+    },
+    {
+      "id": "longrope",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 86659,
+      "status": "extracted"
+    },
+    {
+      "id": "mamba",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 188862,
+      "status": "extracted"
+    },
+    {
+      "id": "memmamba",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 65770,
+      "status": "extracted"
+    },
+    {
+      "id": "mla-hardware",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 48220,
+      "status": "extracted"
+    },
+    {
+      "id": "muon-scalable",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 94159,
+      "status": "extracted"
+    },
+    {
+      "id": "native-sparse-attention",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 85187,
+      "status": "extracted"
+    },
+    {
+      "id": "openai-gpt-5-5-system-card",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 106826,
+      "status": "extracted"
+    },
+    {
+      "id": "ring-attention",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 60948,
+      "status": "extracted"
+    },
+    {
+      "id": "switch-transformer",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 131641,
+      "status": "extracted"
+    },
+    {
+      "id": "titans",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 125326,
+      "status": "extracted"
+    },
+    {
+      "id": "yarn",
+      "pdf_exists": true,
+      "text_exists": true,
+      "extracted_chars": 69291,
+      "status": "extracted"
+    }
+  ]
+}

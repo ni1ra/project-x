@@ -1,0 +1,204 @@
+{
+  "run_id": "phase9_dataset_T1005_Q200_seed5050",
+  "config": {
+    "n_turns_requested": 1000,
+    "n_turns_actual": 1005,
+    "n_queries_requested": 200,
+    "n_queries_actual": 200,
+    "seed": 5050
+  },
+  "metrics": {
+    "wall_seconds": 0.0413,
+    "turn_category_distribution": {
+      "filler": 500,
+      "file_path": 157,
+      "decision": 186,
+      "preference": 157,
+      "contradiction": 5
+    },
+    "query_type_distribution": {
+      "exact_turn_lookup": 50,
+      "semantic_paraphrase": 60,
+      "multi_hop": 30,
+      "contradiction": 30,
+      "absent_answer": 30
+    },
+    "n_facts": 326,
+    "n_superseded_facts": 5
+  },
+  "samples": {
+    "turns": [
+      {
+        "turn_id": 0,
+        "speaker": "Dave",
+        "text": "running tests now.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 1,
+        "speaker": "Dave",
+        "text": "meeting at three.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 2,
+        "speaker": "Grace",
+        "text": "running tests now.",
+        "category": "filler",
+        "fact_keys": [],
+        "salience": 0.2,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": null
+      },
+      {
+        "turn_id": 3,
+        "speaker": "Frank",
+        "text": "look in src/project_x/experiments/module_695.py for the module_695 code",
+        "category": "file_path",
+        "fact_keys": [
+          "file:module_695"
+        ],
+        "salience": 1.0,
+        "decision_id": null,
+        "supersedes_turn_id": null,
+        "file_path": "src/project_x/experiments/module_695.py"
+      },
+      {
+        "turn_id": 4,
+        "speaker": "Grace",
+        "text": "For subsystem-193, we settled on Vercel.",
+        "category": "decision",
+        "fact_keys": [
+          "dec:subsystem-193"
+        ],
+        "salience": 1.0,
+        "decision_id": 118,
+        "supersedes_turn_id": null,
+        "file_path": null
+      }
+    ],
+    "queries": [
+      {
+        "query_id": 0,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_458 module?",
+        "expected_turn_ids": [
+          136
+        ],
+        "expected_answer": "src/project_x/experiments/module_458.py",
+        "fact_key": "file:module_458",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 1,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_267 module?",
+        "expected_turn_ids": [
+          36
+        ],
+        "expected_answer": "src/project_x/experiments/module_267.py",
+        "fact_key": "file:module_267",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 2,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_867 module?",
+        "expected_turn_ids": [
+          163
+        ],
+        "expected_answer": "src/project_x/experiments/module_867.py",
+        "fact_key": "file:module_867",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 3,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-342?",
+        "expected_turn_ids": [
+          348
+        ],
+        "expected_answer": "Kafka",
+        "fact_key": "dec:subsystem-342",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 4,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-147?",
+        "expected_turn_ids": [
+          760
+        ],
+        "expected_answer": "Kafka",
+        "fact_key": "dec:subsystem-147",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 5,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-728?",
+        "expected_turn_ids": [
+          605
+        ],
+        "expected_answer": "Kafka",
+        "fact_key": "dec:subsystem-728",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 6,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_902 module?",
+        "expected_turn_ids": [
+          408
+        ],
+        "expected_answer": "src/project_x/experiments/module_902.py",
+        "fact_key": "file:module_902",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 7,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-620?",
+        "expected_turn_ids": [
+          271
+        ],
+        "expected_answer": "Kafka",
+        "fact_key": "dec:subsystem-620",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 8,
+        "type": "exact_turn_lookup",
+        "text": "What did we decide for subsystem-220?",
+        "expected_turn_ids": [
+          659
+        ],
+        "expected_answer": "FastAPI",
+        "fact_key": "dec:subsystem-220",
+        "difficulty": "easy"
+      },
+      {
+        "query_id": 9,
+        "type": "exact_turn_lookup",
+        "text": "Where is the module_846 module?",
+        "expected_turn_ids": [
+          987
+        ],
+        "expected_answer": "src/project_x/experiments/module_846.py",
+        "fact_key": "file:module_846",
+        "difficulty": "easy"
+      }
+    ]
+  }
+}
