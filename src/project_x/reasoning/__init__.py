@@ -21,10 +21,12 @@ from project_x.reasoning.symbolic import (
     expand_characteristic_polynomial_2x2,
     solve_quadratic,
 )
+from project_x.reasoning.verifier import numerical_verify
 
 __all__ = [
     "DerivationStep",
     "Lemma",
     "expand_characteristic_polynomial_2x2",
+    "numerical_verify",
     "solve_quadratic",
 ]
