@@ -82,6 +82,37 @@ _ASSERT_HINTS = (
 )
 
 
+# Phase 12 #00P12-retrieval-mode-disambiguation. Query-shape patterns that
+# suggest the caller wants the full chronological history of a subject's
+# facts, not just the latest. These are CONSERVATIVE patterns — they must
+# NOT match plain current-preference queries ("What does Alice prefer?"
+# lacks every hint). The subject-extraction gate in MemoryAgent.process
+# provides the second safety layer: route to full-history retrieval only
+# when the query ALSO names a known fact_graph subject. Phase 11 verdict's
+# memory-004 ("List all of Alice's preference changes...") and memory-005
+# ("Summarize Alice's trajectory...") were the failure cases that drove
+# this list — see docs/artifacts/PHASE_11_BENCHMARK.md memory section.
+_LIST_ALL_HINTS = (
+    "list all", "all of", "summarize", "trajectory",
+    "history of", "all changes", "in chronological order",
+    "in order", "every change", "full history",
+)
+
+
+def _is_list_all_query(text: str) -> bool:
+    """Returns True if `text` shape suggests caller wants full chronological
+    history rather than current state. Used by MemoryAgent.process to route
+    between retrieve_structural (strict-dominance, latest-wins) and
+    retrieve_structural_full_history (chronological, all-turns).
+
+    Conservative — must combine with subject-extraction gate at call site
+    (only route to full-history when query names a known fact_graph subject).
+    Phase 12 #00P12 — closes Phase 11 memory-004 / memory-005 red findings.
+    """
+    lower = text.lower()
+    return any(hint in lower for hint in _LIST_ALL_HINTS)
+
+
 def classify_input(text: str) -> str:
     """Returns 'question' if input asks something, else 'assertion'.
 
@@ -108,11 +139,20 @@ def compose_answer(
     query: str,
     evidence: list[EvidencePacket],
     cosine_threshold: float = 0.25,
+    full_history: bool = False,
 ) -> tuple[str, str, float]:
     """Returns (answer_text, decision_label, confidence).
 
     Template rules:
       - Empty evidence → "No evidence" with confidence 0.
+      - full_history=True (Phase 12 #00P12) → cite ALL evidence chronologically;
+        SKIP cosine_threshold filter so the full subject chain emits rather
+        than collapsing to threshold-filtered top picks. Decision label
+        'retrieve_full_history' surfaces the routing for downstream provenance.
+        Caller (MemoryAgent.process) flips this on 'list all' / 'summarize'
+        queries that named a known fact_graph subject — closes Phase 11
+        memory-004 (cited turn 7 only; expected [0,3,5,7]) and memory-005
+        (cited turn 9 only; expected [1,3,5,7,9]) red findings.
       - Top evidence cosine < threshold → "No evidence (below threshold)" — flips
         absent_answer queries to honest non-answers when retrieval cosine is weak.
       - Single high-confidence evidence → quote turn text + cite turn_id + cosine.
@@ -120,6 +160,23 @@ def compose_answer(
     """
     if not evidence:
         return ("No evidence found in conversation memory.", "absent", 0.0)
+
+    # Phase 12 #00P12: full-history short-circuit — cite all evidence in
+    # chronological order without applying cosine_threshold. Older turns
+    # within a subject's history typically score below the 0.32 default
+    # (the strict-dominance boost is the only thing that lifts the latest
+    # turn over threshold in retrieve_structural); the chronological path
+    # surfaces those older turns deliberately and the caller knows they're
+    # the answer to "list all" / "summarize trajectory" prompts.
+    if full_history:
+        ids = [str(e.turn_id) for e in evidence]
+        parts = [f"'{e.text}'" for e in evidence]
+        top_cos = max(e.cosine for e in evidence)
+        return (
+            f"Based on turns {', '.join(ids)}: {' AND '.join(parts)}",
+            "retrieve_full_history",
+            top_cos,
+        )
 
     top_cos = max(e.cosine for e in evidence)
     if top_cos < cosine_threshold:
@@ -223,12 +280,28 @@ class MemoryAgent:
                 evidence=[], decision="write", confidence=1.0,
             )
 
-        # Question path — retrieve + compose. Phase 10 P3: prefer structural
-        # retrieval (fact-graph + ensemble cosine + recency boost) so contradiction
-        # queries surface the latest revision turn and known-subject queries get
-        # the right candidate set. Falls through to pure cosine when query mentions
-        # no known subjects (e.g., absent_answer with phantom names).
-        top_k = self.memory.retrieve_structural(text, k=self.k_retrieve)
+        # Question path — Phase 12 #00P12 retrieval-mode disambiguation:
+        # Phase 11 verdict surfaced that the Phase 10 P3 strict-dominance
+        # boost (max_in_subject + 1.0 in `_structural_cosines`) collapses
+        # 'list all changes' / 'summarize trajectory' queries to top-1 only.
+        # Route those queries to retrieve_structural_full_history (chronological,
+        # no boost) instead. Subject-extraction gate keeps current-preference
+        # queries on the existing strict-dominance path (memory-001/002/003
+        # regression-safe). full_history_mode threads through to compose_answer
+        # so the cosine_threshold filter is bypassed for the chronological
+        # short-circuit.
+        full_history_mode = (
+            _is_list_all_query(text)
+            and bool(self.memory._extract_query_subjects(text))
+        )
+        if full_history_mode:
+            top_k = self.memory.retrieve_structural_full_history(text, k=None)
+        else:
+            # Phase 10 P3: prefer structural retrieval so contradiction queries
+            # surface the latest revision turn and known-subject queries get
+            # the right candidate set; falls through to pure cosine when no
+            # known subjects (absent_answer with phantom names).
+            top_k = self.memory.retrieve_structural(text, k=self.k_retrieve)
         evidence = [
             EvidencePacket(
                 turn_id=t_id, cosine=cos,
@@ -237,7 +310,9 @@ class MemoryAgent:
             for t_id, cos, record in top_k
         ]
         answer_text, decision_label, confidence = compose_answer(
-            text, evidence, cosine_threshold=self.cosine_threshold,
+            text, evidence,
+            cosine_threshold=self.cosine_threshold,
+            full_history=full_history_mode,
         )
         return AnswerPacket(
             query=text, answer_text=answer_text,
