@@ -185,3 +185,8 @@ def test_classifier_sanity():
     assert not _is_list_all_query("Who picked Python?")
     assert not _is_list_all_query("What is Alice's current job?")
     assert not _is_list_all_query("Where does Bob live?")
+    # Phase 12 cycle 5 advisor catch: "in order" subjunctive must NOT match
+    # (was a false-positive risk under the bare "in order" pattern; the
+    # pattern was tightened to "in chronological order" only).
+    assert not _is_list_all_query("What does Alice need to do in order to succeed?")
+    assert not _is_list_all_query("Bob arranged the books in order on the shelf.")

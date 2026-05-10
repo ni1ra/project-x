@@ -95,7 +95,12 @@ _ASSERT_HINTS = (
 _LIST_ALL_HINTS = (
     "list all", "all of", "summarize", "trajectory",
     "history of", "all changes", "in chronological order",
-    "in order", "every change", "full history",
+    "every change", "full history",
+    # NB: bare "in order" was DROPPED 2026-05-10 (Phase 12 cycle 5 advisor pass) —
+    # false-positive risk on subjunctive "in order to..." queries that name a
+    # known fact_graph subject (e.g., "What does Alice need to do in order to
+    # succeed?" would falsely route to full-history). The longer pattern
+    # "in chronological order" still matches that explicit list-all framing.
 )
 
 
