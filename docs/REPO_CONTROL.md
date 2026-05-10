@@ -69,7 +69,7 @@ Exemptions (don't need rows):
 |---|---|
 | `__init__.py` | Package marker (empty). |
 | `semantic_hdc_memory.py` | Layer 3 — `SemanticHDCMemory`: HDC accumulator + fact-graph (P3 subject indexing) + structural retrieval + HDC role-filler binding (#00c-2) + incremental `write_one` (audit-D2 amortized-O(1) growth) + `replay_consolidate` (P4) + `retrieve_structural_full_history` (Phase 12). turn_id ↔ row mapping (audit-A1) for non-contiguous IDs. `extract_query_subjects` is the public API surface (audit-C1). |
-| `semantic_memory_agent.py` | Layer 4 — `MemoryAgent.process(text)` rule-based controller; routes write vs retrieve; `_LIST_ALL_HINTS` classifier (Phase 12) routes list-all queries to `retrieve_structural_full_history`; template composer (NO LLM); evidence packet with cited turn IDs; absent-answer threshold gating; `compose_answer` formats single-turn / multi-turn / full-history evidence. |
+| `semantic_memory_agent.py` | Layer 4 — `MemoryAgent.process(text)` rule-based controller; routes write vs retrieve; `_LIST_ALL_HINTS` classifier (Phase 12) routes list-all queries to `retrieve_structural_full_history`; template composer (NO LLM); evidence packet with cited turn IDs; absent-answer threshold gating; `compose_answer` formats single-turn / multi-turn / full-history evidence. **Phase 13 #00P13c1-01-sandbox additions:** `SANDBOX_ROOT` module constant (`<repo>/sandbox` resolved at module load), `_validate_sandbox_path` primitive (refuses absolute / `..`-traversal / symlink-escape), 4 sandbox tools (`_tool_{read_file,write_file,run_python,list_dir}_sandbox`) registered alongside legacy `_tool_read_file` in `MemoryAgent.tools` default factory. |
 | `semantic_memory_dataset.py` | Phase 9 synthetic-real conversation generator + labeled query set (P1 contradiction-label fix). |
 | `encoder.py` | Char-n-gram + Hebbian organic encoders. From-scratch; no pretrained transformers. |
 | `random_index_hebbian.py` | Hebbian co-occurrence encoder + replay-consolidation extension. `fit(reset=True)` (audit-A2) for idempotent re-fit. Sparse-ternary index vectors + Mikolov subsampling + optional negative sampling. |
@@ -126,6 +126,7 @@ Exemptions (don't need rows):
 | `test_semantic_memory_dataset.py` | Phase 9 synthetic dataset gen. |
 | `test_smoke.py` | Phase 1-6 legacy scaffolding smoke. `pytest.importorskip("torch")` (audit-C2). |
 | `test_benchmark_harness.py` | Audit-D3 — invokes `gpt-codex/benchmark/run_audit.py` in-process; asserts auto-graded entries replay green. |
+| `test_sandbox.py` | Phase 13 #00P13c1-01-sandbox — covers `_validate_sandbox_path` primitive + 4 sandbox tools + `MemoryAgent.tools` registration + escape-attempt refusal (absolute path / `..` traversal / symlink-out). 18 tests; isolation via `monkeypatch.setattr(sma, "SANDBOX_ROOT", tmp_path/"sandbox")`. |
 
 ## `gpt-codex/` — Phase 9-12 inputs + benchmark + run results
 
@@ -134,6 +135,12 @@ Exemptions (don't need rows):
 | `gpt-codex/benchmark/` | Phase 11 Raphael Domain Benchmark Suite. 6 domain ladders × 6 entries (`physics/`, `maths/`, `memory/`, `persona/`, `philosophy/`, `poetry/`), each with `ladder.jsonl` + `rubric.md`. M-PROJECTX-014 firewall: NO `self_score` field. Aggregate `audit_log.jsonl` + `verdict.md`. |
 | `gpt-codex/benchmark/run_audit.py` | Audit-D3 harness — replays auto-graded entries against the live stack each commit. |
 | `gpt-codex/runs/` | Per-run aggregate `result.json` directories (Phase 1-9 sweeps + Phase 9 encoders). Frozen-per-phase. **Audit-F2 retention policy**: NEW dirs gitignored by default (`gpt-codex/runs/*/`); already-tracked Phase 1-10 evidence stays tracked; promotion via `git add -f` after a verdict cites the run. See MANIFESTO § retention policy. |
+
+## `sandbox/` — Project X Raphael action-taking workspace (Phase 13 #00P13c1-01)
+
+| Path | Justification |
+|---|---|
+| `sandbox/.gitkeep` | Empty marker so the locked-folder root is tracked by git. The agent (Project X Raphael) operates ONLY inside this directory via the 4 sandbox tools registered on `MemoryAgent.tools`: `read_file_sandbox`, `write_file_sandbox`, `run_python_sandbox`, `list_dir_sandbox`. Path validation in `semantic_memory_agent.py::_validate_sandbox_path` is the security boundary; absolute paths, `..` traversal, and symlinks pointing outside are refused. Cycle 2+ may add subprocess env stripping, urllib/socket blocking, /dev/tcp blocking — deferred per Phase 13 cycle 1 corpse "MINIMUM viable" framing. Snapshot/reset machinery lives in `scripts/sandbox/`. |
 | `gpt-codex/notes/` | Reading notes (`architecture_mechanisms_matrix.md`, `deepseek_v4_reading_notes.md`, `frontier_model_notes.md`, `open_questions.md`). |
 | `gpt-codex/brainstorm/` | Phase 1 ideation artifacts (`ARCHITECTURE_CANDIDATES.md`, `FINAL_RECOMMENDATION.md`, `IDEA_BANK.md`, `KILL_CRITERIA.md`, `NOVELTY_MATRIX.md`, `TOP_3_DESIGNS.md`). Frozen historical record. |
 | `gpt-codex/logs/` | Curl/pdftotext logs from Phase 1 source ingestion. |
@@ -158,6 +165,8 @@ Exemptions (don't need rows):
 | `generate_docs.py` | Source-doc generator (Phase 1 era). |
 | `phase7_baseline.sh`, `run_phase7_grid.sh`, `run_phase7_hbsweep.sh` | Phase 7 sweep runners. |
 | `plot_phase8_dscaling.py`, `plot_phase8_t4.py` | Plot generators for Phase 8 figures (the T4_*.png set in `docs/artifacts/`). |
+| `sandbox/reset.sh` | Phase 13 #00P13c1-01-sandbox — wipe `sandbox/` to empty (preserves `.gitkeep`). MINIMUM viable; cycle 2+ may add `--to-snapshot=<name>` for benchmark replay. |
+| `sandbox/snapshot.sh` | Phase 13 #00P13c1-01-sandbox — capture `sandbox/` state to `sandbox_snapshots/<name>/` (gitignored; local-only). MINIMUM viable; cycle 2+ wires restore + diff. |
 
 ## Upkeep contract (heartbeat-tracked)
 

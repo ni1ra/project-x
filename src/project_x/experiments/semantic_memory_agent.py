@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -235,6 +237,121 @@ def _tool_read_file(path: str, max_chars: int = 4096) -> str:
         return f"[tool error: {e}]"
 
 
+# =============================================================================
+# Sandbox primitives — Phase 13 #00P13c1-01-sandbox.
+# Locked folder for Project X Raphael (the agent) action-taking. Per MANIFESTO
+# § Terminus, the agent operates inside sandbox/ with no direct internet — the
+# perimeter is the security boundary. MINIMUM viable per cycle 1 corpse: path
+# validation only; defer subprocess env stripping, urllib/socket blocking,
+# and /dev/tcp blocking to a later cycle when something runs in here worth
+# protecting. Tests may monkey-patch SANDBOX_ROOT for isolation.
+# =============================================================================
+
+
+# Repo-root/sandbox at module-load. .resolve() locks against cwd shifts.
+SANDBOX_ROOT: Path = (
+    Path(__file__).resolve().parent.parent.parent.parent / "sandbox"
+).resolve()
+
+
+def _validate_sandbox_path(rel_path: str) -> Path:
+    """Resolve rel_path under SANDBOX_ROOT; refuse paths that escape.
+
+    Refusal modes (each raises ValueError):
+      - Absolute paths (e.g. "/etc/passwd").
+      - Relative paths whose resolution leaves SANDBOX_ROOT (".." traversal).
+      - Symlinks pointing outside (Path.resolve() follows symlinks before
+        relative_to() check, so a symlink inside sandbox/ → /tmp/foo gets
+        caught by relative_to).
+
+    Allowed: SANDBOX_ROOT itself (rel_path="." or "") and any nested path.
+    """
+    if os.path.isabs(rel_path):
+        raise ValueError(
+            f"sandbox path must be relative; got absolute: {rel_path!r}"
+        )
+    candidate = (SANDBOX_ROOT / rel_path).resolve()
+    try:
+        candidate.relative_to(SANDBOX_ROOT)
+    except ValueError as e:
+        raise ValueError(
+            f"path {rel_path!r} escapes sandbox root {SANDBOX_ROOT}"
+        ) from e
+    return candidate
+
+
+def _tool_read_file_sandbox(path: str, max_chars: int = 4096) -> str:
+    """Sandbox-restricted read. Refuses paths outside SANDBOX_ROOT."""
+    try:
+        target = _validate_sandbox_path(path)
+        if not target.exists():
+            return f"[sandbox: {path!r} does not exist]"
+        if not target.is_file():
+            return f"[sandbox: {path!r} is not a file]"
+        data = target.read_text(encoding="utf-8")
+        if len(data) > max_chars:
+            data = data[:max_chars] + "...[truncated]"
+        return data
+    except Exception as e:
+        return f"[sandbox tool error: {e}]"
+
+
+def _tool_write_file_sandbox(path: str, content: str) -> str:
+    """Sandbox-restricted write. Creates parent dirs as needed; refuses escape."""
+    try:
+        target = _validate_sandbox_path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return f"[sandbox: wrote {len(content)} chars to {path!r}]"
+    except Exception as e:
+        return f"[sandbox tool error: {e}]"
+
+
+def _tool_run_python_sandbox(script: str, timeout: int = 10) -> str:
+    """Run a Python script string with cwd inside SANDBOX_ROOT.
+
+    MINIMUM viable: subprocess inherits env (deferred env-stripping per cycle 1).
+    Timeout caps wall-clock so misbehaving scripts can't hang the agent.
+    Returns combined stdout+stderr+exitcode summary as the tool result.
+    """
+    try:
+        # Ensure SANDBOX_ROOT exists before invoking subprocess (tests with
+        # monkey-patched SANDBOX_ROOT may not have created the dir yet).
+        SANDBOX_ROOT.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            ["python3", "-c", script],
+            cwd=str(SANDBOX_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        return (
+            f"[sandbox python] exit={result.returncode}\n"
+            f"stdout: {result.stdout}"
+            + (f"stderr: {result.stderr}" if result.stderr else "")
+        )
+    except subprocess.TimeoutExpired:
+        return f"[sandbox: python script timeout after {timeout}s]"
+    except Exception as e:
+        return f"[sandbox tool error: {e}]"
+
+
+def _tool_list_dir_sandbox(path: str = ".") -> str:
+    """List entries in a sandbox directory. Refuses paths outside SANDBOX_ROOT."""
+    try:
+        target = _validate_sandbox_path(path)
+        if not target.exists():
+            return f"[sandbox: {path!r} does not exist]"
+        if not target.is_dir():
+            return f"[sandbox: {path!r} is not a directory]"
+        entries = sorted(p.name for p in target.iterdir())
+        if not entries:
+            return f"[sandbox: {path!r} is empty]"
+        return "\n".join(entries)
+    except Exception as e:
+        return f"[sandbox tool error: {e}]"
+
+
 @dataclass
 class MemoryAgent:
     memory: SemanticHDCMemory
@@ -250,7 +367,16 @@ class MemoryAgent:
     # lighter option ("extend MemoryAgent" vs "new ToolRuntime class"). Tools are
     # callables (str, **kwargs) -> str; agent.run_tool dispatches and writes the
     # result as a new memory turn.
-    tools: dict = field(default_factory=lambda: {"read_file": _tool_read_file})
+    # Phase 13 #00P13c1-01-sandbox: 4 sandbox-restricted tools join the registry
+    # alongside the existing unrestricted read_file. Path validation is the
+    # security boundary; cycle 2+ may add subprocess env stripping etc.
+    tools: dict = field(default_factory=lambda: {
+        "read_file": _tool_read_file,
+        "read_file_sandbox": _tool_read_file_sandbox,
+        "write_file_sandbox": _tool_write_file_sandbox,
+        "run_python_sandbox": _tool_run_python_sandbox,
+        "list_dir_sandbox": _tool_list_dir_sandbox,
+    })
     _next_turn_id: int = 0
     _writes_since_replay: int = 0
 
