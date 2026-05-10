@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "project-x"
 version = "0.0.1"
-description = "Research scaffold for novel LLM-style token prediction architectures."
+description = "Post-transformer organic memory + agent stack: HDC + Hebbian encoders, semantic memory with fact-graph and structural retrieval, rule-based agent controller. No pretrained transformer derivatives."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
