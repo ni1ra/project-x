@@ -65,9 +65,9 @@ def test_audit_harness_all_pass(tmp_path):
     # Phase 13 cycle 6 verdict: minimums after #02 maths expansion (+6 auto-graded passes).
     # Use >= rather than == so future cycle expansions don't break the no-regression test.
     # Strict floor: prior cycle baselines must hold; cycle 6+ may add entries that lift the count.
-    assert summary["total_pass"] >= 27, f"regression: total_pass {summary['total_pass']} < cycle-6-floor 27"
+    assert summary["total_pass"] >= 37, f"regression: total_pass {summary['total_pass']} < cycle-6-floor 37"
     assert summary["total_fail"] == 0, f"regression: total_fail {summary['total_fail']} != 0"
-    assert summary["by_domain"]["memory"]["pass"] >= 5
+    assert summary["by_domain"]["memory"]["pass"] >= 15  # was 5; cycle 6 #02c lifted to 15
     assert summary["by_domain"]["memory"]["fail"] == 0
     assert summary["by_domain"]["maths"]["pass"] >= 11  # was 5; cycle 6 #02a lifted to 11
     assert summary["by_domain"]["physics"]["pass"] >= 11  # was 5; cycle 6 #02b lifted to 11
@@ -83,7 +83,7 @@ def test_audit_harness_all_pass(tmp_path):
 
     # Each entry result should carry the harness's pass/fail + reason fields.
     entries = payload["entries"]
-    assert len(entries) >= 27  # cycle-6-floor; future cycle expansion may lift
+    assert len(entries) >= 37  # cycle-6-floor; future cycle expansion may lift
     for e in entries:
         assert "id" in e
         assert "domain" in e
