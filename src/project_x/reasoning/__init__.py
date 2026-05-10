@@ -32,10 +32,12 @@ from project_x.reasoning.ode import (
 )
 from project_x.reasoning.symbolic import (
     INTRO_CHAR_POLY_2X2,
+    INTRO_DETERMINANT_3X3,
     INTRO_QUADRATIC,
     DerivationStep,
     InvariantCheck,
     Lemma,
+    determinant_3x3,
     expand_characteristic_polynomial_2x2,
     solve_quadratic,
 )
@@ -43,6 +45,7 @@ from project_x.reasoning.verifier import numerical_verify
 
 __all__ = [
     "INTRO_CHAR_POLY_2X2",
+    "INTRO_DETERMINANT_3X3",
     "INTRO_FIRST_ORDER_LINEAR_ODE_EXP",
     "INTRO_POLYNOMIAL_DEFINITE_INTEGRAL",
     "INTRO_QUADRATIC",
@@ -50,6 +53,7 @@ __all__ = [
     "DerivationStep",
     "InvariantCheck",
     "Lemma",
+    "determinant_3x3",
     "expand_characteristic_polynomial_2x2",
     "first_order_linear_ode_exp_solution",
     "numerical_verify",

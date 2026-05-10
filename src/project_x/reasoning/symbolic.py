@@ -206,6 +206,19 @@ INTRO_CHAR_POLY_2X2 = (
     "det(A) = λ₁·λ₂ (Vieta's formula for monic polynomial of degree 2)."
 )
 
+INTRO_DETERMINANT_3X3 = (
+    "The determinant of a 3×3 matrix A = [[a, b, c], [d, e, f], [g, h, i]] is "
+    "computed via Laplace cofactor expansion along any row or column; all "
+    "expansions yield the same scalar by algebraic identity. Expanding along "
+    "the first row: det(A) = a·(ei - fh) - b·(di - fg) + c·(dh - eg). Each "
+    "parenthesized term is a 2×2 minor — the determinant of the 2×2 submatrix "
+    "obtained by deleting the row and column containing the cofactor entry. The "
+    "alternating signs (+, -, +) come from the (-1)^(i+j) cofactor parity. The "
+    "determinant equals the signed volume of the parallelepiped spanned by the "
+    "rows (or columns); zero determinant means rows are linearly dependent and "
+    "the matrix is singular (non-invertible)."
+)
+
 
 def solve_quadratic(a: float, b: float, c: float, lemma_id: str = "quadratic") -> Lemma:
     """Solve ax² + bx + c = 0 via discriminant + closed-form root formula.
@@ -348,6 +361,89 @@ def expand_characteristic_polynomial_2x2(
         justification=(
             "Vieta's formula: monic polynomial of degree 2 has root-product equal "
             "to the constant coefficient, i.e. det."
+        ),
+    )
+
+    return lemma
+
+
+def determinant_3x3(matrix: list[list[float]], lemma_id: str = "determinant_3x3") -> Lemma:
+    """Compute 3x3 determinant via Laplace cofactor expansion along the first row.
+
+    For A = [[a, b, c], [d, e, f], [g, h, i]]:
+        det(A) = a·(ei - fh) - b·(di - fg) + c·(dh - eg)
+
+    Three 2×2 minors are computed first (sub-determinants obtained by deleting
+    row 0 and the i-th column), then combined with alternating cofactor signs.
+    Hand-rolled — uses no numpy.linalg, no scipy.
+
+    Cycle 8 #00P13c8-04 minimum-viable scope: 3×3 only. Cycle 8+ extends to n×n
+    via recursive cofactor expansion (or, more numerically-friendly, LU decomp)
+    as ladder entries require. Closes maths-012 agent-runtime gap.
+    """
+    if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
+        raise ValueError("matrix must be 3x3")
+
+    a, b, c = matrix[0]
+    d, e, f = matrix[1]
+    g, h, i = matrix[2]
+
+    lemma = Lemma(
+        id=lemma_id,
+        claim=f"Find the determinant of {matrix} via cofactor expansion along row 0.",
+        verification_method="numerical_close",
+    )
+    lemma.add_introduction(INTRO_DETERMINANT_3X3)
+
+    # Step 1: build the 3 minors (2x2 sub-determinants).
+    minor_a = e * i - f * h
+    minor_b = d * i - f * g
+    minor_c = d * h - e * g
+    lemma.add_step(
+        operation="build_minors",
+        inputs={"matrix": matrix},
+        output={"M_a": minor_a, "M_b": minor_b, "M_c": minor_c},
+        justification=(
+            f"Three 2×2 minors from deleting row 0 and column j: "
+            f"M_a = e·i - f·h = {e}·{i} - {f}·{h} = {minor_a}; "
+            f"M_b = d·i - f·g = {d}·{i} - {f}·{g} = {minor_b}; "
+            f"M_c = d·h - e·g = {d}·{h} - {e}·{g} = {minor_c}."
+        ),
+    )
+
+    # Step 2: cofactor expansion with alternating signs.
+    det = a * minor_a - b * minor_b + c * minor_c
+    lemma.add_step(
+        operation="cofactor_expansion_row_0",
+        inputs={"a": a, "b": b, "c": c, "M_a": minor_a, "M_b": minor_b, "M_c": minor_c},
+        output=det,
+        justification=(
+            f"det(A) = a·M_a - b·M_b + c·M_c = {a}·{minor_a} - {b}·{minor_b} + "
+            f"{c}·{minor_c} = {a * minor_a} - {b * minor_b} + {c * minor_c} = {det}. "
+            f"Alternating signs (+, -, +) from (-1)^(0+j) cofactor parity along row 0."
+        ),
+    )
+
+    lemma.actual_value = det
+
+    # Invariant: two-step chain output equals the inlined cofactor formula.
+    # det = a·(ei - fh) - b·(di - fg) + c·(dh - eg) — tautological under the
+    # formula; verifies the intermediate minor-storage and final summation produce
+    # the same result as direct in-expression computation. Cycle 9 predicate-
+    # strength uniformity pass will swap this for a Sarrus-rule independent-path
+    # verifier (algorithmically different formula for 3×3 determinant).
+    direct = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    lemma.add_invariant_check(
+        predicate="det = a·(ei-fh) - b·(di-fg) + c·(dh-eg) (cofactor formula inlined)",
+        expected_value=det,
+        actual_value=direct,
+        justification=(
+            "The two-step chain (build_minors + cofactor_expansion) should equal "
+            "the inlined cofactor formula. Tautological under the formula; verifies "
+            "the intermediate minor-storage and final summation are implemented "
+            "consistently. Cycle 9 lifts this to a Sarrus-rule independent-path "
+            "predicate (algebraically equivalent but computed via a different "
+            "permutation sum)."
         ),
     )
 

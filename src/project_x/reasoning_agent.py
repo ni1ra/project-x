@@ -52,6 +52,7 @@ from project_x.reasoning.physics import (
 )
 from project_x.reasoning.symbolic import (
     Lemma,
+    determinant_3x3,
     expand_characteristic_polynomial_2x2,
     solve_quadratic,
 )
@@ -306,6 +307,34 @@ def _parse_first_order_ode(prompt: str) -> tuple[float, float, float, float] | N
     return (k, y_0, x_target, x_0)
 
 
+# 3x3 matrix regex: matches `[[a, b, c], [d, e, f], [g, h, i]]` with optional whitespace.
+# All nine entries captured as signed decimal strings; whitespace inside brackets allowed.
+# Closes maths-012 (cycle 8 #00P13c8-04). Placed BEFORE 2x2 pattern so longer-match wins
+# on prompts that mention both shapes; 2x2 pattern won't false-match a 3x3 literal anyway
+# (the 2x2 inner-bracket anchor `\d, \d \]` doesn't match a 3-entry inner bracket `\d, \d, \d ]`).
+_MATRIX_3X3_PATTERN = re.compile(
+    r"\[\s*\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]\s*,"
+    r"\s*\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]\s*,"
+    r"\s*\[\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\]\s*\]"
+)
+
+
+def _parse_matrix_3x3(prompt: str) -> list[list[float]] | None:
+    """Extract `[[a, b, c], [d, e, f], [g, h, i]]` matrix from a determinant prompt.
+
+    Two-gate filter: (1) prompt names "determinant", (2) 3x3 matrix literal matches.
+    Keyword gate prevents misrouting from an eigenvalue/char-poly prompt that
+    happens to have a 3x3 matrix literal (those route to the 2x2 path only if 2x2).
+    """
+    if "determinant" not in prompt.lower():
+        return None
+    match = _MATRIX_3X3_PATTERN.search(prompt)
+    if not match:
+        return None
+    values = [float(x) for x in match.groups()]
+    return [values[0:3], values[3:6], values[6:9]]
+
+
 # 2x2 matrix regex: matches `[[a, b], [c, d]]` with optional whitespace.
 # All four entries captured as signed decimal strings; whitespace inside brackets allowed.
 _MATRIX_2X2_PATTERN = re.compile(
@@ -419,6 +448,11 @@ class ReasoningAgent:
         if response is not None:
             return response
 
+        # Maths 3x3 determinant — covers maths-012. "determinant" keyword gate.
+        response = self._try_determinant_3x3(prompt)
+        if response is not None:
+            return response
+
         # Maths 2x2 eigenvalues — covers maths-002/009. Eigenvalue-naming gate.
         response = self._try_char_poly_2x2(prompt)
         if response is not None:
@@ -473,6 +507,20 @@ class ReasoningAgent:
         return AgentResponse(
             domain="maths",
             problem_shape="char_poly_2x2",
+            parsed_inputs={"matrix": matrix},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_determinant_3x3(self, prompt: str) -> AgentResponse | None:
+        matrix = _parse_matrix_3x3(prompt)
+        if matrix is None:
+            return None
+        lemma = determinant_3x3(matrix)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="determinant_3x3",
             parsed_inputs={"matrix": matrix},
             lemma=lemma,
             answer_text=lemma.render(),

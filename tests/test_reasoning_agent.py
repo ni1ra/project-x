@@ -515,3 +515,59 @@ def test_reasoning_agent_ode_quadratic_doesnt_false_match():
     agent = ReasoningAgent()
     response = agent.process("Solve x^2 - 5x + 6 = 0 for x.")
     assert response.problem_shape != "first_order_linear_ode_exp"
+
+
+# --- 3x3 determinant dispatch (maths-012) ---
+
+
+def test_reasoning_agent_solves_maths_012():
+    """Maths-012 verbatim: determinant of [[1,2,3],[4,5,6],[7,8,10]] = -3."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the determinant of the 3x3 matrix [[1, 2, 3], [4, 5, 6], [7, 8, 10]]."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "determinant_3x3"
+    assert response.parsed_inputs == {
+        "matrix": [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 10.0]]
+    }
+    assert response.lemma.actual_value == -3.0
+
+
+def test_reasoning_agent_determinant_3x3_identity():
+    """Identity matrix det = 1 (via the dispatcher; no rephrasing of prompt)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the determinant of the matrix [[1, 0, 0], [0, 1, 0], [0, 0, 1]]."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "determinant_3x3"
+    assert response.lemma.actual_value == 1.0
+
+
+def test_reasoning_agent_determinant_3x3_negative_entries():
+    """Negative entries propagate correctly through the dispatch + substrate."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the determinant of [[2, -1, 3], [0, 5, 1], [-1, 2, 4]]."
+    )
+    assert response.confidence == "high"
+    assert response.lemma.actual_value == 52.0
+
+
+def test_reasoning_agent_determinant_3x3_no_keyword_refuses():
+    """Prompt with 3x3 matrix but no 'determinant' keyword → don't false-match."""
+    agent = ReasoningAgent()
+    response = agent.process("Compute [[1, 2, 3], [4, 5, 6], [7, 8, 10]] somehow.")
+    assert response.problem_shape != "determinant_3x3"
+
+
+def test_reasoning_agent_determinant_2x2_doesnt_false_match():
+    """A 2x2 matrix in an eigenvalue prompt must NOT route to 3x3 determinant.
+    Verifies the 2x2-vs-3x3 absence-of-overlap (different inner-bracket arities + different keyword gates)."""
+    agent = ReasoningAgent()
+    response = agent.process("Find the eigenvalues of the matrix [[2, 1], [1, 2]].")
+    assert response.problem_shape != "determinant_3x3"
+    # Should route to char_poly_2x2 (the eigenvalue dispatcher).
+    assert response.problem_shape == "char_poly_2x2"

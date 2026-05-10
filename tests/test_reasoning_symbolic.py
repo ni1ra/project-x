@@ -19,10 +19,12 @@ import pytest
 import project_x.reasoning.symbolic as substrate
 from project_x.reasoning.symbolic import (
     INTRO_CHAR_POLY_2X2,
+    INTRO_DETERMINANT_3X3,
     INTRO_QUADRATIC,
     DerivationStep,
     InvariantCheck,
     Lemma,
+    determinant_3x3,
     expand_characteristic_polynomial_2x2,
     solve_quadratic,
 )
@@ -346,3 +348,86 @@ class TestThesisCompliance:
         ]
         for term in forbidden:
             assert term not in source, f"organic-thesis violation: substrate imports {term}"
+
+
+# ── 3x3 determinant via cofactor expansion (cycle 8 #00P13c8-04) ──────────────
+
+
+class TestDeterminant3x3:
+    def test_maths_012_canonical(self):
+        """Maths-012: det of [[1,2,3],[4,5,6],[7,8,10]] = -3 (cofactor expansion: 1·2 - 2·(-2) + 3·(-3))."""
+        lemma = determinant_3x3([[1, 2, 3], [4, 5, 6], [7, 8, 10]])
+        assert lemma.actual_value == -3
+
+    def test_identity_matrix(self):
+        """det(I_3) = 1."""
+        lemma = determinant_3x3([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        assert lemma.actual_value == 1
+
+    def test_diagonal_matrix(self):
+        """det of diagonal = product of diagonal entries."""
+        lemma = determinant_3x3([[2, 0, 0], [0, 3, 0], [0, 0, 5]])
+        assert lemma.actual_value == 30
+
+    def test_singular_zero(self):
+        """Linearly-dependent rows (row 3 = row 1 + row 2) → det = 0."""
+        lemma = determinant_3x3([[1, 0, 0], [0, 1, 0], [1, 1, 0]])
+        assert lemma.actual_value == 0
+
+    def test_negative_entries(self):
+        """Matrix with negative entries computes correctly. det of [[2,-1,3],[0,5,1],[-1,2,4]]:
+        2·(5·4 - 1·2) - (-1)·(0·4 - 1·(-1)) + 3·(0·2 - 5·(-1)) = 2·18 - (-1)·1 + 3·5 = 36+1+15 = 52."""
+        lemma = determinant_3x3([[2, -1, 3], [0, 5, 1], [-1, 2, 4]])
+        assert lemma.actual_value == 52
+
+    def test_lemma_chain_shape(self):
+        """2-step chain (build_minors → cofactor_expansion_row_0) + 1 invariant + intro."""
+        lemma = determinant_3x3([[1, 2, 3], [4, 5, 6], [7, 8, 10]])
+        assert len(lemma.derivation_steps) == 2
+        assert lemma.derivation_steps[0].operation == "build_minors"
+        assert lemma.derivation_steps[1].operation == "cofactor_expansion_row_0"
+        assert len(lemma.invariant_checks) == 1
+        assert lemma.introduction != ""
+        assert "cofactor" in lemma.introduction.lower()
+
+    def test_invariant_holds_across_matrices(self):
+        """Cofactor-vs-inline-formula tautological invariant holds across diverse matrices."""
+        matrices = [
+            [[1, 2, 3], [4, 5, 6], [7, 8, 10]],
+            [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+            [[2, -1, 3], [0, 5, 1], [-1, 2, 4]],
+            [[0.5, 1.5, -2.5], [3, -4, 5], [-6, 7, 8]],
+        ]
+        for m in matrices:
+            lemma = determinant_3x3(m)
+            assert all(inv.holds for inv in lemma.invariant_checks), (
+                f"invariant failed for matrix {m}"
+            )
+
+    def test_render_includes_intro_and_invariant(self):
+        """Lemma.render() contains intro + Step lines + Invariant block + Affirmative close."""
+        lemma = determinant_3x3([[1, 2, 3], [4, 5, 6], [7, 8, 10]])
+        rendered = lemma.render()
+        assert "Notice." in rendered
+        assert "cofactor expansion" in rendered.lower()
+        assert "Step 1" in rendered
+        assert "Step 2" in rendered
+        assert "Invariant checks:" in rendered
+        assert "Affirmative" in rendered
+
+    def test_rejects_non_3x3(self):
+        """Non-3x3 matrices raise ValueError."""
+        with pytest.raises(ValueError, match="3x3"):
+            determinant_3x3([[1, 2], [3, 4]])  # 2x2
+        with pytest.raises(ValueError, match="3x3"):
+            determinant_3x3([[1, 2, 3], [4, 5, 6]])  # 2x3
+        with pytest.raises(ValueError, match="3x3"):
+            determinant_3x3([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])  # 4x3
+
+    def test_intro_constant_is_load_bearing_prose(self):
+        """INTRO_DETERMINANT_3X3 contains key phrases (not a placeholder)."""
+        intro = INTRO_DETERMINANT_3X3.lower()
+        assert "cofactor" in intro
+        assert "laplace" in intro
+        assert "minor" in intro
+        assert "alternating signs" in intro
