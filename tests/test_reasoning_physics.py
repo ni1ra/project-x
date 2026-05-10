@@ -27,6 +27,8 @@ from project_x.reasoning.physics import (
     free_fall_time,
     large_angle_pendulum_period,
     pendulum_period,
+    projectile_horizontal_range,
+    relativistic_doppler_shift,
     relativistic_momentum,
 )
 
@@ -417,3 +419,155 @@ def test_physics_substrate_thesis_compliant():
     ]
     for token in forbidden:
         assert token not in source, f"physics.py imports forbidden token '{token}'"
+
+
+# ── Projectile horizontal range (cycle 8 #00P13c8-05) ──────────────────────────
+
+
+def _projectile_horizontal_range_predicate(inputs, output):
+    """Output is float R; universal algebraic identity R²·g/(2h) = v_horizontal².
+
+    Predicate verifies INPUT-OUTPUT APPROPRIATENESS: a fake substrate hardcoding
+    physics-007's 60.58 answer would pass the canonical check but fail surrogates
+    (the reconstructed v_x² would be wildly off when h or g differ).
+    """
+    h, v, g = inputs
+    if not isinstance(output, (int, float)) or output <= 0:
+        return False
+    lhs = (output * output * g) / (2 * h)
+    rhs = v * v
+    return abs(lhs - rhs) / rhs < 1e-6
+
+
+class TestProjectileHorizontalRange:
+    def test_physics_007_canonical(self):
+        """Physics-007: 45m cliff, 20 m/s horizontal, g=9.81 → ~60.58 m (auto_grade tolerance 0.5)."""
+        lemma = projectile_horizontal_range(h=45.0, v_horizontal=20.0, g=9.81)
+        assert abs(lemma.actual_value - 60.58) < 0.5
+        # Verify against the closed-form directly: R = v · √(2h/g)
+        expected = 20.0 * math.sqrt(2 * 45.0 / 9.81)
+        assert abs(lemma.actual_value - expected) < 1e-9
+
+    def test_lemma_chain_shape(self):
+        """2-step chain (vertical_fall_time → horizontal_range) + 1 invariant + intro."""
+        lemma = projectile_horizontal_range(h=45.0, v_horizontal=20.0, g=9.81)
+        assert len(lemma.derivation_steps) == 2
+        assert lemma.derivation_steps[0].operation == "vertical_fall_time"
+        assert lemma.derivation_steps[1].operation == "horizontal_range"
+        assert len(lemma.invariant_checks) == 1
+        assert lemma.introduction != ""
+        assert "projectile" in lemma.introduction.lower()
+
+    def test_universal_invariant_holds(self):
+        """Universal invariant R²·g/(2h) = v_horizontal² across diverse inputs."""
+        cases = [
+            (45.0, 20.0, 9.81),  # physics-007 canonical (Earth cliff)
+            (10.0, 5.0, 9.81),    # smaller cliff
+            (100.0, 50.0, 1.62),  # Moon gravity (g=1.62)
+            (200.0, 30.0, 3.71),  # Mars gravity (g=3.71)
+        ]
+        for h, v, g in cases:
+            lemma = projectile_horizontal_range(h, v, g)
+            for inv in lemma.invariant_checks:
+                assert inv.holds, f"invariant failed for (h={h}, v={v}, g={g})"
+
+    def test_anti_cheat_no_memorization(self):
+        """Surrogate input families (varying h, v, g across solar-system gravities) all pass
+        via real closed-form computation; memorization_signal must be 0.0 (no canonical-answer
+        hardcoding). Predicate: universal algebraic identity R²·g/(2h) = v_horizontal²."""
+        canonical = (45.0, 20.0, 9.81)  # physics-007 (Earth)
+        surrogates = [
+            (10.0, 5.0, 9.81),    # smaller cliff
+            (100.0, 50.0, 9.81),  # taller cliff + faster
+            (45.0, 20.0, 1.62),   # Moon gravity (Apollo cliff)
+            (45.0, 20.0, 3.71),   # Mars gravity
+            (200.0, 30.0, 24.79), # Jupiter gravity
+        ]
+        probe = AntiCheatProbe(
+            probe_id="projectile_horizontal_range_probe",
+            canonical_inputs=canonical,
+            surrogate_inputs=surrogates,
+            answer_predicate=_projectile_horizontal_range_predicate,
+            surrogate_author="builder (rule-based; varying solar-system gravities)",
+            notes="Substrate must compute v_x·√(2h/g) per-input; no canonical-answer hardcoding.",
+        )
+        result = differential_capability_test(projectile_horizontal_range, probe)
+        assert result.canonical_match is True
+        assert all(result.surrogate_matches)
+        assert result.memorization_signal == 0.0
+
+    def test_rejects_non_positive_inputs(self):
+        """h, v, g must all be > 0."""
+        with pytest.raises(ValueError, match="positive"):
+            projectile_horizontal_range(h=0, v_horizontal=20.0, g=9.81)
+        with pytest.raises(ValueError, match="positive"):
+            projectile_horizontal_range(h=45.0, v_horizontal=0, g=9.81)
+        with pytest.raises(ValueError, match="positive"):
+            projectile_horizontal_range(h=45.0, v_horizontal=20.0, g=0)
+
+
+# ── Relativistic Doppler shift (cycle 8 #00P13c8-05) ───────────────────────────
+
+
+class TestRelativisticDopplerShift:
+    def test_physics_012_canonical_approach(self):
+        """Physics-012: λ₀=500nm, β=0.6 approaching → 250 nm (blueshift factor 0.5)."""
+        lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.6, approaching=True)
+        assert abs(lemma.actual_value - 250.0) < 1.0
+        # Exact: factor = √(0.4/1.6) = √0.25 = 0.5 → λ_obs = 250.0
+        assert abs(lemma.actual_value - 250.0) < 1e-9
+
+    def test_receding_redshift(self):
+        """β=0.6 receding → factor = √(1.6/0.4) = 2; λ_obs = 1000 nm."""
+        lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.6, approaching=False)
+        assert abs(lemma.actual_value - 1000.0) < 1.0
+
+    def test_classical_limit_low_beta_approach(self):
+        """At β=0.01 approaching: factor ≈ 1 - β = 0.99; λ_obs ≈ 495 nm."""
+        lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.01, approaching=True)
+        # Exact: factor = √(0.99/1.01) ≈ 0.99005; λ_obs ≈ 495.025
+        assert abs(lemma.actual_value - 495.0) < 0.1
+
+    def test_zero_beta_no_shift(self):
+        """β=0: factor = 1; λ_obs = λ_emit (no relative motion = no shift)."""
+        lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.0, approaching=True)
+        assert abs(lemma.actual_value - 500.0) < 1e-12
+
+    def test_invariant_factor_squared(self):
+        """Invariant: factor² = (1∓β)/(1±β) across diverse (β, approaching) pairs."""
+        cases = [(0.6, True), (0.6, False), (0.1, True), (0.1, False), (0.9, True), (0.9, False)]
+        for beta, approaching in cases:
+            lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=beta, approaching=approaching)
+            assert all(inv.holds for inv in lemma.invariant_checks), (
+                f"invariant failed for β={beta}, approaching={approaching}"
+            )
+
+    def test_lemma_chain_shape(self):
+        """2-step chain (doppler_factor → apply_factor) + 1 invariant + intro."""
+        lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.6, approaching=True)
+        assert len(lemma.derivation_steps) == 2
+        assert lemma.derivation_steps[0].operation == "doppler_factor"
+        assert lemma.derivation_steps[1].operation == "apply_factor"
+        assert len(lemma.invariant_checks) == 1
+        assert lemma.introduction != ""
+        assert "doppler" in lemma.introduction.lower()
+
+    def test_render_includes_direction(self):
+        """Render mentions blueshift for approaching / redshift for receding."""
+        approach_lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.6, approaching=True)
+        recede_lemma = relativistic_doppler_shift(wavelength_emit=500.0, beta=0.6, approaching=False)
+        assert "blueshift" in approach_lemma.render().lower()
+        assert "redshift" in recede_lemma.render().lower()
+
+    def test_rejects_non_positive_wavelength(self):
+        with pytest.raises(ValueError, match="positive"):
+            relativistic_doppler_shift(wavelength_emit=0, beta=0.5)
+        with pytest.raises(ValueError, match="positive"):
+            relativistic_doppler_shift(wavelength_emit=-100, beta=0.5)
+
+    def test_rejects_superluminal(self):
+        """|β| ≥ 1 raises ValueError (causal-structure)."""
+        with pytest.raises(ValueError, match="subluminal"):
+            relativistic_doppler_shift(wavelength_emit=500.0, beta=1.0)
+        with pytest.raises(ValueError, match="subluminal"):
+            relativistic_doppler_shift(wavelength_emit=500.0, beta=-1.5)

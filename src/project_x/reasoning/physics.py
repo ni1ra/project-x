@@ -63,6 +63,29 @@ INTRO_RELATIVISTIC_MOMENTUM = (
     "different law. Diverges as v → c (massive particle can never reach light speed)."
 )
 
+INTRO_PROJECTILE_HORIZONTAL_RANGE = (
+    "A projectile launched horizontally from height h with horizontal velocity v_x "
+    "under gravity g (no air resistance) decouples into two independent 1D motions: "
+    "vertical free-fall (initial v_y = 0; t = √(2h/g) by the kinematic identity "
+    "h = (1/2)·g·t²) and horizontal uniform motion (no horizontal force; x(t) = v_x·t). "
+    "The horizontal range at impact is R = v_x · √(2h/g). The form is independent of "
+    "mass (Galileo's equivalence) and only valid in the no-air-resistance regime. R "
+    "scales like √h for fixed v_x + g, and linearly in v_x."
+)
+
+INTRO_RELATIVISTIC_DOPPLER_SHIFT = (
+    "The relativistic Doppler shift for a source moving radially relative to the "
+    "observer combines two effects: classical wave-front compression/stretching and "
+    "time dilation (the moving emitter's clock runs slow in the observer's frame). "
+    "For an APPROACHING source, the observed wavelength is λ_obs = λ_emit · "
+    "√((1-β)/(1+β)) where β = v/c — a blueshift (λ_obs < λ_emit). For a RECEDING "
+    "source, λ_obs = λ_emit · √((1+β)/(1-β)) — a redshift (λ_obs > λ_emit). The two "
+    "formulas are related by β → -β (or by reversing approach/recede); both reduce "
+    "to the classical 1 ∓ β limit when β << 1 (Newtonian Doppler is the slow-velocity "
+    "correspondence). Diverges as |β| → 1 (light-speed limit: receding gives "
+    "infinite redshift, approaching compresses toward zero wavelength)."
+)
+
 INTRO_LARGE_ANGLE_PENDULUM = (
     "The simple-pendulum period formula T = 2π·√(L/g) is the small-angle linearization. "
     "For finite amplitude θ₀, the exact period derives from solving the non-linear ODE "
@@ -355,6 +378,169 @@ def relativistic_momentum(
             "Holds exactly in the limit; check confirms substrate produced relativistic "
             "γ, not Newtonian γ=1. At relativistic v (e.g. 0.9c), higher-order terms "
             "dominate — invariant_check tolerance must be set per-call accordingly."
+        ),
+    )
+
+    return lemma
+
+
+def projectile_horizontal_range(
+    h: float, v_horizontal: float, g: float,
+    lemma_id: str = "projectile_horizontal_range",
+) -> Lemma:
+    """Compute horizontal range R = v_x · √(2h/g) of a cliff-launched horizontal projectile.
+
+    Decouples vertical free-fall (kinematic identity t = √(2h/g)) and horizontal
+    uniform motion (no horizontal force; R = v_x · t). Hand-rolled — uses math.sqrt
+    only. NO numerical-physics libraries. Closes physics-007 agent-runtime gap.
+
+    Raises ValueError on non-positive h, v_horizontal, or g (regime check; cycle 8
+    minimum-viable scope is h>0, v>0, g>0).
+    """
+    if h <= 0 or v_horizontal <= 0 or g <= 0:
+        raise ValueError(
+            f"h, v_horizontal, g must all be positive (got h={h}, v_horizontal={v_horizontal}, g={g})"
+        )
+
+    lemma = Lemma(
+        id=lemma_id,
+        claim=(
+            f"Compute horizontal range for projectile launched horizontally from "
+            f"{h} m at {v_horizontal} m/s under gravity {g} m/s²."
+        ),
+        verification_method="numerical_close",
+    )
+    lemma.add_introduction(INTRO_PROJECTILE_HORIZONTAL_RANGE)
+
+    # Step 1: vertical fall time t = √(2h/g) (kinematic identity).
+    inner = 2 * h / g
+    t = math.sqrt(inner)
+    lemma.add_step(
+        operation="vertical_fall_time",
+        inputs={"h": h, "g": g},
+        output=t,
+        justification=(
+            f"From h = (1/2)·g·t² with v_y(0) = 0: t = √(2h/g) = √(2·{h}/{g}) = "
+            f"√{inner} = {t} s."
+        ),
+    )
+
+    # Step 2: horizontal range R = v_x · t (constant horizontal velocity).
+    R = v_horizontal * t
+    lemma.add_step(
+        operation="horizontal_range",
+        inputs={"v_horizontal": v_horizontal, "t": t},
+        output=R,
+        justification=(
+            f"R = v_x · t = {v_horizontal} · {t} = {R} m (constant horizontal velocity; "
+            f"no horizontal force; decoupled from vertical motion)."
+        ),
+    )
+
+    lemma.actual_value = R
+
+    # Universal invariant: R² · g / (2h) = v_horizontal². From R = v_x · √(2h/g):
+    # squaring both sides gives R² = v_x² · 2h/g; multiply by g/(2h) → v_x². Universal
+    # algebraic identity across all (h, v_x, g) > 0; verifies the substrate's chain
+    # composed the two steps consistently. Cycle 9 predicate-strength uniformity pass
+    # may swap this for energy-conservation independent-path verifier.
+    universal = (R * R * g) / (2 * h)
+    v_sq = v_horizontal * v_horizontal
+    lemma.add_invariant_check(
+        predicate="R² · g / (2h) = v_horizontal² (universal algebraic identity)",
+        expected_value=v_sq,
+        actual_value=universal,
+        justification=(
+            "From R = v_x · √(2h/g): R² = v_x²·2h/g → R²·g/(2h) = v_x². Universal "
+            "across all (h, v_x, g) > 0 — independent of intermediate t computation."
+        ),
+    )
+
+    return lemma
+
+
+def relativistic_doppler_shift(
+    wavelength_emit: float,
+    beta: float,
+    approaching: bool = True,
+    lemma_id: str = "relativistic_doppler_shift",
+) -> Lemma:
+    """Compute relativistic Doppler-shifted wavelength.
+
+    Closed-form: λ_obs = λ_emit · √((1∓β)/(1±β)) where β = v/c, with `-β` in numerator
+    for approaching sources (blueshift) and `+β` for receding (redshift). `beta` is the
+    dimensionless v/c ratio (typical prompts give v as fraction-of-c directly).
+
+    Hand-rolled — uses math.sqrt only. NO numerical-relativity libraries. Closes
+    physics-012 agent-runtime gap.
+
+    Raises ValueError on non-positive wavelength or |β| ≥ 1 (superluminal regime;
+    cycle 8 scope is subluminal only).
+    """
+    if wavelength_emit <= 0:
+        raise ValueError(f"wavelength_emit must be positive (got {wavelength_emit})")
+    if abs(beta) >= 1.0:
+        raise ValueError(
+            f"|β| must be < 1 for subluminal regime (got β={beta}); superluminal not in scope"
+        )
+
+    direction = "approaching" if approaching else "receding"
+    lemma = Lemma(
+        id=lemma_id,
+        claim=(
+            f"Compute relativistic Doppler-shifted wavelength for λ_emit = "
+            f"{wavelength_emit} nm at β = {beta} ({direction} source)."
+        ),
+        verification_method="numerical_close",
+    )
+    lemma.add_introduction(INTRO_RELATIVISTIC_DOPPLER_SHIFT)
+
+    # Step 1: Doppler factor sqrt((1∓β)/(1±β)) (approaching uses minus in numerator).
+    if approaching:
+        ratio = (1.0 - beta) / (1.0 + beta)
+        factor_form = "√((1-β)/(1+β))"
+    else:
+        ratio = (1.0 + beta) / (1.0 - beta)
+        factor_form = "√((1+β)/(1-β))"
+    factor = math.sqrt(ratio)
+    lemma.add_step(
+        operation="doppler_factor",
+        inputs={"beta": beta, "approaching": approaching},
+        output=factor,
+        justification=(
+            f"Doppler factor for {direction} source at β = {beta}: "
+            f"{factor_form} = √({ratio}) = {factor}."
+        ),
+    )
+
+    # Step 2: apply factor to emitted wavelength.
+    wavelength_obs = wavelength_emit * factor
+    shift_type = "blueshift" if approaching else "redshift"
+    compression = "compressed" if approaching else "stretched"
+    lemma.add_step(
+        operation="apply_factor",
+        inputs={"wavelength_emit": wavelength_emit, "factor": factor},
+        output=wavelength_obs,
+        justification=(
+            f"λ_obs = λ_emit · factor = {wavelength_emit} · {factor} = {wavelength_obs} nm "
+            f"({shift_type} — wavelength {compression})."
+        ),
+    )
+
+    lemma.actual_value = wavelength_obs
+
+    # Invariant: factor² = (1∓β)/(1±β). Tautological under the closed-form but verifies
+    # the sqrt was applied to the correct ratio (catches sign-flip or denominator bugs).
+    # Matches cycle 8 #01/#02/#03/#04 algebraic-identity pattern; classical-Doppler-limit
+    # independent-path verifier (factor ≈ 1 ∓ β for β << 1) deferred to cycle 9.
+    lemma.add_invariant_check(
+        predicate=f"factor² = (1{'∓' if approaching else '±'}β)/(1{'±' if approaching else '∓'}β) (formula consistency)",
+        expected_value=ratio,
+        actual_value=factor * factor,
+        justification=(
+            "Squaring the Doppler factor recovers the ratio (1∓β)/(1±β). Tautological "
+            "under the closed-form; verifies the substrate computed the correct ratio "
+            "before taking the square root (catches sign-flip or denominator bugs)."
         ),
     )
 

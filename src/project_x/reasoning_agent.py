@@ -48,6 +48,8 @@ from project_x.reasoning.physics import (
     free_fall_time,
     large_angle_pendulum_period,
     pendulum_period,
+    projectile_horizontal_range,
+    relativistic_doppler_shift,
     relativistic_momentum,
 )
 from project_x.reasoning.symbolic import (
@@ -163,6 +165,70 @@ def _parse_residue_unit_quadratic(prompt: str) -> tuple[float, float] | None:
     a = 1.0 if not a_str else float(a_str)
     c = float(match.group("c"))
     return (a, c)
+
+
+# Projectile horizontal-range parsers: cliff-launched horizontal projectile.
+# Closes physics-007. Reuses _GRAVITY_PATTERN; new _PROJECTILE_HEIGHT_PATTERN (accepts
+# "from a 45 m cliff" / "from 45 m" / "height of 45 m") and _PROJECTILE_VELOCITY_PATTERN
+# (accepts "at 20 m/s") — both gated by "projectile" + "horizontal" keywords to prevent
+# misroute from free-fall prompts.
+_PROJECTILE_HEIGHT_PATTERN = re.compile(
+    r"(?:from\s+(?:a\s+)?|height of\s+)(\d+\.?\d*)\s*m\b", re.IGNORECASE
+)
+_PROJECTILE_VELOCITY_PATTERN = re.compile(
+    r"at\s+(\d+\.?\d*)\s*m/s\b", re.IGNORECASE
+)
+
+
+def _parse_projectile_horizontal(prompt: str) -> tuple[float, float, float] | None:
+    """Extract (h, v_horizontal, g) from a horizontally-launched projectile prompt.
+
+    Four-gate filter: (1) "projectile" keyword, (2) "horizontal" keyword (specifies
+    cliff-launched-horizontal mode vs angled launch), (3) height + velocity + gravity
+    patterns all match. Both keywords required to prevent free-fall prompts (which
+    have height + gravity but no horizontal velocity) from misrouting.
+    """
+    lower = prompt.lower()
+    if "projectile" not in lower or "horizontal" not in lower:
+        return None
+    h_match = _PROJECTILE_HEIGHT_PATTERN.search(prompt)
+    v_match = _PROJECTILE_VELOCITY_PATTERN.search(prompt)
+    g_match = _GRAVITY_PATTERN.search(prompt)
+    if not h_match or not v_match or not g_match:
+        return None
+    return (float(h_match.group(1)), float(v_match.group(1)), float(g_match.group(1)))
+
+
+# Doppler-shift parsers: extract wavelength + β + direction.
+# Closes physics-012. Wavelength accepts "λ₀ = 500 nm" or "wavelength λ_0 = 500 nm".
+# β is parsed from velocity-as-fraction-of-c (reuses _VELOCITY_AS_C_PATTERN below).
+# Direction is gated on explicit "approach" / "reced" / "moves away" keywords —
+# no default; missing direction → refuse.
+_WAVELENGTH_PATTERN = re.compile(
+    r"(?:λ_?[0₀]?\s*=\s*|wavelength[^0-9]*?)(\d+\.?\d*)\s*nm", re.IGNORECASE
+)
+
+
+def _parse_doppler_shift(prompt: str) -> tuple[float, float, bool] | None:
+    """Extract (wavelength_emit_nm, beta, approaching) from a Doppler-shift prompt.
+
+    Four-gate filter: (1) "doppler" keyword, (2) explicit direction keyword
+    (approach / recede / moves away), (3) wavelength pattern, (4) β extracted via
+    velocity-as-fraction-of-c (e.g. "v = 0.6c"). Missing any gate → None.
+    """
+    lower = prompt.lower()
+    if "doppler" not in lower:
+        return None
+    if "approach" not in lower and "reced" not in lower and "moves away" not in lower and "moving away" not in lower:
+        return None
+    lambda_match = _WAVELENGTH_PATTERN.search(prompt)
+    beta_match = _VELOCITY_AS_C_PATTERN.search(prompt)
+    if not lambda_match or not beta_match:
+        return None
+    wavelength_emit = float(lambda_match.group(1))
+    beta = float(beta_match.group(1))
+    approaching = "approach" in lower
+    return (wavelength_emit, beta, approaching)
 
 
 # Relativistic-momentum parsers: extract mass (scientific notation), velocity-as-fraction-of-c,
@@ -432,6 +498,16 @@ class ReasoningAgent:
         if response is not None:
             return response
 
+        # Physics projectile horizontal range — covers physics-007. "projectile" + "horizontal" gates.
+        response = self._try_projectile_horizontal(prompt)
+        if response is not None:
+            return response
+
+        # Physics Doppler shift — covers physics-012. "doppler" + direction-keyword gates.
+        response = self._try_doppler_shift(prompt)
+        if response is not None:
+            return response
+
         # Physics relativistic momentum — covers physics-003/011. Specific keyword.
         response = self._try_relativistic_momentum(prompt)
         if response is not None:
@@ -582,6 +658,36 @@ class ReasoningAgent:
             domain="physics",
             problem_shape="relativistic_momentum",
             parsed_inputs={"m_kg": m, "v_m_per_s": v, "c_m_per_s": c},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_projectile_horizontal(self, prompt: str) -> AgentResponse | None:
+        params = _parse_projectile_horizontal(prompt)
+        if params is None:
+            return None
+        h, v_h, g = params
+        lemma = projectile_horizontal_range(h, v_h, g)
+        return AgentResponse(
+            domain="physics",
+            problem_shape="projectile_horizontal_range",
+            parsed_inputs={"h_meters": h, "v_horizontal_m_per_s": v_h, "g_m_per_s_squared": g},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_doppler_shift(self, prompt: str) -> AgentResponse | None:
+        params = _parse_doppler_shift(prompt)
+        if params is None:
+            return None
+        wavelength_emit, beta, approaching = params
+        lemma = relativistic_doppler_shift(wavelength_emit, beta, approaching=approaching)
+        return AgentResponse(
+            domain="physics",
+            problem_shape="relativistic_doppler_shift",
+            parsed_inputs={"wavelength_emit_nm": wavelength_emit, "beta": beta, "approaching": approaching},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",

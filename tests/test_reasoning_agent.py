@@ -571,3 +571,87 @@ def test_reasoning_agent_determinant_2x2_doesnt_false_match():
     assert response.problem_shape != "determinant_3x3"
     # Should route to char_poly_2x2 (the eigenvalue dispatcher).
     assert response.problem_shape == "char_poly_2x2"
+
+
+# --- Projectile horizontal range dispatch (physics-007) ---
+
+
+def test_reasoning_agent_solves_physics_007():
+    """Physics-007 verbatim: 45 m cliff, 20 m/s horizontal, g=9.81 → ~60.58 m."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A projectile is launched horizontally from a 45 m cliff at 20 m/s. "
+        "Ignoring air resistance and using g = 9.81 m/s², how far horizontally does "
+        "it travel before hitting the ground? Report in meters."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "physics"
+    assert response.problem_shape == "projectile_horizontal_range"
+    assert response.parsed_inputs["h_meters"] == 45.0
+    assert response.parsed_inputs["v_horizontal_m_per_s"] == 20.0
+    assert response.parsed_inputs["g_m_per_s_squared"] == 9.81
+    assert abs(response.lemma.actual_value - 60.58) < 0.5  # ladder tolerance
+
+
+def test_reasoning_agent_projectile_no_keyword_refuses():
+    """Free-fall prompt (no 'projectile' / 'horizontal' keywords) must NOT route to projectile."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "An object falls from a height of 45 m with g = 9.81 m/s². Compute the fall time."
+    )
+    assert response.problem_shape != "projectile_horizontal_range"
+
+
+# --- Relativistic Doppler shift dispatch (physics-012) ---
+
+
+def test_reasoning_agent_solves_physics_012():
+    """Physics-012 verbatim: spaceship approaches at v=0.6c emitting λ₀=500nm → λ_obs=250nm."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Explain the relativistic Doppler shift. A spaceship approaches Earth at v = 0.6c, "
+        "emitting light of rest-frame wavelength λ₀ = 500 nm. What wavelength does Earth observe? "
+        "What is the qualitative direction (redshift or blueshift), and why?"
+    )
+    assert response.confidence == "high"
+    assert response.domain == "physics"
+    assert response.problem_shape == "relativistic_doppler_shift"
+    assert response.parsed_inputs["wavelength_emit_nm"] == 500.0
+    assert response.parsed_inputs["beta"] == 0.6
+    assert response.parsed_inputs["approaching"] is True
+    assert abs(response.lemma.actual_value - 250.0) < 1.0  # ladder tolerance
+
+
+def test_reasoning_agent_doppler_receding_redshift():
+    """Receding source → redshift; factor = √((1+β)/(1-β))."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Doppler shift: a galaxy recedes from us at v = 0.5c, emitting at wavelength = 600 nm. "
+        "What wavelength do we observe?"
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "relativistic_doppler_shift"
+    assert response.parsed_inputs["approaching"] is False
+    # β=0.5 receding: factor = √(1.5/0.5) = √3 ≈ 1.732; λ_obs ≈ 1039.23
+    expected = 600.0 * math.sqrt(1.5 / 0.5)
+    assert abs(response.lemma.actual_value - expected) < 1.0
+
+
+def test_reasoning_agent_doppler_no_keyword_refuses():
+    """Missing 'doppler' keyword → don't route to Doppler dispatcher (would otherwise misroute
+    to relativistic_momentum since both have v=Xc patterns)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A spaceship approaches Earth at v = 0.6c emitting wavelength λ = 500 nm. Comment."
+    )
+    assert response.problem_shape != "relativistic_doppler_shift"
+
+
+def test_reasoning_agent_doppler_no_direction_refuses():
+    """'Doppler' keyword present but no direction (approach/recede) → refuse, not default."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Relativistic Doppler shift: source at v = 0.5c, λ = 600 nm. What is observed?"
+    )
+    # No 'approach' / 'recede' keywords → parser refuses
+    assert response.problem_shape != "relativistic_doppler_shift"
