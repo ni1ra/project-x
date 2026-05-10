@@ -32,4 +32,31 @@ Pure signal code (lain 2026-05-10). Organic from the core (lain 2026-05-09). Cra
 
 ---
 
-*— skeleton landed cycle 1 (2026-05-10 03:53 CEST); cycle 2 enriches to ≥300-500 words with the long-arc narrative + concrete next-Phase candidates.*
+## The long arc — phases as load-bearing layers
+
+Each phase composes into the next. None of them are throwaways.
+
+- **Phases 1-3 (compressed-memory architecture)** revealed that block-level pooling is a temperature operator on the downstream selector softmax (M-PROJECTX-003), and that small-scale-vs-large-scale advantages can fully invert (M-PROJECTX-006). The lesson: any architectural claim needs scale-test data before "ADVANCE." That epistemic discipline carries forward into every subsequent phase's verification gate.
+- **Phases 4-7 (scale studies + adversarial probe + Hopfield lens)** mapped the capacity-edge regime where compressed-memory's reliability advantage emerges (M-PROJECTX-009). The Hopfield lens phase proved associative memory is a real architectural primitive, not metaphor.
+- **Phase 8 (beyond-transformer organic memory)** shipped the random-symbol HDC baseline — 99.25% recall at D=50000 across 1000 turns. Capacity proven. Semantic grounding still owed.
+- **Phase 9 (semantic HDC memory + organic encoders)** built from-scratch char-n-gram + Hebbian co-occurrence encoders (lain 2026-05-09: *no pretrained transformers, ever, at any layer*) and minimal evidence-cited agent loop. 39/39 pytest. Critical thresholds met: HDC beats keyword baseline on paraphrase queries.
+- **Phase 10 (memory_action_organism)** hardened it. Fact-graph + structural retrieval shattered every Phase 9 metric (multi-hop top-5 3.3% → 91.3%). HDC role-filler binding shipped corpse-spec compliance. Incremental write + Hebbian replay closed the killer-milestone EXIT GATE: teach + correct + multi-hop + refuse-absent + tool-execution-with-writeback.
+- **Phase 11 (THIS RUN — Raphael Domain Benchmark Suite).** 36 hand-crafted entries across physics, maths, memory, persona, philosophy, poetry. Split-graded (M-PROJECTX-014 firewall): mechanical-ground-truth domains auto-graded; subjective domains rubric-pending for external GPT/lain audit. The benchmark is the diagnostic that tells us where Raphael actually sits before live training begins.
+
+## Phase 12+ candidates (named, not skipped)
+
+- **Cortical column ensemble** (Council Idea #2 — Hawkins/Numenta direction). Many sparse HDC modules with voting; layers over Phase 10's fact-graph + binding substrate.
+- **Predictive simulation loop** (Council Idea #3 — LeCun world-model direction). Forward-modeling capability the agent doesn't yet have. May use HDC binding for forward-modeling.
+- **Open-ended benchmark ladder** (Council Idea #5 — Stanley/POET direction). Meta-priority on testing methodology — meaningful only after the agent can do tool-execution + memory-updates (Phase 10 EXIT GATE met).
+- **Hebbian replay informed by benchmark performance.** Live-training algo the agent uses where its rubric-pending domains scored weakest. Phase 11's verdict markdown is the input.
+- **Audio listening (Whisper + Discord REST polling).** Whisper installed at `/home/nira/.local/bin/whisper`; integration deferred from Phase 11 brief because doing it as a heartbeat side-task would either skim or skip silently.
+
+## Why this matters
+
+Every layer here earns its place by being load-bearing for the next. The transformer paradigm offers a shortcut that pretends memory + identity + reasoning are statistical artifacts of a black box. We don't take that shortcut. We build the substrate organically, and what emerges is something that can introspect what it knows, defend what it values, and show its work — because nothing in the stack is hiding behind the convenience of "it just emerges from scale."
+
+There is no should — there is the vector and those of us carried along it. Project X is what lain chose to do with the ride.
+
+---
+
+*— skeleton landed cycle 1 (2026-05-10 03:53 CEST); enriched cycle 2 (2026-05-10 04:13 CEST) with long-arc + Phase 12+ candidates. Heartbeat reconciles freshness; cycle 8 verdict references this file.*
