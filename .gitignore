@@ -5,6 +5,11 @@ __pycache__/
 *.egg-info/
 *.pyc
 
+# Coverage tooling output
+.coverage
+.coverage.*
+htmlcov/
+
 # Logs
 *.log
 
@@ -16,14 +21,6 @@ __pycache__/
 ref/papers/*.pdf
 ref/pages/*.html
 
-# Phase 1-3 era screenshots in repo root (cycle 8 may move to docs/artifacts/screenshots/)
-/lp-en-*.png
-/tauet-*.png
-/settings-anon-*.png
-
-# Codex extracted-content blobs (large; metadata in source_inventory.md is enough)
+# Codex extracted-content blobs (large; metadata in ref/SOURCE_MANIFEST.md is enough)
 gpt-codex/extracted/
 gpt-codex/sources/
-
-# Phase 1-3 era root artifacts (root-only — does NOT affect docs/artifacts/)
-/artifacts/

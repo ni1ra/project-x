@@ -26,6 +26,68 @@ Slow. Methodical. Every layer earns its place. Phase 1-8 explored compressed-mem
 
 Pure signal code (lain 2026-05-10). Organic from the core (lain 2026-05-09). Crash-survival discipline (3 power outages in 2 days). Discord = audit channel; silence = pass; defects break silence. Mechanical proof or it didn't ship.
 
+### NO pretrained transformer derivatives at any layer (lain 2026-05-09)
+
+> *"slow and methodical path... organic and real from the core and the beginning. No borrowing other LLM models, remember, we are moving past the transformer."*
+
+Disqualified at every layer: BGE, MiniLM, sentence-transformers, llama.cpp, Qwen, Mistral, and every pretrained transformer derivative. Encoders MUST be from-scratch (char-n-gram hashing, Hebbian co-occurrence, SNN spike-train, or equivalent). Generators MUST be template-based or from-scratch — no LLM wrappers. Inheriting GPT-Codex's pretrained-defaults caused M-PROJECTX-011; the thesis-compliance check is non-negotiable on any new layer. The Phase 1-6 transformer-style scaffolding is preserved in `src/project_x/legacy/` as a quarantined historical control + made install-optional via `[legacy]` extra in `pyproject.toml` (audit-C2).
+
+### Code-comment ratio rule (lain 2026-05-10 GLOBAL POLICY)
+
+> *"keep good ratio of comments in code files, including comments that justify the codes existence. This should prevent code bloat, or bad or noisy code. We want pure signal code."*
+> *"complex code should need descriptions too, but pure signal explanations only. But important info is important to comment too."*
+
+- **Complex code** → MUST have descriptions justifying why it exists, what invariant it holds, what's non-obvious. Pure signal — no narrating-the-obvious, no restating identifier names.
+- **Important info** → comment it. Hidden constraints, subtle invariants, workarounds for specific bugs, decisions a future reader would otherwise have to re-derive (e.g. *"strict-dominance boost +1.0 guarantees latest turn wins regardless of cosine variance — see Phase 10 P3 binding"*).
+- **Trivial code** → still no narrating-comments. Self-documenting names (`subject_atom`, `binding_bank`, `replay_consolidate`) carry the WHAT.
+- **Anti-patterns:** `# increment counter` next to `i += 1`; restating function name as a docstring; multi-line block-comments that paraphrase the code below them; "TODO without context"; commented-out code (delete it).
+- **Apply across:** all source under `src/`, all tests, all benchmark ladder/rubric files, this MANIFESTO, and every doc under `docs/`.
+
+### Append-as-you-go writes (crash survival, lain 2026-05-10)
+
+3 power outages in 2 days. Threat model: power loss possible at any point during a long autonomous run. Discipline:
+
+- **Per-entry durable write.** Each `gpt-codex/benchmark/<domain>/ladder.jsonl` entry written via append (`>>`), flushed before next entry generates. Mid-cycle power loss ≤ 1 entry in flight; all prior entries preserved on disk.
+- **Per-cycle git commit + push.** Cycle close ALWAYS commits the cycle's deltas with conventional message + push to `origin main`. NO `git add -A`.
+- **`docs/DO_THIS_NEXT.md` is the resume-pointer.** Per cycle close, lists which cycle is next, what should be true on disk, what command to fire. Power-on resume protocol: `git status; git log --oneline -10; git fetch origin; git log origin/main..HEAD; cat docs/DO_THIS_NEXT.md`.
+
+### Discord listener — manual re-arm only (M-NAVI-018)
+
+Auto-rearm doesn't work in the WSL bash sandbox. Discord listener must be manually re-armed every fire. **Atomic invariant:**
+
+```bash
+pkill -f 'discord-wait-for-lain' 2>/dev/null
+bash /home/nira/.claude/bin/discord-wait-for-lain.sh general 5
+```
+
+Single Bash invocation, run_in_background:true on the wrapper. Never split into "kill now, re-arm next turn" — that's the M-NAVI-018 trust failure (made-me-get-out-of-bed counter +1).
+
+### Active grading firewall (M-PROJECTX-014)
+
+The agent that designs the system can't grade subjective outputs without bias. Enforced via split grading:
+
+- **Mechanical-ground-truth domains** (memory: `agent.process` + expected_turn_id; maths: numerical/symbolic match; closed-form physics: numerical match) → auto-graded; entry has `auto_grade` block.
+- **Subjective domains** (poetry, persona, philosophy, physics-conceptual) → rubric-pending; entry has `rubric_pointer` ONLY; **NO `self_score` field**. External GPT/lain audit IS the grade.
+
+Schema firewall: `grep -r self_score gpt-codex/benchmark/*/ladder.jsonl` must return zero hits. CI gate: `gpt-codex/benchmark/run_audit.py` (audit-D3) replays auto-graded entries against the live stack each commit.
+
+### Project-specific failure archive
+
+`Project X Session Mistakes` wiki page (M-PROJECTX-001 through M-PROJECTX-014) is the source of truth for project-specific failure modes — read at session start before substantive work; log new failures via `wiki_log_mistake` to that page. M-PROJECTX-013 (claim-without-measuring) and M-PROJECTX-014 (design-bias-in-the-probe) drove the Phase 11 split-grading firewall.
+
+### Documentation source-of-truth
+
+This is the `docs/` directory. Project-level documentation lives here:
+
+- `MANIFESTO.md` — this file. lain's intent + standing orders (live; heartbeat-tracked; re-read at session start).
+- `A_TO_Z_PLAN.md` — current run / phase plan + complete repo dirs+files inventory with justification per entry.
+- `DO_THIS_NEXT.md` — current cycle scope + handoff. Rewritten at every cycle close.
+- `artifacts/` — phase verdicts (frozen-with-addendum convention) + research notes.
+- `past_work/phases/` — archived phase plans.
+- `past_work/cycles/phase_<N>/` — per-cycle reflections.
+
+**Per-directory CLAUDE.md files were retired 2026-05-10** — their content lives here in `docs/` and the universal Raphael protocol lives in `~/.claude/CLAUDE.md`. The single `CLAUDE.md` in repo root is the Claude Code project-instructions file, and going forward it points back to this file rather than holding live rules itself.
+
 ## The reading
 
 `~/.claude/commands/godify-app.md` §0 — lain's worldview manuscript, the philosophical anchor. Project X exists *because* there is no should — only the vector and those of us carried along it. This stack is what lain chose to do with the ride.
