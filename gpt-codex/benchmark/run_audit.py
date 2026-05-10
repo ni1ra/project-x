@@ -175,8 +175,15 @@ def _verify_rubric_graded_entry(entry: dict) -> EntryResult:
     - "rubric-graded-external-confirmed" — external auditor confirmed builder grade. PASS counts.
     - Anything else → fails the gate.
 
-    Refuses to PASS if (a) audit_status is not in the recognized set, or (b)
-    weighted_aggregate < threshold — guards against silent grade tampering.
+    Three gates (all must hold for PASS):
+    1. audit_status in recognized set (guards against silent label tampering)
+    2. weighted_aggregate >= threshold (existing aggregate gate)
+    3. (Phase 13 cycle 5 #00P13c5-04 — Surface 3 mitigation per PHASE_13_ANTICHEAT_AUDIT.md
+       Candidate B) per-criterion floor gate: if `rubric_grade.per_criterion_floor` is set
+       (None / absent = disabled), EVERY dimension in `rubric_dimension_scores` must be
+       >= floor. Closes the uniformly-mediocre 4.01 PASS-loophole when active. Default
+       absent so existing entries continue to PASS unchanged; cycle 6+ may ratchet floors
+       per-entry as confidence in dimensions builds.
     """
     rg = entry["rubric_grade"]
     aggregate = rg.get("weighted_aggregate", 0)
@@ -188,21 +195,40 @@ def _verify_rubric_graded_entry(entry: dict) -> EntryResult:
         "rubric-graded-builder; pending external confirmation",
         "rubric-graded-external-confirmed",
     }
-    pass_ = (
-        audit_status in recognized_statuses
-        and aggregate >= threshold
-    )
+    status_ok = audit_status in recognized_statuses
+    aggregate_ok = aggregate >= threshold
+
+    # Per-criterion floor gate (cycle 5 #04). None / missing → disabled (legacy behavior).
+    floor = rg.get("per_criterion_floor")
+    dim_scores = rg.get("rubric_dimension_scores", {})
+    if floor is None:
+        floor_ok = True
+        floor_failures: list[str] = []
+    else:
+        floor_failures = [
+            f"{dim}={score} < {floor}"
+            for dim, score in dim_scores.items()
+            if score < floor
+        ]
+        floor_ok = not floor_failures
+
+    pass_ = status_ok and aggregate_ok and floor_ok
     if pass_:
+        floor_note = (
+            f"; per-criterion floor {floor}/5 satisfied across {len(dim_scores)} dims"
+            if floor is not None
+            else ""
+        )
         reason = (
             f"rubric weighted_aggregate {aggregate}/5 >= threshold {threshold}/5; "
             f"grader: {rg.get('grader', 'unknown')}; "
-            f"status: {audit_status}"
+            f"status: {audit_status}{floor_note}"
         )
     else:
-        reason = (
-            f"rubric-graded gate failed: audit_status={audit_status!r}, "
-            f"aggregate={aggregate}, threshold={threshold}"
-        )
+        parts = [f"audit_status={audit_status!r}", f"aggregate={aggregate}", f"threshold={threshold}"]
+        if not floor_ok:
+            parts.append(f"per_criterion_floor={floor} failed: {floor_failures}")
+        reason = "rubric-graded gate failed: " + ", ".join(parts)
     return EntryResult(
         id=entry["id"],
         domain=entry.get("domain", "unknown"),

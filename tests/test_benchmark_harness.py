@@ -92,3 +92,97 @@ def test_audit_harness_all_pass(tmp_path):
             # Memory entries went through the live replay path → carry actuals.
             assert e["actual_turn_ids"] is not None
             assert e["actual_answer_excerpt"] is not None
+
+
+class TestPerCriterionFloorGate:
+    """Phase 13 cycle 5 #00P13c5-04 — per-criterion floor gate (Surface 3 partial mitigation
+    per PHASE_13_ANTICHEAT_AUDIT.md Candidate B).
+
+    Verifies the gate's three properties:
+    - Disabled by default (None / absent floor) → existing entries unchanged (legacy behavior).
+    - When floor set + ALL dimensions >= floor → PASS.
+    - When floor set + ANY dimension < floor → FAIL with detailed reason naming the failing dim.
+    - When aggregate alone passes but a dimension is below floor → FAIL (closes the
+      uniformly-mediocre 4.01 PASS-loophole the audit identified).
+
+    Tests call `_verify_rubric_graded_entry` directly with synthetic entry dicts —
+    avoids needing to mutate the live ladder.jsonl files for unit-test scope.
+    """
+
+    def _make_entry(self, dim_scores, aggregate, audit_status, floor=None):
+        """Build a synthetic Path B entry dict for the verifier."""
+        rg = {
+            "weighted_aggregate": aggregate,
+            "threshold_for_pass": 4.0,
+            "rubric_dimension_scores": dim_scores,
+            "grader": "test-builder",
+        }
+        if floor is not None:
+            rg["per_criterion_floor"] = floor
+        return {
+            "id": "test-001",
+            "domain": "test",
+            "audit_status": audit_status,
+            "rubric_grade": rg,
+        }
+
+    def test_floor_disabled_default_preserves_legacy_pass(self):
+        """No per_criterion_floor field → existing aggregate-only behavior."""
+        harness = _import_harness()
+        # cycle 3 maths-004 shape: completeness=3 (below would-be 4.0 floor),
+        # but aggregate 4.25 PASSes. Without floor, this MUST still pass.
+        entry = self._make_entry(
+            dim_scores={"correctness": 5, "completeness": 3, "structural_insight": 5, "voice": 4},
+            aggregate=4.25,
+            audit_status="rubric-graded-builder; pending external confirmation",
+        )
+        result = harness._verify_rubric_graded_entry(entry)
+        assert result.pass_ is True
+        assert "floor" not in result.reason.lower()
+
+    def test_floor_passes_when_all_dimensions_above(self):
+        """Floor 4.0 + all dimensions >= 4.0 → PASS with floor-satisfied note."""
+        harness = _import_harness()
+        entry = self._make_entry(
+            dim_scores={"correctness": 5, "completeness": 4, "voice": 4},
+            aggregate=4.33,
+            audit_status="rubric-graded-builder; pending external confirmation",
+            floor=4.0,
+        )
+        result = harness._verify_rubric_graded_entry(entry)
+        assert result.pass_ is True
+        assert "per-criterion floor 4.0/5 satisfied" in result.reason
+
+    def test_floor_fails_when_one_dimension_below(self):
+        """Floor 4.0 + completeness=3 → FAIL with dim-name in reason."""
+        harness = _import_harness()
+        entry = self._make_entry(
+            dim_scores={"correctness": 5, "completeness": 3, "voice": 5},
+            aggregate=4.33,
+            audit_status="rubric-graded-builder; pending external confirmation",
+            floor=4.0,
+        )
+        result = harness._verify_rubric_graded_entry(entry)
+        assert result.pass_ is False
+        assert "completeness=3" in result.reason
+        assert "per_criterion_floor=4.0" in result.reason
+
+    def test_floor_closes_uniformly_mediocre_loophole(self):
+        """Aggregate 4.01/5 (just-above-threshold) with one dim at 3.5 → floor catches it.
+
+        This is the canonical Surface 3 loophole: aggregate-only thresholds can let a
+        uniformly-mediocre entry PASS when a real-gap-on-one-dimension should fail it.
+        Floor of 4.0 closes this exact loophole.
+        """
+        harness = _import_harness()
+        entry = self._make_entry(
+            dim_scores={"d1": 3.5, "d2": 4.5, "d3": 4.5, "d4": 4.0, "d5": 3.5},  # avg = 4.0
+            aggregate=4.0,
+            audit_status="rubric-graded-builder; pending external confirmation",
+            floor=4.0,
+        )
+        result = harness._verify_rubric_graded_entry(entry)
+        # Aggregate gate alone would PASS (4.0 >= 4.0); floor gate catches the dimensions at 3.5.
+        assert result.pass_ is False
+        assert "d1=3.5" in result.reason
+        assert "d5=3.5" in result.reason
