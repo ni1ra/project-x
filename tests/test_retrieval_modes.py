@@ -134,21 +134,70 @@ def test_current_preference_still_uses_strict_dominance():
 
 
 def test_unknown_subject_list_all_falls_through():
-    """Edge: list-all hint with no fact_graph subject must fall through
-    to retrieve(query, k=5) inside retrieve_structural_full_history. Must
-    NOT crash and must NOT route to full-history (no subject to enumerate).
-    Decision label can legitimately be 'retrieve', 'absent', or
-    'retrieve_full_history' depending on cosine; the contract is no crash."""
+    """Audit-A4 — behavioral assertion of the actual fall-through contract.
+
+    Trace for "List all of Zoe's preferences." against {Alice, Bob} fixture:
+      1. _is_list_all_query → True ('list all' pattern matches)
+      2. _extract_query_subjects → [] (Zoe is not in fact_graph;
+         fact_graph keys are only {Alice, Bob} from the fixture)
+      3. full_history_mode = True AND bool([]) → False
+         → routes to retrieve_structural (NOT _full_history)
+      4. retrieve_structural → _structural_cosines with no subjects extracted
+         → returns PURE ensemble cosines over the corpus (no boost)
+      5. argsort top-k yields k_retrieve(=5) candidates capped at corpus size
+         (2 records → 2 evidence items)
+      6. compose_answer with full_history=False:
+         - top cosine for Zoe-vs-Alice/Bob fixture is structurally low
+           (Zoe absent from vocab; floor encoder gives weak ngram match;
+           Hebbian gives near-orthogonal noise via unseen-word fallback)
+         - top_cos < cosine_threshold (0.32) → returns
+           ("No evidence ... below threshold", "absent", top_cos)
+      7. AnswerPacket carries the unfiltered top-k as evidence (2 items),
+         decision="absent", answer_text starts with "No evidence".
+
+    Pre-fix the test was liveness-only ("decision in {retrieve, absent,
+    retrieve_full_history}" — any of three passes). That set hid the
+    actual contract: under this fixture the route is ALWAYS retrieve →
+    absent (compose_answer threshold gates the low-cosine top-k). If a
+    future change accidentally re-routed Zoe to retrieve_full_history
+    or skipped the threshold gate, the old assertion would silently pass.
+    """
     setups = ["Alice prefers Rust.", "Bob prefers Go."]
     agent = _build_agent(setups)
     response = agent.process("List all of Zoe's preferences.")
-    # Zoe is not in fact_graph; subject-extraction returns []; the controller
-    # enters the full-history branch but the method itself falls through to
-    # retrieve(k=5). Decision label may end up 'retrieve_full_history' (the
-    # outer routing label) even though the inner retrieval was ensemble.
-    # The contract this test enforces: no exception + an AnswerPacket.
-    assert response is not None
-    assert response.decision in ("retrieve", "absent", "retrieve_full_history")
+
+    # Categorical: decision must be "absent" (threshold gating fires; the
+    # full-history path is NOT taken because no fact_graph subject matched).
+    assert response.decision == "absent", (
+        f"unknown-subject list-all should land at decision=absent via "
+        f"compose_answer's threshold gate; got {response.decision!r}. "
+        f"answer_text={response.answer_text!r}"
+    )
+
+    # Evidence is the unfiltered top-k from retrieve_structural pre-threshold;
+    # the corpus has 2 records so the top-k is 2 items, not 0.
+    assert len(response.evidence) == 2, (
+        f"top-k passes through pre-threshold; expected 2 (corpus size), "
+        f"got {len(response.evidence)}"
+    )
+    # Evidence turn_ids must be ⊆ {0, 1} (the only fixture turns).
+    assert {e.turn_id for e in response.evidence} == {0, 1}
+
+    # All evidence cosines must be below the cosine_threshold (0.32) — that's
+    # WHY decision is "absent". If any cosine ≥ threshold, the routing logic
+    # would have surfaced a "retrieve" decision instead.
+    for e in response.evidence:
+        assert e.cosine < 0.32, (
+            f"unknown-subject query against unrelated fixture should produce "
+            f"all-below-threshold cosines; turn {e.turn_id} cos={e.cosine:.4f}"
+        )
+
+    # answer_text surfaces the "No evidence" marker — no hallucinated Zoe
+    # facts, no leaked corpus turns as if they were Zoe's preferences.
+    assert "No evidence" in response.answer_text
+    assert "Zoe" not in response.answer_text  # negative: no fabrication
+    assert "Alice" not in response.answer_text  # negative: no leaked corpus
+    assert "Bob" not in response.answer_text
 
 
 def test_multi_subject_list_all_unions_chronologically():
