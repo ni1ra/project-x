@@ -121,6 +121,74 @@ def _quadratic_verification_script(a: float, b: float, c: float) -> str:
     )
 
 
+def _quadratic_newton_verification_script(a: float, b: float, c: float) -> str:
+    """Generate a Newton's-method + Vieta-deflation script — divergent verifier path.
+
+    Phase 13 cycle 4 #00P13c4-24 — Surface 2 mitigation. The closed-form verifier
+    (`_quadratic_verification_script`) shares its formula with substrate's
+    `solve_quadratic` — a same-bug collusion vector. Newton-Raphson iterates
+    `f(x) = ax² + bx + c` from x=1.0 until |f(x)| < 1e-12 OR 500 iterations.
+    Vieta's formula (r₁ + r₂ = -b/a) deflates to the second root without
+    repeating the closed-form. Different algorithm, same answer space — if both
+    verifiers agree with substrate, the result is robust against shared
+    closed-form bugs.
+
+    Negative discriminant prints `NEGATIVE_DISCRIMINANT` sentinel; the closed-form
+    verifier uses the same sentinel so the parser handles either uniformly.
+    """
+    return (
+        "import math\n"
+        f"a, b, c = {a}, {b}, {c}\n"
+        "D = b * b - 4 * a * c\n"
+        "if D < 0:\n"
+        "    print('VERIFY_RESULT:NEGATIVE_DISCRIMINANT')\n"
+        "else:\n"
+        "    def f(x): return a*x*x + b*x + c\n"
+        "    def df(x): return 2*a*x + b\n"
+        "    # Newton-Raphson from x=1.0; converges to whichever real root is closer.\n"
+        "    # Damped restart on near-zero derivative (vertex point) to avoid div-zero.\n"
+        "    x = 1.0\n"
+        "    for _ in range(500):\n"
+        "        fx = f(x)\n"
+        "        if abs(fx) < 1e-12:\n"
+        "            break\n"
+        "        dfx = df(x)\n"
+        "        if abs(dfx) < 1e-12:\n"
+        "            x = x + 0.5\n"
+        "            continue\n"
+        "        x = x - fx / dfx\n"
+        "    r1 = x\n"
+        "    # Vieta: r1 + r2 = -b/a, so r2 = -b/a - r1. No closed-form repeat.\n"
+        "    r2 = -b / a - r1\n"
+        "    roots = sorted([r1, r2])\n"
+        "    print('VERIFY_RESULT:' + repr(roots))\n"
+    )
+
+
+def verify_quadratic_via_newton(
+    a: float,
+    b: float,
+    c: float,
+    expected: list[float],
+    tolerance: float = 0.001,
+) -> bool:
+    """Run Newton's-method verification in sandbox; compare to expected roots.
+
+    Divergent from `numerical_verify` (closed-form path). If both agree with
+    substrate, the result is robust against shared closed-form bugs. Returns
+    False on negative discriminant, sandbox failure, or root mismatch.
+    """
+    script = _quadratic_newton_verification_script(a, b, c)
+    write_result = _tool_write_file_sandbox("verify_newton.py", script)
+    if "tool error" in write_result:
+        return False
+    run_result = _tool_run_python_sandbox(script, timeout=10)
+    parsed = _parse_sandbox_output(run_result)
+    if parsed is None:
+        return False
+    return _close_enough(parsed, expected, tolerance, "numerical_close")
+
+
 def _eigenvalue_2x2_verification_script(matrix: list[list[float]]) -> str:
     """Generate a stdlib-only 2x2-eigenvalue Python script.
 
