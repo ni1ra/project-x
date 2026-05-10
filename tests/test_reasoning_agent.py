@@ -655,3 +655,75 @@ def test_reasoning_agent_doppler_no_direction_refuses():
     )
     # No 'approach' / 'recede' keywords → parser refuses
     assert response.problem_shape != "relativistic_doppler_shift"
+
+
+# --- Number-theory dispatchers (maths-017..020) ---
+
+
+def test_reasoning_agent_solves_maths_017_collatz():
+    """Maths-017: Collatz verify [1, 1000] → 1000 verified."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Verify the Collatz conjecture empirically: for every integer n in [1, 1000], "
+        "iterate n → n/2 (if even) or n → 3n+1 (if odd). Report the count of starting "
+        "values that reach 1."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "collatz_verify_range"
+    assert response.parsed_inputs == {"N": 1000}
+    assert response.lemma.actual_value == 1000
+
+
+def test_reasoning_agent_solves_maths_018_goldbach():
+    """Maths-018: Goldbach verify [4, 1000] → 499 verified."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Verify Goldbach's strong conjecture empirically: for every even integer n in "
+        "[4, 1000], find a decomposition n = p + q where p and q are primes. Report the "
+        "count of even integers that decompose."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "goldbach_verify_range"
+    assert response.parsed_inputs == {"N": 1000}
+    assert response.lemma.actual_value == 499
+
+
+def test_reasoning_agent_solves_maths_019_twin_primes():
+    """Maths-019: enumerate twin primes (p, p+2) ≤ 1000 → 35 pairs (OEIS A007508)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Enumerate twin prime pairs (p, p+2) where both p and p+2 are prime and "
+        "p+2 ≤ 1000. Report the count."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "twin_primes_in_range"
+    assert response.parsed_inputs == {"N": 1000}
+    assert response.lemma.actual_value == 35
+
+
+def test_reasoning_agent_solves_maths_020_mertens():
+    """Maths-020: Mertens bound verify |M(n)| ≤ √n for [1, 1000] → 1000 verified."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Verify the Mertens bound empirically: for every integer n in [1, 1000], check "
+        "whether |M(n)| ≤ √n, where M(n) is the Mertens function. Report the count "
+        "satisfying the bound."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "mertens_bound_verify"
+    assert response.parsed_inputs == {"N": 1000}
+    assert response.lemma.actual_value == 1000
+
+
+def test_reasoning_agent_number_theory_no_keyword_refuses():
+    """Prompts mentioning [1, 1000] but no number-theory keyword (collatz/goldbach/
+    twin prime/mertens) must NOT false-match any number-theory dispatcher."""
+    agent = ReasoningAgent()
+    response = agent.process("Compute the sum of integers in [1, 1000].")
+    assert response.problem_shape not in {
+        "collatz_verify_range",
+        "goldbach_verify_range",
+        "twin_primes_in_range",
+        "mertens_bound_verify",
+    }

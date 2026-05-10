@@ -26,6 +26,16 @@ from project_x.reasoning.complex_analysis import (
     INTRO_RESIDUE_UNIT_QUADRATIC,
     residue_theorem_unit_quadratic,
 )
+from project_x.reasoning.number_theory import (
+    INTRO_COLLATZ_VERIFICATION,
+    INTRO_GOLDBACH_VERIFICATION,
+    INTRO_MERTENS_BOUND_VERIFICATION,
+    INTRO_TWIN_PRIMES_VERIFICATION,
+    collatz_verify_range,
+    goldbach_verify_range,
+    mertens_bound_verify,
+    twin_primes_in_range,
+)
 from project_x.reasoning.ode import (
     INTRO_FIRST_ORDER_LINEAR_ODE_EXP,
     first_order_linear_ode_exp_solution,
@@ -59,10 +69,13 @@ from project_x.reasoning.verifier import numerical_verify
 
 __all__ = [
     "INTRO_CHAR_POLY_2X2",
+    "INTRO_COLLATZ_VERIFICATION",
     "INTRO_DETERMINANT_3X3",
     "INTRO_FIRST_ORDER_LINEAR_ODE_EXP",
     "INTRO_FREE_FALL",
+    "INTRO_GOLDBACH_VERIFICATION",
     "INTRO_LARGE_ANGLE_PENDULUM",
+    "INTRO_MERTENS_BOUND_VERIFICATION",
     "INTRO_PENDULUM",
     "INTRO_POLYNOMIAL_DEFINITE_INTEGRAL",
     "INTRO_PROJECTILE_HORIZONTAL_RANGE",
@@ -70,14 +83,18 @@ __all__ = [
     "INTRO_RELATIVISTIC_DOPPLER_SHIFT",
     "INTRO_RELATIVISTIC_MOMENTUM",
     "INTRO_RESIDUE_UNIT_QUADRATIC",
+    "INTRO_TWIN_PRIMES_VERIFICATION",
     "DerivationStep",
     "InvariantCheck",
     "Lemma",
+    "collatz_verify_range",
     "determinant_3x3",
     "expand_characteristic_polynomial_2x2",
     "first_order_linear_ode_exp_solution",
     "free_fall_time",
+    "goldbach_verify_range",
     "large_angle_pendulum_period",
+    "mertens_bound_verify",
     "numerical_verify",
     "pendulum_period",
     "polynomial_definite_integral",
@@ -86,4 +103,5 @@ __all__ = [
     "relativistic_momentum",
     "residue_theorem_unit_quadratic",
     "solve_quadratic",
+    "twin_primes_in_range",
 ]

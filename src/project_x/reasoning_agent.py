@@ -43,6 +43,12 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
+from project_x.reasoning.number_theory import (
+    collatz_verify_range,
+    goldbach_verify_range,
+    mertens_bound_verify,
+    twin_primes_in_range,
+)
 from project_x.reasoning.ode import first_order_linear_ode_exp_solution
 from project_x.reasoning.physics import (
     free_fall_time,
@@ -373,6 +379,51 @@ def _parse_first_order_ode(prompt: str) -> tuple[float, float, float, float] | N
     return (k, y_0, x_target, x_0)
 
 
+# Number-theory dispatchers (cycle 8 #00P13c8-10): Collatz / Goldbach / twin primes / Mertens.
+# Each closes a programmatic-unsolved-theorem benchmark entry (maths-017..020) per lain
+# mid-cycle directive 2026-05-11. Honest M-PROJECTX-013 framing: PASS = empirical
+# verification over [1, N] only — NEVER theorem proof.
+_NT_RANGE_1_PATTERN = re.compile(r"\[\s*1\s*,\s*(\d+)\s*\]")
+_NT_RANGE_4_PATTERN = re.compile(r"\[\s*4\s*,\s*(\d+)\s*\]")
+_NT_LEQ_N_PATTERN = re.compile(r"(?:≤|<=)\s*(\d+)")
+
+
+def _parse_collatz_verify(prompt: str) -> int | None:
+    """Extract N from a Collatz verification prompt. Gated by 'collatz' or '3n+1'."""
+    lower = prompt.lower()
+    if "collatz" not in lower and "3n+1" not in lower and "3n + 1" not in lower:
+        return None
+    m = _NT_RANGE_1_PATTERN.search(prompt)
+    return int(m.group(1)) if m else None
+
+
+def _parse_goldbach_verify(prompt: str) -> int | None:
+    """Extract N from a Goldbach verification prompt. Gated by 'goldbach'."""
+    lower = prompt.lower()
+    if "goldbach" not in lower:
+        return None
+    m = _NT_RANGE_4_PATTERN.search(prompt)
+    return int(m.group(1)) if m else None
+
+
+def _parse_twin_primes(prompt: str) -> int | None:
+    """Extract N from a twin-primes enumeration prompt. Gated by 'twin prime'."""
+    lower = prompt.lower()
+    if "twin prime" not in lower and "twin-prime" not in lower:
+        return None
+    m = _NT_LEQ_N_PATTERN.search(prompt)
+    return int(m.group(1)) if m else None
+
+
+def _parse_mertens_verify(prompt: str) -> int | None:
+    """Extract N from a Mertens-bound verification prompt. Gated by 'mertens'."""
+    lower = prompt.lower()
+    if "mertens" not in lower:
+        return None
+    m = _NT_RANGE_1_PATTERN.search(prompt)
+    return int(m.group(1)) if m else None
+
+
 # 3x3 matrix regex: matches `[[a, b, c], [d, e, f], [g, h, i]]` with optional whitespace.
 # All nine entries captured as signed decimal strings; whitespace inside brackets allowed.
 # Closes maths-012 (cycle 8 #00P13c8-04). Placed BEFORE 2x2 pattern so longer-match wins
@@ -487,6 +538,22 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
+        # Maths number-theory dispatchers (cycle 8 #00P13c8-10) — covers maths-017/018/019/020.
+        # Specific single-keyword gates ('collatz' / 'goldbach' / 'twin prime' / 'mertens')
+        # — placed FIRST so the unique keywords win over any later generic-shape regex match.
+        response = self._try_collatz_verify(prompt)
+        if response is not None:
+            return response
+        response = self._try_goldbach_verify(prompt)
+        if response is not None:
+            return response
+        response = self._try_twin_primes(prompt)
+        if response is not None:
+            return response
+        response = self._try_mertens_verify(prompt)
+        if response is not None:
+            return response
+
         # Maths residue theorem — covers maths-003. Specific keyword gate.
         response = self._try_residue_theorem(prompt)
         if response is not None:
@@ -598,6 +665,62 @@ class ReasoningAgent:
             domain="maths",
             problem_shape="determinant_3x3",
             parsed_inputs={"matrix": matrix},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_collatz_verify(self, prompt: str) -> AgentResponse | None:
+        N = _parse_collatz_verify(prompt)
+        if N is None:
+            return None
+        lemma = collatz_verify_range(N)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="collatz_verify_range",
+            parsed_inputs={"N": N},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_goldbach_verify(self, prompt: str) -> AgentResponse | None:
+        N = _parse_goldbach_verify(prompt)
+        if N is None:
+            return None
+        lemma = goldbach_verify_range(N)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="goldbach_verify_range",
+            parsed_inputs={"N": N},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_twin_primes(self, prompt: str) -> AgentResponse | None:
+        N = _parse_twin_primes(prompt)
+        if N is None:
+            return None
+        lemma = twin_primes_in_range(N)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="twin_primes_in_range",
+            parsed_inputs={"N": N},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_mertens_verify(self, prompt: str) -> AgentResponse | None:
+        N = _parse_mertens_verify(prompt)
+        if N is None:
+            return None
+        lemma = mertens_bound_verify(N)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="mertens_bound_verify",
+            parsed_inputs={"N": N},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",
