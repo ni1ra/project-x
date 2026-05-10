@@ -33,3 +33,11 @@ gpt-codex/sources/
 #   force-add it: `git add -f gpt-codex/runs/<dir>/`.
 # - See docs/MANIFESTO.md § gpt-codex/runs/ retention policy for criteria.
 gpt-codex/runs/*/
+
+# sandbox/ runtime artifacts (Phase 13 cycle 2 D4 fresh-catch):
+# - The agent (Project X Raphael) writes verification scripts + intermediate
+#   artifacts to sandbox/ via _tool_write_file_sandbox. These are runtime artifacts,
+#   NOT deliverables — promotion to tracked status requires explicit force-add.
+# - sandbox/.gitkeep stays tracked so the locked-folder root is git-visible.
+sandbox/*
+!sandbox/.gitkeep
