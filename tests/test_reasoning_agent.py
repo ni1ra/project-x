@@ -11,9 +11,12 @@ Cycle 7 minimum-viable scope; cycle 7+ extensions add tests per new problem-shap
 
 from __future__ import annotations
 
+import math
+
 from project_x.reasoning_agent import (
     AgentResponse,
     ReasoningAgent,
+    _parse_free_fall,
     _parse_matrix_2x2,
     _parse_quadratic,
     _parse_signed_coefficient,
@@ -202,3 +205,66 @@ def test_reasoning_agent_solves_maths_009():
     # trace=4, det=-5 → λ²-4λ-5 → (λ-5)(λ+1) → eigenvalues -1, 5
     assert abs(eigs[0] - (-1.0)) < 1e-4
     assert abs(eigs[1] - 5.0) < 1e-4
+
+
+# --- _parse_free_fall + physics free-fall dispatch ---
+
+
+def test_parse_free_fall_physics_001():
+    # Physics-001: "A ball is dropped from rest from a height of 80 m. ... Use g = 9.81 m/s^2."
+    params = _parse_free_fall(
+        "A ball is dropped from rest from a height of 80 m. Ignoring air resistance, "
+        "how long until it hits the ground? Use g = 9.81 m/s^2."
+    )
+    assert params == (80.0, 9.81)
+
+
+def test_parse_free_fall_physics_008():
+    # Physics-008: "On Mars (g = 3.71 m/s²), how long does a ball take to fall from 50 m?"
+    params = _parse_free_fall(
+        "On Mars (g = 3.71 m/s²), how long does a ball take to fall from 50 m? Ignore atmospheric drag."
+    )
+    assert params == (50.0, 3.71)
+
+
+def test_parse_free_fall_needs_drop_keyword():
+    # Bare h + g without naming drop/fall → don't route here.
+    params = _parse_free_fall("A platform of height 80 m has g = 9.81 m/s² ambient.")
+    assert params is None
+
+
+def test_parse_free_fall_no_match_missing_height():
+    params = _parse_free_fall("A ball is dropped with g = 9.81 m/s^2 ambient gravity.")
+    assert params is None
+
+
+def test_reasoning_agent_solves_physics_001():
+    """Physics-001: h=80, g=9.81 → t ≈ √(160/9.81) ≈ 4.0386 s (ladder expected 4.04)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A ball is dropped from rest from a height of 80 m. Ignoring air resistance, "
+        "how long until it hits the ground? Use g = 9.81 m/s^2."
+    )
+
+    assert response.confidence == "high"
+    assert response.domain == "physics"
+    assert response.problem_shape == "free_fall"
+    assert response.parsed_inputs == {"h_meters": 80.0, "g_m_per_s_squared": 9.81}
+    t = response.lemma.actual_value
+    expected = math.sqrt(2 * 80 / 9.81)
+    assert abs(t - expected) < 1e-6
+    assert abs(t - 4.04) < 0.05  # ladder tolerance
+
+
+def test_reasoning_agent_solves_physics_008():
+    """Physics-008: h=50, g=3.71 (Mars) → t ≈ √(100/3.71) ≈ 5.193 s."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "On Mars (g = 3.71 m/s²), how long does a ball take to fall from 50 m? Ignore atmospheric drag."
+    )
+
+    assert response.confidence == "high"
+    assert response.parsed_inputs == {"h_meters": 50.0, "g_m_per_s_squared": 3.71}
+    t = response.lemma.actual_value
+    expected = math.sqrt(2 * 50 / 3.71)
+    assert abs(t - expected) < 1e-6

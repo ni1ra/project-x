@@ -40,6 +40,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from project_x.reasoning.physics import free_fall_time
 from project_x.reasoning.symbolic import (
     Lemma,
     expand_characteristic_polynomial_2x2,
@@ -62,6 +63,30 @@ class AgentResponse:
     lemma: Lemma | None
     answer_text: str
     confidence: str  # "high" (parsed cleanly, substrate ran) / "low" (parser uncertain) / "refused" (no match)
+
+
+# Free-fall parser: extracts (h, g) from a drop/fall prompt.
+# Robust to phrasing variation observed across physics-001 ("height of 80 m ... g = 9.81")
+# and physics-008 ("fall from 50 m ... g = 3.71"). Two-gate filter: prompt must name
+# drop/fall/dropped AND match both height + gravity patterns.
+_HEIGHT_PATTERN = re.compile(r"(?:height of|from)\s+(\d+\.?\d*)\s*m\b", re.IGNORECASE)
+_GRAVITY_PATTERN = re.compile(r"g\s*=\s*(\d+\.?\d*)\s*m/s", re.IGNORECASE)
+
+
+def _parse_free_fall(prompt: str) -> tuple[float, float] | None:
+    """Extract (h, g) from a free-fall prompt. None if shape not recognized.
+
+    Three-gate filter prevents misrouting: (1) prompt names fall/drop/dropped, (2) height
+    pattern matches, (3) gravity pattern matches. All three required.
+    """
+    lower = prompt.lower()
+    if not any(kw in lower for kw in ("drop", "fall", "dropped")):
+        return None
+    h_match = _HEIGHT_PATTERN.search(prompt)
+    g_match = _GRAVITY_PATTERN.search(prompt)
+    if not h_match or not g_match:
+        return None
+    return (float(h_match.group(1)), float(g_match.group(1)))
 
 
 # 2x2 matrix regex: matches `[[a, b], [c, d]]` with optional whitespace.
@@ -150,14 +175,18 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
-        # Maths 2x2 eigenvalues — covers maths-002/009 on the current ladder.
-        # Check this BEFORE quadratic so the eigenvalue-naming gate wins on prompts
-        # that mention both "eigenvalues" and a polynomial form (unlikely but safe).
+        # Physics free-fall — covers physics-001/008. Domain-keyword gate prevents
+        # misrouting (only fires on drop/fall prompts).
+        response = self._try_free_fall(prompt)
+        if response is not None:
+            return response
+
+        # Maths 2x2 eigenvalues — covers maths-002/009. Eigenvalue-naming gate.
         response = self._try_char_poly_2x2(prompt)
         if response is not None:
             return response
 
-        # Maths quadratic — covers maths-001/007/008 on the current ladder.
+        # Maths quadratic — covers maths-001/007/008.
         response = self._try_quadratic(prompt)
         if response is not None:
             return response
@@ -202,6 +231,21 @@ class ReasoningAgent:
             domain="maths",
             problem_shape="char_poly_2x2",
             parsed_inputs={"matrix": matrix},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_free_fall(self, prompt: str) -> AgentResponse | None:
+        params = _parse_free_fall(prompt)
+        if params is None:
+            return None
+        h, g = params
+        lemma = free_fall_time(h, g)
+        return AgentResponse(
+            domain="physics",
+            problem_shape="free_fall",
+            parsed_inputs={"h_meters": h, "g_m_per_s_squared": g},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",
