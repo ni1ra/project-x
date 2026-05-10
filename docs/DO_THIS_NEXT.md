@@ -12,6 +12,17 @@ maths-001 quality: 4.0/5 → 4.5/5  (cycle 3 #02 Tier 1 substrate extensions; su
 maths-002 quality: 4.0/5 → 4.75/5 (cycle 3 #02 Tier 1; differentiated +0.75 — Vieta invariant axis)
 ```
 
+## TIER A — anti-cheat (lain mid-cycle-4 verbatim — pin immediately per IMMEDIATE-TASK-ADD discipline)
+
+lain mid-cycle-4 directive: *"But make sure you are really really careful that you aren't leaking hints or solutions to the model, test to see if it is cheating. Anti cheat measures."* Pinned as #23 + #24:
+
+| ID | Sev | Surface | One-line |
+|---|---|---|---|
+| **#23 #00-anti-cheat-leakage-audit** | HIGH | `docs/artifacts/PHASE_13_ANTICHEAT_AUDIT.md` | Map existing Project X leak surfaces — substrate primitives like `solve_quadratic` HARDCODE the formula → "agent attempt" runs the function whose code IS the answer (cycle 2 D4 + cycle 3 Tier 1 + cycle 4 #03 plan ALL have this risk shape). Path B grader-flip is anti-cheat-cleaner (grader reads frozen response, doesn't generate). |
+| **#24 #00-anti-cheat-mechanism** | HIGH | `src/project_x/anti_cheat.py` (NEW) + tests | Surrogate-prompt variants (3x²-14x-5=0 → 7x²-22x+3=0 same shape diff numbers); memorization probes (paraphrased prompt with same answer); divergent-verifier-paths (verifier uses ≠ algorithm than substrate). Ship after audit (#23). |
+
+**Cycle 4 sequencing pivot:** finish cycle 4 #01 Path B physics (anti-cheat-clean) → ship #23 + #24 → THEN cycle 4 #02 substrate physics (anti-cheat-aware design) + #03 substrate-driven attempt (anti-cheat-verified).
+
 ## Phase 13 cycle 4 deliverables (#00P13c4-XX — pin in TaskList immediately at cycle 4 open per IMMEDIATE-TASK-ADD discipline)
 
 | ID | Sev | Surface | One-line |

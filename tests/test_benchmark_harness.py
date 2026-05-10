@@ -6,9 +6,10 @@ Invokes `gpt_codex.benchmark.run_audit.main` in-process and asserts:
   (2) exit code is 0 (all auto-graded + rubric-graded-green entries pass — would
       catch a regression in retrieval / encoder / controller surface OR a silent
       schema-tampering of rubric grades);
-  (3) per-domain pass counts match the Phase 13 cycle 3 verdict (memory: 5,
-      maths: 5 [3 auto-graded + 2 rubric-graded-green via Path B], physics: 3 —
-      total 13; rubric-pending entries skipped per M-PROJECTX-014 firewall).
+  (3) per-domain pass counts match the Phase 13 cycle 4 verdict (memory: 5,
+      maths: 5 [3 auto-graded + 2 rubric-graded-builder via cycle 3 Path B],
+      physics: 5 [3 auto-graded + 2 rubric-graded-builder via cycle 4 Path B] —
+      total 15; rubric-pending entries skipped per M-PROJECTX-014 firewall).
 """
 
 from __future__ import annotations
@@ -61,13 +62,14 @@ def test_audit_harness_all_pass(tmp_path):
 
     payload = json.loads(json_path.read_text())
     summary = payload["summary"]
-    # Phase 13 cycle 3 verdict: memory 5 / maths 5 (3 auto + 2 Path B rubric-graded-green) / physics 3 = 13 total.
-    assert summary["total_pass"] == 13
+    # Phase 13 cycle 4 verdict: memory 5 / maths 5 (3 auto + 2 cycle-3 Path B rubric-graded-builder) /
+    # physics 5 (3 auto + 2 cycle-4 Path B rubric-graded-builder on rank 4-5) = 15 total.
+    assert summary["total_pass"] == 15
     assert summary["total_fail"] == 0
     assert summary["by_domain"]["memory"]["pass"] == 5
     assert summary["by_domain"]["memory"]["fail"] == 0
     assert summary["by_domain"]["maths"]["pass"] == 5
-    assert summary["by_domain"]["physics"]["pass"] == 3
+    assert summary["by_domain"]["physics"]["pass"] == 5
     # Rubric-pending domains MUST still be skipped where no rubric_grade landed
     # (poetry / philosophy / persona / physics-conceptual entries that haven't been
     # Path-B graded). M-PROJECTX-014 firewall holds: candidate text exists, no
@@ -80,7 +82,7 @@ def test_audit_harness_all_pass(tmp_path):
 
     # Each entry result should carry the harness's pass/fail + reason fields.
     entries = payload["entries"]
-    assert len(entries) == 13
+    assert len(entries) == 15
     for e in entries:
         assert "id" in e
         assert "domain" in e
