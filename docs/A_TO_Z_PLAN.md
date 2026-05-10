@@ -203,9 +203,33 @@ The 16 #00audit-XX deliverables (severity-ranked, dependency-graph-ordered):
 | `phase7_baseline.sh`, `run_phase7_grid.sh`, `run_phase7_hbsweep.sh` | Phase 7 sweep runners. |
 | `plot_phase8_dscaling.py`, `plot_phase8_t4.py` | Plot generators for Phase 8 figures (the T4_*.png set in `docs/artifacts/`). |
 
-### `.github/workflows/` — CI (audit-D1, pending)
+### `.github/workflows/` — CI (audit-D1; YAML at `docs/ci/test.yml`, install gated on `workflow` OAuth scope)
 
-To be created — `test.yml` running `pytest -q` + the M-PROJECTX-014 schema firewall (`grep -r self_score gpt-codex/benchmark/*/ladder.jsonl` returns 0) + `gpt-codex/benchmark/run_audit.py` (audit-D3). Status gate for push/PR.
+The CI workflow itself is shipped at `docs/ci/test.yml` (paste-ready). The
+audit-D1 commit (3-job parallel CI: pytest + M-PROJECTX-014 schema firewall +
+audit-D3 benchmark replay) cannot be pushed to `.github/workflows/` directly
+because the active OAuth token has `repo` scope but lacks `workflow` scope —
+GitHub refuses workflow-file creation/update via OAuth without that scope.
+
+**lain action required** (one-time install): either (a) authorize Claude Code
+with the `workflow` OAuth scope and the agent retries the push, OR (b) copy
+the contents of `docs/ci/test.yml` into a new file at
+`.github/workflows/test.yml` via the GitHub web UI, commit through the web
+editor (which uses lain's session, not the OAuth token, and so bypasses the
+scope restriction).
+
+Once the workflow is at `.github/workflows/test.yml`, CI fires on every
+push/PR to main with three parallel jobs:
+
+- **pytest (organic suite)** — `pip install -e .[dev]` (no `[legacy]` extra
+  → torch absent → `test_smoke.py` + `test_compressed_memory.py` skip via
+  `pytest.importorskip("torch")`); runs the active organic suite.
+- **schema-firewall (M-PROJECTX-014)** — mechanical
+  `grep -rn 'self_score' gpt-codex/benchmark/*/ladder.jsonl` must return
+  zero hits.
+- **benchmark-replay (audit-D3)** — runs `gpt-codex/benchmark/run_audit.py`
+  against the live Phase 9-12 organic stack; exit nonzero on any auto-graded
+  regression.
 
 ---
 

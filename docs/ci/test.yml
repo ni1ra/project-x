@@ -1,0 +1,67 @@
+name: test
+
+# Audit-D1 — pytest + M-PROJECTX-014 schema firewall + audit-D3 benchmark replay.
+# Three jobs run in parallel for fast failure isolation. CI must be green for
+# push/PR to main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    name: pytest (organic suite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Install with [dev] extra (pytest, ruff). NO [legacy] extra → torch
+      # is not installed; tests/test_smoke.py + tests/test_compressed_memory.py
+      # gracefully skip via pytest.importorskip("torch") (audit-C2 quarantine).
+      # The active organic suite runs without torch.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run pytest
+        run: pytest -q
+
+  schema-firewall:
+    name: M-PROJECTX-014 schema firewall
+    runs-on: ubuntu-latest
+    # Mechanical guard against the bias-in-the-probe failure mode (the agent
+    # that designs the system can't grade subjective outputs without bias).
+    # `self_score` MUST NOT appear anywhere in benchmark ladder entries.
+    steps:
+      - uses: actions/checkout@v4
+      - name: grep self_score in ladder.jsonl
+        run: |
+          if grep -rn 'self_score' gpt-codex/benchmark/*/ladder.jsonl 2>/dev/null; then
+            echo "::error::M-PROJECTX-014 firewall violated — self_score field present in ladder entry above"
+            exit 1
+          fi
+          echo "OK — schema firewall holds (0 self_score hits)"
+
+  benchmark-replay:
+    name: audit-D3 benchmark replay
+    runs-on: ubuntu-latest
+    # Replays the auto-graded ladder entries against the live Phase 9-12
+    # organic stack. Catches regressions in retrieval / encoder / controller
+    # surface that a code-only test suite could miss.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (no [legacy], no [dev] needed)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Run audit harness
+        run: python3 gpt-codex/benchmark/run_audit.py
