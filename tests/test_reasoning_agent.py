@@ -331,3 +331,54 @@ def test_reasoning_agent_pendulum_no_pendulum_keyword():
     response = agent.process("A spring with L = 2.0 m has g = 9.81 m/s^2. Find oscillation.")
     # No "pendulum" keyword → refuses
     assert response.confidence == "refused"
+
+
+# --- Relativistic momentum dispatch ---
+
+
+def test_reasoning_agent_solves_physics_003():
+    """Physics-003: electron at 0.9c → p ≈ γ·m·v ≈ 5.64e-22 kg·m/s."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "An electron (rest mass m_e = 9.11e-31 kg) moves at v = 0.9c. "
+        "Calculate its relativistic momentum. Use c = 3.0e8 m/s. "
+        "Report in kg m/s with at least 3 significant figures."
+    )
+
+    assert response.confidence == "high"
+    assert response.domain == "physics"
+    assert response.problem_shape == "relativistic_momentum"
+    assert abs(response.parsed_inputs["m_kg"] - 9.11e-31) < 1e-40
+    assert abs(response.parsed_inputs["v_m_per_s"] - 0.9 * 3.0e8) < 1e-2
+    assert response.parsed_inputs["c_m_per_s"] == 3.0e8
+    p = response.lemma.actual_value
+    # γ at 0.9c ≈ 2.294; p ≈ 2.294 · 9.11e-31 · 2.7e8 ≈ 5.64e-22
+    assert abs(p - 5.64e-22) / 5.64e-22 < 0.01
+
+
+def test_reasoning_agent_solves_physics_011():
+    """Physics-011: proton at 0.5c → p ≈ γ·m·v."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A proton (rest mass m_p = 1.67e-27 kg) moves at v = 0.5c. "
+        "Calculate its relativistic momentum. Use c = 3.0e8 m/s. Report in kg·m/s."
+    )
+
+    assert response.confidence == "high"
+    assert response.problem_shape == "relativistic_momentum"
+    assert abs(response.parsed_inputs["m_kg"] - 1.67e-27) < 1e-35
+    assert abs(response.parsed_inputs["v_m_per_s"] - 0.5 * 3.0e8) < 1e-2
+    p = response.lemma.actual_value
+    # γ at 0.5c = 1/√0.75 ≈ 1.1547; p ≈ 1.1547 · 1.67e-27 · 1.5e8 ≈ 2.892e-19
+    gamma = 1.0 / math.sqrt(1 - 0.25)
+    expected = gamma * 1.67e-27 * 0.5 * 3.0e8
+    assert abs(p - expected) / expected < 0.001
+
+
+def test_reasoning_agent_relativistic_momentum_no_keyword():
+    """Prompt with m + v + c but no "relativistic momentum" naming → don't route."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "An electron of m = 9.11e-31 kg moves at v = 0.9c with c = 3.0e8 m/s. Comment."
+    )
+    assert response.confidence == "refused"

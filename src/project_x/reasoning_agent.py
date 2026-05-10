@@ -45,6 +45,7 @@ from project_x.reasoning.physics import (
     free_fall_time,
     large_angle_pendulum_period,
     pendulum_period,
+    relativistic_momentum,
 )
 from project_x.reasoning.symbolic import (
     Lemma,
@@ -92,6 +93,38 @@ def _parse_free_fall(prompt: str) -> tuple[float, float] | None:
     if not h_match or not g_match:
         return None
     return (float(h_match.group(1)), float(g_match.group(1)))
+
+
+# Relativistic-momentum parsers: extract mass (scientific notation), velocity-as-fraction-of-c,
+# and speed of light. Handles physics-003 (electron at 0.9c) and physics-011 (proton at 0.5c).
+# Mass pattern is permissive on subscripts (m, m_e, m_p) and accepts scientific notation.
+_MASS_PATTERN = re.compile(r"m_?\w?\s*=\s*([\d.]+(?:e[+-]?\d+)?)\s*kg", re.IGNORECASE)
+# Velocity-as-fraction-of-c: "v = 0.9c" / "v = 0.5 c"
+_VELOCITY_AS_C_PATTERN = re.compile(r"v\s*=\s*(\d+\.?\d*)\s*c\b", re.IGNORECASE)
+# Speed of light: "c = 3.0e8 m/s"
+_SPEED_OF_LIGHT_PATTERN = re.compile(r"c\s*=\s*([\d.]+(?:e[+-]?\d+)?)\s*m/s", re.IGNORECASE)
+
+
+def _parse_relativistic_momentum(prompt: str) -> tuple[float, float, float] | None:
+    """Extract (m, v, c) from a relativistic-momentum prompt.
+
+    Velocity comes in as a fraction of c (e.g., "0.9c"); we multiply by the explicit
+    speed-of-light value to get v in m/s for the substrate. Four-gate filter: "relativistic
+    momentum" naming AND mass match AND velocity-fraction match AND speed-of-light match.
+    """
+    lower = prompt.lower()
+    if "relativistic momentum" not in lower:
+        return None
+    m_match = _MASS_PATTERN.search(prompt)
+    v_match = _VELOCITY_AS_C_PATTERN.search(prompt)
+    c_match = _SPEED_OF_LIGHT_PATTERN.search(prompt)
+    if not m_match or not v_match or not c_match:
+        return None
+    m = float(m_match.group(1))
+    v_fraction = float(v_match.group(1))
+    c = float(c_match.group(1))
+    v = v_fraction * c
+    return (m, v, c)
 
 
 # Pendulum length parser: matches "L = 1.0 m" or "length L = 0.5 m" forms.
@@ -246,9 +279,13 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
+        # Physics relativistic momentum — covers physics-003/011. Specific keyword.
+        response = self._try_relativistic_momentum(prompt)
+        if response is not None:
+            return response
+
         # Physics pendulum (small-angle + large-angle) — covers physics-002/009/010.
-        # Pendulum-keyword gate; checked before free-fall (pendulum prompts could
-        # incidentally contain "drop"/"fall" but pendulum keyword is specific).
+        # Pendulum-keyword gate.
         response = self._try_pendulum(prompt)
         if response is not None:
             return response
@@ -323,6 +360,21 @@ class ReasoningAgent:
             domain="physics",
             problem_shape="free_fall",
             parsed_inputs={"h_meters": h, "g_m_per_s_squared": g},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_relativistic_momentum(self, prompt: str) -> AgentResponse | None:
+        params = _parse_relativistic_momentum(prompt)
+        if params is None:
+            return None
+        m, v, c = params
+        lemma = relativistic_momentum(m, v, c)
+        return AgentResponse(
+            domain="physics",
+            problem_shape="relativistic_momentum",
+            parsed_inputs={"m_kg": m, "v_m_per_s": v, "c_m_per_s": c},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",
