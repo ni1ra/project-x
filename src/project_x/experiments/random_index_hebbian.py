@@ -203,8 +203,27 @@ class RandomIndexHebbianEncoder:
 
     # --- Public API ------------------------------------------------------
 
-    def fit(self, conversation_texts: list[str]) -> None:
-        """Build vocab + index vectors + Hebbian-trained context vectors."""
+    def fit(self, conversation_texts: list[str], reset: bool = False) -> None:
+        """Build vocab + index vectors + Hebbian-trained context vectors.
+
+        Args:
+            conversation_texts: corpus to fit on.
+            reset: if True, drop accumulated stats from any prior fit() call
+                (audit-A2 — without this, two fit() calls produce a `_freq` and
+                `_total_tokens` that reflect BOTH corpora, plus stale entries
+                in `_vocab` / `_drop_prob` / `_trained_vecs` for words that
+                only appeared in the older corpus). Default False preserves
+                Phase 9 single-fit semantics. `_index_vecs` is NOT cleared on
+                reset because index vectors are deterministic per word — the
+                cache is correct regardless of corpus.
+        """
+        if reset:
+            self._vocab.clear()
+            self._freq.clear()
+            self._total_tokens = 0
+            self._drop_prob.clear()
+            self._trained_vecs.clear()
+
         rng = np.random.default_rng(self.seed)
 
         # 1. Tokenize, build vocab + frequencies.

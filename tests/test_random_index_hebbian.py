@@ -149,3 +149,60 @@ def test_encode_before_fit_raises():
     except RuntimeError:
         return
     raise AssertionError("encode() should raise before fit()")
+
+
+def test_fit_idempotent_with_reset():
+    """Audit-A2 regression guard — fit() accumulates `_freq` + `_total_tokens`
+    + `_vocab` + `_trained_vecs` across calls by default. The default behavior
+    is preserved (back-compat with Phase 9 single-fit usage), but `reset=True`
+    must drop the prior corpus's stats so the second fit reflects ONLY the
+    second corpus.
+
+    Without the reset kwarg, replay_consolidate() (audit-A3) would silently
+    inflate vocab/_total_tokens with stale data on every replay tick — drop
+    probabilities computed from inflated _total_tokens are wrong, and stale
+    _trained_vecs entries for words removed in the new corpus persist.
+    """
+    corpus_a = ["alice prefers python coffee"]
+    corpus_b = ["bob picked rust tea"]
+    expected_b_tokens = sum(len(tokenize(t)) for t in corpus_b)
+
+    # Default (reset=False): state accumulates across fit() calls — preserved.
+    enc_acc = RandomIndexHebbianEncoder(D=512, n_active=4, window=2, seed=1337)
+    enc_acc.fit(corpus_a)
+    a_vocab_size = len(enc_acc._vocab)
+    a_total_tokens = enc_acc._total_tokens
+    enc_acc.fit(corpus_b)
+    assert len(enc_acc._vocab) > a_vocab_size, (
+        "default fit() must still accumulate vocab (back-compat)"
+    )
+    assert enc_acc._total_tokens > a_total_tokens, (
+        "default fit() must still accumulate _total_tokens (back-compat)"
+    )
+
+    # reset=True: state reflects ONLY corpus_b.
+    enc_reset = RandomIndexHebbianEncoder(D=512, n_active=4, window=2, seed=1337)
+    enc_reset.fit(corpus_a)
+    enc_reset.fit(corpus_b, reset=True)
+    vocab_b = set(enc_reset._vocab.keys())
+    assert "alice" not in vocab_b, (
+        f"reset=True should drop corpus_a's vocab; vocab={sorted(vocab_b)}"
+    )
+    assert "python" not in vocab_b
+    assert "bob" in vocab_b
+    assert "rust" in vocab_b
+    assert enc_reset._total_tokens == expected_b_tokens, (
+        f"reset=True _total_tokens should equal corpus_b tokens "
+        f"({expected_b_tokens}); got {enc_reset._total_tokens}"
+    )
+    # Stale _trained_vecs from corpus_a must be cleared.
+    assert "alice" not in enc_reset._trained_vecs
+    assert "bob" in enc_reset._trained_vecs
+    # _drop_prob recomputed from fresh _freq.
+    assert "alice" not in enc_reset._drop_prob
+
+    # encode() still works after reset — exercises the unseen-word fallback
+    # for words that WERE in corpus_a (now dropped).
+    out = enc_reset.encode(["alice picked tea"])
+    assert out.shape == (1, 512)
+    assert out.dtype == np.int8
