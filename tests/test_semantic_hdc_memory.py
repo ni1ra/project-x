@@ -220,6 +220,77 @@ def test_hdc_binding_extends_on_incremental_write():
     )
 
 
+def test_non_contiguous_turn_ids():
+    """Audit-A1 regression guard — caller-controlled turn_ids may be sparse
+    (10, 20, 30, ...) rather than contiguous (0, 1, 2, ...). The encoder arrays
+    are stored densely in insertion order; the API must map turn_id ↔ row so
+    callers see turn_ids in retrieval results AND no path IndexErrors when
+    a turn_id exceeds len(records).
+
+    Pre-fix: `_floor_turn_vecs[r.turn_id]` indexed row 30 of a 3-row array →
+    IndexError. Even where indexing happened to land in-range, the return
+    tuples leaked ROW INDICES instead of turn_ids, silently breaking the
+    `record.turn_id == turn_id` invariant that `test_retrieve_returns_record_with_text`
+    documents.
+    """
+    records = [
+        TurnRecord(turn_id=10, text="Alice prefers Python.", fact_keys=["pref:Alice"]),
+        TurnRecord(turn_id=20, text="Bob settled on Rust for systems work.", fact_keys=["pref:Bob"]),
+        TurnRecord(turn_id=30, text="Carol picked Postgres for the database.", fact_keys=["pref:Carol"]),
+    ]
+    mem = SemanticHDCMemory(D=2048, alpha=0.5, negative_samples=2, seed=1337)
+    mem.write_batch(records)
+
+    # turn_id → row map populated correctly from non-contiguous IDs.
+    assert mem._turn_id_to_row == {10: 0, 20: 1, 30: 2}
+
+    # retrieve() returns turn_ids (∈ {10, 20, 30}), not row indices.
+    top = mem.retrieve("What does Alice prefer?", k=3)
+    top_ids = [tid for tid, _, _ in top]
+    assert all(tid in {10, 20, 30} for tid in top_ids), (
+        f"retrieve must return caller-facing turn_ids; got {top_ids}"
+    )
+    assert 10 in top_ids, f"Alice's turn (id=10) should appear in top-3, got {top_ids}"
+    # tuple turn_id field must equal record.turn_id (audit-A1 invariant).
+    for turn_id, _, record in top:
+        assert record.turn_id == turn_id
+
+    # retrieve_structural() — exercises the strict-dominance boost path which
+    # writes into a row-indexed `out` array via fact_graph turn_ids.
+    structural = mem.retrieve_structural("What does Bob prefer?", k=3)
+    structural_ids = [tid for tid, _, _ in structural]
+    assert 20 in structural_ids, f"Bob's turn (id=20) should appear; got {structural_ids}"
+    assert structural_ids[0] == 20, (
+        f"strict-dominance boost should put Bob's turn at top-1; got {structural_ids}"
+    )
+
+    # retrieve_structural_full_history() — chronological union path indexes
+    # cosines + records by turn_id (must map to row pre-fix → IndexError).
+    full = mem.retrieve_structural_full_history("List Carol's preferences", k=None)
+    full_ids = [tid for tid, _, _ in full]
+    assert 30 in full_ids, f"Carol's turn (id=30) should appear; got {full_ids}"
+    for turn_id, _, record in full:
+        assert record.turn_id == turn_id
+
+    # retrieve_with_baselines() — every view must surface turn_ids.
+    baselines = mem.retrieve_with_baselines("What does Alice prefer?", k=2)
+    for view in ("ensemble", "keyword", "floor_only", "hebbian_only"):
+        ids = [tid for tid, _, _ in baselines[view]]
+        assert all(tid in {10, 20, 30} for tid in ids), (
+            f"{view}: turn_ids must be caller-facing; got {ids}"
+        )
+
+    # write_one() with another non-contiguous extension — turn_id=42 jumps
+    # past the existing high-water mark (30); pre-fix this would IndexError
+    # on the binding-bank refresh `_floor_turn_vecs[record.turn_id]`.
+    new_record = TurnRecord(turn_id=42, text="Dave chose Go for the CLI.", fact_keys=["pref:Dave"])
+    mem.write_one(new_record)
+    assert mem._turn_id_to_row[42] == 3
+    post = mem.retrieve("What does Dave prefer?", k=2)
+    post_ids = [tid for tid, _, _ in post]
+    assert 42 in post_ids, f"Dave's turn (id=42) should surface post-write_one; got {post_ids}"
+
+
 def test_save_provenance_jsonl():
     import json
     mem = _build_simple_memory()

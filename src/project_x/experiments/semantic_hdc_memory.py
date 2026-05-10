@@ -171,6 +171,13 @@ class SemanticHDCMemory:
     _floor_turn_vecs: np.ndarray | None = field(default=None, init=False, repr=False)
     _heb_turn_vecs: np.ndarray | None = field(default=None, init=False, repr=False)
     _is_built: bool = field(default=False, init=False, repr=False)
+    # turn_id → row-index mapping. The encoder arrays (_floor_turn_vecs,
+    # _heb_turn_vecs) and self._records are stored densely in insertion order
+    # (row 0, 1, 2, ...). TurnRecord.turn_id, however, is caller-controlled
+    # and may be non-contiguous (e.g., a database-sourced corpus where some
+    # records were filtered out). Without this map, `_floor_turn_vecs[r.turn_id]`
+    # IndexErrors when turn_id ≥ len(records) — see audit-A1.
+    _turn_id_to_row: dict[int, int] = field(default_factory=dict, init=False, repr=False)
     # Phase 10 P3: fact graph (subject -> turn_ids, recency-sorted descending).
     _fact_graph: dict[str, list[int]] = field(default_factory=dict, init=False, repr=False)
     # Phase 10 P3 (#00c-2): HDC role-filler binding bank.
@@ -201,6 +208,9 @@ class SemanticHDCMemory:
         """Bulk-write all turns. Single fit() over the corpus, then encode."""
         self._records = list(records)
         self._turn_texts = [r.text for r in records]
+        # Build turn_id → row-index map (audit-A1) so subsequent indexing into
+        # encoder arrays / record list doesn't assume contiguous-from-zero IDs.
+        self._turn_id_to_row = {r.turn_id: i for i, r in enumerate(records)}
         # Fit Hebbian (needs full corpus for vocab + co-occurrence)
         self._hebbian.fit(self._turn_texts)
         # Fit baseline
@@ -266,7 +276,7 @@ class SemanticHDCMemory:
         floor encoder gives a stable bipolar vec per turn text; binding it
         with the subject atom encodes the role-filler triple structurally."""
         for r in records:
-            tv = self._floor_turn_vecs[r.turn_id]
+            tv = self._floor_turn_vecs[self._turn_id_to_row[r.turn_id]]
             for s in self._extract_subjects_for_record(r):
                 self._add_to_binding_bank(s, tv)
 
@@ -310,10 +320,16 @@ class SemanticHDCMemory:
         return f_cos, h_cos, ensemble
 
     def retrieve(self, query: str, k: int = 5) -> list[tuple[int, float, TurnRecord]]:
-        """Top-k turn_ids by ensemble cosine. Returns list of (turn_id, cos, record)."""
+        """Top-k turn_ids by ensemble cosine. Returns list of (turn_id, cos, record).
+
+        argsort yields ROW INDICES into the encoder array; tuple's first element
+        must be the caller-facing turn_id (audit-A1 — non-contiguous-safe), so we
+        re-derive turn_id from the corresponding TurnRecord rather than assuming
+        turn_id == row.
+        """
         cosines = self._ensemble_cosines(query)
         topk = np.argsort(-cosines)[:k]
-        return [(int(idx), float(cosines[idx]), self._records[int(idx)]) for idx in topk]
+        return [(self._records[int(idx)].turn_id, float(cosines[int(idx)]), self._records[int(idx)]) for idx in topk]
 
     # --- Phase 10 P4: incremental write + replay consolidation ----------
 
@@ -332,6 +348,9 @@ class SemanticHDCMemory:
             raise RuntimeError("call write_batch(...) before write_one(...)")
         self._records.append(record)
         self._turn_texts.append(record.text)
+        # Maintain turn_id → row-index map (audit-A1). The new row's index is
+        # len(_records) - 1 (i.e., the index of the just-appended record).
+        self._turn_id_to_row[record.turn_id] = len(self._records) - 1
         # Stateless / incremental-safe encoders.
         new_floor = self._floor.encode([record.text])  # (1, D)
         new_heb = self._hebbian.encode([record.text])  # (1, D); unseen-word fallback handles novel tokens
@@ -341,7 +360,7 @@ class SemanticHDCMemory:
         self._baseline._turn_token_sets.append(set(tokenize(record.text)))
         # Fact graph: prepend turn_id (most-recent first; recency-sorted desc invariant).
         # Binding bank: extend the per-subject bound accumulator with the new bind.
-        new_floor_vec = self._floor_turn_vecs[record.turn_id]
+        new_floor_vec = self._floor_turn_vecs[self._turn_id_to_row[record.turn_id]]
         for s in self._extract_subjects_for_record(record):
             self._fact_graph.setdefault(s, []).insert(0, record.turn_id)
             self._add_to_binding_bank(s, new_floor_vec)
@@ -424,14 +443,19 @@ class SemanticHDCMemory:
 
             max_in_subject = float("-inf")
             for tid in candidates:
-                score = base[tid]
+                # Map turn_id → row (audit-A1) since base/bind_sims/out are
+                # row-indexed encoder arrays, not turn_id-indexed.
+                row = self._turn_id_to_row[tid]
+                score = base[row]
                 if bind_sims is not None:
-                    score = score + binding_weight * float(bind_sims[tid])
-                if score > out[tid]:
-                    out[tid] = score
+                    score = score + binding_weight * float(bind_sims[row])
+                if score > out[row]:
+                    out[row] = score
                 if score > max_in_subject:
                     max_in_subject = score
-            out[candidates[0]] = max_in_subject + 1.0
+            # candidates[0] is the most-recent turn_id (fact_graph is recency-desc);
+            # apply the strict-dominance boost at its row index.
+            out[self._turn_id_to_row[candidates[0]]] = max_in_subject + 1.0
         return out
 
     def retrieve_structural(
@@ -446,7 +470,7 @@ class SemanticHDCMemory:
         """
         cos = self._structural_cosines(query)
         topk = np.argsort(-cos)[:k]
-        return [(int(idx), float(cos[idx]), self._records[int(idx)]) for idx in topk]
+        return [(self._records[int(idx)].turn_id, float(cos[int(idx)]), self._records[int(idx)]) for idx in topk]
 
     # --- Phase 12: chronological full-history retrieval ------------------
 
@@ -502,8 +526,10 @@ class SemanticHDCMemory:
         # depend on the recency-desc invariant for the strict-dominance path).
         chronological = sorted(union)
         cosines = self._ensemble_cosines(query)
+        # cosines + self._records are row-indexed; map turn_id → row before
+        # lookup (audit-A1). The tuple's first element stays as turn_id.
         out = [
-            (int(tid), float(cosines[tid]), self._records[tid])
+            (int(tid), float(cosines[self._turn_id_to_row[tid]]), self._records[self._turn_id_to_row[tid]])
             for tid in chronological
         ]
         if k is not None and len(out) > k:
@@ -548,9 +574,11 @@ class SemanticHDCMemory:
                 cos = float(cosines[ix])
                 if ix not in all_topk or cos > all_topk[ix]:
                     all_topk[ix] = cos
-        # Sort by max cosine across sub-queries, keep top-k
+        # Sort by max cosine across sub-queries, keep top-k. The dict keys
+        # are ROW INDICES (from argsort over row-indexed cosines); map back
+        # to turn_id via the corresponding TurnRecord (audit-A1).
         merged = sorted(all_topk.items(), key=lambda iv: -iv[1])[:k]
-        return [(idx, cos, self._records[idx]) for idx, cos in merged]
+        return [(self._records[row].turn_id, cos, self._records[row]) for row, cos in merged]
 
     # --- Side-by-side with keyword baseline -------------------------------
 
@@ -568,11 +596,16 @@ class SemanticHDCMemory:
         h_cos = cosine_matrix_bipolar(h_q, self._heb_turn_vecs)[0]
         f_topk = np.argsort(-f_cos)[:k]
         h_topk = np.argsort(-h_cos)[:k]
+        # ensemble_top entries already carry caller-facing turn_ids (retrieve()
+        # maps row→turn_id internally); keyword baseline returns row indices
+        # since it operates on _turn_token_sets in row order. argsort over
+        # f_cos / h_cos returns row indices. Map row→turn_id via TurnRecord
+        # for the keyword + floor_only + hebbian_only views (audit-A1).
         return {
-            "ensemble": [(int(i), c, self._records[i]) for i, c, _ in ensemble_top],
-            "keyword": [(int(i), c, self._records[i]) for i, c in keyword_top],
-            "floor_only": [(int(i), float(f_cos[i]), self._records[int(i)]) for i in f_topk],
-            "hebbian_only": [(int(i), float(h_cos[i]), self._records[int(i)]) for i in h_topk],
+            "ensemble": [(int(i), c, self._records[self._turn_id_to_row[int(i)]]) for i, c, _ in ensemble_top],
+            "keyword": [(self._records[int(i)].turn_id, c, self._records[int(i)]) for i, c in keyword_top],
+            "floor_only": [(self._records[int(i)].turn_id, float(f_cos[int(i)]), self._records[int(i)]) for i in f_topk],
+            "hebbian_only": [(self._records[int(i)].turn_id, float(h_cos[int(i)]), self._records[int(i)]) for i in h_topk],
         }
 
     # --- Provenance persistence ------------------------------------------
