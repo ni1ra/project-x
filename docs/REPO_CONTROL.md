@@ -1,0 +1,170 @@
+# REPO_CONTROL — Project X
+
+> **Living document.** Mirror of the actual repo file/folder structure with justification for every entry. No file or folder allowed to exist without an entry here. Pristine-condition gate. Heartbeat-tracked: every cycle close + heartbeat fire reconciles freshness; new files added in a commit MUST land with their REPO_CONTROL row in the same commit.
+
+---
+
+## Standing rule
+
+**Every code file, every artifact (verdicts, run results, tests, scripts, ladder entries, screenshots), every doc — needs an entry here with a one-line justification.** If a file exists on disk + isn't here, either (a) add the row, or (b) delete the file. The repo is pristine when the union of `git ls-files` + tracked-on-disk-but-gitignored matches the entries in this file.
+
+Exemptions (don't need rows):
+- Auto-generated build artifacts (`*.egg-info/`, `__pycache__/`, `.pytest_cache/`)
+- Coverage tooling output (`.coverage`, `htmlcov/`)
+- IDE/agent session artifacts (`.claude/`, `.playwright-mcp/`)
+- Lockfiles tied to a manifest (e.g. `package-lock.json` next to `package.json`) — the manifest gets the row; the lockfile is an artifact of installation
+- Per-language standard ignores (`__pycache__/`, `*.pyc`, etc.) — `.gitignore` is the single source of truth for these
+
+---
+
+## Repo root (3 files)
+
+| Path | Justification |
+|---|---|
+| `README.md` | Public-facing brief — what the project is, quick-start, key artifacts. Reframed `13ab133` from "token-prediction architecture" to "post-transformer organic memory + agent stack" (audit-B4). |
+| `pyproject.toml` | Setuptools build config + deps. `numpy`, `pydantic`, `requests` are core. `torch>=2.2` moved to `[legacy]` optional extra (audit-C2 quarantine). `dev` extra: `pytest`, `ruff`. |
+| `pytest.ini` | Pytest config — adds `src/` to PYTHONPATH so `from project_x.*` imports work without `pip install -e .`. |
+| `.gitignore` | Standard Python ignores + coverage tooling output + `.claude/` + `.playwright-mcp/` + large reference materials in `ref/papers/` and `ref/pages/` + the codex extracted-content blobs in `gpt-codex/extracted/` and `gpt-codex/sources/` (metadata-only tracking; raw blobs stay local) + `gpt-codex/runs/*/` retention policy (audit-F2). |
+
+(Per-directory `CLAUDE.md` files were retired 2026-05-10. Single-source-of-truth lives under `docs/`.)
+
+## `docs/` (live docs + frozen artifacts + cycle archives)
+
+| Path | Justification |
+|---|---|
+| `docs/MANIFESTO.md` | lain's intent + standing orders. Live; heartbeat-tracked; re-read at session start. |
+| `docs/A_TO_Z_PLAN.md` | Current run / phase plan + verification gates + scope fence + changelog. Rotates to `past_work/phases/` on phase exit (THIS file does NOT cycle out — it's REPO_CONTROL). |
+| `docs/DO_THIS_NEXT.md` | Current cycle scope + next-instance handoff. Rewritten at every cycle close. Power-on resume pointer. |
+| `docs/REPO_CONTROL.md` | THIS file — pristine-condition gate; mirror of repo structure with justification. Heartbeat-tracked alongside MANIFESTO. |
+| `docs/ci/test.yml` | Audit-D1 CI workflow template (paste-ready). Cannot ship to `.github/workflows/` directly because Claude Code OAuth lacks `workflow` scope; lain installs via web UI or grants the scope and the agent retries. |
+| `docs/artifacts/` | Phase verdicts (frozen-with-addendum convention) + research notes. See sub-section. |
+| `docs/past_work/phases/` | Archived phase plans. One file per closed phase: `phase_<N>_<theme>.md`. |
+| `docs/past_work/cycles/phase_<N>/` | Per-cycle reflections — `dev-cycle-<M>.md` written at each cycle close. Phases 1, 4-12 represented. |
+
+### `docs/artifacts/` (frozen verdicts + research notes)
+
+| Path | Phase / topic |
+|---|---|
+| `PHASE_7_HOPFIELD_LENS.md` | Phase 7 Hopfield lens proof. |
+| `PHASE_8_HDC_ORGANIC_MEMORY.md` | Phase 8 random-symbol HDC baseline (99.25% recall at D=50000). |
+| `PHASE_8_HOSTILE_REVIEW.md` | Phase 8 hostile review. |
+| `PHASE_9_PICK_ONE_VERDICT.md` | Phase 9 pick-one verdict + lain organic-only addendum (2026-05-09). |
+| `PHASE_9_SEMANTIC_HDC_MEMORY.md` | Phase 9 verdict + Phase 10 closure addenda. |
+| `PHASE_9_SHRINE_COUNCIL_HEBBIAN.md` | Council reasoning (Plate dossier especially relevant for Phase 10 P3 fact-graph). |
+| `PHASE_11_BENCHMARK.md` | Phase 11 verdict (9/2/21/4) + Phase 12 closure addendum (11/0/21/4). |
+| `PHASE_12_RETRIEVAL_DISAMBIGUATION.md` | Phase 12 verdict — `retrieve_structural_full_history` + `_LIST_ALL_HINTS` classifier closing memory-004/005. |
+| `PHASE_13_CANDIDATES.md` | Phase 13 framing inputs (lain-gated, NOT a verdict) — retrieval telemetry, snapshot/restore, adversarial memory matches, from-scratch symbolic generator, binding-algebra bakeoff. |
+| `COUNCIL_A_ENCODER.md` … `COUNCIL_H_BEYOND_HUMAN_CAP.md` | Phase 9 council deliberations across 8 architectural axes. |
+| `DISCORD_BRIEF_RAPHAEL_ROADMAP.md` | Discord brief on Raphael roadmap. |
+| `RESEARCH_NOTE.md` | Older research notes (Phase 1-4 era). |
+| `ROADMAP_TO_RAPHAEL.md` | Older long-arc roadmap (superseded by MANIFESTO + Phase 9-12 verdicts; kept as historical record). |
+| `SHRINE_COUNCIL_PHASE_8.md` | Phase 8 council deliberations. |
+| `T4_bit_accuracy_curve.png`, `T4_capacity_curve.png`, `T4_cliff_vs_D.png`, `T4_dscaling_curves.png` | Phase 4 figures (bit-accuracy, capacity, cliff, D-scaling). |
+
+## `src/project_x/` (runnable research harness)
+
+### Live Phase 9-10 production organic stack — `src/project_x/experiments/`
+
+| Path | Justification |
+|---|---|
+| `__init__.py` | Package marker (empty). |
+| `semantic_hdc_memory.py` | Layer 3 — `SemanticHDCMemory`: HDC accumulator + fact-graph (P3 subject indexing) + structural retrieval + HDC role-filler binding (#00c-2) + incremental `write_one` (audit-D2 amortized-O(1) growth) + `replay_consolidate` (P4) + `retrieve_structural_full_history` (Phase 12). turn_id ↔ row mapping (audit-A1) for non-contiguous IDs. `extract_query_subjects` is the public API surface (audit-C1). |
+| `semantic_memory_agent.py` | Layer 4 — `MemoryAgent.process(text)` rule-based controller; routes write vs retrieve; `_LIST_ALL_HINTS` classifier (Phase 12) routes list-all queries to `retrieve_structural_full_history`; template composer (NO LLM); evidence packet with cited turn IDs; absent-answer threshold gating; `compose_answer` formats single-turn / multi-turn / full-history evidence. |
+| `semantic_memory_dataset.py` | Phase 9 synthetic-real conversation generator + labeled query set (P1 contradiction-label fix). |
+| `encoder.py` | Char-n-gram + Hebbian organic encoders. From-scratch; no pretrained transformers. |
+| `random_index_hebbian.py` | Hebbian co-occurrence encoder + replay-consolidation extension. `fit(reset=True)` (audit-A2) for idempotent re-fit. Sparse-ternary index vectors + Mikolov subsampling + optional negative sampling. |
+| `ensemble_encoder.py` | Phase 9 Cycle 4 prototype — alpha-blend / max / per-type ensemble strategies. Alpha-blend logic was inlined into `SemanticHDCMemory._ensemble_cosines`; this module is retained as historical reference for max / per-type strategies that may be revisited. **Retention candidate** — if not revisited by Phase 14, demote. |
+| `hdc_substrate.py` | HDC primitives — `bind`, `unbind`, `superpose`, `write`, `read`, `cleanup`, `random_vector`, `bit_accuracy`. Self-test CLI via `--self-test`. Coverage 24% → 89% (audit-E1). |
+| `hdc_snn_bridge.py` | SNN spike-train bridge — Phase 13+ candidate substrate (research script, CLI-driven). |
+
+#### Phase 4-8 historical research scripts (CLI-driven; coverage policy: scripts not library)
+
+| Path | Justification |
+|---|---|
+| `hdc_capacity.py` | T1 within-capacity recall + T4 capacity cliff sweep. |
+| `hdc_compose.py` | T2 compositional binding battery (role-filler retrieval + cleanup). |
+| `hdc_continual.py` | T3 continual-learning retention test (100 random pairs across time). |
+| `hdc_conversation_demo.py` | Indefinite-context conversability use-case demo. |
+| `hdc_vs_naive_comparison.py` | Memory-vs-accuracy trade-off — HDC accumulator vs naive per-turn storage. |
+| `hopfield_lens.py` | Post-hoc Modern Hopfield Network energy-regime analysis (β-effective + regime classification). |
+
+#### Quarantined / utility (audit-C2; torch-dependent; `[legacy]` extra)
+
+| Path | Justification |
+|---|---|
+| `compressed_memory.py` | Phase 1-3 transformer-style historical control. **DO NOT IMPORT in organic-thesis code.** |
+| `tasks.py` | Task registry exclusively for `compressed_memory` experiments. Quarantine surface. |
+| `util_harness.py` | Phase 7 GPU-utility harness — pre/during/post `nvidia-smi` sampling for the 70-90% util-band check. |
+
+### Quarantine — `src/project_x/legacy/`
+
+| Path | Justification |
+|---|---|
+| `__init__.py` | Package marker. |
+| `transformer_scaffolding.py` | Phase 1-6 transformer-style scaffolding (was at `src/project_x/model.py` until P6 quarantine). **DO NOT IMPORT in organic-thesis code.** Required for the `legacy` extra; gated by `pytest.importorskip("torch")` in `test_smoke.py`. |
+
+### Top-level `src/project_x/`
+
+| Path | Justification |
+|---|---|
+| `__init__.py` | Package marker. |
+| `config.py` | `ModelConfig` + `RunConfig` dataclasses for the legacy `ProjectXModel`. Used by `smoke.py` and `legacy/transformer_scaffolding.py`. |
+| `smoke.py` | Smoke entry-point exercising the legacy `ProjectXModel`. Quarantined; torch-dependent. |
+
+## `tests/` — pytest suite (87 tests passing as of audit-fix run)
+
+| Path | Justification |
+|---|---|
+| `test_compressed_memory.py` | Phase 1-3 quarantine smoke. `pytest.importorskip("torch")` so the active suite runs without the `[legacy]` extra. |
+| `test_encoder.py` | Phase 9 char-n-gram + Hebbian organic encoder coverage. |
+| `test_hdc_substrate.py` | HDC primitives + 4 self-test fns + `run_self_test` CLI driver (audit-E1; 24% → 89% coverage on hdc_substrate). |
+| `test_killer_milestone.py` | Phase 10 EXIT GATE acceptance — 5 capabilities (teach + correct + multi-hop + refuse-absent + tool-execution-with-writeback). |
+| `test_random_index_hebbian.py` | Phase 9 + audit-A2 (`fit(reset=True)` idempotency regression guard). |
+| `test_retrieval_modes.py` | Phase 12 retrieval-mode disambiguation regression guard (6 tests; audit-A4 tightened the unknown-subject behavioral assertion). |
+| `test_semantic_hdc_memory.py` | Phase 9-10 Layer 3 + audit-A1 (non-contiguous turn_ids) + audit-A3 (replay_consolidate idempotency) + audit-D2 (write_one growth-by-doubling mechanics + perf-ratio guard). |
+| `test_semantic_memory_agent.py` | Phase 9-10 Layer 4 agent loop + run_tool + replay coverage. |
+| `test_semantic_memory_dataset.py` | Phase 9 synthetic dataset gen. |
+| `test_smoke.py` | Phase 1-6 legacy scaffolding smoke. `pytest.importorskip("torch")` (audit-C2). |
+| `test_benchmark_harness.py` | Audit-D3 — invokes `gpt-codex/benchmark/run_audit.py` in-process; asserts auto-graded entries replay green. |
+
+## `gpt-codex/` — Phase 9-12 inputs + benchmark + run results
+
+| Path | Justification |
+|---|---|
+| `gpt-codex/benchmark/` | Phase 11 Raphael Domain Benchmark Suite. 6 domain ladders × 6 entries (`physics/`, `maths/`, `memory/`, `persona/`, `philosophy/`, `poetry/`), each with `ladder.jsonl` + `rubric.md`. M-PROJECTX-014 firewall: NO `self_score` field. Aggregate `audit_log.jsonl` + `verdict.md`. |
+| `gpt-codex/benchmark/run_audit.py` | Audit-D3 harness — replays auto-graded entries against the live stack each commit. |
+| `gpt-codex/runs/` | Per-run aggregate `result.json` directories (Phase 1-9 sweeps + Phase 9 encoders). Frozen-per-phase. **Audit-F2 retention policy**: NEW dirs gitignored by default (`gpt-codex/runs/*/`); already-tracked Phase 1-10 evidence stays tracked; promotion via `git add -f` after a verdict cites the run. See MANIFESTO § retention policy. |
+| `gpt-codex/notes/` | Reading notes (`architecture_mechanisms_matrix.md`, `deepseek_v4_reading_notes.md`, `frontier_model_notes.md`, `open_questions.md`). |
+| `gpt-codex/brainstorm/` | Phase 1 ideation artifacts (`ARCHITECTURE_CANDIDATES.md`, `FINAL_RECOMMENDATION.md`, `IDEA_BANK.md`, `KILL_CRITERIA.md`, `NOVELTY_MATRIX.md`, `TOP_3_DESIGNS.md`). Frozen historical record. |
+| `gpt-codex/logs/` | Curl/pdftotext logs from Phase 1 source ingestion. |
+| `gpt-codex/extracted/` | (gitignored) Codex extracted-content blobs — large, metadata-only via `ref/SOURCE_MANIFEST.md`. |
+| `gpt-codex/sources/` | (gitignored) Source pages cache — large, metadata-only. |
+
+## `ref/` — public reference material
+
+| Path | Justification |
+|---|---|
+| `ref/SOURCE_MANIFEST.md` | Manifest of public reference sources (papers, model reports). |
+| `ref/sources.json` | Machine-readable source list. |
+| `ref/papers/` | (gitignored) PDFs of reference papers. |
+| `ref/pages/` | (gitignored) Cached source pages. |
+
+## `scripts/` — research-scripts that don't fit `src/`
+
+| Path | Justification |
+|---|---|
+| `aggregate_phase7_results.py` | Aggregates Phase 7 hbsweep + lrc-distill results across seeds. |
+| `fetch_refs.py` | Source-fetch driver for `ref/`. |
+| `generate_docs.py` | Source-doc generator (Phase 1 era). |
+| `phase7_baseline.sh`, `run_phase7_grid.sh`, `run_phase7_hbsweep.sh` | Phase 7 sweep runners. |
+| `plot_phase8_dscaling.py`, `plot_phase8_t4.py` | Plot generators for Phase 8 figures (the T4_*.png set in `docs/artifacts/`). |
+
+## Upkeep contract (heartbeat-tracked)
+
+- **At every cycle close:** sweep this file. Any file/dir added in the cycle that doesn't have a row → ADD a row in the same commit. Any file/dir deleted → REMOVE its row.
+- **At session start:** along with MANIFESTO + A_TO_Z + DO_THIS_NEXT, re-read this file. The four together are the live-doc set.
+- **Pristine gate:** `git ls-files | comm -23 - <(awk-extract-tracked-paths-from-this-file)` should be empty (no orphan tracked file). The reverse — entries here referencing files that don't exist — fails the gate too.
+
+---
+
+*— REPO_CONTROL.md created 2026-05-10 (audit-fix run; lain directive: "since the A TO Z gets cycled out after each phase, we dont keep the file justification in there. rather, we keep it in a new REPO_CONTROL.md file"). Heartbeat reconciles freshness; new files added in a commit MUST land with their row in the same commit.*

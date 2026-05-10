@@ -24,3 +24,12 @@ ref/pages/*.html
 # Codex extracted-content blobs (large; metadata in ref/SOURCE_MANIFEST.md is enough)
 gpt-codex/extracted/
 gpt-codex/sources/
+
+# gpt-codex/runs/ retention policy (audit-F2):
+# - NEW run dirs are gitignored by default. Already-tracked Phase 1-10 evidence
+#   STAYS TRACKED — git's gitignore patterns don't affect files that are already
+#   in the index, so no destructive untracking happens here.
+# - To promote a new run when a verdict cites it (`docs/artifacts/PHASE_*.md`),
+#   force-add it: `git add -f gpt-codex/runs/<dir>/`.
+# - See docs/MANIFESTO.md § gpt-codex/runs/ retention policy for criteria.
+gpt-codex/runs/*/

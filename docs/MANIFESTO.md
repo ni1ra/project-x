@@ -71,22 +71,39 @@ The agent that designs the system can't grade subjective outputs without bias. E
 
 Schema firewall: `grep -r self_score gpt-codex/benchmark/*/ladder.jsonl` must return zero hits. CI gate: `gpt-codex/benchmark/run_audit.py` (audit-D3) replays auto-graded entries against the live stack each commit.
 
+### `gpt-codex/runs/` retention policy (audit-F2)
+
+`gpt-codex/runs/` accumulated 145 run dirs / 237 tracked files across Phases 1-10. Going forward:
+
+- **Default for NEW run dirs:** gitignored. The pattern `gpt-codex/runs/*/` in `.gitignore` blocks them at index-add time.
+- **Already-tracked Phase 1-10 evidence:** preserved. Git's gitignore patterns don't affect already-tracked files — no destructive untracking is performed by the policy itself; lain decides retention surgically per dir.
+- **Promotion criterion (when to track a new run):** the run is cited by a verdict markdown in `docs/artifacts/PHASE_*.md` (or is an active baseline that future phases compare against). Promote via `git add -f gpt-codex/runs/<dir>/` after the citation lands.
+- **Demotion criterion (when to retire a run):** lain explicitly retires it (e.g., during a phase-archival sweep). Demote via `git rm --cached -r gpt-codex/runs/<dir>/`. Keeps the disk copy for local provenance; drops the git tracking.
+- **Audit gate:** `audit-D3` benchmark harness (`gpt-codex/benchmark/run_audit.py`) replays the auto-graded ladder entries against the LIVE stack each commit. The ladder.jsonl files in `gpt-codex/benchmark/` are the **mechanical-truth** evidence; the run dirs in `gpt-codex/runs/` are the **historical raw evidence**. CI does not depend on the run dirs.
+
 ### Project-specific failure archive
 
 `Project X Session Mistakes` wiki page (M-PROJECTX-001 through M-PROJECTX-014) is the source of truth for project-specific failure modes — read at session start before substantive work; log new failures via `wiki_log_mistake` to that page. M-PROJECTX-013 (claim-without-measuring) and M-PROJECTX-014 (design-bias-in-the-probe) drove the Phase 11 split-grading firewall.
 
-### Documentation source-of-truth
+### Documentation source-of-truth (live docs + archives)
 
-This is the `docs/` directory. Project-level documentation lives here:
+This is the `docs/` directory. Project-level documentation lives here. The four LIVE docs (re-read at every session start; reconciled at every cycle close + heartbeat fire):
 
-- `MANIFESTO.md` — this file. lain's intent + standing orders (live; heartbeat-tracked; re-read at session start).
-- `A_TO_Z_PLAN.md` — current run / phase plan + complete repo dirs+files inventory with justification per entry.
-- `DO_THIS_NEXT.md` — current cycle scope + handoff. Rewritten at every cycle close.
+- `MANIFESTO.md` — this file. lain's intent + standing orders (persistent — never cycles out).
+- `REPO_CONTROL.md` — pristine-condition gate; mirror of repo file/folder structure with justification per entry. Persistent — never cycles out. New files added in a commit MUST land with their REPO_CONTROL row in the same commit. Catches orphan tracked files + stray artifacts before they accumulate.
+- `A_TO_Z_PLAN.md` — current run / phase plan + verification gates + scope fence. **Cycles out** to `past_work/phases/<phase_N_theme>.md` on phase exit; a fresh A_TO_Z lands for the next phase.
+- `DO_THIS_NEXT.md` — current cycle scope + next-instance handoff. Rewritten at every cycle close. Power-on resume pointer.
+
+Plus the archives:
+
 - `artifacts/` — phase verdicts (frozen-with-addendum convention) + research notes.
-- `past_work/phases/` — archived phase plans.
-- `past_work/cycles/phase_<N>/` — per-cycle reflections.
+- `past_work/phases/` — archived A_TO_Z plans (one per closed phase).
+- `past_work/cycles/phase_<N>/` — per-cycle reflections (`dev-cycle-<M>.md`).
+- `ci/` — paste-ready CI templates that can't push directly to `.github/workflows/` because of OAuth scope (audit-D1 gate).
 
-**Per-directory CLAUDE.md files were retired 2026-05-10** — their content lives here in `docs/` and the universal Raphael protocol lives in `~/.claude/CLAUDE.md`. The single `CLAUDE.md` in repo root is the Claude Code project-instructions file, and going forward it points back to this file rather than holding live rules itself.
+**Per-directory `CLAUDE.md` files were retired 2026-05-10** — their content lives here in `docs/`. The universal Raphael protocol stays at `~/.claude/CLAUDE.md` (universal, not project-specific).
+
+**Upkeep is load-bearing.** Stale docs are worse than missing docs because they actively mislead. Every commit's diff is responsible for the docs delta it implies — a new file lands with its REPO_CONTROL row; a finished cycle lands with its DO_THIS_NEXT rewrite + cycle reflection in `past_work/cycles/`; a finished phase lands with its A_TO_Z archive + a fresh A_TO_Z for the next.
 
 ## The reading
 
