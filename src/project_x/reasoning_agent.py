@@ -87,7 +87,13 @@ class AgentResponse:
 # Robust to phrasing variation observed across physics-001 ("height of 80 m ... g = 9.81")
 # and physics-008 ("fall from 50 m ... g = 3.71"). Two-gate filter: prompt must name
 # drop/fall/dropped AND match both height + gravity patterns.
-_HEIGHT_PATTERN = re.compile(r"(?:height of|from)\s+(\d+\.?\d*)\s*m\b", re.IGNORECASE)
+# Height pattern: cycle 8 #06 parser-robustness extension. Accept full-word "meters"
+# / "metres" suffix (previously `m\b` required word boundary right after `m`, failing
+# on "100 meters" since `e` is word-character; now `(?:eters?|etres?)?` swallows the
+# suffix). Backward-compatible: "from 80 m" still matches via the empty optional group.
+_HEIGHT_PATTERN = re.compile(
+    r"(?:height of|from)\s+(\d+\.?\d*)\s*m(?:eters?|etres?)?\b", re.IGNORECASE
+)
 _GRAVITY_PATTERN = re.compile(r"g\s*=\s*(\d+\.?\d*)\s*m/s", re.IGNORECASE)
 
 
@@ -269,8 +275,16 @@ def _parse_relativistic_momentum(prompt: str) -> tuple[float, float, float] | No
     return (m, v, c)
 
 
-# Pendulum length parser: matches "L = 1.0 m" or "length L = 0.5 m" forms.
-_LENGTH_PATTERN = re.compile(r"L\s*=\s*(\d+\.?\d*)\s*m\b", re.IGNORECASE)
+# Pendulum length parser: cycle 8 #06 parser-robustness extension. Accepts:
+#   - "L = 1.0 m" (original form)
+#   - "length L = 0.5 m" (original form)
+#   - "length 1 m" / "length of 1 m" / "length 1 meter" (new rephrasings — e.g.
+#     "a swinging pendulum of length 1 m")
+# Plus full-word "meters" / "metres" suffix (mirrors _HEIGHT_PATTERN extension).
+_LENGTH_PATTERN = re.compile(
+    r"(?:L\s*=\s*|length(?:\s+of)?\s+)(\d+\.?\d*)\s*m(?:eters?|etres?)?\b",
+    re.IGNORECASE,
+)
 
 # Pendulum amplitude parser: matches "from a Nθ angle" / "(θ₀ = N rad)" / "at N degrees"
 # / "at N°". Captures BOTH a numeric value AND a unit indicator (rad/deg/° absent → deg
@@ -476,15 +490,19 @@ def _parse_matrix_2x2(prompt: str) -> list[list[float]] | None:
     return [[a, b], [c, d]]
 
 
-# Quadratic regex: matches `a x^2 [+-] b x [+-] c = 0` with optional whitespace and *.
+# Quadratic regex: matches `a x^2 [+-] b x [+-] c = 0` with optional whitespace + `*`.
+# Cycle 8 #06 parser-robustness extensions:
+#   - Accept unicode `x²` (U+00B2 superscript two) AS WELL AS ASCII `x^2`.
+#   - Accept unicode minus `−` (U+2212) AS WELL AS ASCII `-` in b/c coefficient signs
+#     (typography-conscious prompts often substitute unicode minus for visual quality).
 # Group 1 = a-coefficient string (may be empty for implicit 1, or "-" for implicit -1).
-# Group 2 = b-coefficient with leading sign and whitespace (e.g., "- 14" or "+ 4").
-# Group 3 = c-constant with leading sign and whitespace (e.g., "- 5" or "+ 6").
-# The character class for digits/dot accepts both integer and decimal coefficients.
+# Group 2 = b-coefficient with leading sign + whitespace (e.g., "- 14" or "+ 4" or "− 14").
+# Group 3 = c-constant with leading sign + whitespace.
+# `_parse_signed_coefficient` normalizes unicode minus to ASCII before float() conversion.
 _QUADRATIC_PATTERN = re.compile(
-    r"(-?\d*\.?\d*)\s*\*?\s*x\^2"  # a · x²  (a optional; "-" → -1, "" → 1)
-    r"\s*([+-]\s*\d*\.?\d*)\s*\*?\s*x"  # ± b · x  (b coefficient with sign)
-    r"\s*([+-]\s*\d*\.?\d*)\s*=\s*0",  # ± c = 0  (c constant with sign)
+    r"(-?\d*\.?\d*)\s*\*?\s*(?:x\^2|x²)"            # a · x²  (a optional)
+    r"\s*([+\-−]\s*\d*\.?\d*)\s*\*?\s*x"             # ± b · x
+    r"\s*([+\-−]\s*\d*\.?\d*)\s*=\s*0",              # ± c = 0
 )
 
 
@@ -494,8 +512,12 @@ def _parse_signed_coefficient(s: str, *, implicit_one: bool = True) -> float:
     Handles the empty-string-means-1 convention (e.g., `x^2` → a=1, not a=0) when
     `implicit_one=True`. The standalone `-` (no digits) → -1 if `implicit_one=True`,
     raises ValueError otherwise. Whitespace inside `+ 14` style strings is stripped.
+
+    Cycle 8 #06 parser-robustness extension: unicode minus `−` (U+2212) is normalized
+    to ASCII `-` before float() conversion. Prompts using typographic minus (common
+    in LaTeX-rendered math) now parse correctly without dispatcher modification.
     """
-    s = s.strip().replace(" ", "")
+    s = s.strip().replace(" ", "").replace("−", "-")
     if not s or s == "+":
         return 1.0 if implicit_one else 0.0
     if s == "-":

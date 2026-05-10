@@ -727,3 +727,94 @@ def test_reasoning_agent_number_theory_no_keyword_refuses():
         "twin_primes_in_range",
         "mertens_bound_verify",
     }
+
+
+# --- Cycle 8 #06 parser-robustness regression tests ---
+
+
+def test_parser_robustness_free_fall_meters_full_word():
+    """`_HEIGHT_PATTERN` accepts full-word 'meters' suffix (was failing on `m\\b` boundary
+    before #06; rephrased prompt 'dropped from 100 meters' now routes correctly)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "An object is dropped from 100 meters with g = 9.81 m/s². Compute fall time."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "free_fall"
+    assert response.parsed_inputs["h_meters"] == 100.0
+    assert response.parsed_inputs["g_m_per_s_squared"] == 9.81
+
+
+def test_parser_robustness_free_fall_metres_british():
+    """British spelling 'metres' also accepted."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "An object falls from 50 metres with g = 9.81 m/s. Compute the fall time."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "free_fall"
+    assert response.parsed_inputs["h_meters"] == 50.0
+
+
+def test_parser_robustness_pendulum_length_of_phrasing():
+    """`_LENGTH_PATTERN` accepts 'length 1 m' phrasing (rephrased prompt
+    'swinging pendulum of length 1 m' now routes; was failing on L=... requirement)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A swinging pendulum of length 1 m with g = 9.81 m/s². Compute the period."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "pendulum_small_angle"
+    assert response.parsed_inputs["L_meters"] == 1.0
+
+
+def test_parser_robustness_pendulum_length_of_with_word():
+    """'length of 1 m' phrasing also accepted (the `(?:\\s+of)?` optional 'of' clause)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "A pendulum of length of 0.5 m hangs in a g = 9.81 m/s² field. Period?"
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "pendulum_small_angle"
+    assert response.parsed_inputs["L_meters"] == 0.5
+
+
+def test_parser_robustness_quadratic_unicode_minus():
+    """`_QUADRATIC_PATTERN` accepts unicode minus `−` (U+2212) alongside ASCII `-`.
+    Typographically-rendered math (LaTeX → text dump) often uses unicode minus."""
+    agent = ReasoningAgent()
+    # maths-001 verbatim with ASCII minus replaced by unicode minus
+    response = agent.process("Solve 3x^2 − 14x − 5 = 0 for x.")
+    assert response.confidence == "high"
+    assert response.problem_shape == "quadratic"
+    assert response.parsed_inputs == {"a": 3.0, "b": -14.0, "c": -5.0}
+    assert sorted(response.lemma.actual_value) == [-1 / 3, 5.0]
+
+
+def test_parser_robustness_quadratic_unicode_x_squared():
+    """`_QUADRATIC_PATTERN` accepts unicode `x²` (U+00B2 superscript) alongside `x^2`."""
+    agent = ReasoningAgent()
+    response = agent.process("Solve 3x² - 14x - 5 = 0 for x.")
+    assert response.confidence == "high"
+    assert response.problem_shape == "quadratic"
+    assert response.parsed_inputs == {"a": 3.0, "b": -14.0, "c": -5.0}
+
+
+def test_parser_robustness_existing_prompts_still_match():
+    """REGRESSION GUARD: original (pre-#06) prompts still route correctly after the
+    parser-robustness extensions. Verifies backward-compat across the changed patterns."""
+    agent = ReasoningAgent()
+    # Original free-fall prompt (height of X m)
+    r1 = agent.process(
+        "An object is dropped from a height of 80 m on Earth (g = 9.81 m/s²). Find the time."
+    )
+    assert r1.problem_shape == "free_fall"
+    # Original pendulum prompt (L = X m)
+    r2 = agent.process(
+        "Find the period of a simple pendulum with L = 1.0 m, g = 9.81 m/s²."
+    )
+    assert r2.problem_shape == "pendulum_small_angle"
+    # Original quadratic prompt (ASCII minus + x^2)
+    r3 = agent.process("Solve 3x^2 - 14x - 5 = 0 for x.")
+    assert r3.problem_shape == "quadratic"
+    assert sorted(r3.lemma.actual_value) == [-1 / 3, 5.0]
