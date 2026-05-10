@@ -387,7 +387,7 @@ class SemanticHDCMemory:
 
     # --- Phase 10 P3: structural retrieval via fact graph ----------------
 
-    def _extract_query_subjects(self, query: str) -> list[str]:
+    def extract_query_subjects(self, query: str) -> list[str]:
         """Find fact_graph keys that occur as substrings of the query.
 
         Case-insensitive substring match against the fact_graph keys. This catches
@@ -396,11 +396,20 @@ class SemanticHDCMemory:
         `Alice` (proper noun) all extract uniformly. The capitalized-token regex
         in `_subjects_from_text` is kept as a record-side fallback for corpora
         without fact_keys (e.g., the killer-milestone test corpus uses raw turns).
+
+        Public per audit-C1 — `MemoryAgent.process` and other agent-layer
+        callers depend on the controller-routing decision this returns; the
+        underscored name `_extract_query_subjects` is kept as a class-scope
+        alias for back-compat (any external code importing the old name).
         """
         if not self._fact_graph:
             return []
         q_lower = query.lower()
         return [k for k in self._fact_graph if k.lower() in q_lower]
+
+    # Back-compat alias (audit-C1) — preserves the pre-promotion name for
+    # any external callers / tests that referenced the underscored form.
+    _extract_query_subjects = extract_query_subjects
 
     def _structural_cosines(self, query: str, binding_weight: float = 0.0) -> np.ndarray:
         """Ensemble cosines, with structural override for queries naming known subjects.
@@ -426,7 +435,7 @@ class SemanticHDCMemory:
         shape boost, so both surface in top-2.
         """
         base = self._ensemble_cosines(query)
-        qs = self._extract_query_subjects(query)
+        qs = self.extract_query_subjects(query)
         if not qs:
             return base
 
@@ -516,7 +525,7 @@ class SemanticHDCMemory:
             raise RuntimeError(
                 "call write_batch(...) before retrieve_structural_full_history(...)"
             )
-        qs = self._extract_query_subjects(query)
+        qs = self.extract_query_subjects(query)
         if not qs:
             return self.retrieve(query, k=k or 5)
         union: set[int] = set()
@@ -557,7 +566,7 @@ class SemanticHDCMemory:
         splitting fails (e.g., subjects without 'and' separators). Falls back to
         the legacy lexical decomposition when no known subjects are extracted.
         """
-        if self._extract_query_subjects(query):
+        if self.extract_query_subjects(query):
             return self.retrieve_structural(query, k)
 
         # Legacy lexical decomposition fallback (Phase 9 path).

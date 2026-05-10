@@ -297,7 +297,7 @@ class MemoryAgent:
         # short-circuit.
         full_history_mode = (
             _is_list_all_query(text)
-            and bool(self.memory._extract_query_subjects(text))
+            and bool(self.memory.extract_query_subjects(text))
         )
         if full_history_mode:
             top_k = self.memory.retrieve_structural_full_history(text, k=None)
