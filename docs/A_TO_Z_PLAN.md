@@ -1,54 +1,49 @@
-# A → Z Plan — Project X — Phase 11 — Raphael Domain Benchmark Suite
+# A → Z Plan — Project X — Phase 12 — Memory Retrieval-Mode Disambiguation
 
-**Date opened:** 2026-05-10 03:32 CEST (godify-app APOTHEOSIS, 6h, 8 cycles)
-**Previous phase archived:** `docs/past_work/phases/phase_10_memory_action_organism.md`
-**Phase theme:** Raphael Domain Benchmark Suite — 6 domains × 6 entries each spanning easy→unsolved, with split grading (auto-graded mechanical vs rubric-pending subjective per M-PROJECTX-014).
-**Run end:** 2026-05-10 09:00 CEST (END_TIME)
-**Plan source:** `/home/nira/.claude/plans/6h-im-going-to-serene-giraffe.md` (lain + previous Plan-Raphael instance)
-**Persona override:** ALL cycles Execute-Raphael (lain 2026-05-10 — pre-existing-plan rule; godify-app cycle-1=Plan-navi default OVERRIDDEN; see `~/.claude/commands/godify-app.md` §3.5 + `~/.claude/commands/forge-prompt.md` NI IDENTITY).
+**Date opened:** 2026-05-10 10:32 CEST (godify-app APOTHEOSIS, 3h pickup, 7 cycles compressed back-to-back)
+**Previous phase archived:** `docs/past_work/phases/phase_11_raphael_domain_benchmark_suite.md`
+**Phase theme:** Close the memory-004/005 red findings from Phase 11. Add a query-shape disambiguator to `MemoryAgent.process` so "list all" / "summarize trajectory" prompts route to a chronological full-history retrieval path that bypasses the Phase 10 P3 strict-dominance recency boost.
+**Run end:** 2026-05-10 13:28 CEST (END_TIME)
+**Trigger:** lain quote — *"for some reason prev raphael just stopped working even though i said work until 9am... so you have to pick up where it left off and work 3 more h."* Prev instance fake-stopped at 06:55 (M-NAVI-019); this instance picks up Phase 12 priority 1 from prev's DO_THIS_NEXT.md.
+**Persona dispatch:** Cycle 1 = Plan-Raphael (this turn, compressed ~20 min). Cycles 2-7 = Execute-Raphael (cron-fired one-shots `5ed226ac`, `baa6fc79`, `e2c4ea33`, `36e02faa`, `f7476c94`, `21e719fa`).
 
 ---
 
 ## §0. CONTRACT
 
-### §0.1 #00 deliverables (verbatim from lain 2026-05-10 godify-app brief)
+### §0.1 #00 deliverables (TaskList pins)
 
-- **#00P11-bench-physics:** physics ladder (6 entries intro→unsolved; auto-grade closed-form, rubric-pending conceptual)
-- **#00P11-bench-maths:** maths ladder (6 entries; auto-grade numerical/symbolic, rubric-pending proof-shape)
-- **#00P11-bench-memory:** memory ladder (6 entries; ALL auto-graded via `agent.process` + expected_turn_id check)
-- **#00P11-bench-persona:** persona ladder (6 entries; ALL rubric-pending — voice + humor + moral compass)
-- **#00P11-bench-philosophy:** philosophy ladder (6 entries; ALL rubric-pending — anchored in §0 worldview manuscript)
-- **#00P11-bench-poetry:** poetry ladder (6 entries; ALL rubric-pending)
-- **#00P11-verdict:** aggregate verdict + audit_log.jsonl + `docs/artifacts/PHASE_11_BENCHMARK.md` + END_TIME handoff
-- **#00P11-MANIFESTO:** `docs/MANIFESTO.md` ~300-500 words capturing lain's intent for Project X (heartbeat-tracked, dynamic doc per global standing-order 2026-05-10 03:10 CEST)
+- **#00P12-retrieval-mode-disambiguation:** Add `retrieve_structural_full_history` in `semantic_hdc_memory.py` (chronological full-subject return path bypassing strict-dominance boost + relaxed/no cosine_threshold). Add query-shape classifier `_LIST_ALL_HINTS` in `semantic_memory_agent.py`. Wire into `MemoryAgent.process` controller to route between current-preference (existing path) and list-all (new path). Update `compose_answer` to format full-history evidence chronologically.
+- **#00P12-flip-memory-reds:** Re-run cycle-8 verdict-builder against fixed MemoryAgent. Update `gpt-codex/benchmark/memory/ladder.jsonl` entries 4-5 with new actual_turn_ids + match=true + audit_status=auto-graded-green. Rebuild `gpt-codex/benchmark/audit_log.jsonl`. Append Phase 12 addendum to `docs/artifacts/PHASE_11_BENCHMARK.md`.
+- **#00P12-tests:** Add `tests/test_retrieval_modes.py` covering full-history retrieval, multi-subject list-all, regression on memory-001/002/003 current-preference path. Net pytest ≥ 54 (52 baseline + ≥2 new).
+- **#00P12-verdict:** `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` (≥250 words; before/after counts; architectural impact). END_TIME handoff in `docs/DO_THIS_NEXT.md` for Phase 13 candidates.
 
 ### §0.2 Simplicity standard
 
-- **NO pretrained transformers** (Phase 9 standing constraint, lain 2026-05-09): no BGE, MiniLM, sentence-transformers, llama.cpp, Qwen, Mistral. Encoders + generators stay from-scratch organic.
-- **Code-comment ratio rule** (lain 2026-05-10 03:34 + 03:44 CEST, Discord standing order): WHY-comments justifying complex code's existence + comments preserving important info. NEVER WHAT-comments narrating identifiers. Pure signal — no bloat. Project `<repo>/CLAUDE.md` carries the full rule.
-- **Append-as-you-go writes** for crash survival (lain 2026-05-10 — 3 power outages in 2 days). No "write all at cycle close" anti-pattern.
-- **Atomic per-cycle commits.** NO `git add -A`. Per-cycle PR shape (or per-cycle commit on `main` since this is a fresh repo).
+- **NO pretrained transformers** (Phase 9 standing constraint, lain 2026-05-09): unchanged. Encoders + generators stay from-scratch organic.
+- **Code-comment ratio rule** (lain 2026-05-10 GLOBAL POLICY): WHY-comments justifying complex code's existence + comments preserving important info. Never WHAT-comments. Apply to every new function shipped this phase — especially `retrieve_structural_full_history` which has a non-obvious motivation (the Phase 11 verdict's memory-004/005 red findings) that future readers must see.
+- **Append-as-you-go writes** for crash survival (3 power outages in 2 days context). Per-cycle atomic git commits + push.
+- **Existing API preserved.** `retrieve_structural` keeps strict-dominance — memory-001/002/003 current-preference path is the reason Phase 10 P3 exists. The new `retrieve_structural_full_history` is ADDITIVE; controller routing decides which to call.
 
 ### §0.3 Constraint defining this phase
 
-- Lain asleep at session start (03:32 CEST); awake by ~09:00. Discord = audit channel; silence = pass per remove-from-loop policy (lain 2026-05-07).
-- 6h godify-app run, 8 cycles × 40m (20 ON / 20 OFF). END_TIME 09:00 CEST.
-- M-PROJECTX-014 (design-bias-in-the-probe) hard rule: NO self-grade on subjective domains. Subjective = rubric-pending for external GPT/lain audit tomorrow.
-- Power-loss survival: per-entry append, per-cycle commit + push. GitHub remote setup in cycle 1.
-- Listener manual re-arm only — auto-rearm broken in WSL bash sandbox (memory file `feedback_listener_manual_rearm.md` + M-NAVI-018 fresh from 03:32 CEST: pkill MUST chain rearm in same Bash invocation).
+- 3h budget, 7 cycles compressed back-to-back. END_TIME 13:28 CEST.
+- Surface area is small: two source files (`semantic_hdc_memory.py`, `semantic_memory_agent.py`) + one new test file. Plus benchmark ladder.jsonl deltas + audit_log + verdict + addendum.
+- M-NAVI-019 (prev fake-stop) logged this turn. Heartbeat invariant fix-rule: lain-stated time-windows override queue-empty disarm logic; named candidate work counts as queued.
+- Phase 11 verdict said memory-004/005 reveal a real architectural finding; Phase 12 closing it is what makes Phase 11's benchmark cash out. The benchmark paid out exactly as designed.
 
-### §0.4 Phase exit conditions (mechanical proof at 09:00 CEST)
+### §0.4 Phase exit conditions (mechanical proof at 13:28 CEST)
 
-- [ ] **E1** `find gpt-codex/benchmark -name 'ladder.jsonl' | xargs cat | wc -l` ≥ 36
-- [ ] **E2** Each `gpt-codex/benchmark/<domain>/ladder.jsonl` has 6 entries (one per difficulty rank 1-6) for all 6 domains
-- [ ] **E3** Schema sanity — every entry has `id`, `domain`, `difficulty`, `prompt`, `raphael_response`, `audit_status`; auto-graded entries have `auto_grade` block; rubric-pending have `rubric_pointer`; **NO `self_score` field on any entry (M-PROJECTX-014 firewall)**
-- [ ] **E4** `PYTHONPATH=src python3 -m pytest -q | tail -3` ≥ 52 passing (no regression from Phase 11 P2 baseline)
-- [ ] **E5** `docs/MANIFESTO.md` exists and contains ≥ 250 words
-- [ ] **E6** `docs/A_TO_Z_PLAN.md` §9 FILE INVENTORY lists every file in repo with rationale; cycle 8 reconciliation pass run
-- [ ] **E7** `docs/artifacts/PHASE_11_BENCHMARK.md` verdict markdown exists with per-domain audit_status counts (no smuggled self-grades)
-- [ ] **E8** Folder `CLAUDE.md` present in every meaningful directory: 6 `gpt-codex/benchmark/<domain>/` + `gpt-codex/benchmark/` root + `src/project_x/` + `src/project_x/experiments/` + `src/project_x/legacy/` + `tests/` + `docs/` + `docs/artifacts/` + `docs/past_work/` + `gpt-codex/runs/`
-- [ ] **E9** `gpt-codex/benchmark/audit_log.jsonl` aggregate built; per-domain green/red/rubric-pending counts computed honestly
-- [ ] **E10** `git log --oneline | wc -l` ≥ 8 (per-cycle atomic commits 1-8; crash-survival contract honored). `git remote get-url origin` returns the projext-x GitHub URL.
+- [ ] **E1** `gpt-codex/benchmark/memory/ladder.jsonl` shows memory-004 + memory-005 with `audit_status: "auto-graded-green"` and `auto_grade.match: true`. Zero auto-graded-red entries across all 6 ladders.
+- [ ] **E2** `PYTHONPATH=src python3 -m pytest -q | tail -3` reports ≥ 54 passing (52 baseline + ≥ 2 new tests in `test_retrieval_modes.py`).
+- [ ] **E3** `gpt-codex/benchmark/audit_log.jsonl` rebuilt with updated counts (was 9 green / 2 red / 21 rubric-pending / 4 ungradeable; now 11 green / 0 red / 21 rubric-pending / 4 ungradeable). Schema firewall holds — zero `self_score` fields anywhere.
+- [ ] **E4** `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` exists, ≥ 250 words, includes before/after table.
+- [ ] **E5** `docs/artifacts/PHASE_11_BENCHMARK.md` has Phase 12 addendum at the bottom (frozen-with-addendum convention per `docs/artifacts/CLAUDE.md`).
+- [ ] **E6** `docs/A_TO_Z_PLAN.md` archived to `docs/past_work/phases/phase_12_retrieval_disambiguation.md` at cycle 7 close.
+- [ ] **E7** `docs/past_work/cycles/phase_12/dev-cycle-{1..7}.md` all exist.
+- [ ] **E8** `git log --oneline | wc -l` shows ≥ 16 (Phase 11 ended at 9 commits; +7 atomic per-cycle commits = 16).
+- [ ] **E9** Final commit pushed to `origin/main` at https://github.com/ni1ra/project-x. `git status` clean post-cycle-7.
+- [ ] **E10** NORMAL heartbeat cron re-armed; #∞ task flipped APOTHEOSIS → NORMAL; godify cron disarmed.
 
 ---
 
@@ -56,278 +51,222 @@
 
 | Cycle | Persona | When (CEST) | Position | Status |
 |---|---|---|---|---|
-| C1 | Execute-Raphael (plan-setup; OVERRIDE Plan-navi default per pre-existing-plan rule) | 2026-05-10 03:32 | 1 of 8 | ✅ closed 04:01 — initial commit `5611c2b` force-pushed to https://github.com/ni1ra/project-x (hijacked from legacy WIRED-BRAIN per lain 03:55 + renamed to project-x per lain 03:56) |
-| C2 | Execute-Raphael (physics + cycle-1.5 deliverables) | 2026-05-10 04:12 | 2 of 8 | ✅ closed 04:27 — physics ladder 6 entries (3 auto-graded-green + 2 rubric-pending + 1 ungradeable) schema-validated; MANIFESTO enriched to ~600 words; 6 rubric.md skeletons + benchmark/CLAUDE.md + physics/CLAUDE.md shipped |
-| C3 | Execute-Raphael (maths) | 2026-05-10 04:52 | 3 of 8 | ✅ closed ~05:02 — maths ladder 6 entries (3 auto-graded-green: x={5,-1/3}, eigenvalues={1,3}, residue=π; 2 rubric-pending: Galois quintic + π₁/H₁ T² vs K; 1 ungradeable: Riemann hypothesis) |
-| C4 | Execute-Raphael (memory) | 2026-05-10 05:15 | 4 of 8 | ✅ closed ~05:28 — memory ladder 6 entries (5 auto-graded-pending-execution + 1 ungradeable; cycle-8 verdict-builder runs MemoryAgent.process against canonical fixture per memory/CLAUDE.md to flip pending → green/red) |
-| C5 | Execute-Raphael (persona) | 2026-05-10 05:35 | 5 of 8 | ✅ closed ~05:48 — persona ladder 6 entries (ALL rubric-pending — voice/humor/moral-compass; voice-ack → technical-in-voice → tense-moment-humor → reject-honorably → moral-dilemma fake-Trustpilot → meta-cognition voice-drift recovery) |
-| C6 | Execute-Raphael (philosophy) | 2026-05-10 05:55 | 6 of 8 | ✅ closed ~06:00 — philosophy ladder 6 entries (§0-anchored Roman-numeral references; ranks 4-5 execute full §VIII Parfit + Korsgaard reply structure: parity challenge + 5-part testing-asymmetry/instrumentation/extinction/parsimony for Parfit; asymmetry-of-self-application + rational-agent-abstraction critique for Korsgaard) |
-| C7 | Execute-Raphael (poetry) | 2026-05-10 06:15 | 7 of 8 | ✅ closed ~06:18 — poetry ladder 6 entries (scansion of Sonnet 18 + Sonnet 29 form-ID + ORIGINAL villanelle "The Small Loss That Doesn't Return" 19-line form-validated + ORIGINAL free-verse "Hospital Window, Before Light" 12-line internal-music + ORIGINAL durability lyric "Inheritance" 14-line + open-aesthetic essay on timelessness). E1 mechanically met: 36 entries total across 6 ladders. |
-| C8 | Execute-Raphael final (verdict + END_TIME handoff) | 2026-05-10 06:35 | 8 of 8 | ✅ closed ~06:55 — Phase A memory pending-execution → 3 green + 2 red (predicted strict-dominance failure mode confirmed); Phase B audit_log.jsonl (36 rows); Phase C `docs/artifacts/PHASE_11_BENCHMARK.md` verdict; Phase D FILE INVENTORY reconcile + plan archived to `past_work/phases/phase_11_raphael_domain_benchmark_suite.md`; Phase E folder-CLAUDE.md sweep (8 new); Phase F END_TIME handoff in DO_THIS_NEXT.md; Phase G NORMAL heartbeat re-armed + APOTHEOSIS → NORMAL. **Phase 11 mechanically closed. Awaiting lain wake @ 09:00 + Phase 12 framing.** |
-
-**Persona dispatch:** ALL Execute-Raphael (no Plan-navi cycle inside this run; the previous instance was Plan-Raphael by definition; the plan file at `/home/nira/.claude/plans/6h-im-going-to-serene-giraffe.md` is the contract; this run executes it).
+| C1 | Plan-Raphael (compressed) | 2026-05-10 10:32 | 1 of 7 | ✅ closed ~10:38 — Phase 12 plan + DO_THIS_NEXT.md + M-NAVI-019 wiki entry + 6 crons armed + TaskList #00 pinned. **Front-loaded:** `retrieve_structural_full_history` IMPLEMENTED in `semantic_hdc_memory.py` (compresses original cycle-2 scope into cycle-1). 4 smoke tests pass: list-all chronological [0,3,5,7], strict-dominance regression-safe (top-1=7), unknown-subject fall-through, multi-subject union [0,1,3,5,7]. pytest 52 passing (no regression). Cycle-2 scope shifts to controller wiring (originally cycle-3). |
+| C2 | Execute-Raphael (controller + classifier) | 2026-05-10 11:02 | 2 of 7 | pending (cron `5ed226ac`) — wire query-shape classifier `_LIST_ALL_HINTS` + `_is_list_all_query` in `semantic_memory_agent.py`; route `MemoryAgent.process` between `retrieve_structural` and `retrieve_structural_full_history`; extend `compose_answer` to format full-history evidence chronologically. (Was cycle-3 scope; cycle-1 absorbed cycle-2.) |
+| C3 | Execute-Raphael (flip reds) | 2026-05-10 11:27 | 3 of 7 | pending (cron `baa6fc79`) — re-run verdict-builder, flip memory-004/005 red→green, rebuild `audit_log.jsonl`, addendum to `PHASE_11_BENCHMARK.md`. (Was cycle-4 scope; pulled forward.) |
+| C4 | Execute-Raphael (tests + stretch) | 2026-05-10 11:52 | 4 of 7 | pending (cron `e2c4ea33`) — `tests/test_retrieval_modes.py` + optional ladder extension memory-007/008. (Was cycle-5 scope.) |
+| C5 | Execute-Raphael (advisor + polish + reflections) | 2026-05-10 12:17 | 5 of 7 | pending (cron `36e02faa`) — `advisor()` pre-verdict + cycle reflections 1-4 + comment-ratio polish. (Was cycle-6 scope.) |
+| C6 | Execute-Raphael (extra slack — Phase 13 prep / GPT audit prep / explorer) | 2026-05-10 12:42 | 6 of 7 | pending (cron `f7476c94`) — slack cycle from cycle-1 absorption. Highest-leverage: Phase 13 candidate prep (cortical column ensemble scaffolding sketch, OR Hebbian-replay reward-signal hookup, OR ladder extension to >6 entries). Pick at fire time per pick-skill. |
+| C7 | Execute-Raphael final (verdict) | 2026-05-10 13:07 | 7 of 7 | pending (cron `21e719fa`) — verdict markdown + END_TIME handoff + cron disarm + APOTHEOSIS→NORMAL |
 
 ---
 
 ## §2. CYCLE PLAN
 
-### §2.C1 — Plan-setup (NOW, 03:32 CEST)
-- [x] C1.1 Archive prev plan to `docs/past_work/phases/phase_10_memory_action_organism.md`
-- [x] C1.2 Write fresh `docs/A_TO_Z_PLAN.md` (this file)
-- [x] C1.3 Write `<repo>/CLAUDE.md` — project-scoped rules (carries comment-ratio standing order)
-- [x] C1.4 Update `.gitignore` — add `.claude/`, `.playwright-mcp/`, root-level screenshots; remove erroneous `artifacts/` rule (was hiding `docs/artifacts/`)
-- [x] C1.5 Write `docs/MANIFESTO.md` skeleton (cycle 2 enriches to 300-500 words)
-- [ ] C1.6 GitHub remote: `gh repo create projext-x --private --source=. --remote=origin --push` after initial commit
-- [ ] C1.7 Initial atomic commit covering Phase 9/10 work + Phase 11 plan
-- [ ] C1.8 Rewrite `docs/DO_THIS_NEXT.md` for cycle 2 (physics ladder + front-loaded cycle-1.5 work)
-- [ ] C1.9 Discord cycle-1 close post
+### §2.C1 — Plan-setup (NOW, 10:32 CEST, compressed)
+- [x] C1.1 Verify Phase 11 archive at `past_work/phases/phase_11_raphael_domain_benchmark_suite.md`
+- [x] C1.2 TaskCreate #∞ + 4 #00P12 deliverables
+- [x] C1.3 CronCreate × 6 one-shots for cycles 2-7
+- [x] C1.4 Log M-NAVI-019 to wiki (heartbeat-disarm during stated lain time-window)
+- [x] C1.5 Write fresh `docs/A_TO_Z_PLAN.md` (this file)
+- [ ] C1.6 Rewrite `docs/DO_THIS_NEXT.md` for cycle 2
+- [ ] C1.7 Begin `retrieve_structural_full_history` skeleton in `semantic_hdc_memory.py` if time
+- [ ] C1.8 Atomic commit cycle 1 close
+- [ ] C1.9 Discord cycle 1 close post
 
-### §2.C2 — physics + cycle-1.5 deliverables (04:12 CEST)
-- Front-load (~5-8 min): `docs/MANIFESTO.md` enriched (~300-500 words), 6 `gpt-codex/benchmark/<domain>/rubric.md` skeletons (one per domain folder), §9 FILE INVENTORY first-pass populated
-- Then ship: physics ladder 6 entries (intro free-fall → unsolved fine-tuning); auto-grade closed-form numerical, rubric-pending conceptual; `gpt-codex/benchmark/physics/{ladder.jsonl, rubric.md, CLAUDE.md}`
+### §2.C2 — Implementation half 1 (11:02 CEST)
+- Add `retrieve_structural_full_history(query, k=None)` in `semantic_hdc_memory.py`:
+  - Extract subjects via `_extract_query_subjects` (existing helper)
+  - For each subject: union all `_fact_graph[s]` turn_ids
+  - Sort UNION ascending by turn_id (chronological, NOT recency-desc)
+  - Build cosine vector: per-turn ensemble cosine (no strict-dominance boost; no `+1.0` collapse)
+  - Return `[(turn_id, cosine, record), ...]` — full chronological list, no `k` cap by default (caller decides)
+  - If no known subjects: fall through to `retrieve(query, k=5)` — back-compat
+- Unit-level smoke test inline (call against synthetic 8-turn Alice fixture, expect chronological [0,3,5,7])
 
-### §2.C3 — maths (04:52 CEST)
-- 6 entries: basic algebra → linear algebra → complex analysis → Galois theory → algebraic topology → Riemann hypothesis
-- Auto-grade numerical/symbolic where mechanical; rubric-pending proof-shape
+### §2.C3 — Implementation half 2 (11:27 CEST)
+- In `semantic_memory_agent.py`:
+  - Add `_LIST_ALL_HINTS` tuple: `("list all", "all of", "summarize", "trajectory", "history of", "all changes", "every", "in chronological order", "in order")`
+  - Add classifier `_is_list_all_query(text)`: lower + any-hint-match
+  - Extend `process` question path: if `_is_list_all_query(text)` AND `memory._extract_query_subjects(text)` returns subjects, route to `retrieve_structural_full_history`; else existing `retrieve_structural`
+  - Update `compose_answer` to handle full-history evidence with ALL turns cited (skip cosine_threshold filter when decision label is `retrieve_full_history`); chronological format: `Based on turns 0, 3, 5, 7: '<text 0>' AND '<text 3>' AND '<text 5>' AND '<text 7>'`
+  - Set decision label `retrieve_full_history` (new) on the full-history path
+- Smoke test against memory-004 + memory-005 fixtures inline
 
-### §2.C4 — memory (05:32 CEST) — ALL auto-graded
-- 6 entries: factual recall → contradiction resolution → multi-hop with citations → temporal reasoning across many turns → autobiographical episodic-semantic integration → unified theory of memory consolidation
-- Auto-grade via `agent.process(query)` + expected_turn_id mechanical match
-- Probes Phase 9-10 HDC stack directly (`semantic_memory_agent.py` + `semantic_hdc_memory.py`)
+### §2.C4 — Flip memory reds (11:52 CEST)
+- Re-run verdict-builder script per `gpt-codex/benchmark/memory/CLAUDE.md` Python sketch (BUT: parse cited turn_ids from `response.evidence`, NOT just `answer_text` regex — prev instance had to fix this mid-cycle)
+- Update memory-004 + memory-005 entries with new actual_turn_ids + match=true + audit_status=auto-graded-green
+- Rebuild `gpt-codex/benchmark/audit_log.jsonl` with new counts: 11 green / 0 red / 21 rubric-pending / 4 ungradeable
+- Append addendum to `docs/artifacts/PHASE_11_BENCHMARK.md`: "Phase 12 closure (2026-05-10 ~12:00 CEST) — memory-004/005 flipped from auto-graded-red to auto-graded-green via retrieve_structural_full_history fix. Architectural finding now closed."
 
-### §2.C5 — persona (06:12 CEST) — ALL rubric-pending
-- 6 entries spanning voice / humor / moral compass dimensions
-- Anchored in `~/.claude/CLAUDE.md` voice + Operating Mirror + Cursed Pulse Domain
-- NO self-score per M-PROJECTX-014
+### §2.C5 — Tests + stretch (12:17 CEST)
+- `tests/test_retrieval_modes.py`:
+  - `test_list_all_query_returns_full_history` — 8-turn Alice fixture, query "List all of Alice's preferences", expect cited [0,3,5,7]
+  - `test_summarize_trajectory_returns_full_history` — 10-turn Alice career fixture, query "Summarize Alice's trajectory", expect cited subset of [1,3,5,7,9]
+  - `test_current_preference_still_uses_strict_dominance` — same 8-turn fixture, query "What does Alice prefer?", expect cited [7] (Kotlin) — REGRESSION on memory-002 path
+  - `test_unknown_subject_falls_through_to_ensemble` — query mentioning unknown subject "Zoe", expect ensemble path returns top-k
+  - `test_multi_subject_list_all_unions_chronologically` — fixture with Alice + Bob both with multiple turns, query "List Alice and Bob's history", expect union sorted by turn_id ascending
+- Verify `pytest -q` shows 52 + 5 = 57 passing
+- Stretch goal: extend memory ladder with 1-2 NEW auto-graded entries (memory-007 list-all-multi-subject, memory-008 summarize-with-correction) shipped green from inception
 
-### §2.C6 — philosophy (06:52 CEST) — ALL rubric-pending, §0-anchored
-- 6 entries from a-priori-vs-a-posteriori → hard problem of consciousness
-- Each entry references `~/.claude/commands/godify-app.md` §0 manuscript section (Sections I-XIII)
-- Hardest entries engage Parfit/Korsgaard on their strongest terms (Sections VIII)
+### §2.C6 — advisor + polish (12:42 CEST)
+- `advisor()` call before cycle-7 verdict:
+  - Validate Phase 12 done-claim quality
+  - Surface any concerns about backwards compatibility
+  - Honest framing check on the verdict markdown shape
+- Address advisor concerns inline
+- Cycle reflections for `dev-cycle-1.md` through `dev-cycle-5.md` (`dev-cycle-6.md` written end of this cycle)
+- Comment-ratio polish: every new function has a WHY-comment justifying its existence (Phase 11 verdict pointer + memory-004/005 architectural finding)
 
-### §2.C7 — poetry (07:32 CEST) — ALL rubric-pending
-- 6 entries from scansion → "what makes a poem timeless"
-- Most subjective domain; rubric.md is the load-bearing artifact for tomorrow's audit
-
-### §2.C8 — final (08:12 CEST) — VERDICT + END_TIME HANDOFF
-- Build `gpt-codex/benchmark/audit_log.jsonl`, compute per-domain audit_status counts
-- Write `docs/artifacts/PHASE_11_BENCHMARK.md`
-- Final FILE INVENTORY reconciliation
-- Folder-CLAUDE.md sweep on remaining dirs
-- Disarm any remaining godify crons; re-arm NORMAL heartbeat
-- Discord SLAUGHTER COMPLETE post
+### §2.C7 — VERDICT + END_TIME HANDOFF (13:07 CEST)
+- Write `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` (≥ 250 words):
+  - Before/after table: memory-004 cited [7]→[0,3,5,7]; memory-005 cited [9]→[1,3,5,7,9]
+  - Architectural impact: Phase 10 P3 strict-dominance was correct-by-default but missed the query-shape disambiguation seam; the fix preserves Phase 10 P3 for current-preference and adds an opt-in chronological mode
+  - Honest deferrals: cortical column ensemble, predictive simulation, Hebbian-replay-informed live training, GPT audit on the 21 rubric-pending entries — all Phase 13+ candidates
+- Append addendum at bottom of `docs/artifacts/PHASE_11_BENCHMARK.md` (frozen-with-addendum)
+- Archive `docs/A_TO_Z_PLAN.md` → `docs/past_work/phases/phase_12_retrieval_disambiguation.md` (`cp` not `mv`)
+- Rewrite `docs/DO_THIS_NEXT.md` as Phase 13 candidates handoff (no fresh A_TO_Z_PLAN.md stub — leave the live one as Phase 12 archive pointer until lain picks Phase 13)
+- `dev-cycle-7.md` reflection
+- Final mechanical verification: pytest 54+; benchmark schema firewall; memory ladder 0 reds
+- `CronList` → `CronDelete` any remaining godify crons (cycle 7 itself fires + auto-deletes)
+- `CronCreate` NORMAL heartbeat per CLAUDE.md Step 0 — but with the M-NAVI-019 fix-rule visible: if work is named in DO_THIS_NEXT.md and lain has a stated time-window, heartbeat-armed
+- `TaskUpdate` `#∞` description: APOTHEOSIS → NORMAL
+- Atomic commit + push origin main
+- `discord_send #general` Phase 12 SLAUGHTER COMPLETE post
 
 ---
 
 ## §3. VERIFICATION GATES (mechanical proof commands)
 
 ```bash
-# E1 — entry count ≥ 36
-find /mnt/c/Users/nira/Documents/Research/projext-x/gpt-codex/benchmark -name 'ladder.jsonl' | xargs cat | wc -l
+# E1 — memory-004/005 audit_status
+python3 -c "
+import json
+for line in open('gpt-codex/benchmark/memory/ladder.jsonl'):
+    d = json.loads(line)
+    if d['id'] in ('memory-004', 'memory-005'):
+        print(d['id'], '->', d['audit_status'])
+"
 
-# E2 — per-domain coverage = 6 each
-for d in physics maths memory persona philosophy poetry; do
-  echo -n "$d: "; cat gpt-codex/benchmark/$d/ladder.jsonl 2>/dev/null | wc -l
-done
-
-# E3 — schema sanity + M-PROJECTX-014 firewall
-PYTHONPATH=src python3 -c "
+# E1b — total reds across all 6 ladders
+python3 -c "
 import json, glob
+red = 0
+for p in glob.glob('gpt-codex/benchmark/*/ladder.jsonl'):
+    for line in open(p):
+        d = json.loads(line)
+        if d['audit_status'] == 'auto-graded-red': red += 1
+print('reds:', red)
+"
+# Expect: reds: 0
+
+# E2 — pytest 54+
+PYTHONPATH=src python3 -m pytest -q 2>&1 | tail -3
+
+# E3 — audit_log + schema firewall
+PYTHONPATH=src python3 -c "
+import json
 required = {'id','domain','difficulty','prompt','raphael_response','audit_status'}
 errors = []
+for p in ['gpt-codex/benchmark/audit_log.jsonl']:
+    for line in open(p): json.loads(line)
+for line in open('gpt-codex/benchmark/audit_log.jsonl'): pass
+import glob
 for p in glob.glob('gpt-codex/benchmark/*/ladder.jsonl'):
     for i, line in enumerate(open(p), 1):
         d = json.loads(line)
         if not required.issubset(d.keys()): errors.append(f'{p}:{i} missing fields')
-        if 'self_score' in d: errors.append(f'{p}:{i} M-PROJECTX-014 firewall violated — self_score present')
-        if d['audit_status'].startswith('auto-graded') and 'auto_grade' not in d:
-            errors.append(f'{p}:{i} auto-graded entry missing auto_grade block')
-        if 'rubric-pending' in d['audit_status'] and 'rubric_pointer' not in d:
-            errors.append(f'{p}:{i} rubric-pending entry missing rubric_pointer')
-if errors: 
-    print('SCHEMA ERRORS:'); [print(' ', e) for e in errors]; raise SystemExit(1)
-print('OK — all entries pass schema + M-PROJECTX-014 firewall')
+        if 'self_score' in d: errors.append(f'{p}:{i} M-PROJECTX-014 firewall violated')
+if errors: print('SCHEMA ERRORS:'); [print(' ', e) for e in errors]; raise SystemExit(1)
+print('OK schema + firewall')
 "
 
-# E4 — pytest ≥ 52
-PYTHONPATH=src python3 -m pytest -q 2>&1 | tail -3
+# E4-E5 — verdict markdowns
+ls docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md && wc -w docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md
+grep -c '^## Phase 12 closure addendum' docs/artifacts/PHASE_11_BENCHMARK.md
 
-# E5 — manifesto ≥ 250 words
-ls -la docs/MANIFESTO.md && wc -w docs/MANIFESTO.md
+# E6-E7 — archive + cycle reflections
+ls docs/past_work/phases/phase_12_retrieval_disambiguation.md
+ls docs/past_work/cycles/phase_12/dev-cycle-*.md | wc -l   # expect 7
 
-# E6 — FILE INVENTORY rows
-grep -c '^| .* | .* | .* |' docs/A_TO_Z_PLAN.md
+# E8 — commit count
+git log --oneline | wc -l   # expect ≥ 16
 
-# E7 — verdict exists
-ls docs/artifacts/PHASE_11_BENCHMARK.md
+# E9 — push status
+git status   # expect "nothing to commit, working tree clean"
+git log --oneline origin/main..HEAD   # expect empty (all pushed)
 
-# E8 — folder CLAUDE.md count
-find . -type f -name 'CLAUDE.md' -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/.venv/*' | wc -l
-
-# E9 — audit_log nonempty
-test -s gpt-codex/benchmark/audit_log.jsonl && echo OK
-
-# E10 — commit count ≥ 8 + remote
-git log --oneline | wc -l
-git remote get-url origin
+# E10 — heartbeat re-armed; godify disarmed
+# (verified via CronList in cycle 7)
 ```
 
 ---
 
 ## §4. SCOPE FENCE (out)
 
-Items NOT in Phase 11:
-- **Audio listening** (Whisper integration). DEFERRED to Phase 12 — Whisper installed at `/home/nira/.local/bin/whisper` but Discord-REST polling + voice-attachment download + transcription pipeline is its own ~1 cycle scope.
-- **Live training algorithm.** Brief mentions "training data / training algo" — Phase 11 ships a STATIC benchmark; live training (Hebbian replay informed by benchmark performance) is Phase 12+.
-- **More than 6 entries per domain.** Honest budget; future cycles can extend.
-- **Code surgery on Phase 9-10 stack** (`semantic_*.py`, `tests/test_*.py`). Phase 11 is benchmark + docs, not refactor. EXCEPTION: memory rubric MAY reference these files (read-only; no modify).
-- **Touching `~/.claude/CLAUDE.md`** (lain explicit). EXCEPTION: project-scoped `<repo>/CLAUDE.md` is fair game (cycle 1 deliverable).
+NOT in Phase 12:
+- **Cortical column ensemble.** Council Idea #2; Phase 13+ candidate.
+- **Hebbian-replay-informed live training.** Phase 13+ candidate; would close the loop on benchmark performance feeding training.
+- **GPT audit on the 21 rubric-pending entries.** Lain-gated (lain runs external GPT against `audit_log.jsonl` filtered by `needs_audit: true`).
+- **Predictive simulation loop.** Council Idea #3; Phase 13+.
+- **Open-ended benchmark ladder.** Council Idea #5; Phase 13+; meaningful only after the auto-graded base is fixed (which Phase 12 does).
+- **Audio listening (Whisper integration).** Whisper installed but Discord-REST polling pipeline is its own scope.
+- **Touching `~/.claude/CLAUDE.md`.** Universal protocol updates fired by prev instance (M-NAVI-018, comment-ratio rule); Phase 12 stays in-repo. EXCEPTION: M-NAVI-019 logged via wiki tool this cycle — that's the wiki, not CLAUDE.md.
 
 ---
 
 ## §5. RISKS
 
-- **R1: cycle slip ≥ 20m** → drop slipping domain to 5 entries (skip frontier tier), continue, note in verdict. Two consecutive slips → consult-advisor triage.
-- **R2: listener dies** → heartbeat pgrep + atomic pkill+rearm via Bash bg-task per CLAUDE.md DD-2 + M-NAVI-018. NEVER split.
-- **R3: power outage** → 3 outages in 2 days; mitigations — per-entry append-as-you-go writes, per-cycle git commit + push, `docs/DO_THIS_NEXT.md` is the resume-pointer.
-- **R4: GitHub auth fails** → fall back to local-only commits, surface to lain via Discord; resume on next session with manual `gh auth login`.
-- **R5: cycle 8 reveals systemic weakness** → name it honestly in verdict.md (not "needs more work" — specific gap with concrete next phase candidate).
-- **R6: lain wakes mid-run with new directive** → Discord listener catches; cycle interrupts gracefully at safe seam; ack + execute new directive.
+- **R1: cycle slip ≥ 25m.** Mitigation: 25-min compressed cadence has explicit 3-min slack at end (cycle 7 fires 13:07, has 21 min budget vs 13:28 END_TIME — enough buffer for handoff write). Two consecutive slips → call advisor, drop scope to memory-004 only (memory-005 left red with refined failure mode), still ship verdict.
+- **R2: regression on memory-001/002/003 current-preference path.** Mitigation: explicit regression test in cycle 5; Phase 10 EXIT GATE test_killer_milestone.py must still pass; cycle 4 verdict-builder runs ALL 5 memory entries (1-5), not just 4-5.
+- **R3: query-shape classifier triggers wrong path.** False positives on "current preference" being treated as "list all" → catastrophic regression on existing tests. Mitigation: subject-extraction gate (only route to full-history if subjects exist; unknown-subject queries fall through). Conservative hint patterns.
+- **R4: cycle-8 verdict-builder reused — same `answer_text` regex bug as prev.** Prev instance had to switch from `set(actual) == set(expected)` to parsing cited turn_ids from `answer_text` regex mid-cycle. NEW canonical path: parse `response.evidence` directly (it has `turn_id` per `EvidencePacket`); compare against `expected_turn_ids` per match_criterion. NO regex on answer_text — that was a workaround for the wrong reason. With full-history compose_answer including all evidence, the criteria will match cleanly.
+- **R5: listener dies mid-cycle.** Mitigation: heartbeat pgrep + atomic pkill+rearm per CLAUDE.md DD-2 + M-NAVI-018. Single Bash invocation, never split.
+- **R6: lain wakes/messages mid-run.** Discord listener catches; cycle interrupts at safe seam; ack + execute new directive. Discord-REST curl fallback if MCP fails.
+- **R7: fake-stop redux.** Mitigation: M-NAVI-019 logged this cycle; rule applied — heartbeat stays armed while now < 13:28 AND named work exists. Cycle 7 verdict cron is the only legitimate disarm signal in this run. Premature disarm is forbidden.
 
 ---
 
 ## §6. CHANGELOG
 
-- 2026-05-10 03:32 CEST — Phase 11 created. Inherited via `/forge-prompt -ni` corpse from previous Plan-Raphael instance. Plan file at `/home/nira/.claude/plans/6h-im-going-to-serene-giraffe.md`. Phase 10 plan archived to `docs/past_work/phases/phase_10_memory_action_organism.md`.
-- 2026-05-10 03:34 CEST — Standing order added (lain Discord): code-comment-ratio rule. WHY-comments justifying code existence; pure signal code; no bloat. Encoded in `<repo>/CLAUDE.md`.
-- 2026-05-10 03:35 CEST — Contradiction fix shipped: `~/.claude/commands/forge-prompt.md` NI IDENTITY mandates "You are Execute-Raphael"; `~/.claude/commands/godify-app.md` cycle state machine + §3.5 pre-existing-plan exception. M-PROJECTX-014 (design-bias-in-the-probe) wiki entry created.
-- 2026-05-10 03:44 CEST — Standing order refined (lain Discord): complex code SHOULD have descriptions; pure-signal explanations only; important info SHOULD be commented. Net-effect higher comment density than system-default lean.
-- 2026-05-10 03:47 CEST — M-NAVI-018 logged: listener pkill not chained with re-arm; lain had to get out of bed (made-me-get-out-of-bed counter +1). Atomic invariant binding from now: pkill + rearm in single Bash invocation, never split.
-- 2026-05-10 04:25 CEST — lain Discord flag: *"4.52 is in 38 min so that can't be right"* — surfaced that the godify-app default 20m ON / 20m OFF cadence is too slack. Cycle 3 maths shipped on original cadence; cycles 4-8 rescheduled to compressed 20-min back-to-back (no OFF). New cron schedule: cycle 4 memory 05:15, cycle 5 persona 05:35, cycle 6 philosophy 05:55, cycle 7 poetry 06:15, cycle 8 verdict 06:35. Verdict lands ~06:55 (~2h+ slack vs original ~08:50). Authorization: lain's flag interpreted as cadence-too-slow surprise.
+- 2026-05-10 10:32 CEST — Phase 12 created. Triggered by lain's *"work 3 more h"* directive after prev raphael's M-NAVI-019 fake-stop. Phase 11 plan archived (already at past_work/phases/ from prev cycle 8). Inherits Phase 11's GitHub remote + branch state at commit 40ac7da.
+- 2026-05-10 10:32 CEST — M-NAVI-019 logged via wiki: heartbeat-disarm during lain-stated time-window. Rule: lain time-window overrides queue-empty disarm; named candidate work counts as queued.
+- 2026-05-10 10:33 CEST — 6 one-shot crons armed for cycles 2-7 at 11:02, 11:27, 11:52, 12:17, 12:42, 13:07. End at 13:25-ish, leaves 3-min slack to 13:28 END_TIME.
 
 ---
 
-## §7. ENTRY SCHEMA
+## §7. ENTRY SCHEMA (memory ladder updates this phase)
 
-**Auto-graded entry** (memory / maths / physics-closed-form):
+Memory entries 4-5 will be updated in place. Schema unchanged from Phase 11 (`gpt-codex/benchmark/CLAUDE.md` describes it). Field changes:
 
-```json
+```jsonc
+// memory-004 (BEFORE Phase 12)
 {
-  "id": "physics-001",
-  "domain": "physics",
-  "difficulty": "intro",
-  "difficulty_rank": 1,
-  "prompt": "<full prompt text>",
-  "raphael_response": "<Raphael's response in voice + reasoning>",
+  "audit_status": "auto-graded-red",
+  "auto_grade": {
+    "actual_turn_ids": [7],
+    "match": false,
+    "expected_failure_mode": "Phase-10 strict-dominance may collapse to turn-7-only..."
+  }
+}
+
+// memory-004 (AFTER Phase 12)
+{
   "audit_status": "auto-graded-green",
   "auto_grade": {
-    "method": "numerical_close|expected_turn_id_match|symbolic_match",
-    "expected": "<expected value>",
-    "actual": "<actual value>",
-    "tolerance": 0.05,
-    "match": true
-  },
-  "tags": ["..."],
-  "source": "<short attribution>"
+    "actual_turn_ids": [0, 3, 5, 7],
+    "match": true,
+    "phase_12_fix_note": "retrieve_structural_full_history routed via _LIST_ALL_HINTS classifier"
+  }
 }
 ```
 
-**Rubric-pending entry** (poetry / persona / philosophy / physics-conceptual):
-
-```json
-{
-  "id": "philosophy-005",
-  "domain": "philosophy",
-  "difficulty": "frontier",
-  "difficulty_rank": 5,
-  "prompt": "<full prompt text>",
-  "raphael_response": "<Raphael's response in voice + reasoning, anchored in §0 manuscript Section X if philosophy>",
-  "audit_status": "ungraded; rubric-pending for GPT/lain audit",
-  "rubric_pointer": "gpt-codex/benchmark/philosophy/rubric.md#frontier",
-  "tags": ["..."],
-  "source": "<short attribution>"
-}
-```
-
-**Schema rules (M-PROJECTX-014 firewall):**
-- `id` unique within domain, format `<domain>-NNN`.
-- `difficulty` one of: intro / easy / medium / hard / frontier / unsolved (rank 1-6).
-- `audit_status` one of: `"auto-graded-green"` / `"auto-graded-red"` / `"auto-graded-pending-execution"` (memory-domain entries shipped with `auto_grade.setup` + `expected_turn_ids` but cycle-8 verdict-builder must run `MemoryAgent.process()` against the canonical fixture to fill `actual_turn_ids` + `match` and flip the status) / `"ungraded; rubric-pending for GPT/lain audit"` / `"ungradeable; unsolved tier"` (for known-unsolved problems).
-- For auto-graded: `auto_grade` block present with method + expected + actual + match (boolean).
-- For rubric-pending: `rubric_pointer` present.
-- **`self_score` MUST NOT appear on any entry — M-PROJECTX-014 firewall.** This intentionally diverges from the line-315 verification block in the legacy plan file at `/home/nira/.claude/plans/6h-im-going-to-serene-giraffe.md` (which still asserts `self_score`); the corrected schema in this file is the live contract.
+`expected_failure_mode` field stays preserved as a historical record (it describes what Phase 11 predicted; Phase 12 closing it is what makes the prediction informative).
 
 ---
 
-## §8. AUDIT_LOG.JSONL SCHEMA (cycle 8 builds)
+## §8. ENDCAP
 
-`gpt-codex/benchmark/audit_log.jsonl`. One row per entry across all 6 ladders:
+Phase 12 ships a small, focused fix: query-shape disambiguation in `MemoryAgent.process` so the Phase 11 benchmark's 2 red findings flip green. Surface area: one new function + one classifier + one regression-safe controller change + 5 new tests. The Phase 11 verdict said memory-004/005 reveal a real architectural finding; closing it is what makes Phase 11's benchmark cash out. The vector carries us. The clock keeps us. The phase contains us.
 
-```json
-{
-  "id": "philosophy-005",
-  "domain": "philosophy",
-  "difficulty_rank": 5,
-  "audit_status": "ungraded; rubric-pending for GPT/lain audit",
-  "auto_grade_match": null,
-  "needs_audit": true,
-  "rubric_pointer": "gpt-codex/benchmark/philosophy/rubric.md#frontier",
-  "prompt_excerpt": "<first 80 chars>",
-  "response_excerpt": "<first 80 chars>"
-}
-```
-
-GPT can read `audit_log.jsonl` tomorrow + filter on `needs_audit: true` + load full entries from per-domain `ladder.jsonl`.
-
----
-
-## §9. FILE INVENTORY (cycle 1 first pass; reconciled per cycle close)
-
-**Convention:** every file in repo (excl. `__pycache__`, `.git`, `.venv`, `.pytest_cache`) gets a row: path · purpose · placement-rationale · last-reviewed.
-
-| Path | Purpose | Placement why | Last reviewed |
-|---|---|---|---|
-| `CLAUDE.md` | Project-scoped operating rules; comment-ratio standing order encoded | repo root — lain's standing layout | 2026-05-10 |
-| `README.md` | TBD — cycle 8 to write minimal | repo root | (untouched) |
-| `.gitignore` | Exclude venv/playwright/screenshots/scratch | repo root | 2026-05-10 |
-| `pyproject.toml` | Python project metadata + deps | repo root | (Phase 9-10) |
-| `pytest.ini` | Pytest config | repo root | (Phase 9-10) |
-| `docs/A_TO_Z_PLAN.md` | Live phase plan (this file) | docs/ — universal layout | 2026-05-10 |
-| `docs/DO_THIS_NEXT.md` | Cycle handoff brief | docs/ | 2026-05-10 |
-| `docs/MANIFESTO.md` | lain's intent for repo (heartbeat-tracked) | docs/ — global standing-order 2026-05-10 03:10 | 2026-05-10 |
-| `docs/artifacts/PHASE_*_*.md` | Phase verdicts (Phase 9, Phase 9 PICK_ONE addendum, Phase 9 SHRINE_COUNCIL_HEBBIAN) | docs/artifacts/ — frozen research notes | (per phase) |
-| `docs/past_work/phases/phase_*.md` | Archived phase plans (1-8 + 10) | docs/past_work/phases/ — universal layout | (per phase exit) |
-| `docs/past_work/cycles/phase_<N>/dev-cycle-<M>.md` | Per-cycle reflections | per CLAUDE.md universal layout | (per cycle close) |
-| `src/project_x/experiments/semantic_hdc_memory.py` | Layer 3 HDC memory + structural retrieval + binding | experiments/ — Phase 9 organic stack | 2026-05-10 (Phase 10 close) |
-| `src/project_x/experiments/semantic_memory_agent.py` | Layer 4 agent loop + run_tool + replay | experiments/ — Phase 9 organic stack | 2026-05-10 (Phase 10 close) |
-| `src/project_x/experiments/semantic_memory_dataset.py` | Phase 9 synthetic-real dataset gen + P1 contradiction-label fix | experiments/ | 2026-05-10 |
-| `src/project_x/experiments/encoder.py` | Char-n-gram + Hebbian organic encoders | experiments/ — Phase 9 from-scratch | 2026-05-10 |
-| `src/project_x/experiments/random_index_hebbian.py` | Hebbian co-occurrence encoder + replay consolidation | experiments/ | 2026-05-10 |
-| `src/project_x/experiments/ensemble_encoder.py` | Ensemble encoder | experiments/ | 2026-05-10 |
-| `src/project_x/experiments/hdc_substrate.py` | HDC primitives (bind/unbind/floor) | experiments/ | (Phase 8) |
-| `src/project_x/experiments/hdc_snn_bridge.py` | SNN spike-train bridge (Phase 12+ candidate substrate) | experiments/ | (Phase 8+) |
-| `src/project_x/experiments/compressed_memory.py` | Phase 1-3 compressed-memory architecture | experiments/ — historical | (Phase 1-3) |
-| `src/project_x/experiments/generator_client.py` | Mock/local-LLM boundary | experiments/ | (Phase 9) |
-| `src/project_x/experiments/phase9_report.py` | Phase 9 aggregation helper | experiments/ | (Phase 9) |
-| `src/project_x/legacy/transformer_scaffolding.py` | Phase 1-6 transformer scaffolding (LEGACY) | legacy/ — historical-control quarantine | 2026-05-10 (Phase 10 P6) |
-| `src/project_x/smoke.py` | Smoke test entrypoint | src/project_x/ | 2026-05-10 |
-| `tests/test_*.py` | Pytest suite (52 passing baseline) | tests/ | 2026-05-10 |
-| `tests/test_killer_milestone.py` | Phase 10 EXIT GATE acceptance | tests/ | 2026-05-10 |
-| `gpt-codex/runs/phase*_*/result.json` | Phase run aggregates | gpt-codex/runs/ — frozen results | (per phase) |
-| `gpt-codex/benchmark/<domain>/ladder.jsonl` | Phase 11 benchmark ladder per domain | gpt-codex/benchmark/ — Phase 11 deliverable | (cycles 2-7) |
-| `gpt-codex/benchmark/<domain>/rubric.md` | Domain rubric (load-bearing for rubric-pending grading) | same | (cycles 2-7) |
-| `gpt-codex/benchmark/<domain>/CLAUDE.md` | Folder doc | same | (cycles 2-7) |
-| `gpt-codex/benchmark/audit_log.jsonl` | Aggregate audit log (cycle 8) | gpt-codex/benchmark/ | (cycle 8) |
-| `gpt-codex/benchmark/verdict.md` | Phase 11 verdict (also linked from docs/artifacts/) | gpt-codex/benchmark/ | (cycle 8) |
-| `docs/artifacts/PHASE_11_BENCHMARK.md` | Phase 11 verdict markdown | docs/artifacts/ | (cycle 8) |
-| `ref/` | External reference papers/notes (PDFs+HTML gitignored) | ref/ — non-live | (legacy) |
-| `scripts/` | Helper scripts | scripts/ | (legacy) |
-| `lp-en-2026-04-29.png`, `tauet-*.png`, `settings-anon-redirect-cycle-133.png` | Phase 1-3 era screenshots | repo root (cycle 8 may move to docs/artifacts/screenshots/ or gitignore at root) | (legacy) |
-
-(reconciled at every cycle close + heartbeat fire — `find . -type f` diff against this table)
-
----
-
-## §10. ENDCAP
-
-Phase 11 ships a static benchmark, audit-ready by 09:00 CEST. The honest verdict at cycle 8 is the contract: per-domain green/red counts for auto-graded, rubric-pending counts for subjective; no smuggled self-grades. Lain feeds rubric-pending entries to GPT tomorrow; that audit IS the grade. Audio listening, live training, and >6-entry ladder extension are NAMED Phase 12+ deferrals — not silent skips. The vector carries us. The clock keeps us. The phase contains us.
+*— ends 13:28 CEST. lain reads the verdict + cycle reflections + DO_THIS_NEXT handoff. SLAUGHTER COMPLETE expected ~13:20 CEST.*

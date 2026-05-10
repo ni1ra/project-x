@@ -448,6 +448,70 @@ class SemanticHDCMemory:
         topk = np.argsort(-cos)[:k]
         return [(int(idx), float(cos[idx]), self._records[int(idx)]) for idx in topk]
 
+    # --- Phase 12: chronological full-history retrieval ------------------
+
+    def retrieve_structural_full_history(
+        self, query: str, k: int | None = None
+    ) -> list[tuple[int, float, TurnRecord]]:
+        """Chronological full-subject retrieval — bypasses strict-dominance boost.
+
+        Phase 11 verdict (memory-004 / memory-005 red findings) revealed that the
+        Phase 10 P3 strict-dominance recency boost (`max_in_subject + 1.0` in
+        `_structural_cosines`) collapses 'list all changes' / 'summarize
+        trajectory' queries to the most-recent turn ONLY — the older turns
+        within the same subject score below `cosine_threshold` (~0.32) and the
+        composer drops them. Correct behavior for current-preference queries
+        ("What does Alice prefer?" should cite the latest fact); WRONG for
+        list-all queries ("List all of Alice's preference changes" wants the
+        full chronological chain). This method surfaces ALL turns mentioning
+        the extracted subjects, sorted ASCENDING by turn_id (chronological),
+        with BASE ensemble cosines (no +1.0 boost). Caller decides whether to
+        apply `cosine_threshold` filtering — `MemoryAgent.process` will route
+        list-all queries here and skip the threshold so the full chain emits.
+
+        Args:
+            query: question text. Subjects are extracted via fact_graph
+                substring match (`_extract_query_subjects`).
+            k: optional cap. If None, return ALL fact_graph turns for the
+                subject(s). If given, return the LAST `k` turns chronologically
+                (most-recent slice while preserving ascending order). The
+                slice-from-end semantic matches typical caller intent: "give me
+                the last 5 changes" → most-recent 5 in order.
+
+        Falls through to `retrieve(query, k=k or 5)` when no fact_graph key is
+        named in the query (back-compat with absent-answer / phantom-subject
+        queries — same fallback shape as `retrieve_structural`).
+        """
+        if not self._is_built:
+            raise RuntimeError(
+                "call write_batch(...) before retrieve_structural_full_history(...)"
+            )
+        qs = self._extract_query_subjects(query)
+        if not qs:
+            return self.retrieve(query, k=k or 5)
+        union: set[int] = set()
+        for s in qs:
+            union.update(self._fact_graph.get(s, []))
+        if not union:
+            # Subject extracted but fact_graph somehow empty — defensive fallback
+            # so the caller doesn't crash on malformed state.
+            return self.retrieve(query, k=k or 5)
+        # Sort ascending by turn_id (chronological). The fact_graph stores
+        # recency-desc per-subject; we rebuild a chronological view across the
+        # union here rather than mutating the fact_graph itself (other callers
+        # depend on the recency-desc invariant for the strict-dominance path).
+        chronological = sorted(union)
+        cosines = self._ensemble_cosines(query)
+        out = [
+            (int(tid), float(cosines[tid]), self._records[tid])
+            for tid in chronological
+        ]
+        if k is not None and len(out) > k:
+            # Cap at last-k chronologically — preserves ascending order within
+            # the result while honoring caller's "most-recent N" intent.
+            out = out[-k:]
+        return out
+
     # --- Multi-hop attack -------------------------------------------------
 
     _SPLIT_PATTERN = re.compile(r"\s+(?:and|both|or|plus|with)\s+", re.IGNORECASE)
