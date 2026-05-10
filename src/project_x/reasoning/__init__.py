@@ -26,6 +26,16 @@ from project_x.reasoning.complex_analysis import (
     INTRO_RESIDUE_UNIT_QUADRATIC,
     residue_theorem_unit_quadratic,
 )
+from project_x.reasoning.integration import (
+    INTRO_INTEGRATION_BY_PARTS_X_COS,
+    INTRO_INTEGRATION_BY_PARTS_X_EXP,
+    INTRO_INTEGRATION_BY_PARTS_X_SIN,
+    INTRO_USUB_X_TRIG_X_SQUARED,
+    definite_integral_x_times_cos,
+    definite_integral_x_times_exp,
+    definite_integral_x_times_sin,
+    definite_integral_xtrig_via_usub,
+)
 from project_x.reasoning.number_theory import (
     INTRO_COLLATZ_VERIFICATION,
     INTRO_GOLDBACH_VERIFICATION,
@@ -74,6 +84,9 @@ __all__ = [
     "INTRO_FIRST_ORDER_LINEAR_ODE_EXP",
     "INTRO_FREE_FALL",
     "INTRO_GOLDBACH_VERIFICATION",
+    "INTRO_INTEGRATION_BY_PARTS_X_COS",
+    "INTRO_INTEGRATION_BY_PARTS_X_EXP",
+    "INTRO_INTEGRATION_BY_PARTS_X_SIN",
     "INTRO_LARGE_ANGLE_PENDULUM",
     "INTRO_MERTENS_BOUND_VERIFICATION",
     "INTRO_PENDULUM",
@@ -84,6 +97,7 @@ __all__ = [
     "INTRO_RELATIVISTIC_MOMENTUM",
     "INTRO_RESIDUE_UNIT_QUADRATIC",
     "INTRO_TWIN_PRIMES_VERIFICATION",
+    "INTRO_USUB_X_TRIG_X_SQUARED",
     "DerivationStep",
     "InvariantCheck",
     "Lemma",

@@ -818,3 +818,66 @@ def test_parser_robustness_existing_prompts_still_match():
     r3 = agent.process("Solve 3x^2 - 14x - 5 = 0 for x.")
     assert r3.problem_shape == "quadratic"
     assert sorted(r3.lemma.actual_value) == [-1 / 3, 5.0]
+
+
+# --- Symbolic integration dispatch (maths-021..023; cycle 9 #00P13c9-01) ---
+
+
+def test_reasoning_agent_solves_maths_021_integration_by_parts_exp():
+    """Maths-021 verbatim: ∫₀¹ x·e^x dx via integration by parts → 1.0."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Compute the value of the definite integral from 0 to 1 of x·e^x dx via integration by parts."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "definite_integral_x_times_exp"
+    assert response.parsed_inputs == {"lower": 0.0, "upper": 1.0, "c": 1.0}
+    assert abs(response.lemma.actual_value - 1.0) < 1e-9
+
+
+def test_reasoning_agent_solves_maths_022_integration_by_parts_sin():
+    """Maths-022 verbatim: ∫₀^π x·sin(x) dx via integration by parts → π."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Compute the value of the definite integral from 0 to 3.141592653589793 of x·sin(x) dx via integration by parts."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "definite_integral_x_times_sin"
+    assert response.parsed_inputs["c"] == 1.0
+    assert abs(response.lemma.actual_value - math.pi) < 1e-9
+
+
+def test_reasoning_agent_solves_maths_023_u_substitution():
+    """Maths-023 verbatim: ∫₀¹ x·sin(x²) dx via u-substitution → (1-cos(1))/2."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Compute the value of the definite integral from 0 to 1 of x·sin(x²) dx via u-substitution."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "definite_integral_xtrig_via_usub_sin"
+    assert response.parsed_inputs == {"lower": 0.0, "upper": 1.0, "trig_fn": "sin"}
+    expected = (1.0 - math.cos(1.0)) / 2.0
+    assert abs(response.lemma.actual_value - expected) < 1e-9
+
+
+def test_reasoning_agent_integration_x_cos_via_parts():
+    """∫₀^π x·cos(x) dx via integration by parts → -2 (canonical)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Compute the value of the definite integral from 0 to 3.141592653589793 of x·cos(x) dx via integration by parts."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "definite_integral_x_times_cos"
+    assert abs(response.lemma.actual_value - (-2.0)) < 1e-9
+
+
+def test_reasoning_agent_integration_no_technique_keyword_refuses():
+    """Symbolic-integration dispatchers require explicit technique keyword. Missing 'integration
+    by parts' or 'u-substitution' → don't false-match these dispatchers (would fall through to
+    quadratic-polynomial dispatcher or refusal)."""
+    agent = ReasoningAgent()
+    response = agent.process("Compute the value of the integral from 0 to 1 of x·e^x dx.")
+    assert response.problem_shape != "definite_integral_x_times_exp"
+    assert response.problem_shape != "definite_integral_x_times_sin"
+    assert response.problem_shape != "definite_integral_xtrig_via_usub_sin"

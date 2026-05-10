@@ -43,6 +43,12 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
+from project_x.reasoning.integration import (
+    definite_integral_x_times_cos,
+    definite_integral_x_times_exp,
+    definite_integral_x_times_sin,
+    definite_integral_xtrig_via_usub,
+)
 from project_x.reasoning.number_theory import (
     collatz_verify_range,
     goldbach_verify_range,
@@ -122,6 +128,116 @@ _INTEGRAL_BOUNDS_PATTERN = re.compile(
 _INTEGRAL_QUADRATIC_POLY_PATTERN = re.compile(
     r"(-?\d+\.?\d*)\s*\*?\s*x\^2\s*([+-]\s*\d+\.?\d*)\s*\*?\s*x\s*([+-]\s*\d+\.?\d*)"
 )
+
+# Symbolic-integration parsers (cycle 9 #00P13c9-01): transcendental integrand shapes
+# beyond polynomial — integration-by-parts (x·e^(cx), x·sin(cx), x·cos(cx)) and
+# u-substitution (x·sin(x²), x·cos(x²)). Each has its own integrand pattern; the
+# bounds regex is reused from cycle 8 #02.
+# Coefficient c may be missing (=1) or "-" (=-1) before x in the exponent/argument.
+_INTEGRAL_X_EXP_PATTERN = re.compile(
+    r"x\s*[·*]?\s*e\^(?:\(\s*(-?\d*\.?\d*)\s*\*?\s*x\s*\)|x)", re.IGNORECASE
+)
+# Matches "x·e^x" (c=1 implicit, no group capture in 2nd branch) or "x·e^(2x)" / "x·e^(-1.5x)" (c captured)
+_INTEGRAL_X_SIN_PATTERN = re.compile(
+    r"x\s*[·*]?\s*sin\(\s*(?:(-?\d*\.?\d*)\s*\*?\s*)?x\s*\)", re.IGNORECASE
+)
+# Matches "x·sin(x)" (c=1 implicit, group empty) or "x·sin(2x)" (c=2)
+_INTEGRAL_X_COS_PATTERN = re.compile(
+    r"x\s*[·*]?\s*cos\(\s*(?:(-?\d*\.?\d*)\s*\*?\s*)?x\s*\)", re.IGNORECASE
+)
+# Matches "x·cos(x)" or "x·cos(2x)"
+_INTEGRAL_XTRIG_USUB_SIN_PATTERN = re.compile(
+    r"x\s*[·*]?\s*sin\(\s*x\s*\^?\s*[²2]\s*\)", re.IGNORECASE
+)
+# Matches "x·sin(x²)" or "x·sin(x^2)"
+_INTEGRAL_XTRIG_USUB_COS_PATTERN = re.compile(
+    r"x\s*[·*]?\s*cos\(\s*x\s*\^?\s*[²2]\s*\)", re.IGNORECASE
+)
+# Matches "x·cos(x²)" or "x·cos(x^2)"
+
+
+def _parse_implicit_signed_coefficient(s: str | None) -> float:
+    """Normalize a regex capture group representing an optional coefficient.
+
+    Empty / None → 1.0 (implicit "1" before x). "-" → -1.0. Otherwise parsed as float.
+    Used by symbolic-integration parsers where c may be implicit.
+    """
+    if s is None or s.strip() == "":
+        return 1.0
+    s_stripped = s.strip().replace("−", "-")
+    if s_stripped == "-":
+        return -1.0
+    if s_stripped == "+":
+        return 1.0
+    return float(s_stripped)
+
+
+def _parse_definite_integral_x_exp(prompt: str) -> tuple[float, float, float] | None:
+    """Extract (lower, upper, c) for ∫_lower^upper x·e^(c·x) dx prompts (parts technique).
+
+    Three-gate filter: (1) prompt names "integration by parts", (2) bounds match,
+    (3) x·e^(cx) integrand pattern matches.
+    """
+    lower = prompt.lower()
+    if "integration by parts" not in lower and "integration-by-parts" not in lower:
+        return None
+    bounds_match = _INTEGRAL_BOUNDS_PATTERN.search(prompt)
+    if not bounds_match:
+        return None
+    integrand_match = _INTEGRAL_X_EXP_PATTERN.search(prompt)
+    if not integrand_match:
+        return None
+    c = _parse_implicit_signed_coefficient(integrand_match.group(1))
+    return (float(bounds_match.group(1)), float(bounds_match.group(2)), c)
+
+
+def _parse_definite_integral_x_sin(prompt: str) -> tuple[float, float, float] | None:
+    """Extract (lower, upper, c) for ∫_lower^upper x·sin(c·x) dx prompts (parts technique)."""
+    lower = prompt.lower()
+    if "integration by parts" not in lower and "integration-by-parts" not in lower:
+        return None
+    bounds_match = _INTEGRAL_BOUNDS_PATTERN.search(prompt)
+    if not bounds_match:
+        return None
+    integrand_match = _INTEGRAL_X_SIN_PATTERN.search(prompt)
+    if not integrand_match:
+        return None
+    c = _parse_implicit_signed_coefficient(integrand_match.group(1))
+    return (float(bounds_match.group(1)), float(bounds_match.group(2)), c)
+
+
+def _parse_definite_integral_x_cos(prompt: str) -> tuple[float, float, float] | None:
+    """Extract (lower, upper, c) for ∫_lower^upper x·cos(c·x) dx prompts (parts technique)."""
+    lower = prompt.lower()
+    if "integration by parts" not in lower and "integration-by-parts" not in lower:
+        return None
+    bounds_match = _INTEGRAL_BOUNDS_PATTERN.search(prompt)
+    if not bounds_match:
+        return None
+    integrand_match = _INTEGRAL_X_COS_PATTERN.search(prompt)
+    if not integrand_match:
+        return None
+    c = _parse_implicit_signed_coefficient(integrand_match.group(1))
+    return (float(bounds_match.group(1)), float(bounds_match.group(2)), c)
+
+
+def _parse_definite_integral_xtrig_usub(prompt: str) -> tuple[float, float, str] | None:
+    """Extract (lower, upper, trig_fn) for ∫_lower^upper x·sin(x²) or x·cos(x²) prompts (u-sub).
+
+    Three-gate filter: (1) prompt names "u-substitution" (or "u substitution"), (2) bounds
+    match, (3) one of the two u-sub integrand patterns matches (sin or cos of x²).
+    """
+    lower = prompt.lower()
+    if "u-substitution" not in lower and "u substitution" not in lower:
+        return None
+    bounds_match = _INTEGRAL_BOUNDS_PATTERN.search(prompt)
+    if not bounds_match:
+        return None
+    if _INTEGRAL_XTRIG_USUB_SIN_PATTERN.search(prompt):
+        return (float(bounds_match.group(1)), float(bounds_match.group(2)), "sin")
+    if _INTEGRAL_XTRIG_USUB_COS_PATTERN.search(prompt):
+        return (float(bounds_match.group(1)), float(bounds_match.group(2)), "cos")
+    return None
 
 
 def _parse_definite_integral_quadratic(prompt: str) -> tuple[list[float], float, float] | None:
@@ -581,6 +697,22 @@ class ReasoningAgent:
         if response is not None:
             return response
 
+        # Maths symbolic integration — covers maths-021/022/023 (cycle 9 #00P13c9-01).
+        # Specific technique-keyword gates ("integration by parts" / "u-substitution") win
+        # over generic polynomial-integral dispatcher; placed BEFORE polynomial path.
+        response = self._try_definite_integral_x_exp(prompt)
+        if response is not None:
+            return response
+        response = self._try_definite_integral_x_sin(prompt)
+        if response is not None:
+            return response
+        response = self._try_definite_integral_x_cos(prompt)
+        if response is not None:
+            return response
+        response = self._try_definite_integral_xtrig_usub(prompt)
+        if response is not None:
+            return response
+
         # Maths definite integral (quadratic) — covers maths-010. Checked AFTER residue theorem
         # so residue-form integrals don't accidentally route here (residue check excludes those anyway).
         response = self._try_definite_integral_quadratic(prompt)
@@ -773,6 +905,66 @@ class ReasoningAgent:
             domain="maths",
             problem_shape="definite_integral_quadratic",
             parsed_inputs={"coeffs_descending": coeffs, "lower": lower, "upper": upper},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_definite_integral_x_exp(self, prompt: str) -> AgentResponse | None:
+        params = _parse_definite_integral_x_exp(prompt)
+        if params is None:
+            return None
+        lower, upper, c = params
+        lemma = definite_integral_x_times_exp(lower, upper, c)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="definite_integral_x_times_exp",
+            parsed_inputs={"lower": lower, "upper": upper, "c": c},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_definite_integral_x_sin(self, prompt: str) -> AgentResponse | None:
+        params = _parse_definite_integral_x_sin(prompt)
+        if params is None:
+            return None
+        lower, upper, c = params
+        lemma = definite_integral_x_times_sin(lower, upper, c)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="definite_integral_x_times_sin",
+            parsed_inputs={"lower": lower, "upper": upper, "c": c},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_definite_integral_x_cos(self, prompt: str) -> AgentResponse | None:
+        params = _parse_definite_integral_x_cos(prompt)
+        if params is None:
+            return None
+        lower, upper, c = params
+        lemma = definite_integral_x_times_cos(lower, upper, c)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="definite_integral_x_times_cos",
+            parsed_inputs={"lower": lower, "upper": upper, "c": c},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_definite_integral_xtrig_usub(self, prompt: str) -> AgentResponse | None:
+        params = _parse_definite_integral_xtrig_usub(prompt)
+        if params is None:
+            return None
+        lower, upper, trig_fn = params
+        lemma = definite_integral_xtrig_via_usub(lower, upper, trig_fn=trig_fn)
+        return AgentResponse(
+            domain="maths",
+            problem_shape=f"definite_integral_xtrig_via_usub_{trig_fn}",
+            parsed_inputs={"lower": lower, "upper": upper, "trig_fn": trig_fn},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",
