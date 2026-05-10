@@ -6,9 +6,10 @@
 
 ## Standing rule
 
-**Every code file, every artifact (verdicts, run results, tests, scripts, ladder entries, screenshots), every doc — needs an entry here with a one-line justification.** If a file exists on disk + isn't here, either (a) add the row, or (b) delete the file. The repo is pristine when the union of `git ls-files` + tracked-on-disk-but-gitignored matches the entries in this file.
+**Every code file, every artifact (verdicts, run results, tests, scripts, ladder entries, screenshots) — needs an entry here with a one-line justification.** If a file exists on disk + isn't here, either (a) add the row, or (b) delete the file. The repo is pristine when the union of `git ls-files` + tracked-on-disk-but-gitignored matches the entries in this file.
 
 Exemptions (don't need rows):
+- **`docs/`** — lain 2026-05-10 standing order: *"the REPO_CONTROL does not need the /docs, they dont need justification"*. Files under `docs/` are self-justifying via the live-docs system (MANIFESTO is the intent doc; REPO_CONTROL is THIS gate; A_TO_Z is the plan; DO_THIS_NEXT is the handoff; artifacts/ are the verdicts; past_work/ is the archive). New `docs/` files do NOT need a row added in their commit.
 - Auto-generated build artifacts (`*.egg-info/`, `__pycache__/`, `.pytest_cache/`)
 - Coverage tooling output (`.coverage`, `htmlcov/`)
 - IDE/agent session artifacts (`.claude/`, `.playwright-mcp/`)
@@ -26,43 +27,7 @@ Exemptions (don't need rows):
 | `pytest.ini` | Pytest config — adds `src/` to PYTHONPATH so `from project_x.*` imports work without `pip install -e .`. |
 | `.gitignore` | Standard Python ignores + coverage tooling output + `.claude/` + `.playwright-mcp/` + large reference materials in `ref/papers/` and `ref/pages/` + the codex extracted-content blobs in `gpt-codex/extracted/` and `gpt-codex/sources/` (metadata-only tracking; raw blobs stay local) + `gpt-codex/runs/*/` retention policy (audit-F2). |
 
-(Per-directory `CLAUDE.md` files were retired 2026-05-10. Single-source-of-truth lives under `docs/`.)
-
-## `docs/` (live docs + frozen artifacts + cycle archives)
-
-| Path | Justification |
-|---|---|
-| `docs/MANIFESTO.md` | lain's intent + standing orders. Live; heartbeat-tracked; re-read at session start. |
-| `docs/A_TO_Z_PLAN.md` | Current run / phase plan + verification gates + scope fence + changelog. Rotates to `past_work/phases/` on phase exit (THIS file does NOT cycle out — it's REPO_CONTROL). |
-| `docs/DO_THIS_NEXT.md` | Current cycle scope + next-instance handoff. Rewritten at every cycle close. Power-on resume pointer. |
-| `docs/REPO_CONTROL.md` | THIS file — pristine-condition gate; mirror of repo structure with justification. Heartbeat-tracked alongside MANIFESTO. |
-| `docs/ci/test.yml` | Audit-D1 CI workflow template (paste-ready). Cannot ship to `.github/workflows/` directly because Claude Code OAuth lacks `workflow` scope; lain installs via web UI or grants the scope and the agent retries. |
-| `docs/artifacts/` | Phase verdicts (frozen-with-addendum convention) + research notes. See sub-section. |
-| `docs/past_work/phases/` | Archived phase plans. One file per closed phase: `phase_<N>_<theme>.md`. Inter-phase repair runs (e.g. `audit_fix_run_2026-05-10.md`) are archived here too, un-numbered. |
-| `docs/past_work/cycles/phase_<N>/` | Per-cycle reflections — `dev-cycle-<M>.md` written at each cycle close. Phases 1, 4-12, 13 represented. **`phase_13/dev-cycle-1.md`** added 2026-05-10 — cycle 1 close: 6/6 #00P13c1-XX shipped; pytest 87→153; baseline-attempt brutal scores (poetry 1.3/5, philosophy 1.2/5) drove lain's intelligence-first reframe. **`phase_13/dev-cycle-2.md`** added 2026-05-10 — cycle 2 close: 6/6 #00P13c2-XX shipped; pytest 153→202; substrate-driven math grades 4.0/5 both prompts (3x cycle-1 lift); D5 PASS 11/0 unchanged (substrate gain in QUALITY not COUNT — falsifiable-bar alternative clause); lain mid-D3 catch + 3 new global rules pinned (#9/#10/#11) for cycle 3 Tier A; advisor catch pre-D4 surfaced + applied. **`phase_13/dev-cycle-3.md`** added 2026-05-10 — cycle 3 close: 5/6 #00P13c3-XX shipped + 3 Tier A instruction-discipline rows + 1 deferral (#04→cycle 4 #03 per advisor pacing flag); maths PASS 3/0→5/0 (Path B; FIRST visible PASS lift in Phase 13); substrate-vs-substrate Tier 1 lift maths-001 4.0→4.5 / maths-002 4.0→4.75 (differentiated lift signal breaks calibration tell); pytest 202→221; 6 advisor catches applied. |
-
-### `docs/artifacts/` (frozen verdicts + research notes)
-
-| Path | Phase / topic |
-|---|---|
-| `PHASE_7_HOPFIELD_LENS.md` | Phase 7 Hopfield lens proof. |
-| `PHASE_8_HDC_ORGANIC_MEMORY.md` | Phase 8 random-symbol HDC baseline (99.25% recall at D=50000). |
-| `PHASE_8_HOSTILE_REVIEW.md` | Phase 8 hostile review. |
-| `PHASE_9_PICK_ONE_VERDICT.md` | Phase 9 pick-one verdict + lain organic-only addendum (2026-05-09). |
-| `PHASE_9_SEMANTIC_HDC_MEMORY.md` | Phase 9 verdict + Phase 10 closure addenda. |
-| `PHASE_9_SHRINE_COUNCIL_HEBBIAN.md` | Council reasoning (Plate dossier especially relevant for Phase 10 P3 fact-graph). |
-| `PHASE_11_BENCHMARK.md` | Phase 11 verdict (9/2/21/4) + Phase 12 closure addendum (11/0/21/4). |
-| `PHASE_12_RETRIEVAL_DISAMBIGUATION.md` | Phase 12 verdict — `retrieve_structural_full_history` + `_LIST_ALL_HINTS` classifier closing memory-004/005. |
-| `PHASE_13_CANDIDATES.md` | Phase 13 framing inputs (lain-gated, NOT a verdict) — retrieval telemetry, snapshot/restore, adversarial memory matches, from-scratch symbolic generator, binding-algebra bakeoff. |
-| `PHASE_13_C3_PHYSICS_SURVEY.md` | #00P13c3-03-domain-recon (cycle 3 D3) — classifies 6 physics ladder entries by verification path (3 auto-green / 2 rubric-pending / 1 ungradeable; identical structure to maths ladder). Identifies TWO complementary cycle 4 paths: Path A (substrate extension to closed-form physics — `free_fall_time` + `pendulum_period` + `relativistic_momentum` primitives) for substrate-quality lift; Path B (grader-flip on physics-004 Einstein-field-equations + physics-005 LQG-vs-string-theory) for visible PASS-count lift. Recommends cycle 4 ships both (Path B first per cycle 3 pattern). Documents cycle 3 deferred #00P13c3-04 carries forward as cycle 4 #03 per advisor pacing flag. |
-| `PHASE_13_ANTICHEAT_AUDIT.md` | #00P13c4-23-anti-cheat-leakage-audit (TIER A HIGH; lain mid-cycle-4 directive 2026-05-10) — maps 7 leak surfaces across substrate + benchmark architecture. HIGH: substrate primitives hardcode formula (Surface 1); Path B four-positions-in-one-architecture (Surface 3); memorization vs reasoning (Surface 4); substrate-driven attempt canonical cheat shape (Surface 5). MED: verifier partial independence (Surface 2); manual grade harness shared-bias gap (Surface 6). LOW: memory ladder mechanical-truth (Surface 7). Identifies 6 operational external-confirmation mechanism candidates (independent LLM-as-judge / programmatic rubric criteria / lain spot-checks at phase exits / surrogate-prompt regression / differential capability test / divergent-verifier-paths). Recommends cycle 4 #24 minimum-viable: surrogate-prompt regression + differential capability test + divergent verifier path. Defers full programmatic-rubric + ladder-wide surrogate coverage to cycle 5+. Self-acknowledged Surface 3 inheritance bias (same-architecture audit-of-self); honest "anti-cheat-audit-builder; pending external confirmation" framing. |
-| `PHASE_13_C2_MATH_SURVEY.md` | #00P13c2-01-math-recon (cycle 2 D1) — classifies the 6 maths ladder entries by verification path (auto-graded vs rubric-pending vs ungradeable); identifies maths-001 (definite) + maths-002 (stretch) as cycle 2 substrate-driven re-attempt candidates; reconciles D5 falsifiable bar (PASS ≥ 4/0 via substrate alone NOT feasible — Path B grader-driven rubric-flip on rank 4-5 is independent of cycle 2 substrate scope). Drives D2 primitive shape (Lemma + DerivationStep dataclasses + `solve_quadratic` + `expand_characteristic_polynomial_2x2`). |
-| `COUNCIL_A_ENCODER.md` … `COUNCIL_H_BEYOND_HUMAN_CAP.md` | Phase 9 council deliberations across 8 architectural axes. |
-| `DISCORD_BRIEF_RAPHAEL_ROADMAP.md` | Discord brief on Raphael roadmap. |
-| `RESEARCH_NOTE.md` | Older research notes (Phase 1-4 era). |
-| `ROADMAP_TO_RAPHAEL.md` | Older long-arc roadmap (superseded by MANIFESTO + Phase 9-12 verdicts; kept as historical record). |
-| `SHRINE_COUNCIL_PHASE_8.md` | Phase 8 council deliberations. |
-| `T4_bit_accuracy_curve.png`, `T4_capacity_curve.png`, `T4_cliff_vs_D.png`, `T4_dscaling_curves.png` | Phase 4 figures (bit-accuracy, capacity, cliff, D-scaling). |
+(Per-directory `CLAUDE.md` files were retired 2026-05-10. Single-source-of-truth lives under `docs/` — which is REPO_CONTROL-exempt per the standing-rule exemption above; `docs/` files are self-justifying.)
 
 ## `src/project_x/` (runnable research harness)
 
