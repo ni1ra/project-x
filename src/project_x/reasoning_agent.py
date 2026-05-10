@@ -43,6 +43,7 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
+from project_x.reasoning.ode import first_order_linear_ode_exp_solution
 from project_x.reasoning.physics import (
     free_fall_time,
     large_angle_pendulum_period,
@@ -261,6 +262,50 @@ def _parse_pendulum(prompt: str) -> tuple[float, float, float | None] | None:
     return None
 
 
+# First-order linear separable homogeneous ODE: dy/dx = k·y with y(x_0) = y_0; report y(x_target).
+# Closes maths-011 agent-runtime gap (cycle 8 #03). Three separate regexes capture (k, IC, target);
+# domain keyword gate ("dy/dx" or "differential equation") gates the dispatch ahead of pattern match.
+_ODE_LINEAR_K_PATTERN = re.compile(
+    r"dy/dx\s*=\s*(-?\d*\.?\d*)\s*\*?\s*y", re.IGNORECASE
+)
+# IC: y(x_0) = y_0 with optional whitespace. Both groups required.
+_ODE_IC_PATTERN = re.compile(
+    r"y\s*\(\s*(-?\d+\.?\d*)\s*\)\s*=\s*(-?\d+\.?\d*)", re.IGNORECASE
+)
+# Target evaluation: "Report y(x_target)" / "Find y(x_target)" / "Evaluate y(x_target)" / "Compute y(x_target)".
+# Action keyword gate prevents collision with IC pattern (which requires `=`).
+_ODE_TARGET_PATTERN = re.compile(
+    r"(?:report|find|evaluate|compute)\s+y\s*\(\s*(-?\d+\.?\d*)\s*\)", re.IGNORECASE
+)
+
+
+def _parse_first_order_ode(prompt: str) -> tuple[float, float, float, float] | None:
+    """Extract (k, y_0, x_target, x_0) from a first-order linear ODE prompt.
+
+    Four-gate filter prevents misrouting: (1) prompt names ODE via "dy/dx" or
+    "differential equation", (2) the dy/dx = k·y coefficient pattern matches,
+    (3) the IC y(x_0) = y_0 pattern matches, (4) the Report/Find/Evaluate y(x_target)
+    pattern matches. All four required; otherwise None.
+
+    Cycle 8 #03 minimum-viable scope: homogeneous first-order linear separable.
+    Non-homogeneous (dy/dx + p(x)·y = q(x)) and separable-general (dy/dx = f(x)·g(y))
+    defer to cycle 8+ extensions.
+    """
+    lower = prompt.lower()
+    if "dy/dx" not in lower and "differential equation" not in lower:
+        return None
+    k_match = _ODE_LINEAR_K_PATTERN.search(prompt)
+    ic_match = _ODE_IC_PATTERN.search(prompt)
+    target_match = _ODE_TARGET_PATTERN.search(prompt)
+    if not k_match or not ic_match or not target_match:
+        return None
+    k = _parse_signed_coefficient(k_match.group(1), implicit_one=True)
+    x_0 = float(ic_match.group(1))
+    y_0 = float(ic_match.group(2))
+    x_target = float(target_match.group(1))
+    return (k, y_0, x_target, x_0)
+
+
 # 2x2 matrix regex: matches `[[a, b], [c, d]]` with optional whitespace.
 # All four entries captured as signed decimal strings; whitespace inside brackets allowed.
 _MATRIX_2X2_PATTERN = re.compile(
@@ -376,6 +421,11 @@ class ReasoningAgent:
 
         # Maths 2x2 eigenvalues — covers maths-002/009. Eigenvalue-naming gate.
         response = self._try_char_poly_2x2(prompt)
+        if response is not None:
+            return response
+
+        # Maths first-order linear ODE — covers maths-011. Domain-keyword gate ("dy/dx").
+        response = self._try_first_order_ode(prompt)
         if response is not None:
             return response
 
@@ -511,6 +561,21 @@ class ReasoningAgent:
             domain="physics",
             problem_shape="pendulum_large_angle",
             parsed_inputs={"L_meters": L, "g_m_per_s_squared": g, "theta_0_rad": theta_0},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_first_order_ode(self, prompt: str) -> AgentResponse | None:
+        params = _parse_first_order_ode(prompt)
+        if params is None:
+            return None
+        k, y_0, x_target, x_0 = params
+        lemma = first_order_linear_ode_exp_solution(k, y_0, x_target, x_0=x_0)
+        return AgentResponse(
+            domain="maths",
+            problem_shape="first_order_linear_ode_exp",
+            parsed_inputs={"k": k, "y_0": y_0, "x_target": x_target, "x_0": x_0},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",

@@ -447,3 +447,71 @@ def test_reasoning_agent_definite_integral_negative_bound():
     )
     assert response.confidence == "high"
     assert abs(response.lemma.actual_value - 2 / 3) < 1e-9
+
+
+# --- First-order linear ODE dispatch (maths-011) ---
+
+
+def test_reasoning_agent_solves_maths_011():
+    """Maths-011 verbatim: dy/dx = 2y with y(0) = 3; report y(1) ≈ 22.167."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Solve the differential equation dy/dx = 2y with initial condition y(0) = 3. Report y(1)."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "first_order_linear_ode_exp"
+    assert response.parsed_inputs == {"k": 2.0, "y_0": 3.0, "x_target": 1.0, "x_0": 0.0}
+    expected = 3.0 * math.exp(2.0)
+    assert abs(response.lemma.actual_value - expected) < 1e-12
+    assert abs(response.lemma.actual_value - 22.167) < 0.05  # maths-011 auto_grade tolerance
+
+
+def test_reasoning_agent_ode_negative_k_decay():
+    """Negative k → exponential decay: dy/dx = -1y with y(0) = 1; y(1) = 1/e ≈ 0.3679."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Solve the differential equation dy/dx = -1y with initial condition y(0) = 1. Report y(1)."
+    )
+    assert response.confidence == "high"
+    assert response.parsed_inputs == {"k": -1.0, "y_0": 1.0, "x_target": 1.0, "x_0": 0.0}
+    assert abs(response.lemma.actual_value - (1.0 / math.e)) < 1e-12
+
+
+def test_reasoning_agent_ode_decimal_k():
+    """Decimal k coefficient: dy/dx = 0.5y with y(0) = 4; y(2) = 4·e ≈ 10.873."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Solve the differential equation dy/dx = 0.5y with initial condition y(0) = 4. Report y(2)."
+    )
+    assert response.confidence == "high"
+    assert response.parsed_inputs["k"] == 0.5
+    assert abs(response.lemma.actual_value - 4.0 * math.e) < 1e-12
+
+
+def test_reasoning_agent_ode_non_zero_ic_anchor():
+    """Non-zero x_0 IC anchor: dy/dx = 1y with y(1) = 2.718281828; y(2) = e² ≈ 7.389."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Solve the differential equation dy/dx = 1y with initial condition y(1) = 2.718281828. Report y(2)."
+    )
+    assert response.confidence == "high"
+    assert response.parsed_inputs["x_0"] == 1.0
+    assert response.parsed_inputs["x_target"] == 2.0
+    assert abs(response.lemma.actual_value - math.exp(2.0)) < 1e-7
+
+
+def test_reasoning_agent_ode_no_dy_dx_keyword_refuses():
+    """Prompt lacks 'dy/dx' / 'differential equation' → don't false-match ODE shape.
+    Verifies the keyword gate prevents non-ODE prompts from accidental ODE routing."""
+    agent = ReasoningAgent()
+    response = agent.process("Solve 3x^2 - 14x - 5 = 0 for x.")
+    assert response.problem_shape != "first_order_linear_ode_exp"
+
+
+def test_reasoning_agent_ode_quadratic_doesnt_false_match():
+    """A quadratic prompt has `x^2` not `dy/dx`; ODE parser must NOT consume it.
+    Verifies the advisor-flagged absence-of-overlap between the two shapes (advisor 2026-05-11)."""
+    agent = ReasoningAgent()
+    response = agent.process("Solve x^2 - 5x + 6 = 0 for x.")
+    assert response.problem_shape != "first_order_linear_ode_exp"
