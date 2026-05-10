@@ -1,0 +1,2 @@
+{"prompt_id": "poetry-001", "candidate_id": "baseline-2026-05-10-c1", "candidate_text": "Negative. No evidence found in conversation memory (top cosine 0.030 below threshold 0.32).", "persona_signature": "Negative."}
+{"prompt_id": "philosophy-001", "candidate_id": "baseline-2026-05-10-c1", "candidate_text": "Negative. No evidence found in conversation memory (top cosine 0.016 below threshold 0.32).", "persona_signature": "Negative."}
