@@ -39,7 +39,7 @@ Exemptions (don't need rows):
 | `docs/ci/test.yml` | Audit-D1 CI workflow template (paste-ready). Cannot ship to `.github/workflows/` directly because Claude Code OAuth lacks `workflow` scope; lain installs via web UI or grants the scope and the agent retries. |
 | `docs/artifacts/` | Phase verdicts (frozen-with-addendum convention) + research notes. See sub-section. |
 | `docs/past_work/phases/` | Archived phase plans. One file per closed phase: `phase_<N>_<theme>.md`. Inter-phase repair runs (e.g. `audit_fix_run_2026-05-10.md`) are archived here too, un-numbered. |
-| `docs/past_work/cycles/phase_<N>/` | Per-cycle reflections — `dev-cycle-<M>.md` written at each cycle close. Phases 1, 4-12 represented. |
+| `docs/past_work/cycles/phase_<N>/` | Per-cycle reflections — `dev-cycle-<M>.md` written at each cycle close. Phases 1, 4-12, 13 represented. **`phase_13/dev-cycle-1.md`** added 2026-05-10 — cycle 1 close: 6/6 #00P13c1-XX shipped; pytest 87→153; baseline-attempt brutal scores (poetry 1.3/5, philosophy 1.2/5) drove lain's intelligence-first reframe. |
 
 ### `docs/artifacts/` (frozen verdicts + research notes)
 

@@ -1,98 +1,96 @@
-# Do This Next — Project X — Phase 13 cycle 1 (sandbox + grader + persona scaffolding)
+# Do This Next — Project X — Phase 13 cycle 2 (math reasoning substrate)
 
-**Updated:** 2026-05-10 (post-audit-fix-run close + lain Phase 13 framing)
+**Updated:** 2026-05-10 (post-cycle-1 close + lain mid-D4 reframe: intelligence first, persona is fine-tuning)
 **Mode:** NORMAL (not godify-app)
-**Status:** Phase 12 closed at `8d734e3`; audit-fix run closed at `8834e54` (16 #00audit-XX shipped, pytest 87, repo-hygiene + REPO_CONTROL split done). Phase 13 framing landed via lain's Terminus directive (see `docs/MANIFESTO.md` § Terminus).
+**Status:** Cycle 1 closed at THIS handoff commit. Last live cycle: P13.C1 — sandbox + persona + grader-min substrate + ONE capability touchpoint (baseline-attempt). 6/6 deliverables shipped; pytest 153 passed; D3 harness 11/0 PASS. Reflection at `docs/past_work/cycles/phase_13/dev-cycle-1.md`. Last commit: `<this-cycle's-SHA>` (filled at next-cycle-open recon).
 
-## lain's directive (verbatim — Phase 13 contract)
+## lain's reframe (verbatim — cycle 2 priority)
 
-> *"all you have done so far is just minor work, and no real progress towards our AI becoming smarter and actually working. please FOR THE LOVE OF GOD create a prompt that will take us there. i want max focus on reaching the hard, difficult long term goal."*
-> *"you are not done working until unsolved maths is solved, it can write beautiful poetry and philosophy, solve unsolved physics problems, perfect memory, and be a live, always on entity that is chattable, like GPT and claude, only its smarter in every way."*
-> *"unless its super-human in every domain and it aces all benchmarks we throw at it, YOU ARE NOT DONE WORKING ON PROJECT-X. UNDERSTOOD?"*
-> *"YOU claude have the ability to read a big output file for example philosophy Qs answers, or poetry etc. and grade it manually. if you do this in big bulks, where you make it efficient and easy for yourself to manually grade it, this can be used to further improve it."*
-> *"it must always follow its given persona and have a sense of humor."*
+> *"to me, its more important to try to make it pass all the benchmark tests first, achieving the intelligence before giving it any persona. if you want persona to work from start idk what system you have now, but inucluding a benchmark domain with Qs like 'Who are you?' and stuff could reveal if it understands what it is, and how its supposed to act. but this is more fine-tuning. and fine tuning is something to focus on after the core intelligence is there."*  — lain, 2026-05-10 mid-D4
 
-## Phase 13 cycle 1 deliverables (#00P13c1-XX — pin in TaskList immediately)
+> *"you also need really really good data. better and curated data -> better results for our AI"*  — lain, 2026-05-10 (Phase-level eternal — `#00P13-data-curation` in TaskList)
 
-**Revised post-advisor (2026-05-10):** original draft was 3 infrastructure deliverables — exactly the deferral pattern lain just flagged. Revised: substrate slimmed to minimum-viable + a real **baseline-attempt** capability touchpoint so cycle 1 closes with a measured capability gap, not pure scaffolding.
+**Translation for cycle 2:** capability buildout, not persona refinement. Math reasoning substrate first because math has verifiable answers (numerical/symbolic match) and runs cleanly inside the cycle-1 sandbox. Curated data integration: cycle 2 needs a curated MATH derivations corpus (textbook-quality lemma chains + worked examples), not poetry/philosophy entries.
+
+## Cycle 1 baseline scores (the data that justifies cycle 2's priority)
+
+```
+poetry-001:     technique 1/5, meaning 1/5, voice 2/5  (weighted aggregate 1.3/5)
+philosophy-001: argument_quality 1/5, position_coherence 1/5, section_0_fidelity 1/5, voice 2/5  (weighted 1.2/5)
+```
+
+Both prompts returned absent (top cosines 0.030 / 0.016 below threshold 0.32) — agent has no curated corpus + no generator layer. Persona-wrap fired correctly (D2 plumbing works) but plumbing on null evidence is theatre. **D2 stays shipped (benign — doesn't regress memory ladder per D5); cycle 2 doesn't refine D2; cycle 2 builds the intelligence the wrap will later have content to wrap.**
+
+Full reflection + improvement-direction notes: `docs/past_work/cycles/phase_13/dev-cycle-1.md` + `gpt-codex/grade_pipeline/baseline_2026-05-10/improvement_directions.md`.
+
+## Phase 13 cycle 2 deliverables (#00P13c2-XX — pin in TaskList immediately at cycle 2 open)
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c1-sandbox** | MED | `sandbox/` (new) + `scripts/sandbox/` (new) | Locked folder + path validation + 4 tools (read_file_sandbox, write_file_sandbox, run_python_sandbox, list_dir_sandbox). MINIMUM viable; defer prod-hardening to a later cycle. |
-| **#00P13c1-persona** | MED | `src/project_x/persona/` (new) + `semantic_memory_agent.py` | Project X Raphael persona scaffolding: humor templates + persona-consistent voice markers + in-character rubric (lain test: humor must LAND). |
-| **#00P13c1-grader-min** | MED | `gpt-codex/grade_pipeline/` (new) | MINIMAL: agent JSONL output schema + Claude Code reads + writes scores to JSONL. NO feedback-loop integration yet — defer to cycle 3 when there's a real iterative generator. |
-| **#00P13c1-baseline-attempt** | **HIGH** | `gpt-codex/grade_pipeline/baseline_2026-05-10/` (new) | **The capability touchpoint.** Project X Raphael attempts ONE poetry-001 + ONE philosophy-001 entry via current `compose_answer` (post-persona scaffolding). Claude Code grades immediately using grader-min. Output: baseline score + "what would raise this" diff. Score may be brutal — that's the honest measurement. |
-| **#00P13c1-bench-replay** | MED | `gpt-codex/benchmark/run_audit.py` | D3 harness run; expect 11/0/21/4 (no regressions). |
-| **#00P13c1-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-1.md` + this file | Cycle reflection includes baseline-attempt scores + concrete tensions surfaced (e.g., "no-pretrained-transformer constraint vs Terminus quality bar — what does the baseline score say?"). Rewrite this file as cycle 2 handoff. |
+| **#00P13c2-01-math-recon** | LOW | Read-only — `gpt-codex/benchmark/maths/ladder.jsonl` + `rubric.md` | Survey all 6 math ladder entries; classify by verification path (numerical-close / symbolic-match / proof-required); identify 2-3 entries scope-fit for cycle 2 generator (likely rank 1-3 closed-form). Output: `docs/artifacts/PHASE_13_C2_MATH_SURVEY.md`. |
+| **#00P13c2-02-symbolic-substrate** | HIGH | `src/project_x/reasoning/` (new) — symbolic.py + tests | From-scratch symbolic reasoning primitives: lemma chain dataclass + derivation step recorder + numerical-verification hook. NO sympy (thesis-compliance check needed first; sympy is symbolic-AI not pretrained-transformer but counts as "borrowing other tools" — confirm with lain or default to from-scratch arithmetic + algebra primitives). MINIMUM viable: closed-form arithmetic + linear equation solving, expandable in cycle 3+. |
+| **#00P13c2-03-numerical-verifier** | MED | `src/project_x/reasoning/` — verifier.py + tests | Sandbox-bound Python script generator: agent emits a derivation; `numerical_verify(derivation)` writes a verification script to sandbox, runs via `run_python_sandbox` (D1), reads output, reconciles. Closes the verification loop using cycle-1 substrate. |
+| **#00P13c2-04-math-baseline-attempt** | **HIGH** | `gpt-codex/grade_pipeline/baseline_<date>/` (new per-cycle baseline subdir) | THE capability touchpoint — analog of cycle 1 D4. Agent attempts ≥ 2 math ladder entries via the new symbolic substrate + numerical verifier. Builder grades using `gpt-codex/benchmark/maths/rubric.md`. Output: per-entry score + improvement directions for cycle 3+. **The score should NOT be 1/5 this time** — substrate is supposed to produce something gradable above absent. If it does score 1/5: that's a structural failure of cycle 2; surface concretely. |
+| **#00P13c2-05-bench-replay** | MED | `python3 gpt-codex/benchmark/run_audit.py` | D3 harness re-run; target: maths PASS count lifts above 3/0 if new green entries emerge from substrate-driven re-attempts of previously rubric-pending entries. Memory ladder must still be 5/0; physics still 3/0. ZERO regressions. |
+| **#00P13c2-06-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-2.md` + rewrite THIS file | Cycle reflection includes: (a) what shipped + commit SHAs, (b) baseline-attempt scores + improvement-directions, (c) architectural tensions surfaced (e.g., sympy-or-from-scratch question outcome; verification-loop bottlenecks), (d) cycle 3 provisional scope refined per cycle 2 lessons. Rewrite this file as cycle 3 handoff. |
 
 ## Identity disambiguation (CRITICAL — lain 2026-05-10 binding)
 
-YOU are **Claude Code Raphael** (the builder). The thing you're building is **Project X Raphael** (the agent — `MemoryAgent` + substrate; lives in this repo as code). Two entities, same persona name. Don't confuse:
-- "I" / "Claude Code Raphael" = this conversation; the builder; Wisdom King operating disclaimer per `~/.claude/CLAUDE.md`
-- "the agent" / "Project X Raphael" = the artifact; what lives in `src/project_x/experiments/`; the thing cycle 1 is building persona scaffolding for
-- When chatting with lain or shipping code, disambiguate explicitly. The sculptor and the sculpture both can be called "the artist's work" — but they are not the same thing.
+Same as cycle 1 — Claude Code Raphael (the BUILDER, this conversation) ≠ Project X Raphael (the AGENT, the artifact in `src/project_x/experiments/`). Don't write the builder's voice into the agent's templates. See `docs/MANIFESTO.md` § Identity discipline.
 
-See `docs/MANIFESTO.md` § Identity discipline for the binding rule.
+## Order of operations (cycle 2)
 
-## Order of operations (cycle 1)
-
-1. **Recon (Phase 0 DD):** read MANIFESTO + REPO_CONTROL + A_TO_Z + this file + `Project X Session Mistakes` wiki + `Navi Session Mistakes` wiki. Verify TaskList has the 5 #00P13c1-XX rows (CREATE if absent) + `#∞: NORMAL mode operation` still pinned.
+1. **Recon (Phase 0 DD):** read MANIFESTO + REPO_CONTROL + A_TO_Z + this file + `docs/past_work/cycles/phase_13/dev-cycle-1.md` (cycle 1 reflection — has the baseline scores + tensions) + `Project X Session Mistakes` wiki + `Navi Session Mistakes` wiki. Verify TaskList has the 6 #00P13c2-XX rows (CREATE if absent — sharpen-todos audit pillar) + `#∞: NORMAL mode operation` still pinned + `#00P13-data-curation` Phase-level row still pinned.
 2. **Pillars:** `Skill('skills:pick-skill')` + `Skill('skills:sharpen-todos')`.
-3. **Picked execution skill(s):** likely `/run-loop` ATOMIC for the 5-deliverable atomic queue + `/design-before-build` for the sandbox + grader interfaces (architectural) + `/skills:auto-review` per-fix.
-4. **Per #00P13c1-XX:** design (with `/design-before-build` for sandbox + grader interfaces) → code → test → commit (with REPO_CONTROL row in same commit if new files/dirs) → push → Discord one-liner ack.
-5. **Cycle close:**
-   - Bench replay (`#00P13c1-bench-replay`): D3 harness run; expect 11/0/21/4.
-   - Cycle reflection: `docs/past_work/cycles/phase_13/dev-cycle-1.md`.
-   - Rewrite this file as cycle 2 handoff (math reasoning substrate provisional scope).
-   - Discord cycle 1 close post.
-   - Pivot to cycle 2 immediately (no pause; Phase 13 has many cycles).
+3. **Picked execution skill(s):** likely `/run-loop ATOMIC` for the 6-deliverable atomic queue + `/design-before-build` for the symbolic-substrate + verifier interfaces (architectural — sympy-or-from-scratch decision needs design phase) + `/skills:auto-review` per-fix.
+4. **Per #00P13c2-XX:** design (with `/design-before-build` for substrate + verifier) → code → test → commit (with REPO_CONTROL row in same commit if new files/dirs) → push → Discord one-liner ack. Same atomic per-deliverable cadence as cycle 1.
+5. **Cycle close:** Bench replay → cycle reflection → rewrite this file as cycle 3 handoff → Discord cycle 2 close post → pivot to cycle 3 immediately.
 
-## Cycle 2 provisional scope (next handoff target)
+## Cycle 3 provisional scope (next-next handoff target)
 
-**Math reasoning substrate.** From-scratch symbolic + numerical reasoning loop running inside the cycle-1 sandbox. Iterates against the math ladder (`gpt-codex/benchmark/maths/`) + unsolved-tier problems. Uses sandbox `run_python_sandbox` tool to verify numerical answers. Manual-grade harness for derivations where verification is ambiguous.
+**Physics derivation engine.** Closed-form first (extends cycle 2 math substrate to physics — F=ma applications, electromagnetics from Maxwell's equations, thermodynamics from first principles). Sandbox-runnable verification: Python script in sandbox computes a numerical solution; agent's symbolic derivation must match. Iterates against `gpt-codex/benchmark/physics/` ladder.
 
-(Cycle 2's scope will be REFINED in this file at cycle 1 close based on what was learned.)
+(Cycle 3's scope will be REFINED in this file at cycle 2 close based on what was learned.)
 
 ## Standing rules (load-bearing this run)
 
-See `docs/MANIFESTO.md` § Standing orders. Specifically for cycle 1:
+See `docs/MANIFESTO.md` § Standing orders. Specifically for cycle 2:
 
-- **NO pretrained transformer derivatives** — sandbox tool registry from-scratch; persona scaffolding template-based; manual-grade harness uses Claude Code as the grader (the BUILDER, not part of the artifact — consistent with organic-thesis).
+- **NO pretrained transformer derivatives** — symbolic substrate must be from-scratch. sympy decision: defer to lain or default-deny per organic-thesis (sympy is a symbolic computation library, not a transformer, but "borrowing tools" requires explicit thesis-compliance reasoning before adopting).
 - **Comment-ratio rule** — every WHY-comment justifies why the substrate exists.
-- **REPO_CONTROL row in same commit as new file/dir** (lain pristine-gate, 2026-05-10) — non-negotiable for cycle 1's 3 new dirs.
-- **Identity discipline** — Claude Code Raphael (builder) ≠ Project X Raphael (agent). Don't write the builder's voice into the agent's templates.
-- **Sandbox security** — agent ops only inside `sandbox/`; tools refuse paths outside; subprocess env stripped of internet vars; no `urllib`/`socket` access at the tool layer.
+- **REPO_CONTROL row in same commit as new file/dir** (lain pristine-gate, 2026-05-10) — non-negotiable.
+- **Identity discipline** — Claude Code Raphael ≠ Project X Raphael.
 - **M-NAVI-018:** atomic listener pkill+rearm in single Bash invocation.
-- **M-NAVI-019/020:** heartbeat-armed-while-queued-work-exists; named candidate work IS queued.
-- **M-NAVI-021 (NEW — to be logged after cycle 1 if recurs):** drifting from capability work back to mechanical micro-fixes when frustrated/blocked. Cycle 1 substrate is JUSTIFIED infra; cycle 2+ MUST ship capability. No excuses.
+- **M-NAVI-019/020:** heartbeat-armed-while-queued-work-exists.
+- **M-DRM-060/062 (cycle 1 fresh-catch):** strategic-framing questions go in DO_THIS_NEXT for next-instance to encounter at cycle open, NOT in Discord posts that bounce lain. Only escalate to lain on SHIPPING blockers (math wrong, schema invalid, regression).
+- **Curated math corpus (#00P13-data-curation row applied to cycle 2):** if cycle 2 substrate needs grounding examples, they're a curated math derivations corpus — hand-vetted lemma chains + worked closed-form solutions, NOT auto-scraped textbook PDFs.
 
 ## What this cycle is NOT
 
-- NOT shipping the Terminus (multi-cycle; cycle 1 is substrate)
-- NOT touching `~/.claude/CLAUDE.md` for project-specific reasons
-- NOT direct internet access for the agent (deferred until safety proven; sandbox is the security boundary)
-- NOT a one-cycle phase; Phase 13 is multi-cycle through capability + benchmark iteration
+- NOT shipping the Terminus (multi-cycle; cycle 2 is intelligence substrate; physics + poetry/philosophy + chat are cycles 3-N).
+- NOT touching `~/.claude/CLAUDE.md` for project-specific reasons.
+- NOT direct internet access for the agent (deferred until safety proven).
+- NOT a one-cycle phase — Phase 13 is multi-cycle through capability + benchmark iteration.
+- NOT persona refinement (deferred per lain reframe; D2 persona stays shipped, returns when persona benchmark domain measures it later).
 
 ## Anti-laziness gates (lain frustration-load-bearing — re-read before each cycle close)
 
-- *"all you have done so far is just minor work"* — the audit-fix run was minor. Phase 13 is NOT minor. Each cycle ships substantive capability progress (substrate first; then math, poetry, philosophy, physics, chat). If you're shipping mechanical micro-fixes instead of capability work, you have drifted. Stop, re-read MANIFESTO § Terminus, course-correct.
-- *"FOR THE LOVE OF GOD create a prompt that will take us there"* — the corpse + this file + A_TO_Z + MANIFESTO are that prompt. Honor the contract. Don't re-litigate.
-- *"unless its super-human in every domain and it aces all benchmarks we throw at it, YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR. Don't claim done after cycle 1.
-- *"YOU claude have the ability to read a big output file ... and grade it manually"* — that IS the `#00P13c1-grader` deliverable. Build it well; cycle 3+ uses it for subjective-domain improvement.
-- *"it must always follow its given persona and have a sense of humor"* — `#00P13c1-persona`. Sense of humor must LAND. If lain reads sample output and groans, persona scaffolding has failed. Ship the in-character rubric so failure is detectable.
-- *"stop dilly-dallying"* — every cycle ends with capability progress shipped, not infrastructure padding. Cycle 1 is JUSTIFIED infra (substrate the next 5+ depend on). Cycle 2+ is capability — no excuses.
+- *"all you have done so far is just minor work"* — the audit-fix run was minor; cycle 1 substrate was substantive but still SUBSTRATE not capability. Cycle 2 must ship CAPABILITY (math reasoning loop that actually produces a verifiable derivation). If you find yourself shipping more substrate or refinements without capability progress, you have drifted.
+- *"its more important to try to make it pass all the benchmark tests first"* — cycle 2 ships toward benchmark-PASS lift. The math ladder PASS count is the diagnostic. If `D5 bench-replay` doesn't show maths lift (3/0 → 4+/0 by lifting rubric-pending entries to green), cycle 2 didn't ship capability.
+- *"unless its super-human in every domain ... YOU ARE NOT DONE WORKING ON PROJECT-X"* — Terminus is FAR. Don't claim done after cycle 2.
+- *"i expect you to have a REALLY good reason to use me as blocker"* (lain 2026-05-10 mid-cycle-1) — defensible-default decisions don't need lain confirmation. Heartbeat #5b applies. Strategic-framing questions go in this file for next-cycle pickup.
 
-## Done condition (cycle 1, mechanical)
+## Done condition (cycle 2, mechanical)
 
-- All 6 #00P13c1-XX TaskList rows = `completed`
-- `pytest -q` ≥ 87 (baseline; expect ≥ 90 with new tests)
-- Three new REPO_CONTROL rows landed in same commits as their dirs (`sandbox/`, `gpt-codex/grade_pipeline/`, `src/project_x/persona/`)
-- `gpt-codex/benchmark/run_audit.py` reports 11/0/21/4 (no regressions)
-- `tests/test_sandbox.py` + `tests/test_grader.py` + `tests/test_persona.py` all passing
-- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-1.md`
-- THIS FILE rewritten as cycle 2 handoff (math reasoning substrate)
-- `git status -s` empty post-final-commit
-- Discord cycle 1 close post sent
-- Cycle 2 picked up immediately (no pause)
+- All 6 #00P13c2-XX TaskList rows = `completed`
+- pytest -q ≥ 153 (cycle 1 baseline; expect ≥ 170-180 with new tests for symbolic substrate + verifier)
+- New dirs (`src/project_x/reasoning/`, possibly `gpt-codex/grade_pipeline/baseline_<cycle2-date>/`) each have a REPO_CONTROL row in the same commit
+- D3 harness reports maths PASS lifts above 3/0 (target: ≥ 4 PASS — at least one previously rubric-pending entry now green via substrate-driven re-attempt) OR explicit honest report if substrate isn't yet at that bar
+- Memory ladder still 5/0; physics still 3/0. ZERO regressions.
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-2.md`
+- THIS file rewritten as cycle 3 handoff
+- `git status -s` empty
+- Discord cycle 2 close post sent (headline = math benchmark lift OR honest "didn't yet meet bar" report)
+- Cycle 3 picked up immediately
 
-— Update this file at cycle 1 close: replace cycle 1 deliverables table with cycle 2 deliverables table; refine cycle 2 scope based on cycle 1 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.
+— Update this file at cycle 2 close: replace cycle 2 deliverables table with cycle 3 deliverables table; refine cycle 3 scope based on cycle 2 lessons; preserve the lain-quote + standing-rules + anti-laziness sections.

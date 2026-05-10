@@ -116,6 +116,7 @@ See `docs/MANIFESTO.md` § Standing orders. Cycle 1 specifically must honor:
 - 2026-05-10 — Audit-fix run closed at `8834e54` (16 #00audit-XX shipped + repo-hygiene + REPO_CONTROL split + global CLAUDE.md alignment).
 - 2026-05-10 — lain framed Phase 13 with the Terminus directive ("super-human in every domain"; sandbox playground; manual-grade harness using Claude Code as grader; persona+humor mandatory). MANIFESTO § Terminus + § Identity discipline added.
 - 2026-05-10 — Phase 13 cycle 1 plan written (this file). Cycle 1 = sandbox + grader + persona substrate; cycles 2-N = capability buildout. Honest framing: Phase 13 does NOT close in one cycle; multi-cycle through capability + benchmark iterations.
+- 2026-05-10 — **Phase 13 cycle 1 closed.** All 6 #00P13c1-XX shipped: sandbox `c266a8c`, grader-min `74a7561`, persona `569e9de`, baseline-attempt `3eccc46`, bench-replay (no commit — 11/0 PASS confirmed twice), cycle-reflect THIS commit. Pytest 153 passed (87 → 153, +66 cycle 1 tests). Baseline scores: poetry-001 1.3/5, philosophy-001 1.2/5 (brutality is the diagnostic — substrate without curated corpus + generator returns absent path). lain mid-D4 reframe: *"intelligence first; persona is fine-tuning, deferred until core intelligence is there."* Cycle 2 scope = CORE INTELLIGENCE — math reasoning substrate (corpse-provisional confirmed). Reflection at `docs/past_work/cycles/phase_13/dev-cycle-1.md`. Cycle 2 handoff in `docs/DO_THIS_NEXT.md`.
 
 ---
 
