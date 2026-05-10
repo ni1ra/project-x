@@ -58,12 +58,12 @@
 |---|---|---|---|---|
 | C1 | Execute-Raphael (plan-setup; OVERRIDE Plan-navi default per pre-existing-plan rule) | 2026-05-10 03:32 | 1 of 8 | ✅ closed 04:01 — initial commit `5611c2b` force-pushed to https://github.com/ni1ra/project-x (hijacked from legacy WIRED-BRAIN per lain 03:55 + renamed to project-x per lain 03:56) |
 | C2 | Execute-Raphael (physics + cycle-1.5 deliverables) | 2026-05-10 04:12 | 2 of 8 | ✅ closed 04:27 — physics ladder 6 entries (3 auto-graded-green + 2 rubric-pending + 1 ungradeable) schema-validated; MANIFESTO enriched to ~600 words; 6 rubric.md skeletons + benchmark/CLAUDE.md + physics/CLAUDE.md shipped |
-| C3 | Execute-Raphael (maths) | 2026-05-10 04:52 | 3 of 8 | pending (cron `44c5524c`) |
-| C4 | Execute-Raphael (memory) | 2026-05-10 05:32 | 4 of 8 | pending (cron `77fd72fe`) |
-| C5 | Execute-Raphael (persona) | 2026-05-10 06:12 | 5 of 8 | pending (cron `98678290`) |
-| C6 | Execute-Raphael (philosophy) | 2026-05-10 06:52 | 6 of 8 | pending (cron `9495d071`) |
-| C7 | Execute-Raphael (poetry) | 2026-05-10 07:32 | 7 of 8 | pending (cron `65535e84`) |
-| C8 | Execute-Raphael final (verdict + END_TIME handoff) | 2026-05-10 08:12 | 8 of 8 | pending (cron `e024fdf1`) |
+| C3 | Execute-Raphael (maths) | 2026-05-10 04:52 | 3 of 8 | ✅ closed ~05:02 — maths ladder 6 entries (3 auto-graded-green: x={5,-1/3}, eigenvalues={1,3}, residue=π; 2 rubric-pending: Galois quintic + π₁/H₁ T² vs K; 1 ungradeable: Riemann hypothesis) |
+| C4 | Execute-Raphael (memory) | 2026-05-10 05:15 | 4 of 8 | pending (cron `d21083dd` — COMPRESSED) |
+| C5 | Execute-Raphael (persona) | 2026-05-10 05:35 | 5 of 8 | pending (cron `f554a09f` — COMPRESSED) |
+| C6 | Execute-Raphael (philosophy) | 2026-05-10 05:55 | 6 of 8 | pending (cron `612a23d4` — COMPRESSED) |
+| C7 | Execute-Raphael (poetry) | 2026-05-10 06:15 | 7 of 8 | pending (cron `09a65aa4` — COMPRESSED) |
+| C8 | Execute-Raphael final (verdict + END_TIME handoff) | 2026-05-10 06:35 | 8 of 8 | pending (cron `c137cbb5` — COMPRESSED — verdict lands ~06:55, ~2h+ slack to 09:00 END_TIME) |
 
 **Persona dispatch:** ALL Execute-Raphael (no Plan-navi cycle inside this run; the previous instance was Plan-Raphael by definition; the plan file at `/home/nira/.claude/plans/6h-im-going-to-serene-giraffe.md` is the contract; this run executes it).
 
@@ -203,6 +203,7 @@ Items NOT in Phase 11:
 - 2026-05-10 03:35 CEST — Contradiction fix shipped: `~/.claude/commands/forge-prompt.md` NI IDENTITY mandates "You are Execute-Raphael"; `~/.claude/commands/godify-app.md` cycle state machine + §3.5 pre-existing-plan exception. M-PROJECTX-014 (design-bias-in-the-probe) wiki entry created.
 - 2026-05-10 03:44 CEST — Standing order refined (lain Discord): complex code SHOULD have descriptions; pure-signal explanations only; important info SHOULD be commented. Net-effect higher comment density than system-default lean.
 - 2026-05-10 03:47 CEST — M-NAVI-018 logged: listener pkill not chained with re-arm; lain had to get out of bed (made-me-get-out-of-bed counter +1). Atomic invariant binding from now: pkill + rearm in single Bash invocation, never split.
+- 2026-05-10 04:25 CEST — lain Discord flag: *"4.52 is in 38 min so that can't be right"* — surfaced that the godify-app default 20m ON / 20m OFF cadence is too slack. Cycle 3 maths shipped on original cadence; cycles 4-8 rescheduled to compressed 20-min back-to-back (no OFF). New cron schedule: cycle 4 memory 05:15, cycle 5 persona 05:35, cycle 6 philosophy 05:55, cycle 7 poetry 06:15, cycle 8 verdict 06:35. Verdict lands ~06:55 (~2h+ slack vs original ~08:50). Authorization: lain's flag interpreted as cadence-too-slow surprise.
 
 ---
 
