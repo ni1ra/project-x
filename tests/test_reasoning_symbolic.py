@@ -18,7 +18,10 @@ import pytest
 
 import project_x.reasoning.symbolic as substrate
 from project_x.reasoning.symbolic import (
+    INTRO_CHAR_POLY_2X2,
+    INTRO_QUADRATIC,
     DerivationStep,
+    InvariantCheck,
     Lemma,
     expand_characteristic_polynomial_2x2,
     solve_quadratic,
@@ -161,6 +164,153 @@ class TestExpandCharacteristicPolynomial2x2Edges:
     def test_one_row_raises(self):
         with pytest.raises(ValueError, match="2x2"):
             expand_characteristic_polynomial_2x2([[1, 2]])
+
+
+class TestLemmaIntroduction:
+    """Phase 13 cycle 3 #00P13c3-02 Tier 1: Lemma.add_introduction + render() integration."""
+
+    def test_default_empty(self):
+        lemma = Lemma(id="test", claim="trivial")
+        assert lemma.introduction == ""
+
+    def test_add_introduction_sets_text(self):
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_introduction("WHY this holds: foo bar.")
+        assert lemma.introduction == "WHY this holds: foo bar."
+
+    def test_render_includes_introduction_when_set(self):
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_introduction("Foundational theorem says X.")
+        lemma.add_step("op", {}, 1, "j")
+        lemma.actual_value = 1
+        rendered = lemma.render()
+        assert "Foundational theorem says X." in rendered
+        # Introduction renders BEFORE first Step
+        intro_idx = rendered.index("Foundational theorem says X.")
+        step_idx = rendered.index("Step 1")
+        assert intro_idx < step_idx
+
+    def test_render_skips_introduction_block_when_empty(self):
+        # Backward-compat: lemma without introduction renders cycle-2-style
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_step("op", {}, 1, "j")
+        lemma.actual_value = 1
+        rendered = lemma.render()
+        # No empty extra blank-line prefix that would indicate intro section
+        # (cycle 2 had: "Notice. trivial\n\nStep 1..."; cycle 3 same when intro empty)
+        assert "Notice. trivial" in rendered
+        assert "Step 1 — op" in rendered
+
+
+class TestLemmaInvariantChecks:
+    """Phase 13 cycle 3 #00P13c3-02 Tier 1: add_invariant_check + render() integration."""
+
+    def test_default_empty(self):
+        lemma = Lemma(id="test", claim="trivial")
+        assert lemma.invariant_checks == []
+
+    def test_add_invariant_check_appends(self):
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_invariant_check("p1", 1.0, 1.0, "j1")
+        lemma.add_invariant_check("p2", 2.0, 2.0, "j2")
+        assert len(lemma.invariant_checks) == 2
+
+    def test_holds_true_within_tolerance(self):
+        lemma = Lemma(id="test", claim="trivial", tolerance=0.001)
+        check = lemma.add_invariant_check("p", 1.0, 1.0001, "j")
+        assert check.holds is True
+
+    def test_holds_false_outside_tolerance(self):
+        lemma = Lemma(id="test", claim="trivial", tolerance=0.001)
+        check = lemma.add_invariant_check("p", 1.0, 1.5, "j")
+        assert check.holds is False
+
+    def test_holds_exact_for_non_numeric(self):
+        lemma = Lemma(id="test", claim="trivial")
+        check_eq = lemma.add_invariant_check("p", "expected", "expected", "j")
+        check_neq = lemma.add_invariant_check("p", "expected", "actual", "j")
+        assert check_eq.holds is True
+        assert check_neq.holds is False
+
+    def test_render_includes_invariant_checks_when_populated(self):
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_step("op", {}, 1, "j")
+        lemma.actual_value = 1
+        lemma.add_invariant_check("trace = sum", 4, 4, "Vieta")
+        rendered = lemma.render()
+        assert "Invariant checks:" in rendered
+        assert "trace = sum" in rendered
+        assert "✓" in rendered  # passing check renders ✓
+
+    def test_render_skips_invariant_block_when_empty(self):
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_step("op", {}, 1, "j")
+        lemma.actual_value = 1
+        rendered = lemma.render()
+        assert "Invariant checks:" not in rendered
+
+    def test_failing_check_renders_x_mark(self):
+        lemma = Lemma(id="test", claim="trivial")
+        lemma.add_step("op", {}, 1, "j")
+        lemma.actual_value = 1
+        lemma.add_invariant_check("p", 4, 5, "j")
+        rendered = lemma.render()
+        assert "✗" in rendered
+
+
+class TestSolveQuadraticIntroduction:
+    """Tier 1: solve_quadratic primitive sets math-WHY introduction."""
+
+    def test_introduction_set(self):
+        lemma = solve_quadratic(3, -14, -5, lemma_id="maths-001")
+        assert lemma.introduction == INTRO_QUADRATIC
+        assert "Completing the square" in lemma.introduction
+        assert "discriminant" in lemma.introduction.lower()
+
+    def test_render_includes_math_why(self):
+        lemma = solve_quadratic(3, -14, -5)
+        rendered = lemma.render()
+        assert "Completing the square" in rendered
+        assert "Step 1 — discriminant" in rendered  # derivation still renders
+
+
+class TestExpandCharPoly2x2InvariantChecks:
+    """Tier 1: expand_characteristic_polynomial_2x2 emits Vieta invariants post-derivation."""
+
+    def test_introduction_set(self):
+        lemma = expand_characteristic_polynomial_2x2([[2, 1], [1, 2]], lemma_id="maths-002")
+        assert lemma.introduction == INTRO_CHAR_POLY_2X2
+        assert "eigenvector" in lemma.introduction.lower()
+        assert "Vieta" in lemma.introduction
+
+    def test_two_invariant_checks_produced(self):
+        lemma = expand_characteristic_polynomial_2x2([[2, 1], [1, 2]])
+        assert len(lemma.invariant_checks) == 2
+        predicates = [c.predicate for c in lemma.invariant_checks]
+        assert "tr(A) = λ₁ + λ₂" in predicates
+        assert "det(A) = λ₁·λ₂" in predicates
+
+    def test_invariants_hold_for_maths_002(self):
+        lemma = expand_characteristic_polynomial_2x2([[2, 1], [1, 2]])
+        # Eigenvalues are [1, 3]; trace = 4 = 1+3, det = 3 = 1*3
+        for check in lemma.invariant_checks:
+            assert check.holds is True
+
+    def test_invariants_hold_for_diagonal(self):
+        lemma = expand_characteristic_polynomial_2x2([[5, 0], [0, 7]])
+        # Eigenvalues [5, 7]; trace = 12 = 5+7, det = 35 = 5*7
+        for check in lemma.invariant_checks:
+            assert check.holds is True
+
+    def test_render_shows_check_marks(self):
+        lemma = expand_characteristic_polynomial_2x2([[2, 1], [1, 2]])
+        rendered = lemma.render()
+        assert "Invariant checks:" in rendered
+        assert "tr(A) = λ₁ + λ₂" in rendered
+        assert "det(A) = λ₁·λ₂" in rendered
+        # All passing → all ✓ no ✗
+        assert "✓" in rendered
+        assert "✗" not in rendered
 
 
 class TestThesisCompliance:

@@ -16,7 +16,10 @@ derivatives anywhere. From-scratch primitives only.
 """
 
 from project_x.reasoning.symbolic import (
+    INTRO_CHAR_POLY_2X2,
+    INTRO_QUADRATIC,
     DerivationStep,
+    InvariantCheck,
     Lemma,
     expand_characteristic_polynomial_2x2,
     solve_quadratic,
@@ -24,7 +27,10 @@ from project_x.reasoning.symbolic import (
 from project_x.reasoning.verifier import numerical_verify
 
 __all__ = [
+    "INTRO_CHAR_POLY_2X2",
+    "INTRO_QUADRATIC",
     "DerivationStep",
+    "InvariantCheck",
     "Lemma",
     "expand_characteristic_polynomial_2x2",
     "numerical_verify",
