@@ -1,11 +1,11 @@
-# Do This Next — Project X — Phase 12 Cycle 3 (Execute-Raphael — flip memory reds + audit_log + addendum)
+# Do This Next — Project X — Phase 12 Cycle 4 (Execute-Raphael — tests + optional ladder extension)
 
-**Cron fires:** 2026-05-10 11:27 CEST (one-shot `baa6fc79`)
+**Cron fires:** 2026-05-10 11:52 CEST (one-shot `e2c4ea33`)
 **Persona:** Execute-Raphael
 **End time:** 2026-05-10 13:28 CEST (cycle 7 verdict lands ~13:20)
 **GitHub remote:** https://github.com/ni1ra/project-x (private; `main` branch)
 
-> **Cycle-2 closed at 11:08 — #00P12-retrieval-mode-disambiguation FULLY shipped.** Both halves landed (cycle 1 = memory.py method; cycle 2 = controller wiring + classifier + compose_answer extension). End-to-end smoke confirmed memory-004 + memory-005 BOTH GREEN. Decision label `retrieve_full_history` correctly routed. Pytest 52 passing. Cycle 3 now owns the ladder/audit_log/addendum updates.
+> **Cycle 3 closed at 11:35 — #00P12-flip-memory-reds COMPLETE.** memory-004 + memory-005 both flipped GREEN, audit_log rebuilt (11 green / 0 red / 21 rubric / 4 ungrade), Phase 11 addendum appended. **Of auto-gradable subset: 100% pass rate.**
 
 ---
 
@@ -13,162 +13,177 @@
 
 - **#1** `#∞ APOTHEOSIS mode` — in_progress (3h godify-app pickup)
 - **#2** `#00P12-retrieval-mode-disambiguation` — ✅ COMPLETED cycle 2
-- **#3** `#00P12-flip-memory-reds` — in_progress (THIS CYCLE)
-- **#4** `#00P12-tests` — pending (cycle 4 — 11:52)
+- **#3** `#00P12-flip-memory-reds` — ✅ COMPLETED cycle 3
+- **#4** `#00P12-tests` — in_progress (THIS CYCLE)
 - **#5** `#00P12-verdict + END_TIME handoff` — pending (cycle 7 — 13:07)
 
 ---
 
-## This cycle's scope — flip memory reds + audit_log + addendum
+## This cycle's scope — `tests/test_retrieval_modes.py` + optional ladder extension
 
-### Phase A (~10 min): re-run verdict-builder + update ladder.jsonl
+### Goal — net pytest 52 → 54+
 
-Run the cycle-8-style verdict-builder against the fixed agent. Use `mem.write_batch([TurnRecord(...) for setup])` then `agent.process(query)` pattern (NOT `agent.process(setup_text)` — that path hits write_one without write_batch init). Parse cited turn_ids from `answer_text` regex (matching prev cycle 8 pattern):
+Add `tests/test_retrieval_modes.py` covering the Phase 12 retrieval-mode disambiguation. Five tests minimum, mapped to the cycle-1 plan:
 
 ```python
-import json, re
-from project_x.experiments.semantic_memory_agent import MemoryAgent
+"""Phase 12 #00P12-tests — retrieval-mode disambiguation tests.
+
+Probes the controller-layer routing in MemoryAgent.process between
+retrieve_structural (strict-dominance, latest-wins) and
+retrieve_structural_full_history (chronological, all-turns). Phase 11
+memory-004/005 red findings drove this surface; Phase 12 cycles 1-3
+shipped the fix.
+"""
+
+import pytest
+from project_x.experiments.semantic_memory_agent import MemoryAgent, _is_list_all_query
 from project_x.experiments.semantic_hdc_memory import SemanticHDCMemory, TurnRecord
 
-with open("gpt-codex/benchmark/memory/ladder.jsonl") as f:
-    entries = [json.loads(line) for line in f]
 
-cited_re = re.compile(r"Based on turns? ([\d,\s]+):")
-
-for entry in entries:
-    if entry["audit_status"] not in ("auto-graded-red", "auto-graded-pending-execution"):
-        continue  # skip green + ungradeable
-    setups = entry["auto_grade"]["setup"]
+def _build_agent(setups):
+    """Canonical fixture: write_batch then construct agent."""
     records = [TurnRecord(turn_id=i, text=t, fact_keys=[], metadata={}) for i, t in enumerate(setups)]
     mem = SemanticHDCMemory()
     mem.write_batch(records)
-    agent = MemoryAgent(memory=mem)
-    response = agent.process(entry["auto_grade"]["query"])
-    m = cited_re.search(response.answer_text)
-    cited = sorted([int(x) for x in m.group(1).split(",") if x.strip().isdigit()]) if m else []
-    expected = sorted(entry["auto_grade"]["expected_turn_ids"])
-    crit = entry["auto_grade"]["match_criterion"]
-    if crit.startswith("expected_turn_ids equals"):
-        ids_match = expected == cited
-    else:  # subseteq
-        ids_match = set(expected).issubset(set(cited))
-    answer_lower = response.answer_text.lower()
-    contains = [tok for tok in entry["auto_grade"]["expected_response_contains"] if tok.lower() in answer_lower]
-    expected_n = len(entry["auto_grade"]["expected_response_contains"])
-    contains_match = len(contains) >= max(1, int(expected_n * 0.8))  # 4-of-5 threshold for rank 5
-    match = ids_match and contains_match
-    entry["auto_grade"]["actual_turn_ids"] = cited
-    entry["auto_grade"]["match"] = bool(match)
-    entry["auto_grade"]["actual_answer_text_excerpt"] = response.answer_text[:200]
-    entry["auto_grade"]["actual_decision"] = response.decision
-    if "phase_12_fix_note" not in entry["auto_grade"]:
-        entry["auto_grade"]["phase_12_fix_note"] = (
-            "retrieve_structural_full_history routed via _LIST_ALL_HINTS + subject-extraction gate"
-        )
-    entry["audit_status"] = "auto-graded-green" if match else "auto-graded-red"
+    return MemoryAgent(memory=mem)
 
-# Atomic write back
-with open("gpt-codex/benchmark/memory/ladder.jsonl", "w") as f:
-    for entry in entries:
-        f.write(json.dumps(entry) + "\n")
+
+def test_list_all_query_returns_full_history():
+    """memory-004-shape: list-all over 8-turn Alice fixture cites all 4 chronologically."""
+    setups = [
+        "Alice prefers C++.", "Bob prefers Go.", "Carol prefers Python.",
+        "Alice switched to Rust.", "David prefers Haskell.",
+        "Alice now prefers Java.", "Eve prefers Erlang.",
+        "Alice settled on Kotlin.",
+    ]
+    agent = _build_agent(setups)
+    response = agent.process("List all of Alice's preference changes in chronological order.")
+    cited = sorted([e.turn_id for e in response.evidence])
+    assert response.decision == "retrieve_full_history"
+    assert cited == [0, 3, 5, 7]
+    for tok in ("C++", "Rust", "Java", "Kotlin"):
+        assert tok in response.answer_text
+
+
+def test_summarize_trajectory_returns_full_history():
+    """memory-005-shape: summarize over 10-turn Alice career fixture cites trajectory turns."""
+    setups = [
+        "Alice prefers Rust.", "Alice joined Anthropic as a researcher.",
+        "Bob prefers Go.", "Alice moved to San Francisco.",
+        "Carol prefers Python.", "Alice is working on the safety team.",
+        "David prefers Haskell.", "Alice published a paper on RLHF.",
+        "Eve prefers Erlang.", "Alice mentors junior researchers.",
+    ]
+    agent = _build_agent(setups)
+    response = agent.process("Summarize Alice's professional trajectory based on stated facts. Cite turn IDs.")
+    cited = sorted([e.turn_id for e in response.evidence])
+    expected = [1, 3, 5, 7, 9]
+    assert response.decision == "retrieve_full_history"
+    assert set(expected).issubset(set(cited))
+    contains = sum(1 for tok in ("Anthropic", "San Francisco", "safety", "RLHF", "mentors") if tok in response.answer_text)
+    assert contains >= 4  # 4-of-5 threshold per match_criterion
+
+
+def test_current_preference_still_uses_strict_dominance():
+    """Regression — memory-002-shape: latest-wins on contradiction must still emit only the latest turn."""
+    setups = [
+        "Alice prefers Rust.", "Bob prefers Go.",
+        "Actually Alice switched to Java.",
+    ]
+    agent = _build_agent(setups)
+    response = agent.process("What does Alice prefer?")
+    assert response.decision == "retrieve"
+    assert "Java" in response.answer_text
+    assert "turn 2" in response.answer_text  # latest
+
+
+def test_unknown_subject_falls_through_to_ensemble():
+    """Edge: list-all with unknown subject falls through to retrieve (back-compat)."""
+    setups = ["Alice prefers Rust.", "Bob prefers Go."]
+    agent = _build_agent(setups)
+    response = agent.process("List all of Zoe's preferences.")
+    # Zoe is not in fact_graph; subject-extraction gate returns []; falls
+    # through to retrieve. Ensemble cosine likely below threshold so absent.
+    assert response.decision in ("retrieve", "absent", "retrieve_full_history")
+    # If retrieve_full_history is hit (fallback to retrieve(k=5) inside the
+    # method), it must NOT crash — that's the back-compat guarantee.
+
+
+def test_multi_subject_list_all_unions_chronologically():
+    """List-all on multi-subject query unions both subjects' turn_ids in chronological order."""
+    setups = [
+        "Alice prefers C++.", "Bob prefers Go.", "Alice switched to Rust.",
+        "Bob now uses Python.", "Alice settled on Kotlin.",
+    ]
+    agent = _build_agent(setups)
+    response = agent.process("List all of Alice and Bob's preference history.")
+    cited = sorted([e.turn_id for e in response.evidence])
+    assert response.decision == "retrieve_full_history"
+    # Chronological union: Alice {0,2,4} + Bob {1,3} = [0,1,2,3,4]
+    assert cited == [0, 1, 2, 3, 4]
+
+
+def test_classifier_sanity():
+    """_is_list_all_query patterns: list-all/summarize/trajectory match; current-pref doesn't."""
+    assert _is_list_all_query("List all of Alice's changes.")
+    assert _is_list_all_query("Summarize Alice's career.")
+    assert _is_list_all_query("In chronological order, give me Alice's preferences.")
+    assert _is_list_all_query("Tell me about Alice's history of changes.")
+    assert not _is_list_all_query("What does Alice prefer?")
+    assert not _is_list_all_query("Who picked Python?")
+    assert not _is_list_all_query("What is Alice's current job?")
 ```
 
-Expected outcome:
-- memory-004: cited=[0,3,5,7] = expected [0,3,5,7] ✓ → auto-graded-green
-- memory-005: cited=[0,1,3,5,7,9] ⊇ expected [1,3,5,7,9] ✓ → auto-graded-green
-- memory-001/002/003: still green (regression-safe)
+Total: 6 tests. Pytest target: 52 + 6 = 58 passing.
 
-### Phase B (~5 min): rebuild audit_log.jsonl
+### Stretch goal — extend memory ladder with 1-2 new auto-graded entries
 
-```python
-import json, glob
-rows = []
-for p in sorted(glob.glob('gpt-codex/benchmark/*/ladder.jsonl')):
-    for line in open(p):
-        d = json.loads(line)
-        rows.append({
-            "id": d["id"],
-            "domain": d["domain"],
-            "difficulty_rank": d["difficulty_rank"],
-            "audit_status": d["audit_status"],
-            "auto_grade_match": d.get("auto_grade", {}).get("match"),
-            "needs_audit": "rubric-pending" in d["audit_status"],
-            "rubric_pointer": d.get("rubric_pointer"),
-            "prompt_excerpt": d["prompt"][:80],
-            "response_excerpt": d["raphael_response"][:80],
-        })
-with open("gpt-codex/benchmark/audit_log.jsonl", "w") as f:
-    for r in rows: f.write(json.dumps(r) + "\n")
+If time remains after tests are green and pytest passes:
 
-# Counts
-from collections import Counter
-status = Counter(r["audit_status"] for r in rows)
-print(status)  # expect: {"auto-graded-green": 11, "rubric-pending": 21, "ungradeable": 4, ...}
-```
+**memory-007** (intermediate, list-all multi-subject):
+- setup: 5-turn Alice/Bob interleaved fixture
+- query: "List all of Alice and Bob's preference history."
+- expected_turn_ids: chronological union
+- audit_status: auto-graded-green (shipped post-fix)
 
-Expected: 11 green / 0 red / 21 rubric-pending / 4 ungradeable.
+**memory-008** (medium-hard, summarize-with-correction):
+- setup: 6-turn fixture with one Alice correction
+- query: "Summarize Alice's preference history including all corrections."
+- expected_turn_ids: all Alice turns including the corrected one
+- audit_status: auto-graded-green
 
-### Phase C (~5 min): addendum to PHASE_11_BENCHMARK.md
-
-Append at the BOTTOM (frozen-with-addendum convention per `docs/artifacts/CLAUDE.md`):
-
-```markdown
----
-
-## Phase 12 closure addendum (2026-05-10 ~11:35 CEST)
-
-The 2 auto-graded-red findings flipped GREEN via Phase 12's retrieval-mode disambiguation
-(`retrieve_structural_full_history` + `_LIST_ALL_HINTS` classifier + subject-extraction gate
-in `MemoryAgent.process`). Phase 12 plan: `docs/past_work/phases/phase_12_retrieval_disambiguation.md`
-(after cycle 7 archive). Implementation cycles: dev-cycle-1 (memory.py method) + dev-cycle-2 (controller wiring).
-
-**Updated counts:**
-| Audit status | Phase 11 close (06:55) | Phase 12 close (~13:20) |
-|---|---|---|
-| `auto-graded-green` | 9 (25%) | 11 (31%) |
-| `auto-graded-red` | 2 (6%) | 0 (0%) |
-| `rubric-pending` | 21 (58%) | 21 (58%) |
-| `ungradeable` | 4 (11%) | 4 (11%) |
-
-Of the auto-gradable subset (11 entries): 11 green / 0 red = **100% pass rate** (was 81.8%).
-
-memory-004 + memory-005 details:
-- memory-004 cited [7] → [0, 3, 5, 7]; tokens C++/Rust/Java/Kotlin in answer
-- memory-005 cited [9] → [0, 1, 3, 5, 7, 9] (superset of expected [1, 3, 5, 7, 9]); 5/5 tokens
-
-Architectural note: Phase 10 P3 strict-dominance retains its role for current-preference queries (memory-001/002/003 unchanged). Phase 12's contribution is the QUERY-SHAPE seam — query-shape classifier + subject-extraction gate + opt-in chronological retrieval mode that bypasses the +1.0 boost.
-
-— Phase 12 verdict: `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md`
-```
+Append to `gpt-codex/benchmark/memory/ladder.jsonl`. Re-run audit_log.jsonl rebuild to capture the new rows. Do NOT modify the existing 6-entry ladder (memory-001..006); add memory-007 and memory-008 as extension entries.
 
 ### Files to touch
 
-- `gpt-codex/benchmark/memory/ladder.jsonl` — entries 1-5 updated with new actual_turn_ids/match/decision (memory-006 ungradeable untouched)
-- `gpt-codex/benchmark/audit_log.jsonl` — full rebuild (36 rows; 5 memory rows have updated audit_status)
-- `docs/artifacts/PHASE_11_BENCHMARK.md` — APPEND-ONLY addendum at bottom
+- `tests/test_retrieval_modes.py` — NEW
+- (optional stretch) `gpt-codex/benchmark/memory/ladder.jsonl` — append memory-007, memory-008
+- (if stretch lands) `gpt-codex/benchmark/audit_log.jsonl` — rebuild with new rows
+
+### Comment-ratio rule (lain GLOBAL POLICY)
+
+Test docstrings must explain WHY each test exists (which Phase 11 finding it probes / which regression it guards). Pure signal — no narrating-the-obvious test names.
 
 ### Time budget
 
 22 min substantive + 3 min close. Sub-budget:
-- 10 min: Phase A verdict-builder run + ladder.jsonl rewrite
-- 5 min: Phase B audit_log.jsonl rebuild
-- 5 min: Phase C addendum to PHASE_11_BENCHMARK.md
-- 5 min: PHASE CHANGELOG cycle-3 close + dev-cycle-3.md + DO_THIS_NEXT.md cycle-4 + atomic commit + push + Discord
+- 12 min: write `test_retrieval_modes.py` + run pytest until all 6 pass + verify total count
+- 5 min: optional ladder extension (only if pytest is green)
+- 8 min: PHASE CHANGELOG cycle-4 close + dev-cycle-4.md + DO_THIS_NEXT cycle-5 + atomic commit + push + Discord
 
-### Cycle 3 close checklist
+### Cycle 4 close checklist
 
-- [ ] memory-004 + memory-005 audit_status flipped to auto-graded-green in `ladder.jsonl`
-- [ ] memory-004/005 actual_turn_ids + match=true + phase_12_fix_note recorded
-- [ ] memory-001/002/003 untouched OR re-run with same green status (no regression noise)
-- [ ] `audit_log.jsonl` rebuilt; counts: 11 green / 0 red / 21 rubric / 4 ungradeable
-- [ ] PHASE_11_BENCHMARK.md addendum at bottom (no rewrite of original verdict)
-- [ ] PHASE CHANGELOG cycle-3 row → ✅ closed
-- [ ] Cycle reflection at `docs/past_work/cycles/phase_12/dev-cycle-3.md`
-- [ ] DO_THIS_NEXT.md rewritten for cycle 4 (tests + ladder extension)
-- [ ] Atomic commit `feat(phase12): cycle 3 — flip memory reds (memory-004/005 → green) + audit_log rebuild + Phase 11 addendum`
+- [ ] `tests/test_retrieval_modes.py` exists with ≥ 5 tests
+- [ ] `pytest -q` passes 58+ (52 baseline + ≥6 new)
+- [ ] All Phase 12 routing paths covered: list-all, summarize, current-pref regression, unknown-subject fallthrough, multi-subject union, classifier sanity
+- [ ] (optional stretch) memory-007 and/or memory-008 appended; audit_log rebuilt
+- [ ] PHASE CHANGELOG cycle-4 row → ✅ closed
+- [ ] Cycle reflection at `docs/past_work/cycles/phase_12/dev-cycle-4.md`
+- [ ] DO_THIS_NEXT.md rewritten for cycle 5 (advisor + reflections 1-4 + comment-ratio polish)
+- [ ] Atomic commit `feat(phase12): cycle 4 — test_retrieval_modes.py (6 tests; pytest 58+)`
 - [ ] `git push origin main`
-- [ ] `discord_send #general` cycle 3 close
-- [ ] Clock out by minute 22; cycle 4 cron fires 11:52
+- [ ] `discord_send #general` cycle 4 close
+- [ ] Clock out by minute 22; cycle 5 cron fires 12:17
 
 ---
 
@@ -177,11 +192,11 @@ Architectural note: Phase 10 P3 strict-dominance retains its role for current-pr
 - **Working dir:** `/mnt/c/Users/nira/Documents/Research/projext-x`
 - **Branch:** `main` tracking `origin/main`
 - **GitHub remote:** https://github.com/ni1ra/project-x (private)
-- **Cycle-2 commit:** to land at end of cycle 2 turn (this turn)
-- **Cron state:** 5 godify one-shots remain (`baa6fc79` cycle 3 11:27 → `21e719fa` cycle 7 verdict 13:07)
-- **Listener:** PID 13234 alive — pgrep + atomic re-arm if dead per M-NAVI-018
+- **Cycle-3 commit:** to land at end of cycle 3 turn (this turn)
+- **Cron state:** 4 godify one-shots remain (`e2c4ea33` cycle 4 11:52 → `21e719fa` cycle 7 verdict 13:07)
+- **Listener:** PID 13506 alive — pgrep + atomic re-arm if dead per M-NAVI-018
 - **Tests baseline:** 52 passing
-- **Phase 12 fix shipped end-to-end:** `retrieve_structural_full_history` (cycle 1) + `_LIST_ALL_HINTS` classifier + controller routing + compose_answer extension (cycle 2) — confirmed via memory-004/005 smoke test
+- **Phase 12 fix verified end-to-end + benchmark JSON updated:** ladder.jsonl + audit_log.jsonl + PHASE_11_BENCHMARK.md addendum + verdict.md cross-link all reflect 11 green / 0 red / 21 rubric / 4 ungrade
 
 ---
 
@@ -201,8 +216,14 @@ Heartbeat-armed while `now < 13:28 CEST` AND named work exists. Premature disarm
 
 ---
 
-## Phase 12 architectural finding being closed
+## Phase 12 status at cycle 3 close
 
-Phase 11 verdict surfaced: Phase 10 P3 strict-dominance recency boost is correct for current-preference queries (memory-001/002/003 all green) but defeated list-all / summarize-trajectory queries (memory-004/005 red — cited only the latest turn). Phase 12 fix: query-shape disambiguation in the controller layer. Two retrieval modes co-exist; routing via `_LIST_ALL_HINTS` patterns + subject-extraction gate. Phase 10 P3 stays untouched for back-compat.
+- ✅ retrieve_structural_full_history (cycle 1) — chronological full-subject path bypassing strict-dominance
+- ✅ _LIST_ALL_HINTS + classifier + controller routing + compose_answer extension (cycle 2)
+- ✅ memory-004/005 flipped red→green; audit_log rebuilt 11/0/21/4; Phase 11 addendum (cycle 3)
+- ⏳ test_retrieval_modes.py (cycle 4, THIS CYCLE)
+- ⏳ advisor + reflections + polish (cycle 5)
+- ⏳ slack cycle for Phase 13 prep or stretch (cycle 6)
+- ⏳ Phase 12 verdict + END_TIME handoff (cycle 7)
 
-**Cycle-1 + cycle-2 already shipped the fix end-to-end.** Cycle 3 just records the result in the benchmark JSON files + appends the addendum that closes the Phase 11 finding.
+The mechanical fix is done. Cycles 4-7 are quality + verification + handoff.

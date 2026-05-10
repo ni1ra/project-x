@@ -147,3 +147,50 @@ Ranked by leverage:
 ---
 
 *— verdict landed 2026-05-10 ~06:55 CEST, ~2h05m before lain's 09:00 wake. SLAUGHTER COMPLETE.*
+
+---
+
+## Phase 12 closure addendum (2026-05-10 ~11:32 CEST)
+
+The 2 auto-graded-red findings flipped GREEN via Phase 12's retrieval-mode disambiguation: a query-shape classifier (`_LIST_ALL_HINTS` + `_is_list_all_query` in `semantic_memory_agent.py`) plus subject-extraction gate routes `MemoryAgent.process` to a new chronological retrieval path (`retrieve_structural_full_history` in `semantic_hdc_memory.py`) that bypasses the Phase 10 P3 strict-dominance recency boost AND the cosine_threshold filter (`compose_answer(full_history=True)` short-circuit). Phase 10 P3 stays untouched for current-preference queries (memory-001/002/003 regression-safe).
+
+**Phase 12 plan archive:** `docs/past_work/phases/phase_12_retrieval_disambiguation.md` (after cycle 7 close).
+**Phase 12 implementation cycles:** `docs/past_work/cycles/phase_12/dev-cycle-{1..7}.md`.
+**Phase 12 verdict:** `docs/artifacts/PHASE_12_RETRIEVAL_DISAMBIGUATION.md` (cycle 7).
+
+### Updated counts
+
+| Audit status | Phase 11 close (06:55) | Phase 12 close (~13:20 expected) |
+|---|---|---|
+| `auto-graded-green` | 9 (25%) | **11 (31%)** ↑ |
+| `auto-graded-red` | 2 (6%) | **0 (0%)** ↓ |
+| `ungraded; rubric-pending` | 21 (58%) | 21 (58%) — unchanged |
+| `ungradeable; unsolved tier` | 4 (11%) | 4 (11%) — unchanged |
+
+**Of the auto-gradable subset (11 entries):** 11 green / 0 red = **100% pass rate** (was 9/11 = 81.8%).
+
+### memory-004 + memory-005 re-run details (cycle 3 verdict-builder)
+
+| Entry | Before | After |
+|---|---|---|
+| memory-004 (hard, list-all chronological) | cited [7]; 1/4 tokens; RED | cited [0, 3, 5, 7] = expected [0, 3, 5, 7]; 4/4 tokens (C++/Rust/Java/Kotlin); **GREEN** |
+| memory-005 (frontier, summarize trajectory) | cited [9]; 1/5 tokens; RED | cited [0, 1, 3, 5, 7, 9] ⊇ expected [1, 3, 5, 7, 9]; 5/5 tokens (Anthropic/SF/safety/RLHF/mentors); **GREEN** |
+
+(memory-005's superset includes turn 0 "Alice prefers Rust" — the entry's own `raphael_response` flagged this as "borderline (career-adjacent; OK to include or exclude)" so the superset satisfies the `expected_turn_ids subseteq cited turn_ids` match criterion cleanly.)
+
+### Per-domain Phase 12 close
+
+| Domain | Entries | Green | Red | Rubric-pending | Ungradeable |
+|---|---|---|---|---|---|
+| **physics** | 6 | 3 | 0 | 2 | 1 |
+| **maths** | 6 | 3 | 0 | 2 | 1 |
+| **memory** | 6 | **5** ↑ | **0** ↓ | 0 | 1 |
+| **persona** | 6 | 0 | 0 | 6 | 0 |
+| **philosophy** | 6 | 0 | 0 | 6 | 0 |
+| **poetry** | 6 | 0 | 0 | 5 | 1 |
+
+### Architectural note
+
+Phase 10 P3 strict-dominance retains its role for current-preference queries (memory-001 "What does Alice prefer?" still cites turn 0; memory-002 latest-wins still cites turn 2; memory-003 multi-hop still cites [0, 1]). Phase 12's contribution is the QUERY-SHAPE seam — a query-shape classifier with conservative hint patterns + a subject-extraction gate that prevents false positives on plain current-preference queries + an opt-in chronological retrieval path that bypasses both the +1.0 boost and the 0.32 cosine threshold. Two retrieval modes co-exist; the controller routes based on what the query is asking for, not what subject it names.
+
+The Phase 11 verdict's prediction held: memory-004/005 reveal a real architectural seam, and Phase 12 closing that seam is what makes the benchmark cash out. The benchmark paid out exactly as designed — find the gap, then close it.

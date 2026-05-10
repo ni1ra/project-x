@@ -2,13 +2,15 @@
 
 The full verdict lives at `docs/artifacts/PHASE_11_BENCHMARK.md`. This file is the in-folder pointer for GPT/lain auditing.
 
-## Quick reference
+## Quick reference (updated 2026-05-10 ~11:32 CEST after Phase 12 cycle-3 verdict-builder re-run)
 
 - **36 entries** across 6 domains × 6 difficulty ranks
-- **9 auto-graded-green** (3 physics + 3 maths + 3 memory)
-- **2 auto-graded-red** (memory-004 + memory-005 — predicted Phase 10 strict-dominance failure mode confirmed)
-- **21 rubric-pending** (2 physics + 2 maths + 6 persona + 6 philosophy + 5 poetry)
-- **4 ungradeable** (1 each in physics, maths, memory, poetry — known-unsolved tier)
+- **11 auto-graded-green** (3 physics + 3 maths + 5 memory) — was 9 at Phase 11 close; +2 from Phase 12 fix
+- **0 auto-graded-red** — was 2 (memory-004 + memory-005); both flipped via Phase 12 retrieval-mode disambiguation
+- **21 rubric-pending** (2 physics + 2 maths + 6 persona + 6 philosophy + 5 poetry) — unchanged
+- **4 ungradeable** (1 each in physics, maths, memory, poetry — known-unsolved tier) — unchanged
+
+**Of the auto-gradable subset (11 entries): 11 green / 0 red = 100% pass rate** (was 81.8% at Phase 11 close).
 
 ## For GPT audit pass tomorrow
 
