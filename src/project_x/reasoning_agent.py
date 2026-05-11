@@ -43,6 +43,7 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
+from project_x.corpus.natural_mode import NaturalModeComposer
 from project_x.reasoning.diophantine import solve_binary_quadratic, solve_pell_equation
 from project_x.reasoning.integration import (
     definite_integral_x_times_cos,
@@ -672,6 +673,43 @@ def _parse_matrix_2x2(prompt: str) -> list[list[float]] | None:
     return [[a, b], [c, d]]
 
 
+# Natural-mode dispatcher v0 (cycle 11 #00P13c11-DEMO). Routes prompts that ASK
+# for poetry / philosophy / meaning-of-life / free-form-question shapes to the
+# NaturalModeComposer (v0 HDC walk over hand-seeded mini-corpus). Honest framing
+# per M-PROJECTX-013: the agent is not GENERATING text; it is RETRIEVING and
+# composing fragments with cited provenance. v0 capability proves the SHAPE of
+# the canonical doc's Layer 4 § Natural mode; full implementation (Tier-1 +
+# Tier-2 corpus + primitive emergence + hormone modulation + K-rollout) is
+# cycle-11 remaining work.
+_NATURAL_MODE_TRIGGERS: dict[str, tuple[str, ...]] = {
+    "poetry": ("write a poem", "compose a poem", "write poetry", "compose poetry",
+               "give me a poem", "compose verse", "write verse"),
+    "philosophy": ("meaning of life", "what is the meaning", "philosophize",
+                   "what do you think about", "philosophy of", "is it worth it",
+                   "what does it mean to live", "purpose of existence",
+                   "absurd", "consciousness", "free will"),
+    "math": ("collatz", "goldbach", "twin prime", "twin-prime", "riemann hypothesis",
+             "matiyasevich", "hilbert tenth", "fermat", "honest framing about"),
+    "lain_voice": ("project x", "what is raphael", "what is project x",
+                   "your design philosophy", "your standing rules"),
+}
+
+
+def _classify_natural_mode_domain(prompt: str) -> str | None:
+    """Identify which natural-mode domain a prompt invokes, or None if not natural-mode shape.
+
+    First domain whose triggers match wins. Conservative: only fires on explicit
+    natural-mode prompt shapes; structured math/physics prompts continue routing
+    to the existing primitive dispatchers (they precede natural-mode in
+    `process()`). Returns the matched domain or None for fall-through.
+    """
+    lower = prompt.lower()
+    for domain, triggers in _NATURAL_MODE_TRIGGERS.items():
+        if any(t in lower for t in triggers):
+            return domain
+    return None
+
+
 # Quadratic regex: matches `a x^2 [+-] b x [+-] c = 0` with optional whitespace + `*`.
 # Cycle 8 #06 parser-robustness extensions:
 #   - Accept unicode `x²` (U+00B2 superscript two) AS WELL AS ASCII `x^2`.
@@ -839,6 +877,16 @@ class ReasoningAgent:
         if response is not None:
             return response
 
+        # Natural-mode dispatcher v0 (cycle 11 #00P13c11-DEMO) — covers poetry /
+        # philosophy / meaning-of-life / open-conjecture-context prompts via HDC
+        # walk over hand-seeded mini-corpus. Placed near the end of the dispatch
+        # chain so structured math / physics primitives win on their own keyword
+        # gates; this is the open-domain fall-through for prompts that DON'T
+        # match a closed-form primitive.
+        response = self._try_natural_mode(prompt)
+        if response is not None:
+            return response
+
         # No parser matched. Honest refusal with reason.
         return AgentResponse(
             domain="unrecognized",
@@ -853,6 +901,41 @@ class ReasoningAgent:
                 "M-PROJECTX-013 measure-don't-claim."
             ),
             confidence="refused",
+        )
+
+    # Class-level lazy singleton for the composer (encoding 100+ fragments
+    # takes a few milliseconds; we cache it so test suites + repeated agent
+    # invocations don't re-encode).
+    _natural_mode_composer: NaturalModeComposer | None = None
+
+    def _try_natural_mode(self, prompt: str) -> AgentResponse | None:
+        """v0 natural-mode HDC walk dispatcher (cycle 11 #00P13c11-DEMO).
+
+        Routes poetry / philosophy / open-conjecture / lain-voice prompts to
+        the `NaturalModeComposer`. Honest M-PROJECTX-013 framing: the agent
+        retrieves and composes existing public-domain or project-authored
+        fragments by HDC cosine similarity; it does NOT generate novel text.
+        Provenance trail per emitted fragment.
+
+        Conservative trigger gate (`_classify_natural_mode_domain`) prevents
+        this branch from claiming structured math / physics prompts that
+        precede it in the dispatch chain.
+        """
+        domain = _classify_natural_mode_domain(prompt)
+        if domain is None:
+            return None
+        if ReasoningAgent._natural_mode_composer is None:
+            ReasoningAgent._natural_mode_composer = NaturalModeComposer()
+        result = ReasoningAgent._natural_mode_composer.compose(
+            prompt=prompt, domain=domain, max_fragments=5,
+        )
+        return AgentResponse(
+            domain="open_domain",
+            problem_shape=f"natural_mode_walk_{domain}",
+            parsed_inputs={"domain_filter": domain, "max_fragments": 5},
+            lemma=None,
+            answer_text=result.render(),
+            confidence="provenance-traced",
         )
 
     def _try_quadratic(self, prompt: str) -> AgentResponse | None:

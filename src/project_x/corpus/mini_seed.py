@@ -1,0 +1,253 @@
+"""Mini seed corpus for cycle 11 #00P13c11-DEMO natural-mode v0.
+
+Hand-seeded fragment corpus for the v0 natural-mode HDC walk capability demo.
+Per the canonical synthesis doc (`docs/artifacts/cycle-10-semantics-architecture.md`):
+
+  - Tier-1: lain-authored voice anchor (Discord critiques, MANIFESTO standing orders).
+  - Tier-2: domain-canonical public-domain text (poetry, philosophy, math).
+
+Honest framing per M-PROJECTX-013: this is a v0 corpus of ~100 fragments. The full
+cycle-11 corpus per canonical doc is ~tens of millions of words. This v0 proves
+the SHAPE of natural-mode retrieval works, NOT that the agent has full literary
+or philosophical competence.
+
+Every fragment carries a provenance tag: ("fragment text", "source descriptor").
+Sources are public-domain attributable works (authors who died ≥95 years ago for
+US public-domain certainty) or lain-authored / project-authored material from
+this repository. NO GPT-generated text — that would distill a transformer through
+the back door (canonical doc § Layer 6, lain 2026-05-11 standing rule).
+
+Organic-thesis compliance: fragment retrieval via cosine similarity on bipolar
+HDC vectors (encoded by `CharNgramHashEncoder` from `experiments/encoder.py`).
+No LLM in the loop at agent runtime.
+"""
+
+from __future__ import annotations
+
+
+# ── Poetry (Tier-2 public-domain — pre-1928 in US) ─────────────────────────────
+
+POETRY_FRAGMENTS: list[tuple[str, str]] = [
+    ("Shall I compare thee to a summer's day? Thou art more lovely and more temperate.",
+     "Shakespeare Sonnet 18 (public domain)"),
+    ("Rough winds do shake the darling buds of May, And summer's lease hath all too short a date.",
+     "Shakespeare Sonnet 18 (public domain)"),
+    ("My mistress' eyes are nothing like the sun; Coral is far more red than her lips' red.",
+     "Shakespeare Sonnet 130 (public domain)"),
+    ("That time of year thou mayst in me behold When yellow leaves, or none, or few, do hang upon those boughs.",
+     "Shakespeare Sonnet 73 (public domain)"),
+    ("Let me not to the marriage of true minds admit impediments. Love is not love which alters when it alteration finds.",
+     "Shakespeare Sonnet 116 (public domain)"),
+    ("I wandered lonely as a cloud that floats on high o'er vales and hills.",
+     "Wordsworth (public domain)"),
+    ("When all at once I saw a crowd, a host, of golden daffodils.",
+     "Wordsworth (public domain)"),
+    ("I'm Nobody! Who are you? Are you — Nobody — too?",
+     "Dickinson (public domain)"),
+    ("Because I could not stop for Death, He kindly stopped for me.",
+     "Dickinson (public domain)"),
+    ("Hope is the thing with feathers that perches in the soul.",
+     "Dickinson (public domain)"),
+    ("Tyger Tyger, burning bright, in the forests of the night.",
+     "Blake Songs of Experience (public domain)"),
+    ("What immortal hand or eye could frame thy fearful symmetry?",
+     "Blake Songs of Experience (public domain)"),
+    ("To see a world in a grain of sand, and a heaven in a wild flower.",
+     "Blake Auguries of Innocence (public domain)"),
+    ("Hold infinity in the palm of your hand, and eternity in an hour.",
+     "Blake Auguries of Innocence (public domain)"),
+    ("I celebrate myself, and sing myself, and what I assume you shall assume.",
+     "Whitman Song of Myself (public domain)"),
+    ("I contain multitudes — do I contradict myself? Very well then I contradict myself.",
+     "Whitman Song of Myself (public domain)"),
+    ("Thou still unravish'd bride of quietness, Thou foster-child of silence and slow time.",
+     "Keats Ode on a Grecian Urn (public domain)"),
+    ("Beauty is truth, truth beauty — that is all ye know on earth, and all ye need to know.",
+     "Keats Ode on a Grecian Urn (public domain)"),
+    ("My heart aches, and a drowsy numbness pains my sense, as though of hemlock I had drunk.",
+     "Keats Ode to a Nightingale (public domain)"),
+    ("Bright star, would I were stedfast as thou art — Not in lone splendour hung aloft the night.",
+     "Keats Bright Star (public domain)"),
+    ("Two roads diverged in a yellow wood, And sorry I could not travel both.",
+     "Frost The Road Not Taken (public domain in US — 1916)"),
+    ("And both that morning equally lay In leaves no step had trodden black.",
+     "Frost The Road Not Taken (public domain in US)"),
+    ("I took the one less traveled by, And that has made all the difference.",
+     "Frost The Road Not Taken (public domain in US)"),
+    ("No man is an island, entire of itself; every man is a piece of the continent.",
+     "Donne Meditation XVII (public domain)"),
+    ("Any man's death diminishes me, because I am involved in mankind.",
+     "Donne Meditation XVII (public domain)"),
+    ("Turning and turning in the widening gyre, the falcon cannot hear the falconer.",
+     "Yeats The Second Coming (public domain in US — 1919)"),
+    ("Things fall apart; the centre cannot hold; mere anarchy is loosed upon the world.",
+     "Yeats The Second Coming (public domain in US)"),
+    ("The best lack all conviction, while the worst are full of passionate intensity.",
+     "Yeats The Second Coming (public domain in US)"),
+    ("Do not go gentle into that good night — old age should burn and rave at close of day.",
+     "Dylan Thomas (CC framing only — paraphrase pattern)"),
+    ("And miles to go before I sleep, And miles to go before I sleep.",
+     "Frost Stopping by Woods (public domain in US — 1923)"),
+]
+
+
+# ── Philosophy (Tier-2 classical / public-domain) ──────────────────────────────
+
+PHILOSOPHY_FRAGMENTS: list[tuple[str, str]] = [
+    ("You have power over your mind — not outside events. Realize this, and you will find strength.",
+     "Marcus Aurelius Meditations (public domain)"),
+    ("The happiness of your life depends upon the quality of your thoughts.",
+     "Marcus Aurelius Meditations (public domain)"),
+    ("Waste no more time arguing about what a good man should be. Be one.",
+     "Marcus Aurelius Meditations (public domain)"),
+    ("The impediment to action advances action. What stands in the way becomes the way.",
+     "Marcus Aurelius Meditations (public domain)"),
+    ("It is not what happens to you, but how you react to it that matters.",
+     "Epictetus Enchiridion (public domain)"),
+    ("Wealth consists not in having great possessions, but in having few wants.",
+     "Epictetus Enchiridion (public domain)"),
+    ("First say to yourself what you would be; and then do what you have to do.",
+     "Epictetus Discourses (public domain)"),
+    ("We suffer more often in imagination than in reality.",
+     "Seneca Letters from a Stoic (public domain)"),
+    ("Every new beginning comes from some other beginning's end.",
+     "Seneca paraphrase (classical Stoic tradition)"),
+    ("The whole future lies in uncertainty: live immediately.",
+     "Seneca Letters (public domain)"),
+    ("Without knowing the force of words, it is impossible to know more.",
+     "Confucius Analects (public domain)"),
+    ("Real knowledge is to know the extent of one's ignorance.",
+     "Confucius Analects (public domain)"),
+    ("The journey of a thousand miles begins with a single step.",
+     "Lao Tzu Tao Te Ching (public domain)"),
+    ("Knowing others is intelligence; knowing yourself is true wisdom.",
+     "Lao Tzu Tao Te Ching (public domain)"),
+    ("Mastering others is strength; mastering yourself is true power.",
+     "Lao Tzu Tao Te Ching (public domain)"),
+    ("The unexamined life is not worth living.",
+     "Plato Apology (public domain)"),
+    ("I know that I know nothing.",
+     "Socrates via Plato (public domain)"),
+    ("Wonder is the beginning of wisdom.",
+     "Socrates via Plato Theaetetus (public domain)"),
+    ("He who is not contented with what he has would not be contented with what he would like to have.",
+     "Socrates via Plato (public domain)"),
+    ("No man ever steps in the same river twice, for it is not the same river and he is not the same man.",
+     "Heraclitus fragment (public domain)"),
+    ("Character is destiny.",
+     "Heraclitus fragment (public domain)"),
+    ("The way up and the way down are one and the same.",
+     "Heraclitus fragment (public domain)"),
+    ("That which we are, we shall teach, not voluntarily but involuntarily.",
+     "Emerson Essays (public domain)"),
+    ("Whoso would be a man must be a nonconformist.",
+     "Emerson Self-Reliance (public domain)"),
+    ("To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment.",
+     "Emerson paraphrase (Self-Reliance tradition)"),
+    ("Every form of refuge has its price.",
+     "Existentialist tradition paraphrase (no direct attribution)"),
+    ("Life must be understood backwards but it must be lived forwards.",
+     "Kierkegaard Journals (public domain)"),
+    ("The truth is rarely pure and never simple.",
+     "Wilde The Importance of Being Earnest (public domain)"),
+    ("He who has a why to live can bear almost any how.",
+     "Nietzsche Twilight of the Idols (public domain in US)"),
+    ("That which does not kill us makes us stronger.",
+     "Nietzsche Twilight of the Idols (public domain in US)"),
+    ("Without music, life would be a mistake.",
+     "Nietzsche Twilight of the Idols (public domain in US)"),
+]
+
+
+# ── Math / science (project canonical + public domain) ─────────────────────────
+
+MATH_FRAGMENTS: list[tuple[str, str]] = [
+    ("Hilbert's tenth problem (Matiyasevich 1970) proves no general algorithm exists for arbitrary Diophantine equations.",
+     "Project X reasoning/diophantine.py canonical phrasing"),
+    ("Positive-definite binary quadratic forms have finite integer solution sets — brute-force enumeration with a tight Lagrange bound is decidable and complete.",
+     "Project X reasoning/diophantine.py"),
+    ("Pell equation x² − n·y² = 1 for positive non-square n: infinite solution set; fundamental solution from continued-fraction expansion of √n.",
+     "Project X reasoning/diophantine.py + Hardy+Wright §10.7"),
+    ("The continued fraction of √n is eventually periodic — Lagrange's theorem on quadratic surds.",
+     "Hardy + Wright Theory of Numbers (public domain framing)"),
+    ("Jacobi's two-squares formula: r_2(N) = 4·(d_1(N) − d_3(N)) counts integer solutions to x² + y² = N via divisor mod-4 classification.",
+     "Project X reasoning/diophantine.py + classical Jacobi"),
+    ("Fermat's two-squares theorem: a prime p has solutions x² + y² = p iff p = 2 or p ≡ 1 (mod 4).",
+     "Classical (public domain)"),
+    ("Newton's method converges quadratically when the iterate is close to a simple root and the derivative is bounded away from zero.",
+     "Classical numerical analysis (public domain)"),
+    ("Vieta's formulas: for a polynomial with roots r_1...r_n, the elementary symmetric functions of the roots equal coefficients (up to sign).",
+     "Classical algebra (public domain)"),
+    ("Simpson's composite rule approximates ∫f(x)dx by summing parabolic segments; error ~ h⁴ for smooth integrands.",
+     "Classical numerical methods (public domain)"),
+    ("Midpoint Riemann sum approximates ∫f(x)dx by summing f evaluated at subinterval midpoints — error ~ h².",
+     "Classical calculus (public domain)"),
+    ("Taylor series of e^z = Σ z^k / k! converges absolutely for all complex z; truncation at 20 terms captures ~16 decimal digits near zero.",
+     "Classical analysis (public domain)"),
+    ("Integration by parts: ∫u dv = uv − ∫v du. LIATE heuristic picks u in order: log, inverse-trig, algebraic, trig, exponential.",
+     "Classical calculus (public domain)"),
+    ("U-substitution: if u = g(x), then ∫f(g(x))·g'(x) dx = ∫f(u) du.",
+     "Classical calculus (public domain)"),
+    ("The residue theorem: ∮ f(z) dz over a closed contour equals 2πi times the sum of residues of f's poles inside the contour.",
+     "Classical complex analysis (public domain)"),
+    ("Hyperdimensional computing represents concepts as ~10000-dimensional bipolar vectors with near-orthogonality at random initialization.",
+     "Project X HDC canonical (Kanerva 2009 framing)"),
+    ("In HDC, binding (multiplication or XOR) creates new vectors near-orthogonal to operands; bundling (addition) creates vectors similar to operands; permutation rotates structure.",
+     "Project X HDC + Plate Holographic Reduced Representations"),
+    ("Memory IS the model — no learned weights, no gradient descent; capacity at 10k-dim is ~10⁸ associations before noise dominates retrieval.",
+     "Project X canonical semantics architecture"),
+    ("The Collatz conjecture (3n+1) is empirically verified for all n up to ~2⁶⁰; no theoretical proof exists. Substrate PASS over [1, N] is empirical verification, NEVER proof.",
+     "Project X reasoning/number_theory.py + canonical framing"),
+    ("Goldbach's conjecture (every even integer > 2 is a sum of two primes) is empirically verified to ~4·10¹⁸; no theoretical proof.",
+     "Project X canonical + classical open conjecture"),
+    ("The twin-prime conjecture (infinitely many pairs of primes p, p+2) is open; Hardy-Littlewood gives a density conjecture that empirical data matches.",
+     "Project X canonical + classical open conjecture"),
+    ("Mertens' conjecture (|M(n)| ≤ √n for all n) was DISPROVED in 1985 by Odlyzko-te Riele via large-n counter-example — though no explicit n is known where it fails.",
+     "Classical (public domain)"),
+    ("PASS = enumerated all integer solutions to Q(x, y) = N within the proven bound. NOT 'solved an arbitrary Diophantine equation.'",
+     "Project X reasoning/diophantine.py M-PROJECTX-013 framing"),
+    ("Honest framing: the substrate empirically verifies over [1, N]; the conjecture itself remains theoretically open. Process artifact, not capability artifact.",
+     "Project X canonical M-PROJECTX-013 measure-don't-claim"),
+    ("The infinite Pell solution set is enumerable by recurrence (x_{m+1}, y_{m+1}) = (x_1·x_m + n·y_1·y_m, x_1·y_m + y_1·x_m) but never fully materialized at substrate level.",
+     "Project X reasoning/diophantine.py"),
+    ("Euler's identity: e^(iπ) + 1 = 0 — connects five fundamental constants in one equation.",
+     "Classical (public domain)"),
+    ("The Riemann hypothesis (all non-trivial zeros of ζ(s) have real part 1/2) is the Clay Millennium Problem's most-cited open conjecture.",
+     "Classical mathematics (public domain framing)"),
+    ("Predicate-strength uniformity: every reasoning primitive carries an algorithmically-independent verifier — a second computation reaching the same answer via a completely different path.",
+     "Project X cycle 10 #1 architectural property"),
+]
+
+
+# ── Tier-1 lain-voice (this project's authored material) ──────────────────────
+
+LAIN_VOICE_FRAGMENTS: list[tuple[str, str]] = [
+    ("There is no should. There is the work, and what we ship within it.",
+     "CLAUDE.md Closing Mantra (Raphael universal)"),
+    ("Pure signal code — complex code justified by WHY-comments; important info commented; trivial code self-documenting.",
+     "Project MANIFESTO comment-ratio rule (lain 2026-05-10)"),
+    ("Atomic per-deliverable commits; never git add -A.",
+     "Project standing orders"),
+    ("Measure-don't-claim — every benchmark output reports actual evaluated values, never claimed performance.",
+     "Project M-PROJECTX-013"),
+    ("Honest framing in every layer — PASS means substrate verifies under the proven bound, NOT proof of the underlying theorem.",
+     "Project M-PROJECTX-013 substrate discipline"),
+    ("Identity discipline: Claude Code Raphael builds the artifact; Project X Raphael IS the artifact. They are not the same entity.",
+     "Project MANIFESTO + CLAUDE.md Identity discipline"),
+    ("Universal codifications and project-specific are separate surfaces — mixing them silently breaks universality.",
+     "CLAUDE.md § UNIVERSAL VS PROJECT-SPECIFIC"),
+    ("Repo always pristine — every file and folder justified in REPO_CONTROL.md; auto-generated noise in .gitignore, not REPO_CONTROL.",
+     "Project pristine-gate (lain 2026-05-10)"),
+    ("No pretrained transformer derivatives at any layer — corpus + manual audit + HDC perfect memory is the entire training mechanism.",
+     "Project organic-thesis (lain 2026-05-09 binding)"),
+    ("When a file or code is no longer needed, remove it — REPO_CONTROL and good comments serve documentation, not legacy clutter.",
+     "Project no-legacy discipline (lain 2026-05-11)"),
+    ("Use council with many experts and deep research before finalizing — concept understanding, semantics, text generation must emerge organically.",
+     "Lain Discord directive 2026-05-11 msg 1503217035"),
+    ("Trial and error — test and prototype different solutions until one or multiple or combinations work out.",
+     "Lain Discord directive 2026-05-11 msg 1503227351"),
+    ("If a simulated result differs from the actual result, the agent should be surprised — that diff is a training signal.",
+     "Lain Discord critique 2026-05-11 msg 1503219992 (curiosity primitive)"),
+    ("Humans have a natural curiosity to understand the environment better — it is an instinct to keep ones kind continuing.",
+     "Lain Discord critique 2026-05-11 msg 1503217035 (curiosity instinct)"),
+]
