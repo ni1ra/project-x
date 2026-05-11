@@ -729,6 +729,75 @@ def test_reasoning_agent_number_theory_no_keyword_refuses():
     }
 
 
+# --- Cycle-13 #07d audit-B4 fold-ins: prose-form N extraction + formal-priority boost ---
+
+
+def test_collatz_prose_first_N_integers_routes_formal():
+    """Cycle-13 #07d (audit B4): the demo P3 prompt "Verify the Collatz conjecture
+    for the first 10000 integers and discuss honestly..." used to fall through the
+    bracketed [1, N] regex and silently route to natural-mode. Prose-form widening
+    + tightened natural-mode triggers + formal-priority-boost all conspire to send
+    this back to formal `collatz_verify_range`.
+    """
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Verify the Collatz conjecture for the first 10000 integers and discuss "
+        "honestly what this does and doesn't prove."
+    )
+    assert response.problem_shape == "collatz_verify_range", (
+        f"P3-style prompt should route to formal Collatz; got {response.problem_shape}"
+    )
+    assert response.parsed_inputs == {"N": 10000}
+    assert response.confidence == "high"
+
+
+def test_collatz_prose_for_n_up_to_routes_formal():
+    """Cycle-13 #07d prose form 'for n up to N' → formal Collatz with N extracted."""
+    agent = ReasoningAgent()
+    response = agent.process("Verify the Collatz conjecture for n up to 500.")
+    assert response.problem_shape == "collatz_verify_range"
+    assert response.parsed_inputs == {"N": 500}
+
+
+def test_collatz_prose_in_the_first_routes_formal():
+    """Cycle-13 #07d prose form 'in the first N' → formal Collatz with N extracted."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Test Collatz 3n+1 iteration termination in the first 250 positive integers."
+    )
+    assert response.problem_shape == "collatz_verify_range"
+    assert response.parsed_inputs == {"N": 250}
+
+
+def test_collatz_open_conjecture_question_still_natural_mode():
+    """Regression guard: the cycle-11 natural-mode-math test prompt still routes
+    to `natural_mode_walk_math` after #07d trigger tightening + formal-priority boost.
+    The open-conjecture interrogative shape ('what does X mean') is now the natural-mode
+    trigger; the formal parser refuses because no parseable N is in the prompt.
+    """
+    agent = ReasoningAgent()
+    response = agent.process("What does the Collatz conjecture mean? Is it solved?")
+    assert response.problem_shape == "natural_mode_walk_math"
+
+
+def test_mertens_prose_form_routes_formal():
+    """Cycle-13 #07d symmetric Mertens widening: prose-form 'first N' → formal Mertens."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Verify the Mertens bound |M(n)| ≤ √n for the first 300 integers."
+    )
+    assert response.problem_shape == "mertens_bound_verify"
+    assert response.parsed_inputs == {"N": 300}
+
+
+def test_formal_priority_boost_active_in_dispatcher_metadata():
+    """Cycle-13 #07d formal-priority-boost: the boost multiplier is exposed as
+    `_FORMAL_PRIORITY_BOOST` on the agent class; sanity-check the value matches the
+    synthesis-verdict §7 row 4 spec of 1.2."""
+    agent = ReasoningAgent()
+    assert agent._FORMAL_PRIORITY_BOOST == 1.2
+
+
 # --- Diophantine binary-quadratic dispatcher (maths-024/025, cycle 9 #00P13c9-03) ---
 
 

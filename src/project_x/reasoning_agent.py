@@ -529,14 +529,42 @@ _NT_RANGE_1_PATTERN = re.compile(r"\[\s*1\s*,\s*(\d+)\s*\]")
 _NT_RANGE_4_PATTERN = re.compile(r"\[\s*4\s*,\s*(\d+)\s*\]")
 _NT_LEQ_N_PATTERN = re.compile(r"(?:≤|<=)\s*(\d+)")
 
+# Cycle-13 #07d (audit B4 fix): widen [1, N]-bound extraction to accept prose forms.
+# The demo P3 prompt "Verify the Collatz conjecture for the first 10000 integers..."
+# previously fell through `_NT_RANGE_1_PATTERN` and silently routed to natural-mode
+# (F5 in cycle-13 demo doc). Prose forms below cover common phrasings; the bracketed
+# pattern remains the canonical form for benchmark prompts.
+_NT_PROSE_PATTERNS_RANGE_1: tuple[re.Pattern[str], ...] = (
+    re.compile(r"first\s+(\d+)\s+(?:integers|positive integers|natural numbers|values?|n)", re.IGNORECASE),
+    re.compile(r"for\s+n\s+up\s+to\s+(\d+)", re.IGNORECASE),
+    re.compile(r"in\s+the\s+first\s+(\d+)", re.IGNORECASE),
+    re.compile(r"for\s+(?:all\s+)?(?:integers?\s+)?n\s+(?:≤|<=)\s*(\d+)", re.IGNORECASE),
+    re.compile(r"up\s+to\s+n\s*=\s*(\d+)", re.IGNORECASE),
+)
+
+
+def _extract_range_1_N(prompt: str) -> int | None:
+    """Try bracketed `[1, N]` first; fall back to prose forms. Cycle-13 #07d (audit B4)."""
+    m = _NT_RANGE_1_PATTERN.search(prompt)
+    if m:
+        return int(m.group(1))
+    for pattern in _NT_PROSE_PATTERNS_RANGE_1:
+        m = pattern.search(prompt)
+        if m:
+            return int(m.group(1))
+    return None
+
 
 def _parse_collatz_verify(prompt: str) -> int | None:
-    """Extract N from a Collatz verification prompt. Gated by 'collatz' or '3n+1'."""
+    """Extract N from a Collatz verification prompt. Gated by 'collatz' or '3n+1'.
+
+    Cycle-13 #07d: prose-form N extraction via `_extract_range_1_N` so demo prompts
+    like 'first 10000 integers' route to formal mode (audit B4 catch).
+    """
     lower = prompt.lower()
     if "collatz" not in lower and "3n+1" not in lower and "3n + 1" not in lower:
         return None
-    m = _NT_RANGE_1_PATTERN.search(prompt)
-    return int(m.group(1)) if m else None
+    return _extract_range_1_N(prompt)
 
 
 def _parse_goldbach_verify(prompt: str) -> int | None:
@@ -558,12 +586,15 @@ def _parse_twin_primes(prompt: str) -> int | None:
 
 
 def _parse_mertens_verify(prompt: str) -> int | None:
-    """Extract N from a Mertens-bound verification prompt. Gated by 'mertens'."""
+    """Extract N from a Mertens-bound verification prompt. Gated by 'mertens'.
+
+    Cycle-13 #07d: prose-form N extraction via `_extract_range_1_N` so prose phrasings
+    of the Mertens benchmark route to formal mode (symmetric with Collatz audit B4).
+    """
     lower = prompt.lower()
     if "mertens" not in lower:
         return None
-    m = _NT_RANGE_1_PATTERN.search(prompt)
-    return int(m.group(1)) if m else None
+    return _extract_range_1_N(prompt)
 
 
 # Diophantine binary-quadratic regex (cycle 9 #00P13c9-03). Parses the LHS of a
@@ -698,8 +729,20 @@ _NATURAL_MODE_TRIGGERS: dict[str, tuple[str, ...]] = {
                    "what do you think about", "philosophy of", "is it worth it",
                    "what does it mean to live", "purpose of existence",
                    "absurd", "consciousness", "free will"),
-    "math": ("collatz", "goldbach", "twin prime", "twin-prime", "riemann hypothesis",
-             "matiyasevich", "hilbert tenth", "fermat", "honest framing about"),
+    # Cycle-13 #07d (audit B4 + synthesis-verdict §7 row 4 sub-bullet): triggers
+    # tightened from bare "collatz" → phrase patterns. The demo P3 prompt "Verify
+    # the Collatz conjecture for the first 10000 integers and discuss honestly..."
+    # used to match bare "collatz" and route to natural-mode despite being a
+    # formal-verification request. Phrase triggers preserve the open-conjecture
+    # natural-mode path (test_agent_routes_collatz_open_conjecture_to_math) AND
+    # release formal-form prompts to the structured Collatz dispatcher.
+    "math": ("what does the collatz", "what is the collatz", "collatz conjecture mean",
+             "collatz conjecture solved", "is collatz solved", "discuss collatz",
+             "explain collatz", "what does the goldbach", "is goldbach solved",
+             "discuss goldbach", "twin prime conjecture mean", "is twin prime solved",
+             "discuss twin prime", "twin-prime conjecture mean",
+             "riemann hypothesis", "matiyasevich", "hilbert tenth", "fermat",
+             "honest framing about"),
     "lain_voice": ("project x", "what is raphael", "what is project x",
                    "your design philosophy", "your standing rules"),
     # Cycle 12 #00P13c12-01b — narrative_prose triggers for Tier-2-ingested
@@ -901,6 +944,15 @@ class ReasoningAgent:
     # honest initial floors.
     _ALPHA: float = 0.6  # weight on parser-matched (binary 0/1); higher because regex match is high-precision
     _TAU_DISPATCH: float = 0.3  # combined-confidence floor to dispatch (else refuse)
+    # Cycle-13 #07d (synthesis-verdict §7 row 4): when both formal and natural-mode
+    # parsers match the SAME prompt, multiply formal candidates' combined confidence
+    # by this factor before the argmax. Defense-in-depth against the demo F5 failure
+    # (P3 Collatz prose-form: both formal `collatz_verify_range` and natural-mode-math
+    # would match a permissive-trigger prompt; formal should win unambiguously when
+    # the prompt has a parseable formal shape). Audit B4 widening alone is sufficient
+    # for P3 specifically; the boost protects future demos where the natural-mode
+    # archetype happens to be more cosine-similar to the prompt than the formal one.
+    _FORMAL_PRIORITY_BOOST: float = 1.2
 
     # Ordered list of (problem_shape_for_archetype_lookup, method_attr_name).
     # Order serves as chain-order tiebreaker when combined confidences tie within ε.
@@ -1005,6 +1057,27 @@ class ReasoningAgent:
                 ),
                 confidence="refused",
             )
+
+        # Cycle-13 #07d formal-priority boost: when BOTH formal and natural-mode
+        # parsers match, lift formal candidates' confidence by _FORMAL_PRIORITY_BOOST.
+        # `natural_mode_walk_*` shapes are emitted only by `_try_natural_mode`; every
+        # other shape in the archetype table is formal. If no natural-mode candidate
+        # is present, the boost is a no-op (only formal candidates compete; the lift
+        # is uniform). Mathematically equivalent to: scale formal by 1.2 always; the
+        # sort outcome is identical when only formal candidates exist.
+        natural_mode_present = any(
+            r.problem_shape.startswith("natural_mode_walk_") for _, _, _, r in candidates
+        )
+        if natural_mode_present:
+            candidates = [
+                (
+                    conf * self._FORMAL_PRIORITY_BOOST
+                    if not r.problem_shape.startswith("natural_mode_walk_")
+                    else conf,
+                    idx, m, r,
+                )
+                for conf, idx, m, r in candidates
+            ]
 
         # Sort by combined_confidence DESC, tiebreak by chain_index ASC
         candidates.sort(key=lambda c: (-c[0], c[1]))
