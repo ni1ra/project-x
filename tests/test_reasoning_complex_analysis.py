@@ -95,3 +95,75 @@ def test_complex_analysis_substrate_thesis_compliant():
     ]
     for token in forbidden:
         assert token not in source, f"complex_analysis.py imports forbidden token '{token}'"
+
+
+# --- Cycle 10 #01c — Simpson's rule STRONG (algorithmically-independent) verifier ---
+
+
+def test_simpson_standalone_canonical_a1_c1():
+    """Simpson's rule on [-100, 100] with N=10000 for ∫ dx/(x²+1) should yield
+    ~2·arctan(100) ≈ 3.1216 — within ~1% of the true π closed-form."""
+    from project_x.reasoning.complex_analysis import _simpson_real_line_integral
+    import math
+    simpson = _simpson_real_line_integral(1.0, 1.0)
+    closed = math.pi
+    assert abs(simpson - closed) / closed < 0.02, (
+        f"Simpson drift {abs(simpson - closed) / closed * 100:.3f}% exceeds 2% — "
+        f"check L truncation or N discretization"
+    )
+
+
+def test_simpson_standalone_scaled():
+    """Simpson agrees with π/√(a·c) closed-form across coefficient families."""
+    from project_x.reasoning.complex_analysis import _simpson_real_line_integral
+    import math
+    for a, c in [(1.0, 4.0), (2.0, 8.0), (0.5, 2.0), (3.0, 12.0), (3.0, 1.0)]:
+        simpson = _simpson_real_line_integral(a, c)
+        closed = math.pi / math.sqrt(a * c)
+        rel_drift = abs(simpson - closed) / closed
+        assert rel_drift < 0.05, (
+            f"a={a}, c={c}: Simpson {simpson:.6f} vs closed {closed:.6f}, "
+            f"drift {rel_drift * 100:.3f}% exceeds 5%"
+        )
+
+
+def test_simpson_invariant_fires_and_holds():
+    """The cycle 10 #01c Simpson invariant must fire on every residue_theorem call
+    and hold within its 5% tolerance for all (a, c) in canonical scope."""
+    for a, c in [(1.0, 1.0), (1.0, 4.0), (2.0, 8.0), (0.5, 2.0), (3.0, 12.0)]:
+        lemma = residue_theorem_unit_quadratic(a, c)
+        simpson_invariants = [
+            inv for inv in lemma.invariant_checks
+            if "Simpson" in inv.predicate
+        ]
+        assert len(simpson_invariants) == 1, (
+            f"a={a}, c={c}: expected 1 Simpson invariant, got {len(simpson_invariants)}"
+        )
+        assert simpson_invariants[0].holds, (
+            f"a={a}, c={c}: Simpson invariant failed — "
+            f"check truncation error or closed-form path"
+        )
+
+
+def test_simpson_helper_signature_independent_of_closed_form():
+    """_simpson_real_line_integral must NOT accept any closed-form-derived parameter.
+    Signature should be (a, c, *, L, N) only — pure numerical-integration inputs."""
+    from project_x.reasoning.complex_analysis import _simpson_real_line_integral
+    import inspect
+    sig = inspect.signature(_simpson_real_line_integral)
+    param_names = set(sig.parameters.keys())
+    forbidden = {"expected", "closed_form", "integral", "target", "pi", "residue"}
+    assert not (param_names & forbidden), (
+        f"_simpson_real_line_integral couples to closed-form: {param_names & forbidden}"
+    )
+    assert {"a", "c"} <= param_names, "Simpson helper must accept (a, c) coefficients"
+
+
+def test_simpson_invariant_chain_length():
+    """residue_theorem_unit_quadratic now carries 2 invariants: original dimensionless
+    + cycle 10 #01c Simpson STRONG."""
+    lemma = residue_theorem_unit_quadratic(1.0, 1.0)
+    assert len(lemma.invariant_checks) == 2
+    predicates = [inv.predicate for inv in lemma.invariant_checks]
+    assert any("dimensionless" in p for p in predicates)
+    assert any("Simpson" in p for p in predicates)

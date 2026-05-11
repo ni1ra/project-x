@@ -120,4 +120,74 @@ def residue_theorem_unit_quadratic(
         ),
     )
 
+    # Cycle 10 #01c STRONG (algorithmically-independent) verifier: Simpson's rule
+    # numerical integration over a finite interval [-L, L]. Discretizes the integrand
+    # on the real line and sums Simpson coefficients — never touches complex
+    # function theory, poles, residues, or Jordan's lemma. A typo in the closed-form
+    # residue derivation would NOT propagate to Simpson's quadrature. Tolerance
+    # is 5% relative drift, dominated by truncation: ∫_L^∞ dx/(a·x² + c) decays
+    # asymptotically as 1/(a·L), so at L=100 with a=c=1 the truncation is ~1% per
+    # side. Simpson's O(h⁴) discretization with N=10000 is much smaller (well
+    # under 1e-6 for this integrand on [-100, 100]).
+    simpson_integral = _simpson_real_line_integral(a, c, L=100.0, N=10000)
+    simpson_relative_drift = abs(simpson_integral - integral) / integral
+    simpson_within_tol = simpson_relative_drift < 0.05
+    lemma.add_invariant_check(
+        predicate=(
+            "Simpson's rule on [-100, 100] with N=10000 agrees with closed-form "
+            "π/√(a·c) within 5% (algorithmically-independent STRONG verifier; "
+            "truncation-dominated tolerance)"
+        ),
+        expected_value=True,
+        actual_value=simpson_within_tol,
+        justification=(
+            f"Simpson's rule numerical integration over [-100, 100] yields "
+            f"{simpson_integral:.6f}; closed-form residue calculation yields "
+            f"{integral:.6f}; relative drift = {simpson_relative_drift * 100:.3f}%. "
+            f"Tolerance 5% reflects truncation error from finite interval: "
+            f"∫_L^∞ dx/(a·x² + c) ~ 1/(a·L) for large L; at L=100 this is ~1% per "
+            f"side. Algorithmically independent: numerical integration on the "
+            f"real line vs analytic residue theorem on a complex contour — "
+            f"completely different mathematical paths. A typo in the residue "
+            f"derivation would NOT propagate to Simpson's quadrature."
+        ),
+    )
+
     return lemma
+
+
+def _simpson_real_line_integral(
+    a: float, c: float, *, L: float = 100.0, N: int = 10000,
+) -> float:
+    """Compute ∫_{-L}^{L} 1/(a·x² + c) dx via Simpson's composite rule.
+
+    Algorithmically independent from the closed-form residue calculation:
+    discretizes the integrand on a real-line interval and sums signed Simpson
+    coefficients (1, 4, 2, 4, 2, ..., 4, 1). Never references poles, residues,
+    or complex analysis — operates purely in real-line numerical quadrature.
+
+    Simpson's rule: ∫_a^b f(x) dx ≈ (h/3) · Σ w_i f(x_i) where h = (b-a)/N,
+    w_0 = w_N = 1, w_odd = 4, w_even (interior) = 2. Composite form requires
+    N even; rounds up if N is odd.
+
+    Truncation error from finite L: ∫_L^∞ dx/(a·x² + c) ~ 1/(a·L) for large L.
+    At L=100 this gives ~1% per side for the canonical a=c=1 case. Simpson's
+    own O(h⁴) discretization is much smaller for this smooth integrand.
+
+    Used as STRONG invariant verifier in residue_theorem_unit_quadratic. Hand-
+    rolled — no scipy.integrate.simpson, no numpy.
+    """
+    if N % 2 != 0:
+        N += 1
+    h = (2.0 * L) / N
+    total = 0.0
+    for i in range(N + 1):
+        x = -L + i * h
+        fx = 1.0 / (a * x * x + c)
+        if i == 0 or i == N:
+            total += fx
+        elif i % 2 == 1:
+            total += 4.0 * fx
+        else:
+            total += 2.0 * fx
+    return total * h / 3.0
