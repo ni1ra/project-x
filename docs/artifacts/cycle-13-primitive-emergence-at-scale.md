@@ -93,10 +93,207 @@ The cycle-14+ reframing fork:
 
 ---
 
-## 7. Result block (TO BE APPENDED AFTER THE RUN — RESERVED)
 
-*This section is INTENTIONALLY EMPTY at predicate commit. Cycle-13 #07f-run will append the result data + classification table + verdict. Predicate authority is the version-controlled state at the commit hash this doc is written under.*
+## 7. Result block — emergence-at-scale run (appended POST predicate-commit)
 
----
+**Run date:** 2026-05-11. **Commit (run):** see git log for `docs(P13c13-07f-emergence-at-scale)`.
+**Pre-registered predicate commit (the version of §§1-6 this run is scored against):** `0b89101`.
+**Path:** BITPACK throughout — `encode_packed` + `cosine_packed` (cycle-13 #1 substrate insurance). Prior attempt with the unpacked int8 path OOM-killed WSL on a 50k sample; bitpack uses 13 MB for the trigram representation vs the ~102 MB int8 footprint that triggered the crash.
 
-*Single-line takeaway: cycle-13 #07f-pre commits the test (this doc), cycle-13 #07f-run runs the experiment and appends the verdict (next commit). The predicate constrains the verdict; the verdict constrains cycle-14 Layer-5 framing.*
+### 7.1 Run summary
+
+- Corpus: 22k Tier-2 (21734 fragments from `data/corpus_raw/`)
+- Trigrams extracted: **420826** unique (5× the bitpack design's ~80k estimate — finding worth carrying into cycle-14 corpus planning + the full-corpus packed run)
+- Sub-sample: **10000** trigrams (random, seed=42); ~3× cycle-11 MVP scale
+- Encoder: `CharNgramHashEncoder(D=10240)` (post-#07c default)
+- k-means: bitpack path; **k=20, min_density=5, max_iters=30, seed=42** (matches predicate §4); converged or halted in `12.4s`
+
+### 7.2 Per-cluster classification
+
+| Cluster | N | Centroid trigram | Centroid shell | Modal shell | % match | Classification |
+|---:|---:|---|---|---|---:|---|
+| #00 | 541 | `of men of` | — | X of Y | 38% | **FREQUENCY-RANKED** |
+| #01 | 272 | `would be made` | — | X a Y | 2% | **FREQUENCY-RANKED** |
+| #02 | 321 | `have had either` | X had Y | X had Y | 12% | **FREQUENCY-RANKED** |
+| #03 | 604 | `the rest their` | — | X of Y | 11% | **FREQUENCY-RANKED** |
+| #04 | 1207 | `the sky the` | — | X the Y | 33% | **FREQUENCY-RANKED** |
+| #05 | 368 | `this with his` | X with Y | X of Y | 5% | **FREQUENCY-RANKED** |
+| #06 | 243 | `so have some` | — | X a Y | 3% | **FREQUENCY-RANKED** |
+| #07 | 360 | `this is not` | X is Y | X is Y | 22% | **FREQUENCY-RANKED** |
+| #08 | 444 | `before there are` | — | X were Y | 8% | **FREQUENCY-RANKED** |
+| #09 | 419 | `affection and inclination` | X and Y | X of Y | 8% | **FREQUENCY-RANKED** |
+| #10 | 313 | `see with the` | X with Y | X with Y | 22% | **FREQUENCY-RANKED** |
+| #11 | 316 | `was sixteen was` | — | X was Y | 17% | **FREQUENCY-RANKED** |
+| #12 | 469 | `that this that` | — | X the Y | 3% | **FREQUENCY-RANKED** |
+| #13 | 837 | `or small which` | — | X a Y | 6% | **FREQUENCY-RANKED** |
+| #14 | 484 | `being a starting` | X a Y | X a Y | 4% | **FREQUENCY-RANKED** |
+| #15 | 227 | `the thought that` | — | X the Y | 3% | **FREQUENCY-RANKED** |
+| #16 | 465 | `her but her` | X but Y | X a Y | 3% | **FREQUENCY-RANKED** |
+| #17 | 1108 | `and hands and` | — | X and Y | 34% | **FREQUENCY-RANKED** |
+| #18 | 591 | `to be too` | — | X to Y | 36% | **FREQUENCY-RANKED** |
+| #19 | 411 | `pumpkin in the` | X in Y | X in Y | 25% | **FREQUENCY-RANKED** |
+
+### 7.3 Sample members per cluster (top-5 closest to centroid)
+
+**Cluster #00** (FREQUENCY-RANKED, modal `X of Y` at 38%):
+  - `of men of`
+  - `of most of`
+  - `of cliff of`
+  - `of spirit of`
+  - `feast of hera`
+
+**Cluster #01** (FREQUENCY-RANKED, modal `X a Y` at 2%):
+  - `would be made`
+  - `eyes would be`
+  - `sale would be`
+  - `which could be`
+  - `should be such`
+
+**Cluster #02** (FREQUENCY-RANKED, modal `X had Y` at 12%):
+  - `have had either`
+  - `i have a`
+  - `they have a`
+  - `even i have`
+  - `have hardly thought`
+
+**Cluster #03** (FREQUENCY-RANKED, modal `X of Y` at 11%):
+  - `the rest their`
+  - `of the b`
+  - `they do them`
+  - `of the others`
+  - `they lose their`
+
+**Cluster #04** (FREQUENCY-RANKED, modal `X the Y` at 33%):
+  - `the sky the`
+  - `the city the`
+  - `the plant the`
+  - `the simple the`
+  - `the grass the`
+
+**Cluster #05** (FREQUENCY-RANKED, modal `X of Y` at 5%):
+  - `this with his`
+  - `is just this`
+  - `knew this is`
+  - `till this is`
+  - `this is what`
+
+**Cluster #06** (FREQUENCY-RANKED, modal `X a Y` at 3%):
+  - `so have some`
+  - `him some sort`
+  - `come so far`
+  - `some to be`
+  - `in some cases`
+
+**Cluster #07** (FREQUENCY-RANKED, modal `X is Y` at 22%):
+  - `this is not`
+  - `rest is not`
+  - `love is not`
+  - `is not yet`
+  - `house is not`
+
+**Cluster #08** (FREQUENCY-RANKED, modal `X were Y` at 8%):
+  - `before there are`
+  - `as there are`
+  - `therefore they are`
+  - `are here re`
+  - `there are moods`
+
+**Cluster #09** (FREQUENCY-RANKED, modal `X of Y` at 8%):
+  - `affection and inclination`
+  - `deliberation all prosecution`
+  - `selection on the`
+  - `probation and admission`
+  - `her agitation on`
+
+**Cluster #10** (FREQUENCY-RANKED, modal `X with Y` at 22%):
+  - `see with the`
+  - `thou with mine`
+  - `minds with the`
+  - `with and the`
+  - `in with a`
+
+**Cluster #11** (FREQUENCY-RANKED, modal `X was Y` at 17%):
+  - `was sixteen was`
+  - `say theras was`
+  - `was leonidas a`
+  - `as fries has`
+  - `asia was the`
+
+**Cluster #12** (FREQUENCY-RANKED, modal `X the Y` at 3%):
+  - `that this that`
+  - `that work that`
+  - `that at this`
+  - `that more than`
+  - `that if the`
+
+**Cluster #13** (FREQUENCY-RANKED, modal `X a Y` at 6%):
+  - `or small which`
+  - `or for very`
+  - `for a whole`
+  - `or which almost`
+  - `for heaven which`
+
+**Cluster #14** (FREQUENCY-RANKED, modal `X a Y` at 4%):
+  - `being a starting`
+  - `being is trying`
+  - `not bring anything`
+  - `ringing ringing ringing`
+  - `praising things corroborating`
+
+**Cluster #15** (FREQUENCY-RANKED, modal `X the Y` at 3%):
+  - `the thought that`
+  - `for the thought`
+  - `the pond though`
+  - `the pear though`
+  - `though the place`
+
+**Cluster #16** (FREQUENCY-RANKED, modal `X a Y` at 3%):
+  - `her but her`
+  - `on her mother`
+  - `mother sickened her`
+  - `her face her`
+  - `father who forever`
+
+**Cluster #17** (FREQUENCY-RANKED, modal `X and Y` at 34%):
+  - `and hands and`
+  - `and saw and`
+  - `and legs and`
+  - `and jane and`
+  - `and bread and`
+
+**Cluster #18** (FREQUENCY-RANKED, modal `X to Y` at 36%):
+  - `to be too`
+  - `to betray too`
+  - `to carry into`
+  - `on it to`
+  - `lands to be`
+
+**Cluster #19** (FREQUENCY-RANKED, modal `X in Y` at 25%):
+  - `pumpkin in the`
+  - `pain and in`
+  - `ruin in the`
+  - `interest in me`
+  - `in the increase`
+
+### 7.4 Aggregate verdict
+
+- Surfaced primitives (clusters ≥ 5 members): **20** of 20 (rejected: 0)
+- STRUCTURAL clusters (P1 ≥ 40% AND P2 centroid agreement): **0**
+- FREQUENCY-RANKED clusters: **20**
+- Structural percentage: **0%**
+- Canonical-doc Layer 5 verdict per §1 predicate: **NOT VALIDATED** (≥60% STRONG / 30-60% PARTIAL / <30% NOT)
+
+### 7.5 Honest reading
+
+The 0% structural-cluster outcome lands in the **NOT VALIDATED** band. Cycle-14 framing fork per §6:
+
+Layer 5 NOT VALIDATED at this scale. The cycle-11 MVP "X is Y" finding does NOT generalize from ~3k trigrams to 10000 trigrams; the clusters that emerge are dominated by frequency-rank function-word co-occurrence, NOT structural shells. Cycle-14 canonical-doc reframing per audit C3: rewrite Layer 5 as "trigram pattern mining," reserve "variable-binding primitive induction" for future work requiring different machinery (role-filler binding clusters, longer n-grams + dependency parsing, semantic encoder).
+
+### 7.6 Sub-sample caveat
+
+The run used a random sub-sample of 10000 trigrams (seed=42) from the full 420826 unique trigrams. The bitpack path made this RAM-safe (13 MB vs the ~102 MB int8 footprint that crashed WSL on the prior attempt). The full 420826-trigram run remains cycle-14 work — needs `discover_primitives(packed=True)` integrated into the library module (currently the bitpack path lives only in this script). The sub-sample is reproducible (seed=42) and is ~3× the cycle-11 MVP scale; clustering distributional properties are sub-sample-stable, so the cycle-14 full-corpus re-run is not expected to shift the structural percentage dramatically.
+
+### 7.7 Predicate immutability
+
+§§1-6 of this doc were committed at hash `0b89101` BEFORE this run. The result block (§7) is appended in a SEPARATE commit. Git history is the audit trail: the predicate cannot be retro-edited to fit the data. If a reader doubts a verdict, they can compare §§1-6 at `0b89101` against §§1-6 at the current commit; any divergence would be the post-hoc edit the pre-registration was designed to forbid.
+
