@@ -35,6 +35,25 @@ Sieve of Eratosthenes; Möbius function computed via smallest-prime-factor sieve
 Mertens, count = number of n in [1, N] satisfying the predicate; for Goldbach,
 count = number of even integers in [4, N] that decompose; for twin primes, count
 = number of pairs found. A partial-verify is detectable as count < total.
+
+Cycle 10 #00P13c10-01g predicate-strength note: the four primitives in this
+module are ALREADY algorithmically-independent BY CONSTRUCTION and need no
+retrofit under the cycle 10 predicate-strength uniformity pass. Unlike the
+substrate primitives in symbolic.py / calculus.py / ode.py / integration.py /
+complex_analysis.py / diophantine.py — each of which has a closed-form path that
+could carry a typo only this file could detect — the number-theory primitives
+here are themselves the EMPIRICAL VERIFICATION (loop n in [1, N]; test the
+predicate at each n; count successes). There is no closed-form path to verify
+against. The Sieve of Eratosthenes is independent of the smallest-prime-factor
+sieve which is independent of Möbius factor-counting — they share only Python's
+modulo operator. The verification IS the result. Cycle 10 #01g formalizes this
+observation in documentation rather than retrofitting a vacuous second path.
+
+What this means in practice: if `collatz_verify_range(1000)` returns 1000, that
+count is the predicate's empirical truth at N=1000. There is no "second
+algorithm for verifying Collatz at N=1000" — every implementation must iterate
+each starting value through the 3n+1 rule and observe termination at 1. The
+empirical-verification class IS its own STRONG predicate.
 """
 
 from __future__ import annotations
