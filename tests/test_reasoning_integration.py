@@ -217,3 +217,89 @@ def test_integration_substrate_thesis_compliant():
     ]
     for token in forbidden:
         assert token not in source, f"integration.py imports forbidden token '{token}'"
+
+
+# --- Cycle 10 #01f — midpoint Riemann sum STRONG verifier across all 4 primitives ---
+
+
+def test_riemann_helper_shared_callable():
+    """_midpoint_riemann accepts a callable + bounds + N; pure numerical quadrature."""
+    from project_x.reasoning.integration import _midpoint_riemann
+    # ∫_0^1 x dx = 0.5 (linear integrand)
+    result = _midpoint_riemann(lambda x: x, 0.0, 1.0)
+    assert abs(result - 0.5) < 1e-9
+    # ∫_0^π sin(x) dx = 2 (trig integrand)
+    result = _midpoint_riemann(lambda x: math.sin(x), 0.0, math.pi)
+    assert abs(result - 2.0) < 1e-6
+
+
+def test_riemann_invariant_fires_on_x_times_exp():
+    """The cycle 10 #01f Riemann invariant fires + holds on definite_integral_x_times_exp."""
+    lemma = definite_integral_x_times_exp(0.0, 1.0, c=1.0)
+    riemann_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Riemann" in inv.predicate
+    ]
+    assert len(riemann_invariants) == 1
+    assert riemann_invariants[0].holds
+
+
+def test_riemann_invariant_fires_on_x_times_sin():
+    """The cycle 10 #01f Riemann invariant fires + holds on x_times_sin."""
+    lemma = definite_integral_x_times_sin(0.0, math.pi, c=1.0)
+    riemann_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Riemann" in inv.predicate
+    ]
+    assert len(riemann_invariants) == 1
+    assert riemann_invariants[0].holds
+
+
+def test_riemann_invariant_fires_on_x_times_cos():
+    """The cycle 10 #01f Riemann invariant fires + holds on x_times_cos."""
+    lemma = definite_integral_x_times_cos(0.0, math.pi, c=1.0)
+    riemann_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Riemann" in inv.predicate
+    ]
+    assert len(riemann_invariants) == 1
+    assert riemann_invariants[0].holds
+
+
+def test_riemann_invariant_fires_on_xtrig_usub_sin():
+    """The cycle 10 #01f Riemann invariant fires + holds on xtrig_via_usub (sin variant)."""
+    lemma = definite_integral_xtrig_via_usub(0.0, 1.0, "sin")
+    riemann_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Riemann" in inv.predicate
+    ]
+    assert len(riemann_invariants) == 1
+    assert riemann_invariants[0].holds
+
+
+def test_riemann_invariant_fires_on_xtrig_usub_cos():
+    """The cycle 10 #01f Riemann invariant fires + holds on xtrig_via_usub (cos variant).
+    Canonical: ∫_0^√π x·cos(x²) dx = 0 (sin(π)/2 - sin(0)/2 = 0)."""
+    lemma = definite_integral_xtrig_via_usub(0.0, math.sqrt(math.pi), "cos")
+    riemann_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Riemann" in inv.predicate
+    ]
+    assert len(riemann_invariants) == 1
+    assert riemann_invariants[0].holds
+
+
+def test_riemann_invariant_defense_in_depth_parts_primitives():
+    """Parts primitives carry TWO independent invariants now: parts-identity + Riemann.
+    Both should hold across canonical inputs."""
+    for fn, c, lo, hi in [
+        (definite_integral_x_times_exp, 1.0, 0.0, 1.0),
+        (definite_integral_x_times_sin, 1.0, 0.0, math.pi),
+        (definite_integral_x_times_cos, 1.0, 0.0, math.pi),
+    ]:
+        lemma = fn(lo, hi, c=c)
+        assert len(lemma.invariant_checks) == 2, (
+            f"{fn.__name__}: expected 2 invariants (parts-identity + Riemann), "
+            f"got {len(lemma.invariant_checks)}"
+        )
+        assert all(inv.holds for inv in lemma.invariant_checks)

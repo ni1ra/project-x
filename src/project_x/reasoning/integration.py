@@ -32,8 +32,36 @@ substitution, iterated parts, etc.
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 from project_x.reasoning.symbolic import Lemma
+
+
+# Cycle 10 #01f shared helper — algorithmically-independent verifier for each
+# integration primitive. Midpoint Riemann sum evaluates the integrand directly at
+# N midpoints; never references the closed-form antiderivative or the parts/u-sub
+# derivation. A typo in the antiderivative-formula path would NOT propagate to the
+# Riemann sum. For smooth integrands (x·e^cx, x·sin(cx), x·cos(cx), x·sin(x²),
+# x·cos(x²)) on bounded intervals with N=10000, midpoint-rule error is O(h²) and
+# well under 1e-6, easily within Lemma.tolerance=0.001. The parts primitives ALSO
+# carry an algorithmically-independent parts-identity invariant (recomputes ∫ v du
+# independently); the Riemann sum is defense-in-depth there — a second independent
+# path. The u-substitution primitive had only a tautological change-of-variables
+# check before cycle 10; Riemann is its first STRONG verifier.
+def _midpoint_riemann(integrand: Callable[[float], float], lower: float, upper: float, *, N: int = 10000) -> float:
+    """Composite midpoint Riemann sum on a callable integrand.
+
+    Discretizes [lower, upper] into N equal subintervals; evaluates the callable
+    at each subinterval midpoint; accumulates with weight Δx = (upper − lower)/N.
+    Pure numerical quadrature — does not reference any closed-form antiderivative
+    or symbolic-integration step. Used as the STRONG cross-check across all four
+    integration primitives in this module.
+    """
+    dx = (upper - lower) / N
+    total = 0.0
+    for i in range(N):
+        total += integrand(lower + (i + 0.5) * dx)
+    return total * dx
 
 
 # ── Integration by parts: ∫ x·e^(c·x) dx ──────────────────────────────────────
@@ -164,6 +192,26 @@ def definite_integral_x_times_exp(
         ),
     )
 
+    # Cycle 10 #01f STRONG verifier (algorithmically-independent): midpoint Riemann
+    # sum on the original integrand x·e^(cx). Never touches the parts derivation,
+    # never builds an antiderivative, never invokes LIATE — pure direct evaluation
+    # at 10000 midpoints. Defense-in-depth on top of the parts-identity invariant.
+    riemann_integral = _midpoint_riemann(
+        lambda x, _c=c: x * math.exp(_c * x), lower, upper,
+    )
+    lemma.add_invariant_check(
+        predicate="midpoint Riemann sum N=10000 ≈ parts closed-form (algorithmically-independent STRONG verifier)",
+        expected_value=integral,
+        actual_value=riemann_integral,
+        justification=(
+            f"Riemann sum over [{lower}, {upper}] on integrand x·e^({c}·x): "
+            f"{riemann_integral}; parts closed-form: {integral}. Defense-in-depth — "
+            "the parts-identity invariant already provides one independent path; "
+            "Riemann provides a second, evaluating x·e^(cx) at midpoints with no "
+            "reference to antiderivative or LIATE."
+        ),
+    )
+
     return lemma
 
 
@@ -277,6 +325,21 @@ def definite_integral_x_times_sin(
         ),
     )
 
+    # Cycle 10 #01f STRONG verifier — midpoint Riemann on integrand x·sin(cx).
+    riemann_integral = _midpoint_riemann(
+        lambda x, _c=c: x * math.sin(_c * x), lower, upper,
+    )
+    lemma.add_invariant_check(
+        predicate="midpoint Riemann sum N=10000 ≈ parts closed-form (algorithmically-independent STRONG verifier)",
+        expected_value=integral,
+        actual_value=riemann_integral,
+        justification=(
+            f"Riemann sum over [{lower}, {upper}] on x·sin({c}·x): {riemann_integral}; "
+            f"parts closed-form: {integral}. Direct evaluation at 10000 midpoints, no "
+            "antiderivative or LIATE — independent of the primary path."
+        ),
+    )
+
     return lemma
 
 
@@ -380,6 +443,20 @@ def definite_integral_x_times_cos(
         justification=(
             "Parts identity recomposition. ∫ v du = ∫ sin(cx)/c dx = -cos(cx)/c² "
             "computed independently from primary derivation."
+        ),
+    )
+
+    # Cycle 10 #01f STRONG verifier — midpoint Riemann on integrand x·cos(cx).
+    riemann_integral = _midpoint_riemann(
+        lambda x, _c=c: x * math.cos(_c * x), lower, upper,
+    )
+    lemma.add_invariant_check(
+        predicate="midpoint Riemann sum N=10000 ≈ parts closed-form (algorithmically-independent STRONG verifier)",
+        expected_value=integral,
+        actual_value=riemann_integral,
+        justification=(
+            f"Riemann sum over [{lower}, {upper}] on x·cos({c}·x): {riemann_integral}; "
+            f"parts closed-form: {integral}. Direct midpoint evaluation, no antiderivative."
         ),
     )
 
@@ -502,6 +579,32 @@ def definite_integral_xtrig_via_usub(
             "u-substitution change-of-variables theorem. Computing the u-side integral "
             "directly should match the back-substituted x-side evaluation. Tautological "
             "under correct technique-application; catches transformation bugs."
+        ),
+    )
+
+    # Cycle 10 #01f STRONG verifier — midpoint Riemann on the ORIGINAL integrand
+    # x·sin(x²) or x·cos(x²) (depending on trig_fn). Never references the u=x²
+    # substitution, never converts bounds, never back-substitutes. Pure direct
+    # evaluation in the original x-variable. The cycle-9 u-substitution invariant
+    # above was tautological (both sides computed via the same path); Riemann is
+    # this primitive's first algorithmically-independent verifier.
+    if trig_fn == "sin":
+        riemann_integral = _midpoint_riemann(
+            lambda x: x * math.sin(x * x), lower, upper,
+        )
+    else:
+        riemann_integral = _midpoint_riemann(
+            lambda x: x * math.cos(x * x), lower, upper,
+        )
+    lemma.add_invariant_check(
+        predicate="midpoint Riemann sum N=10000 ≈ u-sub closed-form (algorithmically-independent STRONG verifier)",
+        expected_value=integral,
+        actual_value=riemann_integral,
+        justification=(
+            f"Riemann sum over [{lower}, {upper}] on x·{trig_fn}(x²): "
+            f"{riemann_integral}; u-sub closed-form: {integral}. The Riemann path "
+            "evaluates the original integrand at midpoints in the x-variable with "
+            "no substitution; completely independent of the u=x² technique."
         ),
     )
 
