@@ -44,6 +44,7 @@ from project_x.corpus.natural_mode import (
     NaturalWalkResult,
 )
 from project_x.experiments.encoder import cosine_bipolar
+from project_x.hdc_infra import blend_score
 
 
 @dataclass
@@ -203,7 +204,14 @@ class KRolloutComposer:
             best_idx = -1
             best_sim = -2.0
             for idx in candidate_indices:
-                sim = cosine_bipolar(score_against, c._fragment_hvs[idx])
+                cosine_sim = cosine_bipolar(score_against, c._fragment_hvs[idx])
+                # Cycle-14 #08c — blend reward-shaped lookup. Bank lives on
+                # the underlying NaturalModeComposer; cold-start blend is
+                # identity → cycle-13 baseline preserved.
+                fragment_text = c._tagged[idx][1]
+                sim = blend_score(
+                    c._hebbian_bank, cosine_sim, prompt, fragment_text,
+                )
                 if sim > best_sim:
                     best_sim = sim
                     best_idx = idx

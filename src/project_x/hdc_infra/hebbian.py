@@ -233,3 +233,42 @@ class HebbianBank:
         )
         bank._bank = data["bank"]
         return bank
+
+
+# Blend-alpha denominator: the number of bank entries at which alpha hits 1.0.
+# Cycle-14 v0 default = 100; cycle-15+ calibration sweep tunes this against
+# the rated audit log. Smaller value = faster transition from static-cosine
+# to reward-shaped retrieval; larger = more conservative ramp.
+_BLEND_ALPHA_DENOMINATOR = 100.0
+
+
+def blend_score(
+    bank: "HebbianBank | None",
+    cosine_sim: float,
+    prompt: str,
+    fragment_text: str,
+) -> float:
+    """Blend static-encoder cosine with HebbianBank reward-shaped lookup.
+
+    Cycle-14 #08c — the retrieval-side half of the strict-strict-thesis ship:
+
+        final_score = (1 - alpha) * cosine_sim + alpha * bank.lookup_for(prompt, fragment)
+        alpha = min(1.0, bank.entry_count / _BLEND_ALPHA_DENOMINATOR)
+
+    Cold-start contract (empty bank) → alpha = 0 → final_score = cosine_sim
+    (cycle-13 baseline preserved EXACTLY). As ratings accumulate via the
+    audit-rating wire (cycle-14 #08b), the bank populates; alpha grows; the
+    blended ranking shifts toward reward-shaped retrievals.
+
+    Designed to be cheap: O(1) per call, single dict-lookup + scalar arithmetic.
+    Safe to invoke in tight retrieval inner-loops.
+
+    `bank=None` returns `cosine_sim` unchanged — explicit opt-out for
+    test-environment fallbacks or components that don't want substrate
+    learning yet.
+    """
+    if bank is None or bank.entry_count() == 0:
+        return cosine_sim
+    alpha = min(1.0, bank.entry_count() / _BLEND_ALPHA_DENOMINATOR)
+    hebbian_score = bank.lookup_for(prompt, fragment_text)
+    return (1.0 - alpha) * cosine_sim + alpha * hebbian_score

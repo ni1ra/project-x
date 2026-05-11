@@ -51,6 +51,7 @@ from project_x.corpus.mini_seed import (
     POETRY_FRAGMENTS,
 )
 from project_x.experiments.encoder import CharNgramHashEncoder, cosine_bipolar
+from project_x.hdc_infra import HebbianBank, blend_score
 
 
 # Cycle 12 #00P13c12-01b Tier-2 corpus ingestion — at-import-time, attempt to
@@ -153,7 +154,28 @@ class NaturalModeComposer:
       - `available_domains` (property): list of corpus tags.
     """
 
-    def __init__(self, include_ingested: bool = True) -> None:
+    # Cycle-14 #08c — Hebbian-bank persistence path for the retrieval blend.
+    # Lives next to the audit log's default bank path so both halves of the
+    # reward loop (audit-write at #08b + retrieval-read at #08c) share state.
+    _DEFAULT_HEBBIAN_BANK_FILE = (
+        Path(__file__).resolve().parents[3] / "data" / "hebbian_bank" / "main.pkl"
+    )
+
+    def __init__(
+        self,
+        include_ingested: bool = True,
+        hebbian_bank: HebbianBank | None = None,
+        hebbian_bank_path: Path | str | None = None,
+    ) -> None:
+        """Construct the composer.
+
+        Cycle-14 #08c retrieval-blend knobs:
+          - `hebbian_bank=None` + `hebbian_bank_path=None` (defaults): lazy-load
+            from `data/hebbian_bank/main.pkl`. Missing file → empty bank → α=0
+            → cycle-13 baseline preserved.
+          - `hebbian_bank=<instance>` overrides loading entirely (test isolation).
+          - `hebbian_bank_path=<path>` overrides the load location (test isolation).
+        """
         # Collect all fragments with a domain tag for filtering.
         # (domain_tag, fragment_text, source)
         self._tagged: list[tuple[str, str, str]] = []
@@ -181,6 +203,20 @@ class NaturalModeComposer:
         self._encoder = CharNgramHashEncoder()
         all_texts = [t[1] for t in self._tagged]
         self._fragment_hvs = self._encoder.encode(all_texts)  # (N, D) int8 bipolar
+
+        # Cycle-14 #08c — HebbianBank reference for retrieval-blend. Loaded
+        # once at construction; updates from the audit-rating wire (#08b)
+        # land on disk and would only be picked up by composer instances
+        # constructed AFTER the write (acceptable at cycle-14 rating volume).
+        if hebbian_bank is not None:
+            self._hebbian_bank = hebbian_bank
+        else:
+            bank_path = (
+                Path(hebbian_bank_path)
+                if hebbian_bank_path is not None
+                else self._DEFAULT_HEBBIAN_BANK_FILE
+            )
+            self._hebbian_bank = HebbianBank.load(bank_path)
 
     @property
     def available_domains(self) -> list[str]:
@@ -239,11 +275,18 @@ class NaturalModeComposer:
         for step in range(max_fragments):
             if not candidate_indices:
                 break
-            # Score all remaining candidates by cosine similarity to current context.
+            # Score all remaining candidates by cosine similarity to current context,
+            # blended with the HebbianBank's reward-shaped lookup (cycle-14 #08c).
+            # Cold-start bank → blend_score returns cosine unchanged → cycle-13
+            # baseline preserved exactly.
             best_idx = -1
             best_sim = -2.0  # cosine is in [-1, 1]; init below any real value
             for idx in candidate_indices:
-                sim = cosine_bipolar(context_hv, self._fragment_hvs[idx])
+                cosine_sim = cosine_bipolar(context_hv, self._fragment_hvs[idx])
+                fragment_text = self._tagged[idx][1]
+                sim = blend_score(
+                    self._hebbian_bank, cosine_sim, prompt, fragment_text,
+                )
                 if sim > best_sim:
                     best_sim = sim
                     best_idx = idx

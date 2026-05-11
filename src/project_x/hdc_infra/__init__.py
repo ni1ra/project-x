@@ -23,7 +23,7 @@ from project_x.hdc_infra.bitpack import (
     pack_bipolar,
     unpack_bipolar,
 )
-from project_x.hdc_infra.hebbian import HebbianBank
+from project_x.hdc_infra.hebbian import HebbianBank, blend_score
 
 __all__ = [
     "PACK_DTYPE",
@@ -31,4 +31,5 @@ __all__ = [
     "pack_bipolar",
     "unpack_bipolar",
     "HebbianBank",
+    "blend_score",
 ]
