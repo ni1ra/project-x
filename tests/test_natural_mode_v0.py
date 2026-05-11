@@ -46,6 +46,7 @@ def test_composer_loads_and_exposes_domains(composer: NaturalModeComposer):
     assert composer.available_domains == [
         "all", "poetry", "philosophy", "math", "lain_voice",
         "narrative_prose", "general",
+        "epic_poetry", "eastern_philosophy", "science", "economics", "history",
     ]
 
 

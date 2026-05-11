@@ -232,6 +232,7 @@ def ingest_corpus_dir(
 # Used by `scripts/fetch_corpus.py` to download + tag; ingestion pipeline reads
 # this when wiring into the NaturalModeComposer's corpus loader.
 INGESTION_MANIFEST: dict[str, str] = {
+    # Cycle 12 #01b initial 10
     "pride_and_prejudice.txt":
         "Austen Pride and Prejudice (Project Gutenberg #1342; public domain)",
     "walden.txt":
@@ -252,4 +253,29 @@ INGESTION_MANIFEST: dict[str, str] = {
         "Carroll Alice's Adventures in Wonderland (Project Gutenberg #11; public domain)",
     "shakespeare_complete_sonnets.txt":
         "Shakespeare Complete Sonnets (Project Gutenberg #1041; public domain)",
+    # Cycle 12 #01c — broaden across more domains
+    "nicomachean_ethics.txt":
+        "Aristotle Nicomachean Ethics (Project Gutenberg #8438; public domain translation)",
+    "art_of_war.txt":
+        "Sun Tzu The Art of War (Project Gutenberg #132; public domain translation)",
+    "bhagavad_gita.txt":
+        "Bhagavad Gita (Project Gutenberg #2388; public domain translation)",
+    "consolation_of_philosophy.txt":
+        "Boethius Consolation of Philosophy (Project Gutenberg #14328; public domain)",
+    "wealth_of_nations.txt":
+        "Adam Smith Wealth of Nations (Project Gutenberg #3300; public domain)",
+    "origin_of_species.txt":
+        "Darwin On the Origin of Species (Project Gutenberg #1228; public domain)",
+    "emerson_essays.txt":
+        "Emerson Essays First Series (Project Gutenberg #2945; public domain)",
+    "paradise_lost.txt":
+        "Milton Paradise Lost (Project Gutenberg #20; public domain)",
+    "divine_comedy.txt":
+        "Dante Divine Comedy (Project Gutenberg #1004; Longfellow translation public domain)",
+    "plutarchs_lives.txt":
+        "Plutarch Plutarch's Lives (Project Gutenberg #14140; public domain translation)",
+    "herodotus_histories.txt":
+        "Herodotus The Histories (Project Gutenberg #2707; public domain translation)",
+    "analects_confucius.txt":
+        "Confucius The Analects (Project Gutenberg #3330; public domain translation)",
 }

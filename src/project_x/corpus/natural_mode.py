@@ -65,13 +65,30 @@ _INGESTED_CORPUS_DIR = _REPO_ROOT / "data" / "corpus_raw"
 
 
 def _classify_domain(source_tag: str) -> str:
-    """Heuristic source-tag → domain mapping for Tier-2 ingested fragments."""
+    """Heuristic source-tag → domain mapping for Tier-2 ingested fragments.
+
+    Cycle 12 #01c added new domain tags: science (Darwin / James / etc.),
+    economics (Smith), epic_poetry (Milton / Dante), history (Herodotus /
+    Plutarch), eastern_philosophy (Sun Tzu / Bhagavad Gita / Confucius).
+    """
     s = source_tag.lower()
     if any(kw in s for kw in ("shakespeare", "whitman", "leaves of grass", "sonnets")):
         return "poetry"
+    if any(kw in s for kw in ("milton", "paradise lost", "dante", "divine comedy")):
+        return "epic_poetry"
     if any(kw in s for kw in ("aurelius", "lao tzu", "tao te ching", "republic", "plato",
-                              "meditations")):
+                              "meditations", "aristotle", "nicomachean", "boethius",
+                              "consolation of philosophy", "emerson", "essays")):
         return "philosophy"
+    if any(kw in s for kw in ("sun tzu", "art of war", "bhagavad", "gita", "confucius",
+                              "analects")):
+        return "eastern_philosophy"
+    if any(kw in s for kw in ("darwin", "origin of species", "james principles")):
+        return "science"
+    if any(kw in s for kw in ("adam smith", "wealth of nations")):
+        return "economics"
+    if any(kw in s for kw in ("herodotus", "histories", "plutarch", "lives")):
+        return "history"
     if any(kw in s for kw in ("austen", "dickens", "shelley", "frankenstein", "carroll",
                               "alice", "tale of two cities", "pride and prejudice", "walden",
                               "thoreau")):
@@ -166,10 +183,10 @@ class NaturalModeComposer:
 
     @property
     def available_domains(self) -> list[str]:
-        # 4 original mini_seed domains + 2 new from Tier-2 ingestion
-        # (narrative_prose for novels; general fallback)
+        # Mini-seed domains + Tier-2 ingestion domains (cycle 12 #01b + #01c)
         return ["all", "poetry", "philosophy", "math", "lain_voice",
-                "narrative_prose", "general"]
+                "narrative_prose", "general",
+                "epic_poetry", "eastern_philosophy", "science", "economics", "history"]
 
     def _filtered_indices(self, domain: str) -> list[int]:
         """Return indices into `self._tagged` matching the domain filter."""

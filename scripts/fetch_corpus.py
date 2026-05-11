@@ -49,6 +49,7 @@ _CORPUS_DIR = Path(__file__).resolve().parents[1] / "data" / "corpus_raw"
 # Primary URL: https://www.gutenberg.org/cache/epub/<id>/pg<id>.txt
 # Fallback URL: https://www.gutenberg.org/files/<id>/<id>-0.txt
 _GUTENBERG_FETCHES: list[tuple[str, int]] = [
+    # Cycle-12 #01b initial 10 (philosophy / narrative / poetry)
     ("pride_and_prejudice.txt", 1342),
     ("walden.txt", 205),
     ("leaves_of_grass.txt", 1322),
@@ -59,6 +60,21 @@ _GUTENBERG_FETCHES: list[tuple[str, int]] = [
     ("frankenstein.txt", 84),
     ("alice_in_wonderland.txt", 11),
     ("shakespeare_complete_sonnets.txt", 1041),
+    # Cycle-12 #01c — broaden across more domains: economics / science /
+    # psychology / epic poetry / history / biography / Eastern philosophy /
+    # American philosophy / classical ethics / medieval philosophy.
+    ("nicomachean_ethics.txt", 8438),           # Aristotle (translation public domain)
+    ("art_of_war.txt", 132),                    # Sun Tzu
+    ("bhagavad_gita.txt", 2388),                # Translation public domain
+    ("consolation_of_philosophy.txt", 14328),   # Boethius
+    ("wealth_of_nations.txt", 3300),            # Adam Smith
+    ("origin_of_species.txt", 1228),            # Darwin
+    ("emerson_essays.txt", 2945),               # Emerson Essays first series
+    ("paradise_lost.txt", 20),                  # Milton
+    ("divine_comedy.txt", 1004),                # Dante (Longfellow translation pd)
+    ("plutarchs_lives.txt", 14140),             # Plutarch Lives
+    ("herodotus_histories.txt", 2707),          # Herodotus
+    ("analects_confucius.txt", 3330),           # Confucius Analects
 ]
 
 
