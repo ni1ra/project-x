@@ -45,6 +45,7 @@ from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
 import numpy as np
 
+from project_x.corpus.k_rollout import KRolloutComposer
 from project_x.corpus.natural_mode import NaturalModeComposer
 from project_x.experiments.encoder import CharNgramHashEncoder, cosine_bipolar
 from project_x.reasoning.diophantine import solve_binary_quadratic, solve_pell_equation
@@ -975,16 +976,28 @@ class ReasoningAgent:
         }
         return top_response
 
-    # Class-level lazy singleton for the composer (encoding 100+ fragments
-    # takes a few milliseconds; we cache it so test suites + repeated agent
-    # invocations don't re-encode).
+    # Class-level lazy singletons. Encoding 100+ fragments takes a few
+    # milliseconds; cache them so test suites + repeated agent invocations
+    # don't re-encode. `_natural_mode_composer` is the single-walk v0;
+    # `_k_rollout_composer` wraps it with try-until-satisfied K-rollout
+    # iteration per cycle 11 #00P13c11-03.
     _natural_mode_composer: NaturalModeComposer | None = None
+    _k_rollout_composer: KRolloutComposer | None = None
+
+    # K-rollout dispatch parameters (cycle 11 #00P13c11-04 integration). v1
+    # tau_satisfaction floor is honest; cycle-11+ empirical calibration.
+    _K_ROLLOUT_K: int = 3
+    _K_ROLLOUT_TAU: float = 0.0  # accept any rollout above 0.0; v1 lets
+    # the BG-dispatcher's tau_dispatch handle higher-level refusal. Setting
+    # tau_satisfaction > 0 here would gate natural-mode dispatch on
+    # avg-similarity quality; deferred to cycle-11+ calibration.
 
     def _try_natural_mode(self, prompt: str) -> AgentResponse | None:
-        """v0 natural-mode HDC walk dispatcher (cycle 11 #00P13c11-DEMO).
+        """Natural-mode K-rollout dispatcher (cycle 11 #00P13c11-DEMO + #03 + #04).
 
         Routes poetry / philosophy / open-conjecture / lain-voice prompts to
-        the `NaturalModeComposer`. Honest M-PROJECTX-013 framing: the agent
+        the `KRolloutComposer` (K=3 rollouts with bind/bundle/greedy strategies;
+        best-satisfied wins). Honest M-PROJECTX-013 framing: the agent
         retrieves and composes existing public-domain or project-authored
         fragments by HDC cosine similarity; it does NOT generate novel text.
         Provenance trail per emitted fragment.
@@ -992,19 +1005,38 @@ class ReasoningAgent:
         Conservative trigger gate (`_classify_natural_mode_domain`) prevents
         this branch from claiming structured math / physics prompts that
         precede it in the dispatch chain.
+
+        Cycle 11 #00P13c11-04 integration: replaces the cycle-11 #DEMO single-
+        walk path with K-rollout iteration. If all K rollouts fail to clear
+        `_K_ROLLOUT_TAU`, returns AgentResponse(confidence='refused') with
+        the K-rollout's honest-refusal text. v1 tau=0.0 makes refusal rare;
+        cycle-11+ calibration could raise the floor.
         """
         domain = _classify_natural_mode_domain(prompt)
         if domain is None:
             return None
-        if ReasoningAgent._natural_mode_composer is None:
-            ReasoningAgent._natural_mode_composer = NaturalModeComposer()
-        result = ReasoningAgent._natural_mode_composer.compose(
+        if ReasoningAgent._k_rollout_composer is None:
+            ReasoningAgent._k_rollout_composer = KRolloutComposer()
+        result = ReasoningAgent._k_rollout_composer.compose(
             prompt=prompt, domain=domain, max_fragments=5,
+            k=self._K_ROLLOUT_K, tau_satisfaction=self._K_ROLLOUT_TAU,
         )
+        if result.chosen_strategy is None:
+            # All K rollouts fell below tau_satisfaction → honest refusal
+            return AgentResponse(
+                domain="open_domain",
+                problem_shape=f"natural_mode_k_rollout_refused_{domain}",
+                parsed_inputs={"domain_filter": domain, "k": self._K_ROLLOUT_K,
+                               "tau_satisfaction": self._K_ROLLOUT_TAU},
+                lemma=None,
+                answer_text=result.render(),
+                confidence="refused",
+            )
         return AgentResponse(
             domain="open_domain",
             problem_shape=f"natural_mode_walk_{domain}",
-            parsed_inputs={"domain_filter": domain, "max_fragments": 5},
+            parsed_inputs={"domain_filter": domain, "k": self._K_ROLLOUT_K,
+                           "chosen_strategy": result.chosen_strategy},
             lemma=None,
             answer_text=result.render(),
             confidence="provenance-traced",
