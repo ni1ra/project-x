@@ -44,6 +44,47 @@ import math
 from project_x.reasoning.symbolic import Lemma
 
 
+# Predicate-strength note (cycle 10 #01a): for the symmetric (a=c=1, b=0) case —
+# the canonical sum-of-two-squares Diophantine — Jacobi's two-squares formula
+# r_2(N) = 4·(d_1(N) − d_3(N)) provides an algorithmically-independent STRONG
+# verifier (divisor counting, not geometric brute-force). For the general
+# positive-definite case (asymmetric coefficients or non-zero cross term), no
+# closed-form counting formula exists at this substrate level; cycle 11+
+# candidates are Gauss reduction to canonical class form, or Brandt-Eichler
+# theta-series coefficient extraction. The form-parity + D₄ invariants remain
+# the best-available checks for general positive-definite forms — they catch
+# enumeration symmetry violations but not bound-formula or equation-form bugs.
+def _two_squares_via_jacobi(N: int) -> int:
+    """Jacobi's two-squares formula: r₂(N) = 4·(d₁(N) − d₃(N)).
+
+    Counts integer solutions (x, y) to x² + y² = N including sign and order
+    permutations. d_k(N) counts positive divisors of N congruent to k mod 4.
+    Edge cases: N=0 → 1 (just (0,0)); N<0 → 0.
+
+    Algorithmically independent from the brute-force rectangle scan: this
+    function never enumerates (x, y) pairs and never evaluates Q(x, y) — it
+    operates purely in the integer-factorization / mod-4 lattice. Used as a
+    STRONG invariant_check for the symmetric a=c=1, b=0 case.
+    """
+    if N < 0:
+        return 0
+    if N == 0:
+        return 1
+    d1 = 0
+    d3 = 0
+    # Trial division to enumerate divisors. O(N) here; for the small-N
+    # ladder regime this is well under a millisecond. Switching to
+    # O(√N) factor-pair enumeration is a cycle-11+ optimization.
+    for d in range(1, N + 1):
+        if N % d == 0:
+            r = d % 4
+            if r == 1:
+                d1 += 1
+            elif r == 3:
+                d3 += 1
+    return 4 * (d1 - d3)
+
+
 INTRO_BINARY_QUADRATIC_DIOPHANTINE = (
     "A binary quadratic form Q(x, y) = a·x² + b·x·y + c·y² with integer coefficients "
     "(a, b, c) has discriminant Δ = b² - 4·a·c. The discriminant's sign classifies the "
@@ -236,6 +277,39 @@ def solve_binary_quadratic(
                 "sign-flip in x, sign-flip in y, axis swap. Each orbit has size 4 or 8; "
                 "totals are multiples of 4. Off-by-one bugs (e.g. boundary x = ±x_bound "
                 "miscounted) typically break this."
+            ),
+        )
+
+    # Cycle 10 #01a — STRONG (algorithmically-independent) predicate for the
+    # canonical sum-of-two-squares case (a=1, b=0, c=1). Jacobi's formula counts
+    # solutions via integer-factorization + mod-4 divisor classification — never
+    # enumerates (x, y) pairs, never evaluates Q. A bound-formula bug, a
+    # rectangle-scan bug, or an equation-form typo in the primary path would all
+    # mismatch the Jacobi count; the form-parity / D₄ invariants above wouldn't.
+    # For asymmetric or cross-term forms, no closed-form r₂-analogue exists at
+    # this substrate level — those cases keep the consistency-checked invariants
+    # above as best-available (see module-level note).
+    if a == 1 and b == 0 and c == 1:
+        jacobi_count = _two_squares_via_jacobi(N)
+        lemma.add_invariant_check(
+            predicate=(
+                "Jacobi's two-squares formula r₂(N) = 4·(d₁(N) − d₃(N)) "
+                "(algorithmically-independent STRONG verifier)"
+            ),
+            expected_value=jacobi_count,
+            actual_value=len(solutions),
+            justification=(
+                f"For x² + y² = {N}: count divisors of N by residue mod 4. Found "
+                f"r₂({N}) = {jacobi_count} via divisor-counting (no enumeration). "
+                "Algorithm completely distinct from the geometric brute-force "
+                "Lagrange-bound rectangle scan: catches bound-formula bugs, "
+                "rectangle-scanning bugs, and equation-form typos that the "
+                "form-parity and D₄ symmetry invariants cannot. Applies only to "
+                "symmetric a=c=1, b=0 — the canonical sum-of-two-squares — "
+                "because Jacobi's formula has no clean generalization to "
+                "asymmetric or cross-term positive-definite forms at this "
+                "substrate level (Gauss reduction or theta-series methods are "
+                "cycle 11+ candidates)."
             ),
         )
 

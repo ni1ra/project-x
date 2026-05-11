@@ -28,6 +28,7 @@ import pytest
 
 from project_x.reasoning.diophantine import (
     INTRO_BINARY_QUADRATIC_DIOPHANTINE,
+    _two_squares_via_jacobi,
     solve_binary_quadratic,
 )
 
@@ -146,10 +147,12 @@ def test_lemma_step_chain_shape() -> None:
 
 
 def test_symmetric_form_dihedral_invariant_holds() -> None:
-    """For a=c, b=0 forms, the D₄ invariant (count divisible by 4) must fire and hold."""
+    """For a=c, b=0 forms, both the D₄ invariant (count divisible by 4) and the
+    cycle 10 #01a Jacobi STRONG invariant must fire and hold. Three invariants
+    in total: form parity + D₄ + Jacobi (the a=c=1, b=0 case is symmetric AND
+    canonical sum-of-two-squares, so Jacobi applies)."""
     lemma = solve_binary_quadratic(1, 0, 1, 25)
-    # Two invariants fire: form parity + D₄ symmetry. Both must hold.
-    assert len(lemma.invariant_checks) == 2
+    assert len(lemma.invariant_checks) == 3
     assert all(inv.holds for inv in lemma.invariant_checks)
 
 
@@ -177,3 +180,85 @@ def test_thesis_compliance_no_pretrained_imports() -> None:
     forbidden = ["sympy", "numpy", "scipy", "torch", "transformers", "tensorflow"]
     for f in forbidden:
         assert f not in src, f"forbidden import '{f}' found in diophantine.py"
+
+
+# --- Cycle 10 #01a — Jacobi STRONG verifier (algorithmically-independent) ---
+
+
+def test_jacobi_two_squares_canonical_counts() -> None:
+    """r₂(N) = 4·(d₁(N) - d₃(N)) on canonical cases. Verified by hand:
+    N=0 → 1 trivial; N=1 → 4 ((±1,0),(0,±1)); N=2 → 4 ((±1,±1)); N=3 → 0 (3≡3 mod 4
+    and not expressible); N=5 → 8; N=13 → 8 (Fermat); N=25 → 12 (3-4-5 perms); N=65 → 16."""
+    cases = {0: 1, 1: 4, 2: 4, 3: 0, 4: 4, 5: 8, 8: 4, 9: 4, 13: 8, 25: 12, 50: 12, 65: 16}
+    for N, expected in cases.items():
+        assert _two_squares_via_jacobi(N) == expected, (
+            f"_two_squares_via_jacobi({N}) returned "
+            f"{_two_squares_via_jacobi(N)}, expected {expected}"
+        )
+
+
+def test_jacobi_handles_negative_target() -> None:
+    """N < 0 has no two-squares representations; Jacobi returns 0 honestly."""
+    assert _two_squares_via_jacobi(-1) == 0
+    assert _two_squares_via_jacobi(-13) == 0
+
+
+def test_jacobi_invariant_fires_and_holds_on_symmetric_form() -> None:
+    """For symmetric forms (a=c=1, b=0), Jacobi STRONG invariant must fire + hold.
+    This is the cycle 10 #01a load-bearing predicate-strength upgrade."""
+    for N in (5, 13, 25, 50, 65):
+        lemma = solve_binary_quadratic(1, 0, 1, N)
+        jacobi_invariants = [
+            inv for inv in lemma.invariant_checks
+            if "Jacobi" in inv.predicate
+        ]
+        assert len(jacobi_invariants) == 1, (
+            f"x²+y²={N}: expected exactly 1 Jacobi invariant, "
+            f"got {len(jacobi_invariants)}"
+        )
+        assert jacobi_invariants[0].holds, (
+            f"x²+y²={N}: Jacobi invariant did not hold "
+            f"(expected {jacobi_invariants[0].expected_value}, "
+            f"actual {jacobi_invariants[0].actual_value})"
+        )
+
+
+def test_jacobi_invariant_skipped_on_asymmetric_form() -> None:
+    """For asymmetric forms (a ≠ c), Jacobi has no clean generalization; the
+    invariant must NOT fire. 2x² + 3y² = 35 keeps only the form-parity check."""
+    lemma = solve_binary_quadratic(2, 0, 3, 35)
+    jacobi_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Jacobi" in inv.predicate
+    ]
+    assert jacobi_invariants == [], (
+        "Jacobi invariant fired on asymmetric form 2x²+3y²=35 — "
+        "should be skipped per scope-boundary documentation"
+    )
+
+
+def test_jacobi_invariant_skipped_on_cross_term_form() -> None:
+    """For cross-term forms (b ≠ 0), Jacobi has no clean generalization; the
+    invariant must NOT fire. x² + xy + y² = 3 keeps only the form-parity check."""
+    lemma = solve_binary_quadratic(1, 1, 1, 3)
+    jacobi_invariants = [
+        inv for inv in lemma.invariant_checks
+        if "Jacobi" in inv.predicate
+    ]
+    assert jacobi_invariants == [], (
+        "Jacobi invariant fired on cross-term form x²+xy+y²=3 — "
+        "should be skipped per scope-boundary documentation"
+    )
+
+
+def test_jacobi_independent_path_documentation_present() -> None:
+    """The substrate file must carry the predicate-strength scope-boundary note
+    explicitly so future audits don't try to retrofit Jacobi-style verifiers
+    onto asymmetric or cross-term forms (where no closed-form exists)."""
+    src = Path("src/project_x/reasoning/diophantine.py").read_text()
+    assert "Predicate-strength note" in src
+    assert "Jacobi" in src
+    assert "Gauss reduction" in src or "Brandt-Eichler" in src or "theta-series" in src
+    assert "no closed-form" in src or "no clean generalization" in src.lower() or (
+        "no closed-form r" in src and "exists" in src
+    )
