@@ -36,9 +36,13 @@ This research plan re-scopes the work: the existing `cycle-10-semantics-architec
 
 **Research question for advisor consult:** does evolutionary-algorithms thinking add a load-bearing mechanism to the HDC architecture, or is it metaphorical decoration? Specifically: would binding-mutation + audit-selection meaningfully improve retrieval quality vs static-binding + audit-weight-adjustment? Are there empirical analogues from the EA literature (genetic programming, neuroevolution, evolutionary strategies) that translate cleanly to HDC?
 
-### Angle 3 — Intrinsic curiosity / instinct (NEW)
+### Angle 3 — Intrinsic curiosity / instinct (NEW, sharpened 2026-05-11)
 
-**Lain quote:** *"Humans also have an image curiosity, to WANT to understand the environment better, which is an instinct to keep ones kind to continue. Therefore we have natural curiosity..."*
+**Lain quote (original):** *"Humans also have an image curiosity, to WANT to understand the environment better, which is an instinct to keep ones kind to continue. Therefore we have natural curiosity..."*
+
+**Lain follow-up (msg `1503219992`, 2026-05-11 02:19):** *"If a simulated (expected) result differs from the actual result (next item in a sequence) it should be surprised, it should want to understand concepts. That diff can be a training signal, maybe if it spends more resources on areas or spaces or high uncertainty and surprise, it should want to get to the bottom of it, maybe?"* — This is literally Pathak 2017's curiosity-driven exploration mechanism: prediction-error as intrinsic reward. Lain independently arrived at the correct architectural primitive.
+
+**Lain follow-up (msg `1503219362`, 2026-05-11 02:17):** *"So if you release it on the whole bench suite, it will WANT to solve it all, it tries different paths until it finally feels satisfied with itself. It must try to reduce uncertainty, but be honest when it doesn't know. Must be able to articulate itself fluently in at least English, in native language. Maybe the WANTing can be a hormone we control? Or that switches off when the queued given tasks are complete?"* — Four additional architectural specs: (a) try-until-satisfied iterative loop on the benchmark, (b) WANTing as a controllable hormone (ties directly to v2's hormone-modulation mechanism), (c) hormone switches off when tasks complete (finite duration; preserves resource budget vs perpetual exploration), (d) fluency in English native language as the linguistic floor.
 
 **Status:** NOT YET in DRAFT.
 
@@ -49,7 +53,15 @@ This research plan re-scopes the work: the existing `cycle-10-semantics-architec
 - **Curiosity reward signal.** RL literature (Pathak et al., Random Network Distillation) gives this rigor: intrinsic reward = prediction error of a randomly-initialized network on the current observation. HDC analogue: intrinsic reward = retrieval-confidence variance across competing similar bindings (high variance = "I don't know which is right" = curiosity-triggering).
 - **The "instinct to keep ones kind continuing" framing.** For a single-user personal agent, this maps to: the agent has an architectural drive to remain USEFUL to lain over time. Audit signals shape what useful means; the agent's curiosity is biased toward concepts lain has shown interest in.
 
-**Research question for advisor consult:** does intrinsic-motivation literature (Pathak, RND, curiosity-driven exploration) give a concrete HDC analogue we can implement? Specifically: would active-curiosity-driven corpus sampling produce measurably better retrieval coverage than batch ingestion + audit? Is there a danger of curiosity-driven distraction (agent fixates on novelty at the expense of competence)?
+**Architectural questions added by lain's follow-ups:**
+
+- **Prediction-error as intrinsic-reward signal.** Maintain an "expected next item" hypervector at each step in a sequence-processing loop; compute the cosine-distance to the actual-next-item hypervector; that distance IS the curiosity signal. High distance = surprise = "I don't know this" = allocate more compute to this area.
+- **WANTing as controllable hormone.** Hormone vector `H_curiosity` raises retrieval-thresholds across all subspaces when active — agent is more selective, more iterative, more willing to spend compute. Switches off when queued task completes (avoiding perpetual exploration that burns budget without progress). This integrates cleanly with v2's hormone-modulation architecture; curiosity becomes one of the hormone-driven registers.
+- **Try-until-satisfied bench loop.** Agent on the benchmark in curiosity-mode iteratively tries different solution paths (different primitive compositions, different retrieval strategies) until the per-step prediction-error drops below a satisfaction threshold OR until the queued-task list is empty.
+- **Honest-uncertainty preserved.** Even with high WANTing, agent honestly refuses out-of-scope: "I tried K paths, prediction-error never dropped below threshold, the genuine answer is I don't know yet." The curiosity drives EXPLORATION not OVERCLAIM.
+- **English-fluency floor.** Output must articulate fluently in at least one natural language (English). This sets a quality bar on the natural-mode HDC walk's surface assembly: corpus fragments must compose into grammatical English; native-language target is implicit follow-up direction (lain's native = Norwegian).
+
+**Research question for advisor consult:** does intrinsic-motivation literature (Pathak, RND, curiosity-driven exploration) give a concrete HDC analogue we can implement that integrates with v2's hormone mechanism? Specifically: prediction-error-vector-distance as the curiosity signal AND H_curiosity as the controllable hormone that toggles try-until-satisfied iteration — is this architecturally sound? What's the satisfaction-threshold tuning loop?
 
 ### Angle 4 — Multi-agent coordination + scenario simulation (NEW)
 
