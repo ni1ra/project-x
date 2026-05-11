@@ -43,7 +43,10 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
+import numpy as np
+
 from project_x.corpus.natural_mode import NaturalModeComposer
+from project_x.experiments.encoder import CharNgramHashEncoder, cosine_bipolar
 from project_x.reasoning.diophantine import solve_binary_quadratic, solve_pell_equation
 from project_x.reasoning.integration import (
     definite_integral_x_times_cos,
@@ -81,14 +84,20 @@ class AgentResponse:
     `lemma` is None when the parser couldn't identify a problem-shape; `answer_text`
     in that case carries a refusal-with-reason rather than an attempted-answer. Honest
     failure is preferred over confabulation per M-PROJECTX-013 measure-don't-claim.
+
+    `dispatcher_metadata` (cycle 11 #00P13c11-01) carries BG-style dispatcher
+    inspectability: combined-confidence score for the winning parser + the
+    top-K candidate ranking. Kept OUT of `parsed_inputs` to avoid polluting
+    strict-equality assertions on the substrate-input dict.
     """
 
-    domain: str  # "maths" / "physics" / "unrecognized"
+    domain: str  # "maths" / "physics" / "open_domain" / "unrecognized"
     problem_shape: str  # "quadratic" / "char_poly_2x2" / "free_fall" / ... / "unrecognized"
     parsed_inputs: dict[str, Any]
     lemma: Lemma | None
     answer_text: str
-    confidence: str  # "high" (parsed cleanly, substrate ran) / "low" (parser uncertain) / "refused" (no match)
+    confidence: str  # "high" / "low" / "provenance-traced" / "refused"
+    dispatcher_metadata: dict[str, Any] | None = None  # cycle 11 #00P13c11-01: BG-dispatcher inspectability
 
 
 # Free-fall parser: extracts (h, g) from a drop/fall prompt.
@@ -695,6 +704,52 @@ _NATURAL_MODE_TRIGGERS: dict[str, tuple[str, ...]] = {
 }
 
 
+# BG-style dispatcher archetypes (cycle 11 #00P13c11-01). Canonical example
+# prompts for each problem-shape; cosine similarity from input-prompt-HV to
+# archetype-HV contributes to dispatcher confidence per canonical doc Layer 3.
+# Archetypes are encoded once at first agent invocation via
+# `CharNgramHashEncoder` (deterministic; no learning).
+#
+# Honest framing: these are HAND-PICKED canonical prompts. A future cycle-12+
+# extension would expand to multiple archetypes per shape (representative-prompt
+# clustering) and learn archetype centroids from observed prompts. v1 is the
+# minimal viable mapping.
+_PARSER_ARCHETYPES: dict[str, str] = {
+    # Maths primitives
+    "diophantine_binary_quadratic": "Find all integer solutions x y to the Diophantine equation x squared plus y squared equals 25.",
+    "diophantine_binary_quadratic_out_of_scope": "Find integer solutions to a binary quadratic Diophantine equation that the substrate refuses.",
+    "pell_equation": "Find the first 5 integer solutions x y to the Diophantine Pell equation x squared minus 2 y squared equals 1.",
+    "pell_equation_degenerate": "Find solutions to a Pell equation where n is a perfect square so the equation is degenerate.",
+    "collatz_verify_range": "Verify the Collatz 3n plus 1 conjecture for all integers in the range 1 to 1000.",
+    "goldbach_verify_range": "Verify the Goldbach conjecture for all even integers in the range 4 to 1000.",
+    "twin_primes_in_range": "Count the twin primes p and p plus 2 with both at most 1000.",
+    "mertens_bound_verify": "Verify the Mertens bound absolute value of M of n is at most square root of n for all integers in the range 1 to 1000.",
+    "residue_theorem_unit_quadratic": "Use the residue theorem to evaluate the integral 1 over a x squared plus c from minus infinity to infinity.",
+    "definite_integral_x_times_exp": "Use integration by parts to compute the integral of x times e to the c x from 0 to 1.",
+    "definite_integral_x_times_sin": "Use integration by parts to compute the integral of x times sine of c x from 0 to pi.",
+    "definite_integral_x_times_cos": "Use integration by parts to compute the integral of x times cosine of c x from 0 to pi.",
+    "definite_integral_xtrig_via_usub_sin": "Use u substitution with u equals x squared to compute the integral of x times sine of x squared from 0 to 1.",
+    "definite_integral_xtrig_via_usub_cos": "Use u substitution with u equals x squared to compute the integral of x times cosine of x squared from 0 to 1.",
+    "definite_integral_quadratic": "Compute the integral of 3 x squared plus 2 x minus 1 from 0 to 2.",
+    "first_order_linear_ode_exp": "Solve the differential equation dy over dx equals 2 y with initial condition y at 0 equals 3; report y at 1.",
+    "quadratic": "Solve the quadratic equation 3 x squared minus 14 x minus 5 equals 0.",
+    "char_poly_2x2": "Find the eigenvalues of the 2 by 2 matrix 2 1 1 2.",
+    "determinant_3x3": "Compute the determinant of the 3 by 3 matrix 1 2 3 4 5 6 7 8 10.",
+    # Physics primitives
+    "free_fall": "An object is dropped from a height of 80 meters with g equals 9.81 meters per second squared; compute the fall time.",
+    "pendulum_small_angle": "Compute the period of a simple pendulum with length L equals 1.0 meters and g equals 9.81 meters per second squared.",
+    "pendulum_large_angle": "Compute the period of an elliptic large angle pendulum with length 1 meter and amplitude pi over 3 radians.",
+    "relativistic_momentum": "Compute the relativistic momentum of an electron with mass m equals 9.11e-31 kg at velocity v equals 0.9 c with speed of light c equals 3e8.",
+    "projectile_horizontal_range": "A projectile is launched horizontally from a 45 m cliff at 20 m per s with g equals 9.81 meters per second squared; compute the horizontal range.",
+    "relativistic_doppler_shift": "Compute the relativistic Doppler shift for emitted wavelength lambda 0 equals 500 nm at v equals 0.6 c approaching the observer.",
+    # Natural-mode walks (cycle 11 #00P13c11-DEMO)
+    "natural_mode_walk_poetry": "Write a poem about the changing seasons.",
+    "natural_mode_walk_philosophy": "What is the meaning of life?",
+    "natural_mode_walk_math": "What does the Collatz conjecture mean? Is it solved?",
+    "natural_mode_walk_lain_voice": "What is Project X Raphael? What is your design philosophy?",
+}
+
+
 def _classify_natural_mode_domain(prompt: str) -> str | None:
     """Identify which natural-mode domain a prompt invokes, or None if not natural-mode shape.
 
@@ -770,138 +825,155 @@ def _parse_quadratic(prompt: str) -> tuple[float, float, float] | None:
 class ReasoningAgent:
     """Rule-based agent runtime for objective programmatically-testable benchmarks.
 
-    Public API: `process(prompt: str) -> AgentResponse`. Routes to a dispatcher per
-    problem-shape; first matching shape wins. Honest failure mode (`AgentResponse`
-    with `confidence='refused'`) when no parser matches — better than confabulation.
+    Public API: `process(prompt: str) -> AgentResponse`. Cycle 11 #00P13c11-01:
+    BG-style confidence-scored parallel-bid dispatch. Each parser in
+    `_DISPATCH_CHAIN_ORDER` is invoked on the prompt; all non-None responses
+    are collected; combined confidence = α × parser_match (1.0 if matched)
+    + (1−α) × hv_similarity(prompt, problem_shape_archetype). Argmax wins
+    with chain-order tiebreaker (earlier in chain = higher priority on ties).
+    Combined confidence below `_TAU_DISPATCH` → honest refusal.
 
-    Cycle 7 minimum-viable: maths quadratic only. Cycle 7+ extends by adding
-    per-shape `_try_<shape>()` methods + adding them to the `process` dispatch chain.
+    Brain analogue per canonical synthesis doc Layer 3: basal ganglia direct
+    (Go) + indirect (NoGo) pathways. The chain-order tiebreaker preserves
+    cycle 7-10 disambiguation correctness (well-disjoint keyword-gated
+    parsers mostly don't compete; when they do, prior priority wins).
+
+    Honest failure mode (`AgentResponse` with `confidence='refused'`) when no
+    parser matches OR all matching parsers are below the dispatch threshold.
     """
 
+    # BG-style dispatch parameters (cycle 11 #00P13c11-01). Empirical tuning
+    # is a cycle-11+ open question per canonical doc; v1 values below are
+    # honest initial floors.
+    _ALPHA: float = 0.6  # weight on parser-matched (binary 0/1); higher because regex match is high-precision
+    _TAU_DISPATCH: float = 0.3  # combined-confidence floor to dispatch (else refuse)
+
+    # Ordered list of (problem_shape_for_archetype_lookup, method_attr_name).
+    # Order serves as chain-order tiebreaker when combined confidences tie within ε.
+    # Mirrors the historical first-match-wins ordering for backward compatibility.
+    _DISPATCH_CHAIN_ORDER: tuple[tuple[str, str], ...] = (
+        ("diophantine_binary_quadratic", "_try_diophantine_binary_quadratic"),
+        ("collatz_verify_range", "_try_collatz_verify"),
+        ("goldbach_verify_range", "_try_goldbach_verify"),
+        ("twin_primes_in_range", "_try_twin_primes"),
+        ("mertens_bound_verify", "_try_mertens_verify"),
+        ("residue_theorem_unit_quadratic", "_try_residue_theorem"),
+        ("definite_integral_x_times_exp", "_try_definite_integral_x_exp"),
+        ("definite_integral_x_times_sin", "_try_definite_integral_x_sin"),
+        ("definite_integral_x_times_cos", "_try_definite_integral_x_cos"),
+        ("definite_integral_xtrig_via_usub_sin", "_try_definite_integral_xtrig_usub"),
+        ("definite_integral_quadratic", "_try_definite_integral_quadratic"),
+        ("projectile_horizontal_range", "_try_projectile_horizontal"),
+        ("relativistic_doppler_shift", "_try_doppler_shift"),
+        ("relativistic_momentum", "_try_relativistic_momentum"),
+        ("pendulum_small_angle", "_try_pendulum"),
+        ("free_fall", "_try_free_fall"),
+        ("determinant_3x3", "_try_determinant_3x3"),
+        ("char_poly_2x2", "_try_char_poly_2x2"),
+        ("first_order_linear_ode_exp", "_try_first_order_ode"),
+        ("quadratic", "_try_quadratic"),
+        ("natural_mode_walk_poetry", "_try_natural_mode"),
+    )
+
+    # Class-level lazy-initialized archetype encoder + encoded archetype hvs.
+    # Archetypes are canonical example prompts for each problem-shape; cosine
+    # similarity from prompt-hv to archetype-hv contributes to dispatcher
+    # confidence. Encoded once at first ReasoningAgent.process() call; cached.
+    _archetype_encoder: CharNgramHashEncoder | None = None
+    _archetype_hvs: dict[str, np.ndarray] | None = None
+
+    @classmethod
+    def _ensure_archetypes_encoded(cls) -> None:
+        """Lazy init: encode all problem-shape archetype prompts once."""
+        if cls._archetype_hvs is not None:
+            return
+        cls._archetype_encoder = CharNgramHashEncoder()
+        cls._archetype_hvs = {
+            name: cls._archetype_encoder.encode([archetype])[0]
+            for name, archetype in _PARSER_ARCHETYPES.items()
+        }
+
     def process(self, prompt: str) -> AgentResponse:
-        """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
-        # Maths Diophantine binary-quadratic — covers maths-024/025 (cycle 9 #00P13c9-03).
-        # Placed FIRST among maths because "integer solutions" + "x^2+y^2=N" form regex
-        # would otherwise route to generic quadratic dispatcher (which expects ax²+bx+c=0
-        # in single variable). Keyword gate is specific enough to avoid false positives.
-        response = self._try_diophantine_binary_quadratic(prompt)
-        if response is not None:
-            return response
+        """BG-style confidence-scored parallel-bid dispatch (cycle 11 #00P13c11-01).
 
-        # Maths number-theory dispatchers (cycle 8 #00P13c8-10) — covers maths-017/018/019/020.
-        # Specific single-keyword gates ('collatz' / 'goldbach' / 'twin prime' / 'mertens')
-        # — placed FIRST so the unique keywords win over any later generic-shape regex match.
-        response = self._try_collatz_verify(prompt)
-        if response is not None:
-            return response
-        response = self._try_goldbach_verify(prompt)
-        if response is not None:
-            return response
-        response = self._try_twin_primes(prompt)
-        if response is not None:
-            return response
-        response = self._try_mertens_verify(prompt)
-        if response is not None:
-            return response
+        For each parser in `_DISPATCH_CHAIN_ORDER`, invoke and collect the response
+        if non-None. For each candidate, compute combined confidence = α × 1.0
+        (parser matched) + (1−α) × normalized-cosine-similarity to the archetype
+        for that response's problem_shape. Sort candidates by combined confidence
+        descending, with chain-index ascending as tiebreaker (earlier in chain
+        wins ties — preserves cycle 7-10 first-match-wins correctness on
+        well-disjoint parsers). Top candidate wins if its combined confidence
+        clears `_TAU_DISPATCH`; else honest refusal.
+        """
+        self._ensure_archetypes_encoded()
+        prompt_hv = self._archetype_encoder.encode([prompt])[0]
 
-        # Maths residue theorem — covers maths-003. Specific keyword gate.
-        response = self._try_residue_theorem(prompt)
-        if response is not None:
-            return response
+        candidates: list[tuple[float, int, str, AgentResponse]] = []
+        for chain_index, (_archetype_key, method_name) in enumerate(self._DISPATCH_CHAIN_ORDER):
+            method = getattr(self, method_name)
+            response = method(prompt)
+            if response is None:
+                continue
+            # Look up the archetype for the ACTUAL problem_shape returned (handles
+            # cases where one parser produces multiple shapes — e.g.,
+            # `_try_diophantine_binary_quadratic` returns either
+            # `diophantine_binary_quadratic` or `pell_equation` or
+            # `pell_equation_degenerate` or `diophantine_binary_quadratic_out_of_scope`).
+            archetype_hv = self._archetype_hvs.get(response.problem_shape)
+            if archetype_hv is None:
+                # Fallback: use the prompt itself as its own archetype (gives hv_sim=1.0
+                # baseline; safe default for problem-shapes without a dedicated archetype
+                # like refusal variants or natural-mode domain sub-keys).
+                hv_sim_normalized = 1.0
+            else:
+                cos_sim = cosine_bipolar(prompt_hv, archetype_hv)
+                hv_sim_normalized = (cos_sim + 1.0) / 2.0  # map [-1, 1] → [0, 1]
+            combined_confidence = self._ALPHA * 1.0 + (1.0 - self._ALPHA) * hv_sim_normalized
+            candidates.append((combined_confidence, chain_index, method_name, response))
 
-        # Maths symbolic integration — covers maths-021/022/023 (cycle 9 #00P13c9-01).
-        # Specific technique-keyword gates ("integration by parts" / "u-substitution") win
-        # over generic polynomial-integral dispatcher; placed BEFORE polynomial path.
-        response = self._try_definite_integral_x_exp(prompt)
-        if response is not None:
-            return response
-        response = self._try_definite_integral_x_sin(prompt)
-        if response is not None:
-            return response
-        response = self._try_definite_integral_x_cos(prompt)
-        if response is not None:
-            return response
-        response = self._try_definite_integral_xtrig_usub(prompt)
-        if response is not None:
-            return response
+        if not candidates:
+            return AgentResponse(
+                domain="unrecognized",
+                problem_shape="unrecognized",
+                parsed_inputs={},
+                lemma=None,
+                answer_text=(
+                    "Notice. Prompt did not match any currently-supported problem-shape. "
+                    "BG-style dispatcher ran all 21 parsers; none returned a match. "
+                    "Honest failure preferred over confabulation per M-PROJECTX-013."
+                ),
+                confidence="refused",
+            )
 
-        # Maths definite integral (quadratic) — covers maths-010. Checked AFTER residue theorem
-        # so residue-form integrals don't accidentally route here (residue check excludes those anyway).
-        response = self._try_definite_integral_quadratic(prompt)
-        if response is not None:
-            return response
+        # Sort by combined_confidence DESC, tiebreak by chain_index ASC
+        candidates.sort(key=lambda c: (-c[0], c[1]))
+        top_conf, _, top_method, top_response = candidates[0]
 
-        # Physics projectile horizontal range — covers physics-007. "projectile" + "horizontal" gates.
-        response = self._try_projectile_horizontal(prompt)
-        if response is not None:
-            return response
+        if top_conf < self._TAU_DISPATCH:
+            return AgentResponse(
+                domain="unrecognized",
+                problem_shape="unrecognized_low_confidence",
+                parsed_inputs={"top_method": top_method, "top_confidence": top_conf},
+                lemma=None,
+                answer_text=(
+                    f"Notice. BG-style dispatcher ran all parsers; top candidate "
+                    f"'{top_method}' has combined confidence {top_conf:.3f} below "
+                    f"dispatch threshold {self._TAU_DISPATCH}. Honest refusal."
+                ),
+                confidence="refused",
+            )
 
-        # Physics Doppler shift — covers physics-012. "doppler" + direction-keyword gates.
-        response = self._try_doppler_shift(prompt)
-        if response is not None:
-            return response
-
-        # Physics relativistic momentum — covers physics-003/011. Specific keyword.
-        response = self._try_relativistic_momentum(prompt)
-        if response is not None:
-            return response
-
-        # Physics pendulum (small-angle + large-angle) — covers physics-002/009/010.
-        # Pendulum-keyword gate.
-        response = self._try_pendulum(prompt)
-        if response is not None:
-            return response
-
-        # Physics free-fall — covers physics-001/008. Domain-keyword gate.
-        response = self._try_free_fall(prompt)
-        if response is not None:
-            return response
-
-        # Maths 3x3 determinant — covers maths-012. "determinant" keyword gate.
-        response = self._try_determinant_3x3(prompt)
-        if response is not None:
-            return response
-
-        # Maths 2x2 eigenvalues — covers maths-002/009. Eigenvalue-naming gate.
-        response = self._try_char_poly_2x2(prompt)
-        if response is not None:
-            return response
-
-        # Maths first-order linear ODE — covers maths-011. Domain-keyword gate ("dy/dx").
-        response = self._try_first_order_ode(prompt)
-        if response is not None:
-            return response
-
-        # Maths quadratic — covers maths-001/007/008.
-        response = self._try_quadratic(prompt)
-        if response is not None:
-            return response
-
-        # Natural-mode dispatcher v0 (cycle 11 #00P13c11-DEMO) — covers poetry /
-        # philosophy / meaning-of-life / open-conjecture-context prompts via HDC
-        # walk over hand-seeded mini-corpus. Placed near the end of the dispatch
-        # chain so structured math / physics primitives win on their own keyword
-        # gates; this is the open-domain fall-through for prompts that DON'T
-        # match a closed-form primitive.
-        response = self._try_natural_mode(prompt)
-        if response is not None:
-            return response
-
-        # No parser matched. Honest refusal with reason.
-        return AgentResponse(
-            domain="unrecognized",
-            problem_shape="unrecognized",
-            parsed_inputs={},
-            lemma=None,
-            answer_text=(
-                "Notice. Prompt did not match any currently-supported problem-shape. "
-                "Cycle 7 minimum-viable scope is maths quadratic; other shapes "
-                "(eigenvalues, integrals, ODEs, physics primitives) pending cycle 7+ "
-                "extension. Honest failure preferred over confabulation per "
-                "M-PROJECTX-013 measure-don't-claim."
-            ),
-            confidence="refused",
-        )
+        # Annotate the response with BG dispatcher metadata for inspectability.
+        # Limit to top-5 for context budget. Stored in dispatcher_metadata
+        # (separate field) so strict `parsed_inputs == {...}` assertions stay
+        # clean across the test suite.
+        top_response.dispatcher_metadata = {
+            "combined_confidence": round(top_conf, 4),
+            "top5_candidates": [(m, round(c, 4)) for c, _, m, _ in candidates[:5]],
+            "alpha": self._ALPHA,
+            "tau_dispatch": self._TAU_DISPATCH,
+        }
+        return top_response
 
     # Class-level lazy singleton for the composer (encoding 100+ fragments
     # takes a few milliseconds; we cache it so test suites + repeated agent

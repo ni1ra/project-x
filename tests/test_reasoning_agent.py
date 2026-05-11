@@ -1015,3 +1015,102 @@ def test_reasoning_agent_integration_no_technique_keyword_refuses():
     assert response.problem_shape != "definite_integral_x_times_exp"
     assert response.problem_shape != "definite_integral_x_times_sin"
     assert response.problem_shape != "definite_integral_xtrig_via_usub_sin"
+
+
+# --- Cycle 11 #00P13c11-01 BG-style confidence-scored parallel-bid dispatcher ---
+
+
+def test_bg_dispatcher_annotates_successful_response_with_metadata():
+    """Successful dispatch carries `dispatcher_metadata` with combined-confidence + top5."""
+    agent = ReasoningAgent()
+    response = agent.process("Solve the quadratic 3x² - 14x - 5 = 0.")
+    assert response.problem_shape == "quadratic"
+    assert response.dispatcher_metadata is not None
+    md = response.dispatcher_metadata
+    assert "combined_confidence" in md
+    assert 0.0 <= md["combined_confidence"] <= 1.0
+    # Quadratic parser matched → confidence ≥ α (0.6)
+    assert md["combined_confidence"] >= 0.6
+    assert "top5_candidates" in md
+    assert len(md["top5_candidates"]) >= 1
+    # Top candidate IS the dispatched method
+    top_method = md["top5_candidates"][0][0]
+    assert top_method == "_try_quadratic"
+    # alpha + tau_dispatch surfaced for inspectability
+    assert md["alpha"] == 0.6
+    assert md["tau_dispatch"] == 0.3
+
+
+def test_bg_dispatcher_chain_order_tiebreaker_preserves_pell_priority():
+    """Pell prompt produces Pell response via _try_diophantine_binary_quadratic
+    (which is FIRST in chain). Verifies chain-order tiebreaker preserves the
+    cycle-10-close routing behavior on this canonical disambiguation case."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the first 5 integer solutions (x, y) to the Diophantine Pell equation "
+        "x² − 2·y² = 1."
+    )
+    assert response.problem_shape == "pell_equation"
+    assert response.confidence == "high"
+    # Dispatcher chose `_try_diophantine_binary_quadratic` over any later-chain parser
+    assert response.dispatcher_metadata["top5_candidates"][0][0] == "_try_diophantine_binary_quadratic"
+
+
+def test_bg_dispatcher_natural_mode_routes_open_prompt():
+    """Open-mode prompt routes to natural_mode walk with provenance-traced confidence."""
+    agent = ReasoningAgent()
+    response = agent.process("Write a poem about loneliness in winter.")
+    assert response.problem_shape == "natural_mode_walk_poetry"
+    assert response.confidence == "provenance-traced"
+    assert response.dispatcher_metadata is not None
+    # Natural-mode parser matched → confidence ≥ α
+    assert response.dispatcher_metadata["combined_confidence"] >= 0.6
+
+
+def test_bg_dispatcher_refusal_path_when_no_parser_matches():
+    """Unmatched prompt → honest refusal. Refusal responses DO NOT carry
+    dispatcher_metadata (because the BG-dispatcher's top-candidate annotation
+    only fires when a candidate clears the threshold and dispatches)."""
+    agent = ReasoningAgent()
+    response = agent.process("Tell me about Tuesdays.")
+    assert response.problem_shape == "unrecognized"
+    assert response.confidence == "refused"
+    # The honest-refusal path returns AgentResponse with default dispatcher_metadata=None
+    assert response.dispatcher_metadata is None
+
+
+def test_bg_dispatcher_runs_all_parsers_collects_candidates():
+    """BG-style runs every parser in `_DISPATCH_CHAIN_ORDER`; chain length is
+    21 (15 closed-form primitives + 4 number-theory + 1 natural-mode + 1
+    fallback). Verifies the chain registration is complete."""
+    assert len(ReasoningAgent._DISPATCH_CHAIN_ORDER) == 21
+
+
+def test_bg_dispatcher_archetype_dict_covers_chain():
+    """Every problem_shape used in the dispatcher chain has an archetype prompt
+    in _PARSER_ARCHETYPES (or falls back to the prompt-itself baseline)."""
+    from project_x.reasoning_agent import _PARSER_ARCHETYPES
+    # The archetype dict has at least one entry per chain step's primary problem_shape;
+    # some chain steps map to multiple problem_shapes (e.g., natural_mode emits
+    # natural_mode_walk_{poetry,philosophy,math,lain_voice}).
+    primary_archetype_keys = [k for k, _ in ReasoningAgent._DISPATCH_CHAIN_ORDER]
+    for key in primary_archetype_keys:
+        # Either the key is in _PARSER_ARCHETYPES, OR the parser's response uses a
+        # different problem_shape name that IS in _PARSER_ARCHETYPES (substring check)
+        in_dict = key in _PARSER_ARCHETYPES
+        # E.g., pendulum_small_angle in chain; _PARSER_ARCHETYPES has pendulum_small_angle + pendulum_large_angle
+        assert in_dict, f"chain key '{key}' missing from _PARSER_ARCHETYPES"
+
+
+def test_bg_dispatcher_regression_diophantine_quadratic_disambiguation():
+    """Cycle 9 #03 disambiguation: 'Find all integer solutions (x, y) to x² + y² = 25'
+    routes to Diophantine (NOT quadratic). BG-style with chain-order tiebreaker
+    preserves this — quadratic parser doesn't match the two-variable form anyway,
+    so the dispatcher correctly picks Diophantine on Diophantine-only-match."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find all integer solutions (x, y) to the Diophantine equation x² + y² = 25. "
+        "Report the count."
+    )
+    assert response.problem_shape == "diophantine_binary_quadratic"
+    assert response.dispatcher_metadata["top5_candidates"][0][0] == "_try_diophantine_binary_quadratic"
