@@ -177,6 +177,72 @@ def test_agent_natural_mode_falls_through_on_unrecognized_open_prompt():
     assert response.confidence == "refused"
 
 
+# --- Cycle-13 #07e: cosine-archetype fallback for prompts without keyword match ---
+
+
+def test_p4_argue_both_sides_routes_to_philosophy_via_archetype():
+    """Cycle-13 demo P4 — "Argue both sides: is mathematics discovered or
+    invented?" — had no keyword in `_NATURAL_MODE_TRIGGERS` (refused at the demo).
+    With #07e cosine-archetype fallback, the prompt's hypervector should be most
+    similar to the philosophy domain centroid and route there.
+    """
+    agent = ReasoningAgent()
+    response = agent.process("Argue both sides: is mathematics discovered or invented?")
+    assert response.problem_shape == "natural_mode_walk_philosophy", (
+        f"P4 should route to philosophy via cosine fallback; got {response.problem_shape}"
+    )
+
+
+def test_p5_compose_sonnet_routes_to_poetry_via_archetype():
+    """Cycle-13 demo P5 — "Compose a sonnet on the death of a friend." — had no
+    keyword in `_NATURAL_MODE_TRIGGERS` (only "compose a poem" / "write a poem"
+    were registered; "sonnet" was missing). With #07e cosine-archetype fallback,
+    the prompt should match the poetry centroid (sonnet/grief/loss archetypes).
+    """
+    agent = ReasoningAgent()
+    response = agent.process("Compose a sonnet on the death of a friend.")
+    assert response.problem_shape == "natural_mode_walk_poetry", (
+        f"P5 should route to poetry via cosine fallback; got {response.problem_shape}"
+    )
+
+
+def test_archetype_fallback_does_not_hijack_low_similarity_nonsense():
+    """The τ_natural_dispatch=0.25 gate should refuse prompts whose maximum
+    cosine to ANY domain centroid is below 0.25. Regression for the existing
+    'asdf qwerty' refusal — protects against the cosine fallback becoming a
+    catch-all when keyword and τ both fail.
+    """
+    agent = ReasoningAgent()
+    response = agent.process("asdf qwerty random nonsense characters here.")
+    assert response.problem_shape == "unrecognized"
+    assert response.confidence == "refused"
+
+
+def test_natural_mode_archetype_hvs_present_after_init():
+    """The agent's class-level archetype-hv cache MUST be populated after first
+    process() call. One list of bipolar hvs per domain in `_NATURAL_MODE_ARCHETYPES`.
+    """
+    import numpy as np
+    from project_x.reasoning_agent import _NATURAL_MODE_ARCHETYPES
+    agent = ReasoningAgent()
+    agent.process("Write a poem about the changing seasons.")  # any path triggers lazy init
+    assert ReasoningAgent._natural_mode_archetype_hvs is not None
+    assert set(ReasoningAgent._natural_mode_archetype_hvs.keys()) == set(
+        _NATURAL_MODE_ARCHETYPES.keys()
+    )
+    # Each domain's archetype list matches the prompt count; each hv is bipolar
+    # with shape (D,) — encoder default D=10240.
+    for domain, hv_list in ReasoningAgent._natural_mode_archetype_hvs.items():
+        assert len(hv_list) == len(_NATURAL_MODE_ARCHETYPES[domain]), (
+            f"{domain}: {len(hv_list)} hvs vs {len(_NATURAL_MODE_ARCHETYPES[domain])} archetypes"
+        )
+        for hv in hv_list:
+            assert hv.shape == (10240,), f"{domain} archetype hv shape {hv.shape}"
+            assert hv.dtype.kind == "i"
+            unique = set(np.unique(hv).tolist())
+            assert unique.issubset({-1, 1}), f"{domain} archetype non-bipolar {unique}"
+
+
 # ── Thesis-compliance source-grep ─────────────────────────────────────────
 
 

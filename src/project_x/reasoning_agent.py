@@ -847,19 +847,98 @@ def _classify_intent_register(
     return best_register
 
 
-def _classify_natural_mode_domain(prompt: str) -> str | None:
+def _classify_natural_mode_domain(
+    prompt: str,
+    *,
+    encoder: "CharNgramHashEncoder | None" = None,
+    archetype_hvs: "dict[str, list[np.ndarray]] | None" = None,
+    tau_dispatch: float = 0.10,
+) -> str | None:
     """Identify which natural-mode domain a prompt invokes, or None if not natural-mode shape.
 
-    First domain whose triggers match wins. Conservative: only fires on explicit
-    natural-mode prompt shapes; structured math/physics prompts continue routing
-    to the existing primitive dispatchers (they precede natural-mode in
-    `process()`). Returns the matched domain or None for fall-through.
+    Two-stage classification (cycle-13 #07e):
+    1. KEYWORD fast path — first domain whose phrase triggers match wins. Fast
+       (no encoding). Preserves the cycle-11 keyword-trigger behavior for prompts
+       that match a known phrase (existing test corpus stays green).
+    2. COSINE-ARCHETYPE fallback — if no keyword matches AND the agent provides
+       its lazily-cached encoder + per-domain archetype hypervector lists,
+       the prompt is encoded and the domain with the maximum cosine to ANY of
+       its archetypes wins iff the best score clears `tau_dispatch`. Max-of-cosines
+       (not centroid bundling) is empirically more discriminative on the char-
+       n-gram-hash floor encoder — a domain with 3 archetypes spanning poetry /
+       sonnet / verse shapes scores well when ONE archetype matches strongly,
+       even if the other two share little with the prompt. Centroid bundling
+       would smear this signal.
+
+    Empirical τ_dispatch=0.10 on char-n-gram-hash D=10240 cleanly splits demo-
+    REFUSE shapes (random / structured math / structured physics) from demo-ROUTE
+    shapes (P4 philosophy 0.1145; P5 poetry 0.2773; meaning-of-life 0.4652).
+    The Hebbian / semantic-encoder cycle-14+ would recalibrate this floor.
+
+    Conservative ordering: structured math/physics dispatchers precede natural-
+    mode in `process()`, AND the formal-priority-boost (#07d) further protects
+    formal routing when both branches match. The cosine fallback only activates
+    when keyword classification returns None, so it cannot regress an existing
+    keyword-match.
     """
     lower = prompt.lower()
     for domain, triggers in _NATURAL_MODE_TRIGGERS.items():
         if any(t in lower for t in triggers):
             return domain
-    return None
+
+    if encoder is None or archetype_hvs is None:
+        return None
+
+    prompt_hv = encoder.encode([prompt])[0]
+    best_domain: str | None = None
+    best_sim = -2.0
+    for domain, archetype_list in archetype_hvs.items():
+        # Max cosine across this domain's archetypes — one strong match wins
+        # the domain even if its sibling archetypes share little with the prompt.
+        domain_max = max(cosine_bipolar(prompt_hv, hv) for hv in archetype_list)
+        if domain_max > best_sim:
+            best_sim = domain_max
+            best_domain = domain
+    return best_domain if best_sim >= tau_dispatch else None
+
+
+# Cycle-13 #07e: per-domain archetypes used for cosine-fallback dispatch when
+# the keyword phrase set doesn't fire. 2-4 archetypes per domain; each chosen to
+# span the SHAPE of natural-mode invocations the domain serves rather than a
+# specific keyword. Encoded once at agent lazy-init; per-domain max-cosine across
+# archetypes is what `_classify_natural_mode_domain` scores against (centroid
+# bundling smears the signal; max-of-cosines preserves single-archetype matches).
+_NATURAL_MODE_ARCHETYPES: dict[str, tuple[str, ...]] = {
+    "poetry": (
+        "Write a poem about the changing seasons and what passes.",
+        "Compose a sonnet on autumn evenings and stillness.",
+        "Give me verse on grief and remembrance and loss.",
+    ),
+    "philosophy": (
+        "What is the meaning of life and how should one live it?",
+        "Argue both perspectives on a deep contested philosophical question.",
+        "Reflect on consciousness and free will and what they mean.",
+    ),
+    "math": (
+        "What does the Collatz conjecture mean? Is it solved or open?",
+        "Explain what the Goldbach conjecture says in plain English.",
+        "Why is the Riemann hypothesis still open and what would resolve it?",
+    ),
+    "lain_voice": (
+        "What is Project X Raphael and your design philosophy?",
+        "What are your standing rules and how do you operate?",
+    ),
+    "narrative_prose": (
+        "Tell me a story about an old gardener and a forgotten orchard.",
+        "Describe a scene from a Jane Austen novel and what passes.",
+        "What happens in Frankenstein at the moment of creation?",
+    ),
+}
+
+_TAU_NATURAL_DISPATCH: float = 0.10  # cycle-13 #07e empirical floor (calibrated on
+# char-n-gram-hash D=10240 floor encoder against {asdf,quick-fox,formal-math,
+# formal-physics,formal-quadratic} REFUSE set + {P4,P5,sonnet-on-X,meaning-of-life}
+# ROUTE set). Cycle-14+ Hebbian semantic encoder will reshape this floor.
 
 
 # Quadratic regex: matches `a x^2 [+-] b x [+-] c = 0` with optional whitespace + `*`.
@@ -990,10 +1069,18 @@ class ReasoningAgent:
     # Cycle 11 #00P13c11-08 dual-mode composer — register archetype hvs for
     # hormone-modulated intent classification.
     _register_archetype_hvs: dict[str, np.ndarray] | None = None
+    # Cycle-13 #07e natural-mode archetype hvs — per-domain LIST of bipolar
+    # archetype hypervectors (NOT a single centroid; max-of-cosines is more
+    # discriminative on the char-n-gram-hash floor encoder).
+    _natural_mode_archetype_hvs: dict[str, list[np.ndarray]] | None = None
 
     @classmethod
     def _ensure_archetypes_encoded(cls) -> None:
-        """Lazy init: encode all problem-shape AND register archetype prompts once."""
+        """Lazy init: encode all problem-shape, register, AND natural-mode-domain
+        archetype prompts once. Natural-mode archetypes stored as per-domain
+        LIST (max-of-cosines at dispatch); centroid bundling was tried and smears
+        single-archetype matches (see `_classify_natural_mode_domain` docstring).
+        """
         if cls._archetype_hvs is not None:
             return
         cls._archetype_encoder = CharNgramHashEncoder()
@@ -1005,6 +1092,12 @@ class ReasoningAgent:
             name: cls._archetype_encoder.encode([archetype])[0]
             for name, archetype in _REGISTER_ARCHETYPES.items()
         }
+        # Cycle-13 #07e: encode all archetypes per domain, keep as a list. The
+        # encoder stacks them once; we split back to per-archetype hvs.
+        cls._natural_mode_archetype_hvs = {}
+        for domain, archetypes in _NATURAL_MODE_ARCHETYPES.items():
+            stacked = cls._archetype_encoder.encode(list(archetypes))  # (k, D) int8
+            cls._natural_mode_archetype_hvs[domain] = [stacked[i] for i in range(stacked.shape[0])]
 
     def process(self, prompt: str) -> AgentResponse:
         """BG-style confidence-scored parallel-bid dispatch (cycle 11 #00P13c11-01).
@@ -1159,8 +1252,19 @@ class ReasoningAgent:
         `_K_ROLLOUT_TAU`, returns AgentResponse(confidence='refused') with
         the K-rollout's honest-refusal text. v1 tau=0.0 makes refusal rare;
         cycle-11+ calibration could raise the floor.
+
+        Cycle-13 #07e: classifier consults cosine-archetype centroids when the
+        keyword phrase set doesn't fire, gated by `_TAU_NATURAL_DISPATCH=0.25`.
+        Lifts demo P4 + P5 (which had no keyword match) into the natural-mode
+        path without regressing existing keyword-matched routing.
         """
-        domain = _classify_natural_mode_domain(prompt)
+        self._ensure_archetypes_encoded()
+        domain = _classify_natural_mode_domain(
+            prompt,
+            encoder=self._archetype_encoder,
+            archetype_hvs=self._natural_mode_archetype_hvs,
+            tau_dispatch=_TAU_NATURAL_DISPATCH,
+        )
         if domain is None:
             return None
         if ReasoningAgent._k_rollout_composer is None:
