@@ -856,36 +856,41 @@ def _classify_natural_mode_domain(
 ) -> str | None:
     """Identify which natural-mode domain a prompt invokes, or None if not natural-mode shape.
 
-    Two-stage classification (cycle-13 #07e):
-    1. KEYWORD fast path — first domain whose phrase triggers match wins. Fast
-       (no encoding). Preserves the cycle-11 keyword-trigger behavior for prompts
-       that match a known phrase (existing test corpus stays green).
-    2. COSINE-ARCHETYPE fallback — if no keyword matches AND the agent provides
-       its lazily-cached encoder + per-domain archetype hypervector lists,
-       the prompt is encoded and the domain with the maximum cosine to ANY of
-       its archetypes wins iff the best score clears `tau_dispatch`. Max-of-cosines
-       (not centroid bundling) is empirically more discriminative on the char-
-       n-gram-hash floor encoder — a domain with 3 archetypes spanning poetry /
-       sonnet / verse shapes scores well when ONE archetype matches strongly,
-       even if the other two share little with the prompt. Centroid bundling
-       would smear this signal.
+    Cycle-14 #08g — KEYWORD-GATE RETIRED. The previous two-stage classifier
+    (cycle-13 #07e) ran a keyword phrase-match first, falling through to
+    cosine-archetype matching only on no-keyword-hit. This cycle pre-retires
+    the keyword-gate stage as proof-of-direction per the cycle-14 synthesis
+    §4.a — the hand-coded keyword phrase list (`_NATURAL_MODE_TRIGGERS`) was
+    the most-keyword-shaped, most-hand-picked piece of scaffolding in the
+    dispatcher. Its removal forces ALL prompts through the cosine-archetype
+    path; the substrate's cosine-similarity discrimination + cycle-14 #08c
+    HebbianBank reward-shaped blend carry the routing instead.
+
+    The `_NATURAL_MODE_TRIGGERS` constant remains in this file as the
+    historical record of what the keyword gate used to match; downstream
+    cycles can compare cosine-archetype coverage against the keyword set
+    + verify no regression on the phrases the cycle-11-13 work relied on.
+
+    Single-stage classification (cycle-14 #08g):
+       The prompt is encoded; the domain with the MAXIMUM cosine to any of
+       its archetypes wins iff the best score clears `tau_dispatch`. The
+       max-of-cosines aggregation (not centroid bundling) is empirically
+       more discriminative on the char-n-gram-hash floor encoder — a domain
+       with 3 archetypes spanning poetry / sonnet / verse shapes scores well
+       when ONE archetype matches strongly, even if the others share little
+       with the prompt.
 
     Empirical τ_dispatch=0.10 on char-n-gram-hash D=10240 cleanly splits demo-
     REFUSE shapes (random / structured math / structured physics) from demo-ROUTE
     shapes (P4 philosophy 0.1145; P5 poetry 0.2773; meaning-of-life 0.4652).
-    The Hebbian / semantic-encoder cycle-14+ would recalibrate this floor.
+    Cycle-15+ may recalibrate per the HebbianBank reward signal.
 
     Conservative ordering: structured math/physics dispatchers precede natural-
     mode in `process()`, AND the formal-priority-boost (#07d) further protects
-    formal routing when both branches match. The cosine fallback only activates
-    when keyword classification returns None, so it cannot regress an existing
-    keyword-match.
+    formal routing when both branches match. The cosine path activates for
+    every prompt that gets here; downstream callers (e.g. `_try_natural_mode`)
+    handle None as "no domain match — skip me."
     """
-    lower = prompt.lower()
-    for domain, triggers in _NATURAL_MODE_TRIGGERS.items():
-        if any(t in lower for t in triggers):
-            return domain
-
     if encoder is None or archetype_hvs is None:
         return None
 
