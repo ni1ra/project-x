@@ -118,7 +118,7 @@ class CharNgramHashEncoder:
       vec    = sign(proj)                   # bipolar (D,)
     """
 
-    D: int = 10000
+    D: int = 10240  # 320 × 32 — multiple of 32 so encode_packed can bitpack to uint32 words (bitpack constraint)
     feature_dim: int = 4096
     n: int = 3
     seed: int = 1337
@@ -157,6 +157,25 @@ class CharNgramHashEncoder:
         # sign(0) → +1 by convention to keep bipolar invariant
         bipolar = np.where(proj == 0, 1, np.sign(proj)).astype(np.int8)
         return bipolar
+
+    def encode_packed(self, texts: list[str]) -> np.ndarray:
+        """Encode then bit-pack: (n, D) int8 bipolar → (n, D/32) uint32.
+
+        ~32× memory compression vs int8 (cycle-13 #1 substrate insurance per
+        `docs/artifacts/cycle-13-bitpack-design.md`). Requires `D % 32 == 0`
+        — default `D=10240` satisfies; constructions with D=10000 (legacy)
+        will fail at `pack_bipolar` with a clear ValueError.
+
+        Cosine on packed output via `hdc_infra.cosine_packed` is integer-exact
+        equivalent to `cosine_bipolar` on the unpacked form (29-test suite in
+        `tests/test_bitpack.py` locks `< 1e-9` equality).
+        """
+        from project_x.hdc_infra import PACK_DTYPE, pack_bipolar
+
+        bipolar = self.encode(texts)  # (n, D) int8
+        if bipolar.shape[0] == 0:
+            return np.zeros((0, self.D // 32), dtype=PACK_DTYPE)
+        return np.stack([pack_bipolar(row) for row in bipolar])  # (n, D/32) uint32
 
 
 # =============================================================================
@@ -315,7 +334,7 @@ def main() -> None:
     parser.add_argument(
         "--dataset", type=str, default="gpt-codex/runs/phase9_dataset_full"
     )
-    parser.add_argument("--D", type=int, default=10000)
+    parser.add_argument("--D", type=int, default=10240)
     parser.add_argument("--feature-dim", type=int, default=4096)
     parser.add_argument("--n", type=int, default=3)
     parser.add_argument("--seed", type=int, default=1337)

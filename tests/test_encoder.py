@@ -9,6 +9,7 @@ from project_x.experiments.encoder import (
     cosine_bipolar,
     cosine_matrix_bipolar,
 )
+from project_x.hdc_infra import PACK_DTYPE, cosine_packed
 
 
 def test_determinism_same_seed():
@@ -90,3 +91,42 @@ def test_protocol_compliance_smoke():
     assert out.shape == (1, 128)
     assert isinstance(e.name(), str)
     assert len(e.name()) > 0
+
+
+def test_default_D_is_multiple_of_32():
+    """Default D must satisfy bitpack constraint (D % 32 == 0) so encode_packed
+    works without explicit override. Audit B2 caught the prior D=10000 default
+    contradicting docs' D=10240 claim; this test locks the source state."""
+    e = CharNgramHashEncoder()
+    assert e.D == 10240, f"default D must be 10240, got {e.D}"
+    assert e.D % 32 == 0, f"default D={e.D} must be divisible by 32 for bitpack"
+
+
+def test_encode_packed_shape_and_dtype():
+    """encode_packed returns (n, D/32) uint32; 32× memory compression vs int8."""
+    e = CharNgramHashEncoder(D=10240, feature_dim=4096, n=3, seed=1337)
+    packed = e.encode_packed(["one", "two", "three"])
+    assert packed.shape == (3, 10240 // 32), f"shape {packed.shape}"
+    assert packed.dtype == PACK_DTYPE, f"dtype {packed.dtype}"
+
+
+def test_encode_packed_empty_list():
+    """Empty input returns (0, D/32) uint32 — symmetric with encode([])."""
+    e = CharNgramHashEncoder(D=10240, feature_dim=4096, n=3, seed=1337)
+    packed = e.encode_packed([])
+    assert packed.shape == (0, 10240 // 32)
+    assert packed.dtype == PACK_DTYPE
+
+
+def test_encode_packed_cosine_matches_bipolar():
+    """cosine_packed on encode_packed output ≡ cosine_bipolar on encode output
+    (mathematically exact for bipolar; floating-point equality < 1e-9 expected)."""
+    e = CharNgramHashEncoder(D=10240, feature_dim=4096, n=3, seed=1337)
+    texts = ["Alice prefers Python.", "Alice tends to pick Python."]
+    bipolar = e.encode(texts)
+    packed = e.encode_packed(texts)
+    cos_bipolar = cosine_bipolar(bipolar[0], bipolar[1])
+    cos_pkd = cosine_packed(packed[0], packed[1], D=10240)
+    assert abs(cos_bipolar - cos_pkd) < 1e-9, (
+        f"cosine equivalence broken: bipolar={cos_bipolar}, packed={cos_pkd}"
+    )
