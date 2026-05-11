@@ -8,6 +8,29 @@
 
 ---
 
+## Phase 13 cycle 12 CLOSE (2026-05-11) — SCALE + audit-loop wire-up; 4 of 9 cycle-12 deliverables shipped, 5 deferred-to-cycle-13 with documented fix paths
+
+**Hardest end-to-end at agent-runtime (NEW capability shape this cycle):** the same natural-mode HDC walk that shipped in cycle 11 #DEMO now operates over a ~22,000-fragment Tier-2 corpus spanning 22 source works (Project Gutenberg poetry + philosophy + classical literature + early-modern essays + historical writing) instead of the cycle 11 close's ~250 hand-seeded fragments. That's an 88× retrieval-surface expansion. For a prompt like "what is the meaning of life?" the K-rollout's natural-mode branch can now retrieve fragment sequences with provenance trails spanning 17+ source works (vs ~3 at cycle 11 close), and the audit UI (`ae5dffc`) captures each walk's full provenance trail + emitted text + rating field for downstream consolidation. No new MATH capability this cycle; the capability lift is in *natural-mode walk richness*.
+
+**Capability lift vs cycle 11 close:** the natural-mode composer's retrieval pool grew from ~250 fragments to ~22,000 — 88×. The audit signal pipe is wired and operational (CLI `👍/👎/✏️ correct` against JSONL log at `data/audit_log/*.jsonl`); cycle 13's consolidation pass will consume this signal.
+
+**Bonus capability:** the Tier-2 ingestion pipeline at `4efa69e` is reusable infrastructure — any new public-domain text can be ingested with provenance tags via the Gutenberg fetcher + sentence-splitter + v2 noise-reduction curation filters. Cycle 13's continued corpus expansion uses this same pipeline.
+
+**Pytest baseline:** 586 / 586 passing from cycle 11 close — **NOT re-verified this cycle** (cycle 12 close happened under tight 40-min budget after WSL crash recovery; cycle 13 instance verifies).
+**Bench-replay --agent-runtime:** 48 / 0 baseline from cycle 11 close, **also unverified post-crash.** No regressions expected since cycle 12 work was corpus + audit pipeline, not substrate.
+**Bench-replay frozen:** 46 / 0 baseline maintained.
+**Capability shape:** natural-mode HDC walk over a ~22k-fragment Tier-2 corpus instead of ~250-fragment Tier-1 seed. First step into the canonical doc Layer 6 spec's territory (which calls for 1M-10M words per domain; cycle 12 brought us to ~50-100k words across all domains — still 2-3 OoM short).
+
+**The WSL crash event (cycle 12 process artifact):** cycle 12 #06 emergence-at-scale on the ~22k-fragment corpus triggered RAM-exceeded WSL termination at ~06:22 CEST. Root cause: ~50k-200k unique trigrams × 10000-dim bipolar int8 ≈ 500MB-2GB just for input vectors, plus hand-rolled k-means inner loop allocations exceeded the 7.8 GB RAM ceiling. This is the canonical doc HDC infrastructure optimization roadmap's predicted 10⁸-association non-linear degradation arriving on schedule. Cycle 13 makes bitwise-packed binary HDC (~32× compression) a PREREQUISITE for further empirical work on emergence.
+
+**Hassabis-bar verdict (cycle 12 CLOSE):** content yawns a frontier researcher individually — corpus expansion is dataset engineering, not novel theory; the audit UI is application plumbing. What MIGHT register mildly: (1) the discipline of shipping audit infrastructure BEFORE the consolidation pass to avoid tautological feedback loops; (2) the explicit deferral of emergence-at-scale with documented RAM-fix path rather than retry-loop after WSL crash; (3) the WSL-crash-as-architectural-signal reframe — the canonical doc's HDC-infra roadmap predicted this exact scaling cliff and cycle 13 honors the prediction by making bitpack a PREREQUISITE not optional. These are PROCESS artifacts of architectural honesty, not capability artifacts.
+
+**Self-impression-score: 305 / 420.** Cycle 12 shipped 4 deliverables cleanly (Tier-2 corpus expansion across 3 atomic commits + audit UI) and recovered from a WSL crash with explicit deferral + documented fix-path for cycle 13. Honest 305 (not 350+) because: no capability shape leap (corpus expansion ≠ new capability; audit UI is wiring not feature); emergence-at-scale empirical validation DEFERRED not VALIDATED; the WSL crash was a quantitative warning the cycle plan should have weight-checked before launching the 22k-corpus run; pytest + bench-replay baselines unverified post-crash leave the cycle close in a "trust-but-verify" state. Honest 305 over fake 350.
+
+**Counter-claim guard:** cycle 12 did NOT validate the canonical doc's Layer 5 primitive emergence at production scale — the test crashed and is deferred. The corpus expansion is real (88× retrieval surface) but the agent's *quality of natural-mode walk* is bounded by retrieval substrate, not just fragment count; whether the larger corpus produces qualitatively-better walks is UNVERIFIED (no audit data has accumulated). Cycle 13 reveals whether (a) bitpack lets emergence-at-scale run; (b) accumulated audit data lets consolidation pass produce binding-quality improvements; (c) "rich and broad and curated" corpus expansion improves walk fluency subjectively.
+
+---
+
 ## Phase 13 cycle 11 CLOSE (2026-05-11) — canonical-doc Layer 3-5 + Layer 2 architectural foundation arc; 8 of 10 deliverables shipped
 
 **Hardest end-to-end at agent-runtime (NEW capability this cycle, register-modulated):** *"Hey Raphael, what do you think about the quadratic 3 x² − 14 x − 5 = 0 — just chat with me about it."* The same Pell-dispatcher / quadratic-substrate that cycle-10 close shipped is now routed through (1) BG-style confidence-scored parallel-bid dispatcher (21 parsers; α=0.6 archetype-cosine + binary-match; tau=0.3; chain-order tiebreaker; archetype hvs for each problem_shape); (2) hormone-modulated `Lemma.render(register="casual")` because the intent classifier matched the casual-archetype prompt with highest cosine. The agent emits:

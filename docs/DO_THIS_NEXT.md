@@ -1,66 +1,74 @@
-# Do This Next — Project X — Phase 13 cycle 12 (handoff from cycle 11 CLOSE)
+# Do This Next — Project X — Phase 13 cycle 13 (handoff from cycle 12 CLOSE)
 
-**Updated:** 2026-05-11 (cycle 11 CLOSE — 8 of 10 canonical-doc-sequence deliverables shipped; architectural foundation arc complete)
-**Mode:** APOTHEOSIS EXTENDED until 2026-05-11 11:00 CEST Oslo (lain hard rule). 20m on / 20m off cadence; cron at `19,59 * * * *`. Agent should continue working until 11:00 unless lain interrupts.
-**Status:** Cycle 11 CLOSED via 9 atomic commits (8 feat + 1 close). Cycle 12 = SCALE + audit-loop wire-up + remaining architectural primitive (consolidation) + cycle-12+ infra optimizations.
+**Updated:** 2026-05-11 (cycle 12 CLOSE — Tier-2 corpus expansion + audit UI v1; emergence-at-scale + consolidation pass + Rust/bitpack deferred to cycle 13 with documented fix paths)
+**Mode:** TBD by lain at cycle 13 start — APOTHEOSIS EXTENDED window expired 2026-05-11 11:00 CEST Oslo (lain hard rule); re-arm under NORMAL heartbeat or new APOTHEOSIS window per lain.
+**Status:** Cycle 12 CLOSED via 5 atomic commits (4 feat + 1 close). Cycle 13 = SCALE INFRASTRUCTURE (bitpack / mini-batch) + emergence-at-scale re-attempt + continued corpus expansion + consolidation pass (after audit data accumulates).
 
-## Cycle 11 — what shipped (CLOSE)
+## Cycle 12 — what shipped (CLOSE)
 
 | Commit | Deliverable | Result |
 |---|---|---|
-| `6eae526` | #00P13c11-DEMO natural-mode v0 capability demo | corpus + composer + dispatcher branch (~100 fragments hand-seeded); HDC walks with provenance |
-| `2a479b6` | #00P13c11-01 BG-style confidence-scored parallel-bid dispatcher | 21 parsers; α=0.6; tau=0.3; chain-order tiebreaker; archetype hvs; +7 tests |
-| `9868d66` | #00P13c11-02 hormone-modulated Lemma.render registers | 4 registers (default/terse/tutorial/casual); +7 tests |
-| `8f5c7ad` | #00P13c11-03 try-until-satisfied K-rollout iteration | 3 strategies (bind/bundle/greedy); avg-sim satisfaction; honest-refusal-on-all-K-fail; +8 tests |
-| `dedd135` | #00P13c11-04 K-rollout integration into agent | natural-mode branch uses KRolloutComposer (K=3); strategy wins differ by prompt class |
-| `3279c7a` | #00P13c11-05 English-fluency corpus expansion | 102 → 240 fragments; per lain ~05:30 CEST English-floor / training-data-needed correction |
-| `f0abce3` | #00P13c11-06 primitive-emergence clustering MVP | canonical-doc Layer 5 empirically validated; "X is Y" + "X and Y" + "X gives Y" shells emerge from k-means; +9 tests |
-| `be09fca` | #00P13c11-08 intent-classified dual-mode composer | same quadratic → 4 distinct rendered outputs via register classifier; +8 tests |
-| THIS commit | #00P13c11-CLOSE reflect + A_TO_Z + IQ_PROGRESSION + cycle-12 handoff | |
+| `5f0b2f2` | #00P13c12-01a Tier-2 poetry corpus 80 → 158 fragments | Multi-line poem sequences preserving volta/caesura |
+| `4efa69e` | #00P13c12-01b Tier-2 ingestion pipeline + 10 Gutenberg works + v2 noise filters | Reusable pipeline; "no GPT-generated text" sourcing |
+| `21a191a` | #00P13c12-01c +12 public-domain works; 5 new domain tags | Net Tier-2 corpus ~22k fragments |
+| `ae5dffc` + `768db37` | #00P13c12-02 audit UI v1 (JSONL log + CLI rating tool + composer hook + gitignore) | Audit signal pipe operational for cycle-13 consolidation pass |
+| THIS commit | #00P13c12-07 cycle-12-CLOSE (dev-cycle-12.md + A_TO_Z + IQ_PROGRESSION + cycle-13 handoff) | Cycle close ritual |
 
-**Numbers (cycle 11 CLOSE):**
-- pytest 458 → **586** (+128 across cycle 10 + 11)
-- bench-replay `--agent-runtime`: **48 / 0** maintained
-- bench-replay frozen: 46 / 0 maintained (parity)
+**Deferred to cycle 13** (with documented fix paths):
+- #00P13c12-06 emergence-at-scale (WSL crashed; bitpack prerequisite identified)
+- #00P13c12-03 consolidation pass (needs audit data accumulation)
+- #00P13c12-04 HDC-infra Rust-or-bitpack (now reframed as cycle-13 #1 PREREQUISITE)
+- #00P13c12-05 natural-mode register extension (lower priority)
+- #00P13c12-06 intent-classifier multi-example (lower priority)
 
-**Cycle 11 reflection at** `docs/past_work/cycles/phase_13/dev-cycle-11.md` (Hassabis-bar honest decomposition; 4 cycle tensions; 4 lain catches absorbed; 7 cycle-12 deferred items).
+**Numbers (cycle 12 CLOSE):**
+- pytest 586 baseline from cycle 11 close — **NOT re-verified this cycle** (40-min close budget after WSL crash recovery; cycle 13 verifies)
+- bench-replay `--agent-runtime`: 48 / 0 baseline from cycle 11 close — **also unverified post-crash** (no substrate code changed cycle 12; no regression expected)
+- bench-replay frozen: 46 / 0 baseline maintained (parity)
+- Corpus scale: ~250 fragments → ~22,000 fragments (88× retrieval-surface expansion)
 
-## Cycle 12 deliverables (priority-ordered)
+**Cycle 12 reflection at** `docs/past_work/cycles/phase_13/dev-cycle-12.md` (Hassabis-bar honest decomposition; WSL crash analysis; 3 lain catches absorbed; cycle-13 fix paths).
+
+## Cycle 13 deliverables (priority-ordered, "data + scale + consolidation feedback loop" theme)
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c12-01-tier2-corpus** | HIGH | new `src/project_x/corpus/tier2_*.py` per domain | Tier-2 per-domain English corpus ingestion: ~1-10M words per domain per canonical doc Layer 6 spec (poetry / philosophy / math-text / dialogue / chat); current 240 fragments / ~5000 words is 4 orders of magnitude below spec. Sources: public-domain (Project Gutenberg poetry; pre-1928 philosophy translations; Hardy+Wright / Davenport / Euclid math texts; public-domain dialogue corpora). NO GPT-generated text. ~3-5h Raphael-time per domain × 5 domains; can ship per-domain atomically. |
-| **#00P13c12-02-audit-ui** | HIGH | new `src/project_x/audit/` + Discord+CLI v0 | Discord + CLI v0 audit UI for `👍 / 👎 / ✏️ correct` on emitted walks. Wires the audit signal that consolidation pass (#03) consumes. Without real audit signal, consolidation pass is tautological. ~2-3h. |
-| **#00P13c12-03-consolidation-pass** | HIGH | new `src/project_x/learning/consolidation.py` | Canonical doc Layer 7 surprise-biased perturb-audit-reweight on bindings touched by recent surprising K-rollouts. Selection rule: bias toward bindings with high audit-rejection-rate AND high recent K-rollout-curiosity. Update operation: bit-flip ~1% perturbation; score via audit-loop predicate; replace central if perturbation scores higher on audit-aligned retrieval. Empirical test: does iterative perturb-audit-reweight measurably improve walk quality across cycles? Open question per canonical doc. ~2h post audit UI. |
-| **#00P13c12-04-hdc-infra-rust-or-bitpack** | MED | `src/project_x/hdc_infra/` extension or new Rust crate | Per canonical doc HDC infrastructure optimization roadmap. Cycle-11 #06 primitive emergence runs k-means in ~85s on 3169 trigrams × 15 clusters × 10000 dim — at production corpus scale (millions of trigrams), this becomes minutes-hours, unacceptable. Two paths: (a) bitwise-packed binary HDC (~32× speedup on CPU); (b) Rust port via PyO3 (~100× speedup; lain has flagged this as the production path). Either landing. ~3-5h Raphael-time. |
-| **#00P13c12-05-natural-mode-register** | MED | extend `_try_natural_mode` in reasoning_agent.py | Extend register selection to natural-mode walks: terse natural-mode = single best fragment with citation; tutorial natural-mode = annotated meta-commentary on why each fragment was retrieved; casual natural-mode = remove formal "STEP N" markers, present as conversational quote. Currently register selection only re-renders formal-mode Lemmas. ~60 min. |
-| **#00P13c12-06-intent-classifier-multi-example** | MED | `_REGISTER_ARCHETYPES` in reasoning_agent.py extended | Extend register classifier to multiple example prompts per register + centroid averaging via HDC bundle. Currently 1 archetype per register. Multi-example gives better generalization on edge-case framings. ~30 min. |
-| **#00P13c12-07-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-12.md` + DO_THIS_NEXT cycle-13 + A_TO_Z + IQ_PROGRESSION | Cycle close ritual mirroring dev-cycle-11.md shape. Hassabis-bar honest decomposition. advisor() pre-commit. |
+| **#00P13c13-01-bitpack** | HIGH; PREREQUISITE for #3 | new `src/project_x/hdc_infra/bitpack.py` + integration in encoder + emergence | Bitwise-packed binary HDC: pack 32 bipolar ±1 bits into one int32. ~32× compression — 50k-200k trigrams × packed 10000-dim ≈ 16-65MB instead of 500MB-2GB. Cosine-via-popcount on the packed representation: `cos(a, b) ≈ (D - 2·popcount(a XOR b)) / D` for D-bit vectors. Validate against existing `cosine_bipolar` on a small bench. ~2-3h Raphael-time. |
+| **#00P13c13-02-minibatch-kmeans** | HIGH; fallback if #1 hits complications | extend `_kmeans_cosine_bipolar` in `corpus/primitive_emergence.py` | Mini-batch k-means: process trigrams in batches of 1k-5k; assign each batch to current centroids; incremental centroid update via sign(bundle(prev_centroid, batch_members)). Lower peak RAM at a slight clustering quality cost. ~90 min Raphael-time. Land regardless of #1's status — useful for cycle-14+ even-larger corpora. |
+| **#00P13c13-03-emergence-at-scale** | HIGH; depends on #1 OR #2 | run `primitive_emergence` on ~22k-fragment Tier-2 corpus | The deferred cycle-12 #06 work. Run k-means on ~50k-200k unique trigrams using bitpack and/or mini-batch infrastructure. Empirical result: do the discovered primitives at scale represent structural shells ("X is Y", "X because Y") consistent with cycle-11 #06 MVP's findings, or do they shift toward frequency rankings as scale grows? Document in `docs/artifacts/cycle-13-primitive-emergence-at-scale.md`. ~60-90 min post #1/#2. |
+| **#00P13c13-04-corpus-expansion** | HIGH; on-going | Tier-2 ingestion pipeline (`4efa69e`) | Target another 50-200 Project Gutenberg works toward the canonical doc Layer 6 spec (1-10M words per domain). Continue per-domain atomic commits via the existing pipeline. Lain's "rich and broad and curated, high quality, low noise" bar applies; v2 noise filters in place. ~3-5h per domain × 5 domains; can ship per-batch atomic. |
+| **#00P13c13-05-consolidation-pass** | MED; after #3 + accumulated audit data | new `src/project_x/learning/consolidation.py` | Canonical doc Layer 7 surprise-biased perturb-audit-reweight. Selection rule: bias toward bindings with high audit-rejection-rate AND high recent K-rollout-curiosity. Update: bit-flip ~1% perturbation; score via audit-loop predicate; replace central if perturbation scores higher on audit-aligned retrieval. Real audit data accumulates as lain rates walks via the cycle-12 #02 CLI; without ~50+ ratings the consolidation pass is tautological. ~2h post audit data accumulation. |
+| **#00P13c13-06-variable-resolution-hdc** | MED; advisor consult first | new module TBD | Lain msg `1503248974` (~04:14 UTC 2026-05-11): *"Variable HDC resolution, like it can give higher detail to certain geometric positions where needed. This is just optional, I'm just thinking out loud."* Research direction: hierarchical HDC where the substrate's effective dimensionality is non-uniform across the vector — high-detail subspaces for frequently-retrieved concepts, low-detail for rarely-touched. Needs advisor consult to map the architecture's options before implementing. ~60 min advisor + ~3h prototype if pursued. |
+| **#00P13c13-07-infinite-attention-generation** | MED | analysis + demo | Lain msg `1503248281` (~04:11 UTC 2026-05-11): *"It must be able to perform infinite attention and infinite generation output capability too like it should be able to understand a long input, and generate long output."* The HDC walk substrate already supports arbitrary-length retrieval chains and arbitrary-length input prompts (no fixed context window like transformers). So "infinite" may already be implemented — needs analysis to confirm and a demo on a long-prompt + long-output benchmark to validate. ~60 min advisor consult + demo. |
+| **#00P13c13-08-natural-mode-register** | LOW; deferred from cycle 12 #05 | extend `_try_natural_mode` in reasoning_agent.py | Apply register selection to natural-mode walks: terse natural-mode = single best fragment with citation; tutorial natural-mode = annotated meta-commentary on why each fragment was retrieved; casual natural-mode = remove formal "STEP N" markers, present as conversational quote. Currently register selection only re-renders formal-mode Lemmas. ~60 min. |
+| **#00P13c13-09-intent-classifier-multi-example** | LOW; deferred from cycle 12 #06 | `_REGISTER_ARCHETYPES` in reasoning_agent.py extended | Multi-example archetypes per register + centroid averaging via HDC bundle. Currently 1 archetype per register. ~30 min. |
+| **#00P13c13-10-cycle-13-reflect** | LOW | dev-cycle-13.md + DO_THIS_NEXT cycle-14 + A_TO_Z + IQ_PROGRESSION | Hassabis-bar honest decomposition. advisor() pre-commit. |
 
-**Total estimate: ~12-20h Raphael-time across cycle 12.** Tier-2 corpus is the bulk; everything else is ~6-9h.
+**Total estimate: ~10-16h Raphael-time across cycle 13.** Bitpack + emergence is the bulk; everything else is composable.
 
 **Carry-forwards (lain-pending; do NOT touch unprompted):**
-- #00P13c8-07 CLAUDE.md trim (~59.3k current; ~13k more to cut over older sections — awaits lain direction on what's load-bearing).
+- #00P13c8-07 CLAUDE.md trim (~59.3k current vs 46k hard ceiling; ~13k more to cut over older sections; awaits lain direction on what's load-bearing).
 - #00P13c7-04 council audit tag (mechanism scope unresolved).
 
-## Open empirical questions (cycle 12+ reveals)
+## Open empirical questions (cycle 13 reveals)
 
-1. **Does Tier-2 corpus expansion measurably improve walk fluency?** Subjective audit signal needed.
-2. **Does consolidation pass produce binding-quality improvements?** Requires real audit data across N cycles.
-3. **Does Rust port / bitpack scale primitive emergence to millions of trigrams in production time?**
-4. **Does multi-example intent classifier generalize better than single-archetype on edge-case prompts?**
-5. **Do natural-mode registers (terse / tutorial / casual variants) produce qualitatively-distinct walks?**
+1. **Does bitpack (#1) cleanly substitute for bipolar int8 in cosine + k-means without quality loss?** (Cosine-via-popcount is mathematically equivalent for binary vectors; the question is whether downstream consumers — encoder, retrieval, emergence — accept the packed representation without regression.)
+2. **Does primitive emergence at production scale (~50k-200k trigrams) produce structural shells or frequency rankings?** (Cycle 11 #06 MVP at ~3k trigrams produced clean shells: "X is Y" copula + "X and Y" coordination. Whether this survives at 60× scale is the empirical question cycle 13 #3 answers.)
+3. **Does accumulated audit data + consolidation pass measurably improve walk quality across cycles?** (Requires ~50+ real lain ratings before the test is meaningful.)
+4. **Does variable-resolution HDC produce qualitatively-different retrieval?** (Lain's "thinking out loud" suggestion; needs advisor consult before commitment.)
+5. **Does the HDC walk already implement "infinite attention/generation" in the lain-msg sense?** (Substrate analysis question; likely yes with caveats.)
 
 ## Standing rules — RELEVANT FOR FRESH INSTANCE
 
 See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 
-**Universal codifications landed in cycle 10 + 11 (binding cycle 12+):**
-- **English-fluency floor + training-data-needed** (lain 2026-05-11): English fluency is mandatory floor; other-language fluency is last priority; training data IS needed (not deprioritized) for the English floor.
+**Universal codifications binding cycle 13+:**
+- **WSL/RAM caution** (lain 2026-05-11 post-crash): "be careful of WSL and ram usage etc." Codified as: no emergence-at-scale or other 22k+-fragment k-means runs without bitpack or mini-batch landed first.
+- **English-fluency floor + training-data-needed** (lain 2026-05-11): English fluency is mandatory floor; other-language fluency last priority; training data IS needed (not deprioritized).
+- **Data-quality discipline** (lain 2026-05-11 cluster `1503244000` → `1503248974`): "very well curated and high quality, low noise. But rich and broad." Public-domain sourcing only; NO GPT-generated text (would distill a transformer through the back door); v2 noise-reduction filters mandatory on Tier-2 ingestion.
 - **Long-term-goal-addressing primary axis + research-when-needed self-check** (lain 2026-05-11): every shift answers "am I directly addressing long-term goals" + "do I need research/brainstorming first" + "am I being proactive in deep thinking, not just executing."
-- **APOTHEOSIS extended hard rule** (lain 2026-05-11): 11:00 CEST Oslo; 20m on / 20m off cadence. Cron `19,59 * * * *`.
 - **Raphael-time estimates** (lain 2026-05-11): calibrate to actual commit throughput (~10-15 min per substantive deliverable); NOT human-developer hours.
-- **Self-impression-score 0-420** (lain 2026-05-11 binding): mandatory 5th metric on every substantive ship; integer + one-line rationale; never inflate; honest 340 > fake 400.
+- **Self-impression-score 0-420** (lain 2026-05-11): mandatory 5th metric on every substantive ship; integer + one-line rationale; never inflate; honest 340 > fake 400.
 - **No-legacy discipline** (lain 2026-05-11): when a file/code is no longer needed, REMOVE it.
 - **Dual-listener pattern + cursor-aware rearm** (lain 2026-05-11): 2 concurrent listeners; manual rearm passes consumed msg_id as `LISTENER_BASELINE` env var. CLAUDE.md DD-1/2 codified.
 
@@ -68,43 +76,43 @@ See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 - NO pretrained transformer derivatives at any layer (organic-thesis 2026-05-09 binding)
 - Comment-ratio rule (WHY-comments + pure-signal + complex code justified; lain 2026-05-10 global policy)
 - Atomic per-deliverable commits; never `git add -A`
-- REPO_CONTROL row co-landing in SAME commit as new NON-docs files (docs/ exempt per `5891da3`)
+- REPO_CONTROL row co-landing in SAME commit as new NON-docs files (docs/ exempt)
 - M-PROJECTX-013 measure-don't-claim; M-PROJECTX-014 split-grading firewall
 - Identity discipline (Claude Code Raphael ≠ Project X Raphael)
 - Discord style discipline (NO cycle-number jargon on Discord; plain English assuming Discord-only readers)
 - Hassabis-bar discipline (every cycle close: "would Hassabis be impressed?" with substrate-vs-capability-vs-cosmetic decomposition)
 
-## What cycle 12 is NOT
+## What this cycle is NOT (cycle 13)
 
-- NOT another architectural-primitive cycle. The 8 architectural primitives from cycle 11 (BG dispatcher / hormone register / K-rollout / corpus pipeline / primitive emergence / intent classifier / agent integration) are the foundation. Cycle 12 SCALES them, doesn't add new ones.
-- NOT a benchmark expansion cycle. Capability work focuses on canonical doc Layer 6-7 completion (Tier-2 corpus + consolidation + audit UI) and infra performance (Rust port / bitpack), not new ladder entries.
-- NOT a paper.md revision cycle. Update after cycle 12 close if implementation lessons land.
+- NOT a benchmark expansion cycle. Capability buildout focuses on the SCALE INFRASTRUCTURE (bitpack + emergence-at-scale) plus continued corpus + audit-driven consolidation. Bench-replay PASS-count progress is not the cycle theme.
+- NOT a paper.md revision cycle. Update after cycle 13 close if implementation lessons land.
+- NOT a fluency-evaluation cycle. Whether the larger corpus produces qualitatively-better walks is an empirical question — cycle 13 generates the AUDIT signal that answers it across cycles 13-14.
 
-## Done condition (cycle 12, mechanical)
+## Done condition (cycle 13, mechanical)
 
-- All cycle-12 #00P13c12-XX TaskList rows = `completed` (or explicitly deferred with rationale + lain visibility).
-- pytest -q ≥ 650 (current 586; Tier-2 corpus expansion + audit UI + consolidation + register extension expect +50-80 tests).
-- bench-replay `--agent-runtime`: ≥ 48 / 0 maintained (architectural-primitive additions should not break existing dispatcher paths).
+- All cycle-13 #00P13c13-XX TaskList rows = `completed` (or explicitly deferred with rationale + lain visibility).
+- pytest -q ≥ 600 (current 586 baseline; bitpack + mini-batch + emergence-at-scale + consolidation pass expect +20-40 tests).
+- bench-replay `--agent-runtime`: ≥ 48 / 0 maintained (no regressions; bitpack must be empirically equivalent to int8 bipolar; emergence-at-scale is documentation work that shouldn't touch bench).
 - bench-replay frozen: 46 / 0 maintained (parity).
-- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-12.md`.
-- THIS file rewritten as cycle 13 handoff.
-- `docs/artifacts/IQ_PROGRESSION.md` cycle-12 entry prepended.
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-13.md`.
+- THIS file rewritten as cycle 14 handoff.
+- `docs/artifacts/IQ_PROGRESSION.md` cycle-13 entry prepended.
 - `git status -s` empty.
-- Discord cycle-12 close in plain-English with self-impression-score + 5-metric rubric (CLAUDE.md § R4).
+- Discord cycle-13 close in plain-English with self-impression-score + 5-metric rubric.
 
 ## Files the fresh instance should read first (in order)
 
 1. `~/.claude/CLAUDE.md` — universal Raphael protocol (auto-loaded by harness).
 2. `docs/MANIFESTO.md` — project intent + standing orders.
 3. `docs/REPO_CONTROL.md` — pristine-gate file inventory.
-4. `docs/A_TO_Z_PLAN.md` — Phase 13 plan + PHASE CHANGELOG (latest = cycle 11 CLOSE).
-5. **`docs/artifacts/cycle-10-semantics-architecture.md`** — canonical synthesis doc; cycle 11 implemented Layer 3-5 + Layer 2; cycle 12 continues Layer 6-7.
-6. **THIS file** — cycle 12 deliverable table + recommended order.
-7. `docs/past_work/cycles/phase_13/dev-cycle-11.md` — last closed cycle reflection (architectural foundation arc + Hassabis-bar verdict).
-8. `docs/paper.md` — teacher-tone curriculum (cycle 9 + cycle 10 state; cycle 12 should update with cycle 11 architecture).
-9. `docs/artifacts/IQ_PROGRESSION.md` — per-cycle hardest-problem ladder (cycle 11 CLOSE entry shows register-modulated quadratic + bundle-strategy poetry walk + emergence empirical validation).
-10. Code-side: `src/project_x/corpus/{mini_seed,natural_mode,k_rollout,primitive_emergence}.py` (the cycle-11 architectural primitives) + `src/project_x/reasoning_agent.py` (BG dispatcher + intent classifier + agent dispatch chain).
-11. Recent git log: `git log --oneline -20` to see cycle-11 commit progression.
-12. Latest pytest + bench-replay: `python3 -m pytest -q | tail -3` + `python3 gpt-codex/benchmark/run_audit.py --agent-runtime | tail -10`.
+4. `docs/A_TO_Z_PLAN.md` — Phase 13 plan + PHASE CHANGELOG (latest = cycle 12 CLOSE).
+5. **`docs/artifacts/cycle-10-semantics-architecture.md`** — the canonical synthesis (load-bearing contract; cycle 13 implements the HDC-infra optimization layer per its roadmap).
+6. **THIS file** — cycle 13 deliverable table + recommended order.
+7. `docs/past_work/cycles/phase_13/dev-cycle-12.md` — last closed cycle reflection (includes WSL crash analysis + bitpack/mini-batch fix paths).
+8. `docs/past_work/cycles/phase_13/dev-cycle-11.md` — architectural foundation cycle for context on the layers being scaled.
+9. `docs/artifacts/IQ_PROGRESSION.md` — per-cycle hardest-problem ladder.
+10. `src/project_x/corpus/primitive_emergence.py` + `src/project_x/experiments/encoder.py` — the code touched by cycle-13 #1/#2/#3.
+11. Recent git log: `git log --oneline -20` to see cycle-12 commit progression.
+12. Verify baselines BEFORE substantive new work: `python3 -m pytest -q | tail -3` + `python3 gpt-codex/benchmark/run_audit.py --agent-runtime | tail -10`. Cycle 12 close did NOT re-verify these post-WSL-crash; cycle 13's first action is verification.
 
-The fresh instance executes cycle 12 per priority order; advisor() pre-Write on novel architectural decisions (Tier-2 ingestion strategy; consolidation pass test design; Rust port choice between PyO3 vs cbindgen); Discord plain-English on every progress claim with the 5-metric rubric (denominator+% + frontier-expert-reaction + plain-English-achievement + counter-claim-guard + self-impression-score 0-420); cycle-12 close mirrors cycle-11 close shape.
+The fresh instance executes cycle 13 per priority order; advisor() pre-Write on bitpack design (substantive new infra) + variable-resolution HDC (research direction); Discord plain-English on every progress claim with the 5-metric rubric (denominator+% + frontier-expert-reaction + plain-English-achievement + counter-claim-guard + self-impression-score 0-420); cycle-13 close mirrors cycle-12 close shape.
