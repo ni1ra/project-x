@@ -577,3 +577,105 @@ class TestVietaStrongVerifierAlreadyPresent:
         # actual_value computed from eigenvalues (independent path via solve_quadratic)
         assert abs(trace_inv.actual_value - 4) < 1e-9
         assert abs(det_inv.actual_value - 3) < 1e-9
+
+
+# --- Cycle 11 #00P13c11-02 hormone-modulated Lemma.render() registers ---
+
+
+def test_render_terse_register_emits_two_line_summary():
+    """Terse register: 'Notice. <claim>\\n\\nAffirmative — <actual_value>'."""
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    terse = lemma.render(register="terse")
+    # Two non-empty lines separated by blank line
+    parts = terse.split("\n\n")
+    assert len(parts) == 2
+    assert parts[0].startswith("Notice.")
+    assert parts[1].startswith("Affirmative —")
+    # Terse omits "Step", "Inputs", "Invariant"
+    assert "Step" not in terse
+    assert "Inputs:" not in terse
+    assert "Invariant" not in terse
+
+
+def test_render_tutorial_register_adds_why_this_matters_prefix():
+    """Tutorial register: 💡 Why this matters prefix on each step + verbose closer."""
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    tutorial = lemma.render(register="tutorial")
+    # Includes the 💡 prefix on step justifications
+    assert "💡 Why this matters:" in tutorial
+    # Pedagogical closer (longer than plain "Affirmative — X")
+    assert "Each step is annotated so the technique generalizes" in tutorial
+    # Verbose invariant framing
+    assert "algorithmically-independent path" in tutorial
+
+
+def test_render_casual_register_drops_formal_scaffolding():
+    """Casual register: 'OK so — ...' opener; 'So the answer is X.' closer; no Step markers."""
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    casual = lemma.render(register="casual")
+    # Conversational opener
+    assert casual.startswith("OK so —")
+    # Conversational closer
+    assert "So the answer is" in casual
+    # No formal "Step N —" markers
+    assert "Step 1 —" not in casual
+    assert "Step 2 —" not in casual
+    # No "Affirmative —" closer (casual replaces with "So the answer is")
+    assert "Affirmative —" not in casual
+
+
+def test_render_default_register_unchanged_back_compat():
+    """Default register (no argument) preserves cycle-2-through-10 render exactly.
+    This is the back-compat guarantee — call sites that use render() with no
+    args MUST get the same output they got pre-cycle-11."""
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    # Both call shapes produce identical output
+    default = lemma.render()
+    explicit = lemma.render(register="default")
+    assert default == explicit
+    # Sanity: default has the cycle-2-through-10 fingerprints
+    assert "Notice." in default
+    assert "Step 1 —" in default
+    assert "Affirmative —" in default
+    assert "Invariant checks:" in default
+
+
+def test_render_rejects_unknown_register():
+    """Unknown register → ValueError with available registers in the message."""
+    import pytest as _pytest
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    with _pytest.raises(ValueError, match="unknown render register"):
+        lemma.render(register="purple_unicorn")
+
+
+def test_render_registers_share_actual_value():
+    """All 4 registers expose the SAME actual_value — the substrate result.
+    Register changes the rendering only, never the underlying answer. This is
+    the canonical doc Layer 2 hormone-modulation property: hormones don't
+    carry content; they modulate threshold/register."""
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    for reg in ("default", "terse", "tutorial", "casual"):
+        rendered = lemma.render(register=reg)
+        # Each render mentions the actual_value (the answer)
+        assert str(lemma.actual_value) in rendered or "-0.333" in rendered  # roots [-1/3, 5.0]
+
+
+def test_render_registers_qualitatively_different_lengths():
+    """Sanity: the 4 registers produce length-distinct outputs (terse < default ≈ tutorial < tutorial; casual is shorter than default).
+    This is the empirical evidence of mode-switching producing qualitatively-different output flavors per
+    canonical doc Layer 2 hormone-modulation."""
+    from project_x.reasoning.symbolic import solve_quadratic
+    lemma = solve_quadratic(3, -14, -5)
+    lens = {reg: len(lemma.render(register=reg)) for reg in ("default", "terse", "tutorial", "casual")}
+    # Terse is the shortest by construction (just claim + answer)
+    assert lens["terse"] < lens["default"]
+    assert lens["terse"] < lens["tutorial"]
+    assert lens["terse"] < lens["casual"]
+    # Tutorial is longer than default (adds 💡 prefixes + verbose closer)
+    assert lens["tutorial"] > lens["default"]

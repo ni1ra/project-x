@@ -148,7 +148,7 @@ class Lemma:
         self.invariant_checks.append(check)
         return check
 
-    def render(self) -> str:
+    def render(self, register: str = "default") -> str:
         """Render the derivation as a Raphael-voice proof-shape string.
 
         Output mimics the hand-crafted `raphael_response` shape in the ladder JSONL
@@ -158,7 +158,36 @@ class Lemma:
         appended after the step chain if any. Both sections render only when
         populated — a Lemma without intro/invariants renders identically to
         cycle 2 for backward compat.
+
+        Cycle 11 #00P13c11-02 — hormone-modulated render registers per canonical
+        synthesis doc Layer 2. Same Lemma state, qualitatively-different output
+        flavors:
+          - "default" — full proof (declarative; current behavior; unchanged for back-compat).
+          - "terse"   — claim + actual_value only; one-line summary register.
+          - "tutorial" — expanded prose; introduction + step-by-step with "why this matters"
+                         prefix per step; full invariants; verbose Affirmative.
+          - "casual"  — conversational tone; first-person; drops formal prelude/closer;
+                         renders steps as natural sentences without "Step N —" markers.
+
+        All four registers READ THE SAME stored state (claim/intro/steps/invariants/actual_value)
+        — only the assembly differs. The empirical question is whether mode-switching here
+        produces qualitatively-distinct outputs, which is the cycle-11 #2 test of whether
+        hormone-modulation foundation holds. Per canonical doc Layer 2: hormones don't carry
+        content; they modulate threshold/register. This is the rendering instance of that
+        pattern.
         """
+        if register not in ("default", "terse", "tutorial", "casual"):
+            raise ValueError(
+                f"unknown render register '{register}'; expected one of "
+                f"default / terse / tutorial / casual"
+            )
+        if register == "terse":
+            return self._render_terse()
+        if register == "tutorial":
+            return self._render_tutorial()
+        if register == "casual":
+            return self._render_casual()
+        # default register — current behavior
         lines = [f"Notice. {self.claim}"]
         if self.introduction:
             lines.append("")
@@ -180,6 +209,62 @@ class Lemma:
         lines.append("")
         lines.append(f"Affirmative — {self.actual_value}")
         return "\n".join(lines)
+
+    def _render_terse(self) -> str:
+        """Terse register: claim + actual_value only. Two lines. For when the agent
+        needs to emit a one-shot answer without exposing the full proof. Invariant
+        information is NOT shown (caller wanting verification calls default/tutorial)."""
+        return f"Notice. {self.claim}\n\nAffirmative — {self.actual_value}"
+
+    def _render_tutorial(self) -> str:
+        """Tutorial register: full proof + explicit "why this matters" prefix per step.
+        For when the agent is teaching rather than just answering. Same content as
+        default but with pedagogical framing — each step's justification prefixed with
+        '💡 Why this matters:' to encourage the reader to internalize the technique,
+        not just check the arithmetic. Invariants verbose. No semantic content added."""
+        lines = [f"Notice. {self.claim}"]
+        if self.introduction:
+            lines.append("")
+            lines.append(self.introduction)
+        lines.append("")
+        for step in self.derivation_steps:
+            lines.append(f"Step {step.step_index + 1} — {step.operation}")
+            lines.append(f"  💡 Why this matters: {step.justification}")
+            lines.append(f"  Inputs: {step.inputs}")
+            lines.append(f"  Output: {step.output}")
+        if self.invariant_checks:
+            lines.append("")
+            lines.append("Invariant checks (each verifies the answer via an algorithmically-independent path):")
+            for inv in self.invariant_checks:
+                mark = "✓ holds" if inv.holds else "✗ FAILS"
+                lines.append(
+                    f"  {mark} — predicate: {inv.predicate}; expected: {inv.expected_value}; "
+                    f"actual: {inv.actual_value}; reasoning: {inv.justification}",
+                )
+        lines.append("")
+        lines.append(f"Affirmative — the answer is {self.actual_value}. "
+                     f"Each step is annotated so the technique generalizes, not just the arithmetic.")
+        return "\n".join(lines)
+
+    def _render_casual(self) -> str:
+        """Casual register: conversational tone; first-person; drops the formal Notice./Step N/
+        Affirmative scaffolding. Renders steps as natural sentences. For chat-mode interaction
+        where the agent's tone matters more than the proof-format. Same content, different vibe."""
+        parts = [f"OK so — {self.claim.lower().rstrip('.')}."]
+        if self.introduction:
+            # Take first sentence of introduction as casual framing
+            intro_first = self.introduction.split(". ")[0]
+            parts.append(f"Quick context: {intro_first}.")
+        for step in self.derivation_steps:
+            parts.append(f"{step.justification}")
+        if self.invariant_checks:
+            for inv in self.invariant_checks:
+                if inv.holds:
+                    parts.append(f"(double-checked via an independent path: {inv.predicate} holds.)")
+                else:
+                    parts.append(f"(heads-up: invariant '{inv.predicate}' did NOT hold — this answer is suspect.)")
+        parts.append(f"So the answer is {self.actual_value}.")
+        return " ".join(parts)
 
 
 # Math-WHY prose constants for cycle 2 primitives (Tier 1 extension, #00P13c3-02).
