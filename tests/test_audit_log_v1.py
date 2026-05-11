@@ -24,8 +24,16 @@ from project_x.audit.log import AuditEvent, AuditLog, make_walk_id
 
 @pytest.fixture
 def tmp_audit_log(tmp_path: Path) -> AuditLog:
-    """Isolated audit log on a tmp path; one per test."""
-    return AuditLog(path=tmp_path / "walks.jsonl")
+    """Isolated audit log on a tmp path; one per test.
+
+    Also isolates the Hebbian-bank side-channel (cycle-14 #08b) so
+    apply_rating() in tests doesn't pollute the real bank file at
+    `data/hebbian_bank/main.pkl`.
+    """
+    return AuditLog(
+        path=tmp_path / "walks.jsonl",
+        hebbian_bank_path=tmp_path / "hebbian_bank.pkl",
+    )
 
 
 def test_audit_event_jsonl_roundtrip():

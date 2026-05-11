@@ -37,6 +37,25 @@ from pathlib import Path
 _DEFAULT_AUDIT_DIR = Path(__file__).resolve().parents[3] / "data" / "audit_log"
 _DEFAULT_AUDIT_FILE = _DEFAULT_AUDIT_DIR / "walks.jsonl"
 
+# Cycle-14 #08b — Hebbian-bank persistence path for the audit-rating consumer.
+# The bank lives in `data/hebbian_bank/main.pkl` (cycle-14 v0 — single bank).
+# Cycle-15+ may partition per-domain.
+_DEFAULT_HEBBIAN_BANK_FILE = (
+    Path(__file__).resolve().parents[3] / "data" / "hebbian_bank" / "main.pkl"
+)
+
+# Cycle-14 #08b — translate the string preference signal ("approve"/"reject"/
+# "correct") into a numeric rating on the [1..5] scale the HebbianBank expects.
+# The bank's RATING_MIDPOINT is 3.0; "approve" sits well above (=5), "reject"
+# well below (=1), "correct" right at the midpoint (=3 — neither reinforce
+# nor decay; correct-marker is feedback for cycle-15+ generation work, not
+# substrate co-occurrence shaping).
+_RATING_STR_TO_NUMERIC: dict[str, float] = {
+    "approve": 5.0,
+    "correct": 3.0,
+    "reject": 1.0,
+}
+
 
 @dataclass
 class AuditEvent:
@@ -67,11 +86,24 @@ class AuditEvent:
 class AuditLog:
     """Append-only JSONL audit log."""
 
-    def __init__(self, path: Path | str = _DEFAULT_AUDIT_FILE) -> None:
+    def __init__(
+        self,
+        path: Path | str = _DEFAULT_AUDIT_FILE,
+        hebbian_bank_path: Path | str | None = None,
+    ) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
             self.path.touch()
+        # Cycle-14 #08b — the substrate's HebbianBank persistence path. If
+        # None, uses the default `data/hebbian_bank/main.pkl`. Tests pass
+        # a tmp_path here to avoid polluting the real bank file with
+        # synthetic prompts/fragments.
+        self.hebbian_bank_path = (
+            Path(hebbian_bank_path)
+            if hebbian_bank_path is not None
+            else _DEFAULT_HEBBIAN_BANK_FILE
+        )
 
     def record_walk(self, event: AuditEvent) -> None:
         """Append a walk event (pending rating). Writes one JSONL line."""
@@ -162,7 +194,50 @@ class AuditLog:
             ts_rated=time.time(),
         )
         self.record_walk(rated)
+
+        # Cycle-14 #08b — close the reward → substrate loop. Feed the rating
+        # into the substrate-wide HebbianBank so retrieval over the rated
+        # (prompt, fragment) pairs shifts in the rated direction. Cold-start
+        # safe: empty bank returns lookup=0.0, retrieval blend collapses to
+        # identity (cycle-13 baseline preserved).
+        self._propagate_rating_to_hebbian_bank(latest, rating)
         return True
+
+    def _propagate_rating_to_hebbian_bank(
+        self,
+        event: AuditEvent,
+        rating_str: str,
+    ) -> None:
+        """Apply the rating's Hebbian update to the substrate-wide bank.
+
+        Cycle-14 #08b: this is the I/O wire between the audit channel and
+        the substrate's first write path from rated experience. Persists
+        the bank to `data/hebbian_bank/main.pkl` on every update — fine at
+        cycle-14 rating volume (sub-100 ratings expected); cycle-15+ may
+        memoize if rating frequency grows.
+
+        Failure modes:
+          - HebbianBank import error: silently skip (test-env fallback).
+          - rating not in the numeric map: silently skip (defensive guard
+            already lives in `apply_rating` validating the string vocab).
+          - bank load/save IO error: log + skip; we don't want to fail
+            audit-rating writes because of a substrate-update error.
+        """
+        try:
+            from project_x.hdc_infra import HebbianBank
+        except ImportError:
+            return  # test-environment fallback; bank wire optional
+        rating_value = _RATING_STR_TO_NUMERIC.get(rating_str)
+        if rating_value is None:
+            return  # unknown rating string; apply_rating's validation already caught
+        try:
+            bank = HebbianBank.load(self.hebbian_bank_path)
+            bank.update(event.prompt, event.fragments, rating_value)
+            bank.save(self.hebbian_bank_path)
+        except (OSError, IOError):
+            # Disk-write failure shouldn't break audit-rating recording.
+            # Cycle-14 v0 ignores; cycle-15+ may surface via logging.
+            return
 
     def stats(self) -> dict[str, int]:
         """Summary counts: total / pending / approved / rejected / corrected."""
