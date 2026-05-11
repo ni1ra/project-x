@@ -136,4 +136,66 @@ def polynomial_definite_integral(
         ),
     )
 
+    # Cycle 10 #01d STRONG (algorithmically-independent) verifier: midpoint Riemann sum.
+    # Discretize [lower, upper] into N=10000 subintervals; evaluate p at each midpoint;
+    # sum with weight Δx. No antiderivative built, no power rule applied — just direct
+    # integrand evaluation + Riemann summation. A typo in the antiderivative-coefficient
+    # construction or the FTC closing subtraction would NOT propagate to this numerical
+    # quadrature. Midpoint rule has O(N⁻²) discretization error; for polynomial
+    # integrands on bounded intervals with N=10000, the error is well under 1e-6 — easily
+    # within Lemma.tolerance=0.001.
+    midpoint_integral = _midpoint_riemann_sum(coeffs_by_power, lower, upper, N=10000)
+    lemma.add_invariant_check(
+        predicate=(
+            "midpoint Riemann sum with N=10000 ≈ FTC closed-form integral "
+            "(algorithmically-independent STRONG verifier)"
+        ),
+        expected_value=integral,
+        actual_value=midpoint_integral,
+        justification=(
+            f"Midpoint Riemann sum over [{lower}, {upper}] with 10000 subintervals: "
+            f"{midpoint_integral}; FTC closed-form: {integral}. The numerical path "
+            "evaluates p(x_mid) directly via Horner at each midpoint and sums; the "
+            "closed-form path builds the antiderivative coefficients via power rule "
+            "and applies F(upper) − F(lower). Completely different algorithms; "
+            "midpoint-rule error O(N⁻²) is well under 1e-6 for polynomial integrands "
+            "at N=10000, fits within tolerance 0.001."
+        ),
+    )
+
     return lemma
+
+
+def _midpoint_riemann_sum(
+    coeffs_by_power: list[float], lower: float, upper: float, *, N: int = 10000,
+) -> float:
+    """Compute ∫_lower^upper p(x) dx via composite midpoint Riemann sum.
+
+    p(x) = Σ_k coeffs_by_power[k] · x^k where index = power, value = coefficient. The
+    function discretizes [lower, upper] into N equal subintervals of width Δx, evaluates
+    p at the midpoint of each subinterval via Horner's method, and sums with weight Δx.
+
+    Algorithmically independent from `polynomial_definite_integral`'s FTC path: never
+    constructs an antiderivative, never applies the power rule, never invokes Horner
+    on the antiderivative coefficients. Operates purely in direct integrand evaluation
+    plus accumulation — the textbook "geometric area" interpretation of the integral.
+
+    Midpoint-rule error is O(h²) where h = (upper − lower)/N. For polynomial integrands
+    of bounded degree on bounded intervals, this error is tiny at N=10000 (well under
+    1e-6 for typical coefficient ranges).
+
+    Used as a STRONG invariant_check in polynomial_definite_integral. Hand-rolled — no
+    scipy.integrate, no numpy.
+    """
+    dx = (upper - lower) / N
+    total = 0.0
+    for i in range(N):
+        x_mid = lower + (i + 0.5) * dx
+        # Horner evaluation of p(x_mid). Reused from internal logic of FTC path but
+        # operating on the ORIGINAL coefficients, not on antiderivative coefficients —
+        # independent evaluation path.
+        result = 0.0
+        for c in reversed(coeffs_by_power):
+            result = result * x_mid + c
+        total += result
+    return total * dx

@@ -90,3 +90,76 @@ def test_calculus_substrate_thesis_compliant():
     ]
     for token in forbidden:
         assert token not in source, f"calculus.py imports forbidden token '{token}'"
+
+
+# --- Cycle 10 #01d — Midpoint Riemann sum STRONG verifier ---
+
+
+def test_midpoint_riemann_standalone_canonical():
+    """Midpoint Riemann on ∫_0^2 (3x² + 2x - 1) dx must converge to 10 within ~1e-6."""
+    from project_x.reasoning.calculus import _midpoint_riemann_sum
+    result = _midpoint_riemann_sum([-1, 2, 3], 0, 2)
+    assert abs(result - 10.0) < 1e-6
+
+
+def test_midpoint_riemann_standalone_cubic():
+    """∫_0^1 x³ dx = 0.25 via midpoint, within ~1e-6."""
+    from project_x.reasoning.calculus import _midpoint_riemann_sum
+    result = _midpoint_riemann_sum([0, 0, 0, 1], 0, 1)
+    assert abs(result - 0.25) < 1e-6
+
+
+def test_midpoint_riemann_standalone_constant():
+    """∫_(-1)^1 1 dx = 2 — constant integrand is the trivial case."""
+    from project_x.reasoning.calculus import _midpoint_riemann_sum
+    result = _midpoint_riemann_sum([1], -1, 1)
+    assert abs(result - 2.0) < 1e-9
+
+
+def test_midpoint_riemann_invariant_fires_and_holds():
+    """The cycle 10 #01d Riemann invariant fires + holds across canonical cases."""
+    cases = [
+        ([3, 2, -1], 0, 2, 10.0),       # maths-010 canonical
+        ([1, 0, -1], -1, 1, 0.0),        # x² - 1 symmetric, integrates to 0
+        ([0, 0, 0, 1], 0, 1, 0.25),     # x³ over [0, 1]
+        ([1, 0, 0, 0], 0, 5, 5.0),       # constant 1 over [0, 5]
+    ]
+    for coeffs, lo, hi, expected in cases:
+        lemma = polynomial_definite_integral(coeffs, lo, hi)
+        riemann_invariants = [
+            inv for inv in lemma.invariant_checks
+            if "Riemann" in inv.predicate
+        ]
+        assert len(riemann_invariants) == 1, (
+            f"coeffs={coeffs}: expected 1 Riemann invariant, got {len(riemann_invariants)}"
+        )
+        assert riemann_invariants[0].holds, (
+            f"coeffs={coeffs}: Riemann invariant failed "
+            f"(expected={riemann_invariants[0].expected_value}, "
+            f"actual={riemann_invariants[0].actual_value})"
+        )
+
+
+def test_midpoint_riemann_helper_signature_independent_path():
+    """_midpoint_riemann_sum must accept (coeffs_by_power, lower, upper, *, N) only.
+    Must NOT take an antiderivative or any closed-form-derived parameter — that
+    would couple it to the FTC path."""
+    from project_x.reasoning.calculus import _midpoint_riemann_sum
+    import inspect
+    sig = inspect.signature(_midpoint_riemann_sum)
+    param_names = set(sig.parameters.keys())
+    forbidden = {"antiderivative", "antiderivative_by_power", "F_upper", "F_lower", "ftc_result", "closed_form"}
+    assert not (param_names & forbidden), (
+        f"_midpoint_riemann_sum couples to FTC path: {param_names & forbidden}"
+    )
+    assert {"coeffs_by_power", "lower", "upper"} <= param_names
+
+
+def test_invariant_chain_now_carries_two_invariants():
+    """polynomial_definite_integral now carries 2 invariants: original const-cancellation
+    (tautological) + cycle 10 #01d Riemann STRONG."""
+    lemma = polynomial_definite_integral([3, 2, -1], 0, 2)
+    assert len(lemma.invariant_checks) == 2
+    predicates = [inv.predicate for inv in lemma.invariant_checks]
+    assert any("constant cancels" in p for p in predicates)
+    assert any("Riemann" in p for p in predicates)
