@@ -325,3 +325,333 @@ def _classify(a: int, c: int, discriminant: int) -> str:
     if discriminant == 0:
         return "degenerate (Δ = 0) — factors as a repeated linear form squared, out of scope"
     return "indefinite (Δ > 0) — Pell-equation territory, infinite solution set possible, out of scope"
+
+
+# ── Cycle 10 #02 — Pell equation extension ────────────────────────────────────
+#
+# Brings x² − n·y² = 1 (indefinite Pell, Δ = 4n > 0) into honest scope. The form
+# is indefinite — infinite solution set when n is a positive non-square integer.
+# Algorithm: fundamental solution from continued-fraction expansion of √n + the
+# recurrence (x_{m+1}, y_{m+1}) = (x₁·x_m + n·y₁·y_m, x₁·y_m + y₁·x_m) generates
+# all subsequent solutions. Honest framing per M-PROJECTX-013: PASS = "enumerated
+# first k_max positive integer solutions", NOT general Hilbert-10 decidability.
+# See docs/artifacts/cycle-10-pell-design.md for the algorithm derivation +
+# sources (Hardy + Wright §10.7; Davenport §IV.6).
+
+
+INTRO_PELL_EQUATION = (
+    "For the Pell equation x² − n·y² = 1 with n a positive non-square integer, the "
+    "solution set is infinite. The continued-fraction expansion of √n is eventually "
+    "periodic (Lagrange's theorem on quadratic surds); the fundamental solution "
+    "(x₁, y₁) is the smallest positive (x, y) satisfying the equation, and it can "
+    "be read off the period-1 convergent. If the period p of √n is even, the convergent "
+    "(p_{p−1}, q_{p−1}) directly satisfies p² − n·q² = +1. If p is odd, the same "
+    "convergent satisfies p² − n·q² = −1 (negative Pell); square (p + q·√n) to lift "
+    "to +1: (x₁, y₁) = (p² + n·q², 2·p·q). All further solutions follow from the "
+    "recurrence (x_{m+1}, y_{m+1}) = (x₁·x_m + n·y₁·y_m, x₁·y_m + y₁·x_m) starting "
+    "from (x₀, y₀) = (1, 0). Honest framing: this substrate returns the first k_max "
+    "solutions; the infinite Pell solution set is enumerable by recurrence but never "
+    "fully materialized."
+)
+
+
+def _continued_fraction_sqrt(n: int) -> tuple[int, list[int]]:
+    """Compute the continued-fraction expansion of √n for positive non-square n.
+
+    Returns `(a0, period_terms)` where `a0 = floor(√n)` and `period_terms` lists
+    the periodic part `[a1, a2, ..., a_p]` of the expansion. The continued
+    fraction of √n is eventually periodic by Lagrange's theorem on quadratic surds.
+
+    Algorithm (Hardy + Wright, *Theory of Numbers* §10.7): recurrence on triples
+    (m_k, d_k, a_k):
+        m_{k+1} = d_k · a_k − m_k
+        d_{k+1} = (n − m_{k+1}²) / d_k         (always integer for √n CF)
+        a_{k+1} = (a₀ + m_{k+1}) // d_{k+1}
+    Period closes the first time (m_{k+1}, d_{k+1}) repeats — the (a_k) sequence
+    after that point is identical to its earlier history.
+
+    Raises ValueError for n ≤ 1 or perfect-square n. Hand-rolled stdlib `math.isqrt`
+    only (exact integer square root; no floating-point error).
+    """
+    if n <= 1:
+        raise ValueError(
+            f"continued fraction of √n requires n ≥ 2; got n = {n}. "
+            f"n=0 and n=1 are degenerate (√0=0, √1=1); negative n is non-real."
+        )
+    a0 = math.isqrt(n)
+    if a0 * a0 == n:
+        raise ValueError(
+            f"n = {n} is a perfect square (√n = {a0}); continued fraction is "
+            f"the trivial [{a0}] with no periodic part. Pell equation x² − {n}·y² = 1 "
+            f"reduces to a linear-form difference (x − {a0}·y)(x + {a0}·y) = 1 with "
+            f"only trivial integer solutions."
+        )
+
+    period_terms: list[int] = []
+    m, d, a = 0, 1, a0
+    seen_states: dict[tuple[int, int], int] = {}
+    # Bound: period ≤ 2·a0·n (very loose; in practice << this); add safety cap.
+    safety_max_iter = max(1000, 4 * a0 * a0)
+    for _ in range(safety_max_iter):
+        m_next = d * a - m
+        d_next = (n - m_next * m_next) // d
+        a_next = (a0 + m_next) // d_next
+        state = (m_next, d_next)
+        if state in seen_states:
+            # Period closed at the first repeated (m, d) state. The period_terms
+            # accumulated so far IS the periodic part (since (m, d) determines a uniquely
+            # given a0).
+            return a0, period_terms
+        seen_states[state] = len(period_terms)
+        period_terms.append(a_next)
+        m, d, a = m_next, d_next, a_next
+    raise RuntimeError(
+        f"continued fraction of √{n} did not close within {safety_max_iter} iterations — "
+        f"period bound exceeded; algorithm bug or pathological n."
+    )
+
+
+def _pell_fundamental_solution(n: int) -> tuple[int, int]:
+    """Compute the fundamental (smallest positive) solution (x₁, y₁) to x² − n·y² = 1.
+
+    Uses `_continued_fraction_sqrt(n)` to get (a0, period_terms); computes the
+    convergent (p_{p−1}, q_{p−1}) via the standard recurrence p_k = a_k·p_{k−1} + p_{k−2},
+    q_k = a_k·q_{k−1} + q_{k−2} starting from (p_{−1}, p_0, q_{−1}, q_0) = (1, a0, 0, 1).
+    If the period p is even, this convergent IS the fundamental solution
+    (p² − n·q² = +1). If p is odd, the convergent satisfies p² − n·q² = −1 (negative
+    Pell); square (p + q·√n) algebraically to lift to +1 via the identity
+    (p + q·√n)² = (p² + n·q²) + (2·p·q)·√n.
+
+    Returns (x₁, y₁) with x₁² − n·y₁² == 1 exactly (verified before return).
+    Raises ValueError for n ≤ 1 or perfect-square n (via the helper).
+    Raises RuntimeError if the algorithm produces an invalid fundamental (would
+    indicate a bug in the convergent recurrence or the period-parity branch).
+    """
+    a0, period_terms = _continued_fraction_sqrt(n)
+    period_length = len(period_terms)
+
+    # Compute convergent (p_{p-1}, q_{p-1}) via the standard recurrence. Process
+    # a0 followed by period_terms[0..p-2] (i.e., the first period_length terms total
+    # including a0); convergent index p-1 corresponds to the (period_length)-th term
+    # in 0-indexed convergent numbering. Concretely: build convergents indexed 0..p-1
+    # where convergent 0 uses a0 only (p_0 = a0, q_0 = 1) and each subsequent uses
+    # the next period term.
+    p_prev, p_curr = 1, a0
+    q_prev, q_curr = 0, 1
+    for i in range(period_length - 1):
+        a_i = period_terms[i]
+        p_prev, p_curr = p_curr, a_i * p_curr + p_prev
+        q_prev, q_curr = q_curr, a_i * q_curr + q_prev
+    p, q = p_curr, q_curr
+
+    # Verify the convergent satisfies p² − n·q² == ±1.
+    discriminant_signed = p * p - n * q * q
+    if discriminant_signed == 1:
+        x1, y1 = p, q
+    elif discriminant_signed == -1:
+        # Period odd → square (p + q·√n) to lift to +1 fundamental.
+        x1 = p * p + n * q * q
+        y1 = 2 * p * q
+    else:
+        raise RuntimeError(
+            f"Pell fundamental algorithm produced convergent ({p}, {q}) with "
+            f"p² − n·q² = {discriminant_signed}; expected ±1. Period parity mismatch "
+            f"or convergent-recurrence bug (n={n}, period_length={period_length})."
+        )
+
+    # Integer-equality verification (no float). Raise if substrate is broken.
+    if x1 * x1 - n * y1 * y1 != 1:
+        raise RuntimeError(
+            f"Pell fundamental ({x1}, {y1}) does not satisfy x² − {n}·y² = 1 "
+            f"(got {x1*x1 - n*y1*y1}). Algorithm bug."
+        )
+    return x1, y1
+
+
+def _pell_brute_force_fundamental(n: int, max_x: int = 1000) -> tuple[int, int] | None:
+    """Brute-force search for the Pell fundamental over x ∈ [1, max_x].
+
+    Algorithmically independent from the continued-fraction path: iterates x and
+    tests whether (x² − 1) is exactly divisible by n AND the quotient is a perfect
+    square. The first (x, y) found is the fundamental — Pell solutions are ordered
+    by x. Returns None if no solution found within bound (fundamental.x > max_x).
+
+    Used as the STRONG cross-check on `_pell_fundamental_solution`. The two paths
+    share NO computation beyond Python integer arithmetic; a bug in one would NOT
+    propagate to the other.
+    """
+    for x in range(1, max_x + 1):
+        diff = x * x - 1
+        if diff % n != 0:
+            continue
+        y_squared = diff // n
+        y = math.isqrt(y_squared)
+        if y * y == y_squared and y > 0:
+            return x, y
+    return None
+
+
+def solve_pell_equation(
+    n: int, k_max: int = 5, lemma_id: str = "solve_pell_equation",
+) -> Lemma:
+    """Enumerate the first `k_max` positive integer solutions to x² − n·y² = 1.
+
+    Pell equation for positive non-square integer n. The trivial solution (1, 0) is
+    excluded from the returned list (mentioned in introduction); first non-trivial
+    is the fundamental (x₁, y₁) read off the continued-fraction expansion of √n.
+    All subsequent solutions follow from the recurrence (x_{m+1}, y_{m+1}) =
+    (x₁·x_m + n·y₁·y_m, x₁·y_m + y₁·x_m) iterated from (x₀, y₀) = (x₁, y₁).
+
+    Returns Lemma with 4-step derivation chain (validate_input → compute_continued_fraction
+    → compute_fundamental_solution → apply_recurrence) + per-solution tautological
+    invariant (every emitted (x_m, y_m) satisfies x² − n·y² = 1) + STRONG algorithmically-
+    independent verifier on the fundamental via brute-force search (cap M=1000; skipped
+    with documented scope-boundary if fundamental.x > M).
+
+    Raises ValueError for n ≤ 1 or perfect-square n (via helpers). Honest framing:
+    PASS = enumerated first k_max solutions; the infinite solution set is enumerable
+    by recurrence but never fully materialized at this substrate level.
+    """
+    if k_max < 1:
+        raise ValueError(f"k_max must be ≥ 1 (got {k_max}); zero solutions is degenerate.")
+
+    lemma = Lemma(
+        id=lemma_id,
+        claim=(
+            f"Enumerate the first {k_max} positive integer solutions to x² − {n}·y² = 1 "
+            f"(Pell equation) via continued-fraction fundamental + recurrence."
+        ),
+        verification_method="numerical_close",
+        tolerance=0,
+    )
+    lemma.add_introduction(INTRO_PELL_EQUATION)
+
+    # Step 1: validate input. Defer ValueError raises to helpers; if we get here, n is
+    # in valid range — but record the validation in the proof chain for audit trail.
+    lemma.add_step(
+        operation="validate_input",
+        inputs={"n": n, "k_max": k_max},
+        output="positive non-square integer n; k_max ≥ 1",
+        justification=(
+            f"Pell equation x² − {n}·y² = 1 is solvable iff n > 0 is non-square. "
+            f"For n = {n}: not a perfect square (verified by _continued_fraction_sqrt "
+            f"in step 2). k_max = {k_max} ≥ 1 OK."
+        ),
+    )
+
+    # Step 2: continued-fraction expansion of √n.
+    a0, period_terms = _continued_fraction_sqrt(n)
+    period_length = len(period_terms)
+    lemma.add_step(
+        operation="compute_continued_fraction",
+        inputs={"n": n},
+        output={"a0": a0, "period_terms": period_terms, "period_length": period_length},
+        justification=(
+            f"√{n} = [{a0}; {', '.join(map(str, period_terms))}] — period {period_length}. "
+            f"Computed via the Hardy+Wright (m, d, a) recurrence on triples; period closes "
+            f"the first time the (m, d) state repeats."
+        ),
+    )
+
+    # Step 3: fundamental solution from convergent (period-parity branch).
+    x1, y1 = _pell_fundamental_solution(n)
+    parity_note = "even — convergent directly satisfies p² − n·q² = +1" if period_length % 2 == 0 \
+        else "odd — convergent satisfies p² − n·q² = −1, squared (p + q·√n) to lift to +1"
+    lemma.add_step(
+        operation="compute_fundamental_solution",
+        inputs={"a0": a0, "period_terms": period_terms},
+        output={"x1": x1, "y1": y1, "period_parity": "even" if period_length % 2 == 0 else "odd"},
+        justification=(
+            f"Convergent (p_{{p−1}}, q_{{p−1}}) computed via standard recurrence "
+            f"p_k = a_k·p_{{k−1}} + p_{{k−2}}, q_k = a_k·q_{{k−1}} + q_{{k−2}} starting "
+            f"from (1, a0; 0, 1). Period parity {period_length % 2 and 'odd' or 'even'}: "
+            f"{parity_note}. Fundamental (x₁, y₁) = ({x1}, {y1}); verify "
+            f"{x1}² − {n}·{y1}² = {x1*x1 - n*y1*y1} = 1 ✓."
+        ),
+    )
+
+    # Step 4: apply recurrence (x_{m+1}, y_{m+1}) = (x₁·x_m + n·y₁·y_m, x₁·y_m + y₁·x_m).
+    solutions: list[tuple[int, int]] = []
+    x_m, y_m = x1, y1
+    for _ in range(k_max):
+        solutions.append((x_m, y_m))
+        x_next = x1 * x_m + n * y1 * y_m
+        y_next = x1 * y_m + y1 * x_m
+        x_m, y_m = x_next, y_next
+    lemma.add_step(
+        operation="apply_recurrence",
+        inputs={"x1": x1, "y1": y1, "n": n, "k_max": k_max},
+        output={"solutions": solutions, "count": len(solutions)},
+        justification=(
+            f"Iterate (x_{{m+1}}, y_{{m+1}}) = ({x1}·x_m + {n}·{y1}·y_m, "
+            f"{x1}·y_m + {y1}·x_m) starting from (x_0, y_0) = (x_1, y_1) = ({x1}, {y1}). "
+            f"First {k_max} solutions: {solutions}. All satisfy x² − {n}·y² = 1 by "
+            f"the multiplicative structure of Z[√{n}]: (x_m + y_m·√{n}) = (x_1 + y_1·√{n})^m."
+        ),
+    )
+
+    lemma.actual_value = len(solutions)
+
+    # Invariant 1 (tautological): every emitted (x, y) satisfies x² − n·y² = 1.
+    # Re-verify on each solution; integer arithmetic, exact equality.
+    all_satisfy = all(x * x - n * y * y == 1 for x, y in solutions)
+    lemma.add_invariant_check(
+        predicate="every emitted (x_m, y_m) satisfies x² − n·y² = 1 (recurrence consistency)",
+        expected_value=True,
+        actual_value=all_satisfy,
+        justification=(
+            "Re-evaluate x² − n·y² on each of the k_max solutions; all must equal 1 exactly. "
+            "Tautological under correct recurrence implementation; catches index errors or "
+            "arithmetic typos in the iteration loop."
+        ),
+    )
+
+    # Invariant 2 (STRONG, algorithmically-independent): brute-force search for the
+    # fundamental over [1, M] with M=1000 cap. If x1 ≤ M, brute force MUST find the
+    # same (x1, y1). If x1 > M, skip with documented scope-boundary — Pell fundamentals
+    # for some n grow large (n=61 has fundamental x = 1766319049); the cap is honest.
+    if x1 <= 1000:
+        brute_force = _pell_brute_force_fundamental(n, max_x=1000)
+        if brute_force is None:
+            raise RuntimeError(
+                f"Brute force found no Pell fundamental for n={n} within [1, 1000], "
+                f"but CF algorithm produced ({x1}, {y1}). Algorithm disagreement — bug."
+            )
+        bf_x, bf_y = brute_force
+        lemma.add_invariant_check(
+            predicate=(
+                "brute-force fundamental search over x ∈ [1, 1000] == continued-fraction "
+                "fundamental (algorithmically-independent STRONG verifier)"
+            ),
+            expected_value=(x1, y1),
+            actual_value=(bf_x, bf_y),
+            justification=(
+                f"Brute force iterates x = 1, 2, ... checking (x² − 1) % n == 0 AND "
+                f"(x² − 1)/n is a perfect square; the first match is the Pell fundamental "
+                f"(solutions are ordered by x). Found ({bf_x}, {bf_y}); CF method "
+                f"produced ({x1}, {y1}). Two completely different algorithms — brute "
+                f"force never uses continued fractions; CF never iterates by x. "
+                f"Disagreement would mean one of them has a bug."
+            ),
+        )
+    else:
+        lemma.add_invariant_check(
+            predicate=(
+                "brute-force fundamental verifier SKIPPED (fundamental.x > M=1000; "
+                "documented scope-boundary per cycle 10 #02 design)"
+            ),
+            expected_value="skipped",
+            actual_value="skipped",
+            justification=(
+                f"Fundamental x₁ = {x1} exceeds the M=1000 brute-force cap. Skipping the "
+                f"STRONG verifier honestly rather than running an O({x1}) loop. Pell "
+                f"fundamentals for some n grow large (n=61 has x₁ = 1766319049 — "
+                f"~2×10⁹ iterations would be unacceptable). The tautological invariant "
+                f"(every emitted solution satisfies x² − n·y² = 1 by direct check) is "
+                f"the best-available cross-check at large-fundamental n. Cycle 11+ "
+                f"candidates for a scalable STRONG verifier: minimality proof via "
+                f"convergent ordering theorem (every Pell solution is a convergent of √n)."
+            ),
+        )
+
+    return lemma

@@ -28,8 +28,10 @@ import pytest
 
 from project_x.reasoning.diophantine import (
     INTRO_BINARY_QUADRATIC_DIOPHANTINE,
+    INTRO_PELL_EQUATION,
     _two_squares_via_jacobi,
     solve_binary_quadratic,
+    solve_pell_equation,
 )
 
 
@@ -262,3 +264,141 @@ def test_jacobi_independent_path_documentation_present() -> None:
     assert "no closed-form" in src or "no clean generalization" in src.lower() or (
         "no closed-form r" in src and "exists" in src
     )
+
+
+# --- Cycle 10 #02 — Pell equation substrate ---
+
+
+def test_continued_fraction_sqrt_canonical():
+    """CF of √n on canonical Hardy+Wright examples."""
+    from project_x.reasoning.diophantine import _continued_fraction_sqrt
+    cases = {
+        2: (1, [2]),
+        3: (1, [1, 2]),
+        5: (2, [4]),
+        7: (2, [1, 1, 1, 4]),
+        13: (3, [1, 1, 1, 1, 6]),
+    }
+    for n, (expected_a0, expected_period) in cases.items():
+        a0, period = _continued_fraction_sqrt(n)
+        assert a0 == expected_a0, f"n={n}: a0 mismatch {a0} vs {expected_a0}"
+        assert period == expected_period, f"n={n}: period mismatch {period} vs {expected_period}"
+
+
+def test_continued_fraction_sqrt_rejects_invalid_n():
+    """n ≤ 1 and perfect-square n must be rejected with ValueError."""
+    from project_x.reasoning.diophantine import _continued_fraction_sqrt
+    for n in (-5, -1, 0, 1):
+        with pytest.raises(ValueError, match="n ≥ 2"):
+            _continued_fraction_sqrt(n)
+    for n in (4, 9, 16, 25, 100):
+        with pytest.raises(ValueError, match="perfect square"):
+            _continued_fraction_sqrt(n)
+
+
+def test_pell_fundamental_solution_canonical():
+    """Fundamental (x₁, y₁) for canonical small-n Pell equations."""
+    from project_x.reasoning.diophantine import _pell_fundamental_solution
+    cases = {
+        2: (3, 2),       # period odd → squared from (1, 1)
+        3: (2, 1),       # period even → direct convergent
+        5: (9, 4),       # period odd → squared from (2, 1)
+        7: (8, 3),       # period 4-even
+        13: (649, 180),  # period 5-odd → squared; famous Hardy+Wright case
+        61: (1766319049, 226153980),  # extreme period-odd case
+    }
+    for n, (expected_x, expected_y) in cases.items():
+        x1, y1 = _pell_fundamental_solution(n)
+        assert (x1, y1) == (expected_x, expected_y), (
+            f"n={n}: fundamental mismatch ({x1}, {y1}) vs ({expected_x}, {expected_y})"
+        )
+        # Integer verification
+        assert x1 * x1 - n * y1 * y1 == 1
+
+
+def test_pell_brute_force_fundamental_matches_cf():
+    """Brute-force search over small-n produces the same fundamental as CF."""
+    from project_x.reasoning.diophantine import (
+        _pell_brute_force_fundamental, _pell_fundamental_solution,
+    )
+    for n in (2, 3, 5, 7, 11, 13):
+        bf = _pell_brute_force_fundamental(n, max_x=1000)
+        cf = _pell_fundamental_solution(n)
+        assert bf == cf, f"n={n}: brute force {bf} vs CF {cf}"
+
+
+def test_solve_pell_equation_n_eq_2_first_5():
+    """Pell n=2: first 5 solutions match the classical sequence."""
+    lemma = solve_pell_equation(2, k_max=5)
+    assert lemma.actual_value == 5
+    expected = [(3, 2), (17, 12), (99, 70), (577, 408), (3363, 2378)]
+    assert lemma.derivation_steps[3].output["solutions"] == expected
+
+
+def test_solve_pell_equation_n_eq_3_first_5():
+    """Pell n=3: first 5 solutions (period-even-direct case)."""
+    lemma = solve_pell_equation(3, k_max=5)
+    expected = [(2, 1), (7, 4), (26, 15), (97, 56), (362, 209)]
+    assert lemma.derivation_steps[3].output["solutions"] == expected
+
+
+def test_solve_pell_equation_invariants_hold():
+    """Both invariants (recurrence consistency + brute-force STRONG) hold for small n."""
+    for n in (2, 3, 5, 7):
+        lemma = solve_pell_equation(n, k_max=5)
+        assert len(lemma.invariant_checks) == 2
+        assert all(inv.holds for inv in lemma.invariant_checks)
+
+
+def test_solve_pell_equation_skips_brute_force_for_large_fundamental():
+    """For n where fundamental.x > 1000 (e.g. n=13 → x₁=649 still under cap; n=61 → 1.7e9
+    way over), the brute-force verifier honestly skips with documented scope-boundary
+    rather than running a multi-billion-iteration loop."""
+    lemma = solve_pell_equation(61, k_max=3)
+    # Find the second invariant (brute-force one)
+    bf_inv = [i for i in lemma.invariant_checks if "brute-force" in i.predicate.lower()][0]
+    assert "SKIPPED" in bf_inv.predicate
+    assert bf_inv.expected_value == "skipped"
+    assert bf_inv.actual_value == "skipped"
+    # And the tautological invariant still holds
+    taut_inv = [i for i in lemma.invariant_checks if "recurrence consistency" in i.predicate][0]
+    assert taut_inv.holds
+
+
+def test_solve_pell_equation_rejects_invalid_n():
+    """Pell substrate rejects n ≤ 1 and perfect-square n at the helper layer."""
+    for n in (-1, 0, 1):
+        with pytest.raises(ValueError, match="n ≥ 2"):
+            solve_pell_equation(n, k_max=5)
+    for n in (4, 9, 25):
+        with pytest.raises(ValueError, match="perfect square"):
+            solve_pell_equation(n, k_max=5)
+
+
+def test_solve_pell_equation_rejects_invalid_k_max():
+    """k_max < 1 is degenerate (zero solutions requested)."""
+    with pytest.raises(ValueError, match="k_max must be ≥ 1"):
+        solve_pell_equation(2, k_max=0)
+    with pytest.raises(ValueError, match="k_max must be ≥ 1"):
+        solve_pell_equation(2, k_max=-3)
+
+
+def test_pell_lemma_chain_shape():
+    """4-step derivation chain: validate → CF → fundamental → recurrence."""
+    lemma = solve_pell_equation(2, k_max=3)
+    operations = [step.operation for step in lemma.derivation_steps]
+    assert operations == [
+        "validate_input",
+        "compute_continued_fraction",
+        "compute_fundamental_solution",
+        "apply_recurrence",
+    ]
+
+
+def test_pell_introduction_carries_honest_framing():
+    """INTRO_PELL_EQUATION mentions infinite solution set + Lagrange + recurrence."""
+    from project_x.reasoning.diophantine import INTRO_PELL_EQUATION
+    assert "infinite" in INTRO_PELL_EQUATION.lower()
+    assert "Lagrange" in INTRO_PELL_EQUATION or "lagrange" in INTRO_PELL_EQUATION.lower()
+    assert "recurrence" in INTRO_PELL_EQUATION.lower()
+    assert "k_max" in INTRO_PELL_EQUATION or "first" in INTRO_PELL_EQUATION
