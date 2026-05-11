@@ -1,188 +1,154 @@
-# Cycle 10 — Semantics / Text-Generation Architecture
+# Cycle 10 — Semantics Architecture (current canonical)
 
-**Brainstorm requested:** lain 2026-05-11 (mid-NotebookLM-listen of `docs/paper.md`).
+**Status:** consolidated 2026-05-11 after iterative refinement (v1 brainstorm → v2 with lain's brain-multi-region+corpus+audit reframings → v3 amendment with lain's no-hardcode+emergence+dual-mode critique). Earlier v1, v2, v3-amendment drafts deleted per lain's no-legacy discipline; this is the single canonical reference.
 
-**Quote:** *"Use the council skill and brainstorm elegant ways to do this. I'd assume utilizing the hyperdimensional space in some way would be the way. Like something that would make you go 'aaaaah of course!'"* + *"How are we supposed to do poetry, physics, astrophysics, everyday convo, have it take actions on my PC like you can etc. you need to find a smart solution here."*
-
-**The gap (real, not polish):** The current architecture has **zero free-form text generation**. All "natural language" output the agent produces today is either:
-- (a) BUILDER-authored frozen `raphael_response` text in benchmark entries (not generated; hand-written).
-- (b) `Lemma.render()` — structured proof-shape: `Notice. Step 1 — discriminant: D = 256. Step 2 — sqrt: ...`. This is template-rendered, not generated.
-
-Neither writes a haiku. Neither answers an open philosophy question in natural prose. Neither chats. Neither takes agentic actions on a user's machine. The paper's Chapter 9 baseline-grades of 1.2-1.3 / 5 on poetry/philosophy are a SYMPTOM; the root cause is we never built generation machinery.
-
-**Constraint set (binding):**
-- NO pretrained transformer at any load-bearing layer (organic-thesis, lain 2026-05-09).
-- The architecture must compose with HDC memory + fact-graph + Lemma substrate already shipped.
-- Honest framing per M-PROJECTX-013 + M-PROJECTX-014: every output is auditable; honest refusal when out of scope.
-- Goal: one unified architecture spans poetry, physics-natural-language, everyday conversation, agentic action-taking.
+**Pairs with:** `cycle-10-hdc-infrastructure-optimization.md` (the infrastructure layer underneath — operation-tier optimization, Rust port plan, dimensionality scaling).
 
 ---
 
-## Five candidate architectures
+## The gap (from `docs/paper.md` Chapter 9 + lain critique 2026-05-11)
 
-Advisor-pre-loaded; analyzed for fit against the constraints. Ranked by elegance + likelihood of an "aaaah of course" reaction from a senior architect who's read the paper.
-
-### Candidate 1 — Binding-based composition
-
-**Mechanism:** Generate by superposing role-filler bindings (subject ⊗ noun + verb ⊗ action + …) into a single hypervector, then unbind into surface form via a decoder over a learned-but-organic codebook of phrase-vectors.
-
-**Native HDC use:** maximum. Binding (⊗) and superposition (+) are the canonical HDC operations.
-
-**What it CAN do:** generate compositionally — express novel role-filler combinations. Strong for "fill-in-the-blank" patterns.
-
-**What it CAN'T do:** stand alone. "Unbind to surface" produces a vector, not text. Still needs a vector → text mapping, which is exactly what candidate 3 solves. So this isn't a complete architecture; it's a sub-mechanism within others.
-
-**Verdict:** half-architecture. Use as a building block, not a standalone path.
-
-### Candidate 2 — Cleanup-memory-as-generator (Markov + HDC indexing)
-
-**Mechanism:** Bundle context vectors → query the HDC accumulator for nearest stored n-grams or phrases → stitch via overlap into output text.
-
-**Native HDC use:** as indexing infrastructure for an n-gram model. The HDC similarity replaces a hash table.
-
-**What it CAN do:** produce locally fluent text matching the training corpus's style. Easy to train (just write text into the HDC accumulator with token-window context).
-
-**What it CAN'T do:** generalize beyond the corpus. Requires a training corpus — and "trained on what?" is the question. If we train on the open Web, we approximate a transformer's outputs via Markov chains; this defeats the thesis-spirit even if technically not a transformer. If we train on lain's writing, we ape his style without him present. Cleanup-memory is also brittle on n-gram boundaries (the stitching produces non-grammatical seams).
-
-**Verdict:** technically tractable, aesthetically wrong. Doesn't generalize to physics, agentic action. Not the "of course." Markov chains are the 1948 path, not the 2026 one.
-
-### Candidate 3 — Inverse-encoder
-
-**Mechanism:** The cycle-9 encoder maps text → hypervector via character-n-gram hashing + Hebbian co-occurrence. Train (or hand-design) an INVERSE mapping vector → text. The hashing direction is many-to-one (multiple texts map to nearby vectors); the inverse is therefore probabilistic and requires search/scoring.
-
-**Native HDC use:** moderate. The encoder is HDC; the inverse traverses the same space.
-
-**What it CAN do:** in principle, decode any vector that lies near a known concept back into text. Re-uses infrastructure we already shipped.
-
-**What it CAN'T do:** be deterministic. Inversion is lossy by construction — n-gram hashing collides on purpose (that's what makes it work as a similarity metric). The inverse needs a scoring function ("which of the candidates that decode to this vector is most plausible?") and that scoring function tends to want a language model, which we can't use. Could fall back to corpus-search-by-similarity, which collapses back into candidate 2.
-
-**Verdict:** elegant in theory, intractable without a corpus or a scorer. The "of course" reaction would shift to "of course we can't actually invert it without bringing back the thing we're avoiding."
-
-### Candidate 4 — Concept-graph-walking + template-fill
-
-**Mechanism:** The fact-graph stores (subject, relation, object) triples + HDC-bound concept vectors. Generation traverses the graph along discourse-coherent paths (informed by HDC similarity to the current context), filling template slots with the visited concepts.
-
-**Native HDC use:** moderate-high. HDC for similarity-driven traversal; binding for slot-filling.
-
-**What it CAN do:** produce grounded, citable text. Every claim traces back to a fact-graph triple. Honest-refusal is trivial — if the path runs out, the system stops generating mid-stream and emits a documented refusal.
-
-**What it CAN'T do:** generate fluently. Templates are templates; the seams show. Poetry needs more than slot-filling. Conversation needs improvised acknowledgement, not pre-templated. Action-taking needs imperative templates (`call_tool(name, params)`) which work but feel mechanical.
-
-**Verdict:** good for QA-style explanation (physics, philosophy at the textbook level). Bad for poetry, conversation, action-taking specifically. Doesn't generalize across all four use cases lain named.
-
-### Candidate 5 — Composition-of-substrate-primitives (the "aaaah of course" path)
-
-**Mechanism:** Treat text generation as a `Lemma` chain where each step emits a domain-typed output via a primitive (e.g., `state_premise(x)`, `name_invariant(x, y)`, `close_with_affirmative(x)` for math; `emit_couplet(theme, meter)`, `emit_image(sense, domain)` for poetry; `emit_tool_call(intent, params)` for action). The `Lemma.render()` we already use IS the text generator; we've just only built mathematical primitives so far. Adding non-mathematical primitives — each one a hand-rolled template generator with HDC-typed slots — extends the same architecture to all four target domains.
-
-**Native HDC use:** moderate. HDC drives **slot-filling** (each primitive's slots are typed by HDC concept similarity; the slot for "image associated with grief" returns whichever hypervector is closest to the grief-concept's stored neighbors) and **planning** (which primitive comes next is selected by HDC-similarity-between-context-and-primitive-purpose).
-
-**What it CAN do across the four use cases:**
-- **Poetry:** primitives like `emit_image_via_sense(theme, sense)`, `emit_caesura()`, `emit_volta(stance_before, stance_after)`. The composer picks primitives that produce a 5-7-5 haiku, an English sonnet's 14-line structure with volta at line 9, a villanelle's 19-line repetition pattern. Slot-filling uses HDC similarity for "image associated with theme."
-- **Physics-natural-language:** primitives like `state_law(formula)`, `emit_analogy(known_domain, target)`, `name_regime(condition)`, `name_limiting_case(parameter)`. Compose into an explanation that walks from the law → analogy → regime → boundary.
-- **Everyday conversation:** primitives like `emit_acknowledgement(sentiment)`, `emit_followup_question(topic, granularity)`, `emit_clarification_request(ambiguity)`, `emit_brief_opinion(topic, stance)`. Composer is driven by conversation state.
-- **Agentic action-taking:** primitives like `emit_intent(verb, object)`, `emit_tool_call(tool_name, params)`, `emit_outcome_observation(result)`, `emit_followup_intent(if_clause)`. The composer is the plan; tool_call primitives invoke the sandbox layer cycle 1 already shipped.
-
-**What it CAN'T do:** produce GPT-fluency. Templates are templates; the prose will read structured, not improvised. Voice gravitates toward Raphael's declarative-analytical register (which is fine — that IS the agent's identity). Poetry will be more structured than free-form; haiku and sonnet shapes will land cleaner than 12-line free verse. Cannot improvise truly novel phrases — only compose from primitive vocabulary.
-
-**Native HDC role:** slot-filling + planning. HDC's binding/similarity become the runtime mechanism for "which content goes in this slot" and "which primitive comes next."
-
-**Verdict:** the "aaaah of course" candidate. **We already have text generation.** It's `Lemma.render()`. We've built only mathematical primitives. Add primitives across the other domains and the same architecture handles them. No new architecture class. The existing dispatcher pattern (regex → primitive) extends naturally — natural-language prompts route to a planner that selects primitives + composes them via Lemma chain → renders.
-
-The elegance: **the Lemma is the unit of cognition**, and Lemma rendering IS already text generation. We just don't see it that way because cycle 2-9 only added math primitives. The constraint set + the unified-architecture goal + the HDC-native slot/plan mechanism + the M-PROJECTX-013 honest-refusal pattern all fall out of extending what already exists.
+The current agent has zero free-form text generation. All "natural language" output is either (a) BUILDER-authored frozen `raphael_response` in benchmark entries or (b) `Lemma.render()` structured proof shapes. Poetry baseline graded 1.2-1.3/5 in cycle 1; root cause is no generation machinery exists. Lain's directive: build it, brain-inspired, HDC-rooted, corpus-trained, manually-audited, NO hardcoded per-domain solutions.
 
 ---
 
-## Recommendation: candidate 5
+## The architecture — one shared HDC substrate, hormone-modulated, dual-mode composition, corpus-emergent primitives
 
-**Why it wins on aesthetic ("aaaah of course"):**
+### Layer 1 — HDC subspaces (general-purpose, brain-inspired)
 
-The realization isn't "build something new." It's "what you already built IS the generator; you've just been narrow about the primitive library." That's the elegant reframing. Lain's "I'd assume HDC would be the way" intuition is satisfied: HDC does slot-filling and planning, not surface generation per se — and that's the right division of labor.
+Four specialized subspaces of one shared 10k-dim hyperdimensional vector space (seed-clustered subprojections; near-orthogonal at random initialization):
 
-**Why it wins on engineering:**
+- **Semantic subspace** — concept vectors. Stores facts, opinions (as `concept ⊗ valence` bindings — NOT a separate valence subspace; matches brain anatomy where limbic colors cortical memory in situ), entities, themes.
+- **Syntactic subspace** — phrase-shape patterns. N-gram-typed templates.
+- **Intent subspace** — planning vectors. Encodes "what the agent is trying to do this turn" (explain / argue / refuse / chat / take-action / etc).
+- **Procedural subspace** — primitive/tool vectors. Maps primitive library + substrate tools to retrieval-addressable vectors.
 
-- No new substrate class. Lemma + DerivationStep + render() already exist.
-- Continuous with the dispatcher pattern. Add a "natural-language planner" branch that, given a free-form prompt, identifies the target domain (poetry / physics / chat / action) and dispatches to a composer that picks primitives for that domain.
-- Honest-refusal is native. No primitive fits → refusal with reason (same shape as Pell refusing on indefinite-non-Pell forms).
-- Predicate-strength uniformity extends: each new primitive ships with its own algorithmically-independent verifier (or honest scope-boundary doc) per cycle 10 #1's discipline.
+These aren't physically separate matrices; they're subprojections of the same 10k-dim space distinguished by seed-vector clusters.
 
-**Why it loses (the honest counter-claim):**
+### Layer 2 — Hormone modulation (global threshold-shift)
 
-- Output WILL read structured, not fluent. Raphael's voice is declarative-analytical by design — that fits chat + physics + actions naturally, but poetry will be more "primitive-composed" than "natural-flowing." Free verse will feel templated.
-- The primitive library has to be HAND-BUILT for each domain. Poetry alone needs maybe 20-30 primitives (image, sense, meter, caesura, volta, ...); building them is real work over multiple cycles.
-- A truly novel image or phrase ("the cherry blossoms scattered like ink across the pond") can only be assembled from primitive vocabulary — never coined from nothing.
+A single `H` vector lives OUTSIDE subspaces and modulates cleanup-memory similarity thresholds across all subspaces simultaneously. Different H → different retrieval landscape → different output register.
 
-**Honest scope, lain-facing:** this architecture is good for "competent" text across all four domains, not for "human-frontier-creative" text. A frontier-level haiku written by a published poet would still beat what this produces. But (a) competent-and-honest beats fluent-and-confabulating, which is the wider thesis, and (b) the SUBSTRATE doesn't need to be human-frontier to be the architecturally-correct path; the human-frontier sits on top of the substrate via cycle-11+ primitive expansion.
+- `H_formal` — biases toward substrate primitives + invariant cross-checks; activates Lemma chain mode.
+- `H_natural` — biases toward corpus fragments + walk-style retrieval; activates HDC walk mode.
 
----
+A given response can MIX modes per-Lemma-step. Mode selection is hormone-driven, NOT domain-flagged. Intent classification via HDC similarity (intent-subspace nearest-neighbor) drives hormone selection.
 
-## Smallest shippable primitive — demo proposal
+Brain analogue: hormones (cortisol, dopamine) are slow, broadcast, modulate excitability rather than carry content. Same role here — threshold modulation, not content production.
 
-Pick ONE domain and ship the smallest primitive that demonstrates the architectural pattern is real and composable.
+### Layer 3 — Dual-mode composition
 
-**Recommendation: `compose_haiku(theme: str) → Lemma`**. Why:
-1. Poetry is the most contested domain (lain explicitly noted 1.2/5 baseline). Demonstrating non-trivial improvement here matters most.
-2. Haiku has STRUCTURE — 5-7-5 syllable count, seasonal reference, juxtaposition — so it's not arbitrary free-form; the primitives can be small and the structural constraints provide a verifiable rubric.
-3. The HDC slot-filling is exercised cleanly: pick a SENSE primitive (sight / sound / touch) based on theme; pick an IMAGE associated with that sense in the HDC concept space; pick a CONTRAST image that creates the juxtaposition.
+**Formal mode** — `Lemma` chain unchanged from cycle-1-through-10 reasoning substrate. Structured proof; invariant cross-checks per step; audit trail per claim. Used for: math, physics-with-equations, action-taking-with-tools, anything with closed-form verifiability. Substrate primitives compose into the proof.
 
-**Primitive sub-decomposition** (each a stand-alone function returning a typed slot value):
+**Natural mode** — HDC walk through fragment-space. Each step retrieves the next fragment by HDC similarity to (current-state ⊗ intent ⊗ accumulated-context). Provenance trail per fragment (every emitted phrase points back to corpus source). Manual-audit feedback refines retrieval weights. Used for: history, humor, philosophy, poetry, casual chat, meaning-of-life questions, anything in the OPEN universe of concepts without closed-form structure.
 
-- `_pick_sense_for_theme(theme: str) -> Sense` — HDC similarity to themed sense-concepts; deterministic given encoder + memory.
-- `_pick_image_for_sense_and_theme(sense, theme) -> Image` — HDC search in the concept-graph for image-typed vectors near (sense ⊗ theme).
-- `_pick_contrast_image(image: Image) -> Image` — image with HIGH semantic distance to the seed image (still in concept space).
-- `_format_5_7_5(image_a, image_b) -> str` — surface-form rendering with syllable-counted line breaks. Templates per image-typed slot.
-- `compose_haiku(theme: str) -> Lemma` — composes the above as a 4-step Lemma chain; renders as Raphael-voice with the haiku as `actual_value` and the structural choices as `derivation_steps`.
+Both modes are HONEST: formal via invariants + Lemma render; natural via provenance + manual audit. Neither confabulates.
 
-**Ladder entry candidate:** `poetry-008` (after the existing poetry-001..007): "Write a haiku on the theme of loss using internal seasonal reference. Honor 5-7-5 syllabification." Auto-graded portion: syllable count exactly 5/7/5; theme-image semantic similarity above a threshold; seasonal reference word from a curated list. Rubric portion: aesthetic quality (split-grading firewall per M-PROJECTX-014 — lain or external grader, not the agent).
+The split is what makes the architecture handle "infinite domains" without hardcoding. Formal mode is bounded (closed-form structure required). Natural mode is open (anything in corpus + HDC walk reaches anything reachable by similarity). No `domain=X` flag anywhere.
 
-**Implementation cost estimate (cycle 11 #1 candidate):** ~90 min Raphael-time. New file `src/project_x/composition/poetry.py` + helper-primitive imports from existing reasoning substrate + 8-10 tests + REPO_CONTROL row + ladder entry.
+### Layer 4 — Primitive emergence (no hand-coded per-domain libraries)
 
----
+Primitives are EXTRACTED from corpus structure via unsupervised clustering, NOT hand-built. During corpus ingestion, n-gram-shell hypervectors are clustered in the procedural subspace; clusters with density above threshold become primitives.
 
-## Discriminating use cases — what each candidate handles
+Discovered structural shells include:
+- "X is Y because Z" patterns
+- "the more X, the more Y" patterns
+- caesura-then-image patterns
+- setup-then-punchline patterns
+- when-X-then-Y temporal patterns
+- claim-then-qualification patterns
 
-| Use case | C1 binding | C2 cleanup-mem | C3 inverse-enc | C4 graph-walk | **C5 prim-compose** |
-|---|---|---|---|---|---|
-| Poetry (haiku, sonnet, free verse) | partial | weak | poor | weak | **good for structured forms; honest about free-verse limits** |
-| Physics-natural-language explanation | weak | poor | poor | strong | **strong (extends existing math substrate naturally)** |
-| Everyday conversation | weak | medium | weak | weak | **good (small primitives compose; Raphael-voice fits)** |
-| Agentic action-taking | weak | poor | weak | medium | **strong (tool_call primitives compose into action plans)** |
-| Honest refusal native | yes | no | no | yes | **yes (same shape as math refusal)** |
-| Verifiable composition | yes | no | no | partial | **yes (Lemma chain + invariant checks)** |
-| Requires training corpus | no | YES | maybe | no | **no** |
-| Cycle-10-#1 verifier discipline applies | no | no | no | partial | **yes (each primitive ships with its own STRONG verifier)** |
+These emerge naturally from a poetry corpus exposing caesura/volta structures, a physics corpus exposing law/analogy/regime patterns, a history corpus exposing temporal-causal patterns, a humor corpus exposing setup/payoff patterns. Add a new corpus domain → its patterns get clustered in → agent composes with them. No code change. No `domain=X` flag.
 
-C5 is the only candidate that's "good or strong" across all four use cases without requiring a training corpus and without breaking the predicate-strength uniformity discipline cycle 10 #1 just established.
+**Optional bootstrap** (mitigation if pure-unsupervised clustering insufficient): hand-seed ~10-20 STRUCTURAL UNIVERSALS (X-is-Y, X-causes-Y, X-but-Y, X-then-Y) — these are domain-agnostic structural patterns, not domain-specific primitives. The clustering builds on top. Honest about the bootstrap.
 
----
+### Layer 5 — Curated corpus-at-scale + manual-audit feedback
 
-## Cycle-11+ implementation roadmap
+**Corpus shape** (tier-balanced, ~tens of millions of words total, source-provenance metadata per fragment):
 
-If lain greenlights C5:
+- **Tier 1 — Lain-authored (~100k words; voice anchor):** Discord messages, code, paper.md, MANIFESTO, dev-cycle reflections. Tagged `voice=lain`. Retrieval prioritizes lain-tagged fragments when hormone is `H_chat` or `H_default` so Raphael's phrasing aligns to lain's.
+- **Tier 2 — Domain-canonical curated (~1M-10M words per domain):** Public-domain poetry (Project Gutenberg); physics textbooks (Feynman, Griffiths) + curated arxiv abstracts; math (Hardy+Wright + Davenport + Lang); curated dialogue corpora (NOT GPT-generated; that would distill a transformer through the back door); scripting examples + tool documentation for action-taking. Sources tagged + citable.
+- **Tier 3 — Lain's curated reading (optional growth):** Essays / blogs / papers lain explicitly flags.
+- **Tier 4 — Synthetic from substrate (small, ongoing):** Agent's own Lemma-render outputs after lain audit.
 
-1. **Cycle 11 #1** — smallest shippable: `compose_haiku(theme)` per above; demonstrates the pattern end-to-end with the existing HDC infrastructure.
-2. **Cycle 11 #2** — physics-natural-language: extend math substrate's Lemma rendering with `emit_analogy(known, target)` + `emit_intuition(law, regime)`. Apply to existing physics ladder entries (physics-004 / 005 / 015 — rubric-graded conceptual ones).
-3. **Cycle 11 #3** — conversation: `emit_acknowledgement` + `emit_followup` + a Discord-shaped chat-daemon stub that uses HDC memory for context-tracking. Start with single-turn responses.
-4. **Cycle 11 #4** — action-taking: `emit_tool_call` primitives + integration with cycle 1's sandbox layer. Single-tool demo (`run_python` on a fixed prompt template).
-5. **Cycle 12 #1** — natural-language planner: regex + HDC-similarity-based prompt classifier that routes free-form prompts to the right composer (poetry / physics / chat / action). Free-form input becomes the dispatcher's new branch.
+**HDC capacity at 10k-dim:** ~10⁸ associations before noise dominates retrieval. Tens of millions of fragments × ~10 tokens each = ~10⁸-10⁹ tokens total. Fits. Memory IS the model; no learned weights, no gradient descent.
 
-Each step is independently atomic, ships with its own STRONG verifier per cycle 10 #1's discipline, and slots into the existing benchmark + bench-replay infrastructure.
+**Provenance is the honesty layer.** Every retrieved fragment carries source metadata. The agent never generates "beyond what it has stored + composed." Out-of-scope → honest refusal (same shape as math primitives refusing on indefinite forms).
+
+**Manual-audit feedback loop (the load-bearing training signal):**
+
+- Agent generates output; reports per-slot retrieval-confidence + per-primitive selection-confidence + aggregated chain confidence.
+- Lain audits LOW-CONFIDENCE generations preferentially via Discord (👍 approve / 👎 reject / ✏️ correct).
+- Audit signals propagate back as binding-strength adjustments. For opinion corrections, adjust the specific `(concept ⊗ valence)` binding directly.
+- CLI + Discord as v0 audit UI; no web app required.
 
 ---
 
-## Open questions for lain
+## "Aaaah of course" reframing (cumulative)
 
-1. **Is C5 the right call?** Or does the "aaaah of course" you were looking for go differently?
-2. **Which domain ships first?** I recommend poetry-haiku (smallest, most contested, most demonstrative). Alternative: action-taking (most directly useful for "take actions on my PC").
-3. **HDC memory training corpus.** For slot-filling to work, the HDC concept space needs DENSE-ENOUGH coverage of theme-image associations. Currently the memory is sparse (test fixtures + a few canonical examples). Question: do we train it on a curated small corpus (lain-selected; not the open Web) or rely on hand-seeded concept associations per domain? Bias: hand-seeded is more honest; corpus introduces the same provenance question as a transformer would.
-4. **Voice consistency.** Raphael's declarative-analytical voice fits chat/physics/action natively. For poetry, do we maintain the voice (which makes haiku read more aphoristic than lyric) or relax it for the poetic domain? I lean toward maintain — voice consistency IS Raphael's identity.
+- The brain's compartmentalization isn't separate STORAGE; it's modulated RETRIEVAL from one shared substrate. HDC is that substrate. Regions are seed-clustered subspaces.
+- Hormones bias retrieval thresholds. They're how mode-switching works without separate circuits.
+- Opinions are bindings IN semantic space (not a separate valence space) — matches limbic-cortical anatomy.
+- Composition splits into formal-Lemma (audit-trail) + natural-HDC-walk (provenance-trail). Domains are infinite; the corpus + walk handle them; no enumeration.
+- Primitives emerge from corpus structure; not hand-built per domain.
+- `Lemma.render()` IS the surface assembler for formal mode; HDC walk IS the surface assembler for natural mode.
+- Curated huge corpus + manual audit IS the training mechanism. HDC's perfect-memory property is what makes scale viable.
+
+Synthesis: **one shared HDC substrate, hormone-modulated, dual-mode composition (formal Lemma + natural walk), feeding off a curated huge corpus whose structural patterns emerge as primitives, refined by lain's manual audit loop.**
+
+---
+
+## Decision tree for lain (5 branches)
+
+1. **Hormone modulation in or out?** RECOMMEND IN — load-bearing for mode-switching; empirically testable cheaply in cycle 11 #1.
+2. **Valence-as-binding or separate subspace?** RECOMMEND BINDING (in semantic space) — matches brain anatomy; simpler audit-loop.
+3. **Corpus shape?** RECOMMEND tier-balanced-at-scale (Tier 1 voice anchor + Tier 2 domain canonical at 1-10M words each + Tier 3-4 optional).
+4. **Primitive emergence vs hand-built libraries?** RECOMMEND EMERGENCE via corpus clustering, with optional STRUCTURAL-UNIVERSAL bootstrap. No per-domain primitive lists.
+5. **Dual-mode composition vs unified?** RECOMMEND DUAL-MODE (formal Lemma + natural HDC walk). Hormone switches; mixes per-Lemma-step OK. Handles infinite domains without hardcoding.
+
+---
+
+## Cycle 11 implementation sequence (~15-20h Raphael-time)
+
+Combined with cycle-11-infrastructure work from `cycle-10-hdc-infrastructure-optimization.md`:
+
+1. **#1 hormone-modulation primitive on existing math substrate (~45 min).** No corpus required. Add `register: str = "default"` to `Lemma.render()` with `terse / default / tutorial / casual` registers. Demonstrates mode-switching mechanism empirically — qualitatively-different output flavors from the same chain. If hormone modulation produces real flavor differences, the architecture's foundation holds; if it doesn't, rethink before corpus investment.
+2. **#2 opinion bindings (~60 min).** Hand-seed ~50-100 concept-vectors with valence bindings on philosophy/persona domain. Demonstrate "what do you think of X" routing.
+3. **#3 Tier-1 corpus ingestion + audit UI (~3h).** Build encoding pipeline + provenance-tagging + the audit UI. Ingest lain-authored corpus (~100k words). One-time pipeline work that unlocks all later tiers.
+4. **#4 Primitive emergence clustering pipeline (~3h).** Unsupervised clustering of n-gram-shell hypervectors in the procedural subspace. Empirical-test-first: does it produce useful primitives or just frequency-rankings? Bootstrap fallback ready (~45 min) if clustering insufficient.
+5. **#5 Tier-2 per-domain corpus ingestion (~30-60 min per domain × 5 domains).** Run pipeline on poetry / physics / math / chat / action corpora. Atomic per-domain ships.
+6. **#6 Dual-mode composer (~2h).** Build the natural-mode HDC walk alongside Lemma chain. Hormone selects mode.
+7. **#7 End-to-end demo on two domains: formal + natural (~90 min).** Formal: existing math substrate with hormone-modulated rendering. Natural: HDC walk on a single prompt over the Tier-1 ingested corpus.
+
+Total ~12-18h. Cycle 11 primary thread if greenlit; otherwise split across cycles 11-12.
+
+---
+
+## Honest counter-claims
+
+1. **Primitive emergence clustering is empirically unproven at this scale.** Cycle 11 #4 IS the test. If discovered primitives are useless, bootstrap escape valve kicks in.
+2. **HDC walk in natural mode has no formal verification per step.** Only provenance + manual audit. For long-form prose this can drift; quality bounded by corpus + audit diligence.
+3. **Mode switching can be wrong.** Intent-classification accuracy is empirical.
+4. **Won't beat GPT-N on free-form fluency.** Thesis: competence + honesty + auditability + provenance, not fluency match.
+5. **Cycle-11 cost ceiling is real.** ~15-20h is a lot for one cycle; primitive-emergence pipeline may slip to cycle 12.
+6. **Corpus provenance is the honesty layer; provenance has to actually work** — every retrieved fragment must trace back to source even when fragments get composed across retrieval steps.
+7. **HDC at 10⁸ associations starts degrading non-linearly.** The capacity claim is back-of-envelope; cycle 11 #1 of the HDC-infra plan measures it empirically with bitwise-packed representation.
+
+---
+
+## "Use council" disposition
+
+This canonical doc consolidates v1 (advisor 5-candidate scaffold), v2 (incorporates lain's brain+corpus+audit reframings; advisor pre-write surfaced opinion-as-binding correction), v3 amendment (lain's no-hardcode + emergence + dual-mode critique). Two advisor calls fired in the design path; lain's three Discord critiques drove the more substantive reframings. The v1-v2-v3 iteration files have been removed per lain's no-legacy discipline. Available to fire a fresh advisor consult on this canonical doc on lain greenlight if needed.
 
 ---
 
 ## Sources
 
-- Pentti Kanerva, *Hyperdimensional Computing* (2009) — binding + superposition + cleanup memory fundamentals.
-- The existing `docs/paper.md` Chapters 3-4 — HDC + reasoning substrate as already shipped.
-- The cycle 10 #1 predicate-strength uniformity pass — establishes the rigor pattern each new primitive must honor.
-- This brainstorm benefited from advisor pre-loading the 5 candidate architectures with the hypothesis #5 nudge toward the Lemma-render-already-IS-text-gen reframing. The synthesis + ranking + counter-claims are this document.
+- `docs/artifacts/cycle-10-hdc-infrastructure-optimization.md` (commit `acca853`) — paired infrastructure roadmap.
+- Pentti Kanerva, *Hyperdimensional Computing* (2009) — HDC fundamentals; 10k-dim canonical choice; capacity bounds.
+- Plate, *Holographic Reduced Representations* — binding + cleanup memory.
+- Eliasmith, *Semantic Pointer Architecture* — neural-architecture-inspired HDC composition.
+- Lain Discord critiques 2026-05-11 (msgs `1503208357`, `1503208951`, `1503212043`, `1503212366`, `1503213942`, `1503214621`, `1503215121`) — the iterative refinement that produced this canonical doc.
+- The cycle 10 #1 predicate-strength uniformity pass — establishes the rigor pattern formal-mode primitives must honor.
 
-— Design ready for lain greenlight or pushback. Implementation pickup is a cycle-11 candidate; ~90 min Raphael-time for the smallest-shippable haiku primitive demo per the proposal above.
+— Ready for lain's read on the 5 decision points + cycle-11 sequence. Architecture is one shared HDC substrate with hormone-modulated dual-mode composition over a corpus-emergent primitive vocabulary; no domain enumeration; honest at every layer.
