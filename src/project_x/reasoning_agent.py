@@ -751,6 +751,54 @@ _PARSER_ARCHETYPES: dict[str, str] = {
 }
 
 
+# Cycle 11 #00P13c11-08 dual-mode composer — register-archetype prompts for
+# hormone-modulated intent classification. Per canonical doc Layer 2 § Hormone
+# modulation: "Intent classification via HDC similarity (intent-subspace
+# nearest-neighbor) drives hormone selection." V1 implements register-archetype
+# cosine matching — input prompt → most-similar register archetype → render
+# the Lemma at that register. Continuous (cosine) vs binary (keyword gates).
+_REGISTER_ARCHETYPES: dict[str, str] = {
+    "default": "Solve this problem and show your work in a structured proof.",
+    "terse": "Just give me the answer, no explanation needed, one line.",
+    "tutorial": "Explain how to solve this step by step and tell me why each step works pedagogically.",
+    "casual": "Hey, what do you think about this — let's chat about it casually.",
+}
+
+
+def _classify_intent_register(
+    prompt: str,
+    encoder: "CharNgramHashEncoder | None" = None,
+    archetype_hvs: "dict[str, np.ndarray] | None" = None,
+) -> str:
+    """V1 register classifier — cosine similarity to register archetypes.
+
+    Returns one of 'default' / 'terse' / 'tutorial' / 'casual' based on which
+    register archetype is most similar to the input prompt. Mirrors the BG-
+    dispatcher's confidence-scored pattern but applied to register selection
+    rather than parser selection.
+
+    For test convenience, `encoder` and `archetype_hvs` are optional — if not
+    provided, they're constructed on the fly (slow; ReasoningAgent caches them
+    via class-level lazy init).
+    """
+    if encoder is None:
+        encoder = CharNgramHashEncoder()
+    if archetype_hvs is None:
+        archetype_hvs = {
+            name: encoder.encode([text])[0]
+            for name, text in _REGISTER_ARCHETYPES.items()
+        }
+    prompt_hv = encoder.encode([prompt])[0]
+    best_register = "default"
+    best_sim = -2.0
+    for name, hv in archetype_hvs.items():
+        sim = cosine_bipolar(prompt_hv, hv)
+        if sim > best_sim:
+            best_sim = sim
+            best_register = name
+    return best_register
+
+
 def _classify_natural_mode_domain(prompt: str) -> str | None:
     """Identify which natural-mode domain a prompt invokes, or None if not natural-mode shape.
 
@@ -882,16 +930,23 @@ class ReasoningAgent:
     # confidence. Encoded once at first ReasoningAgent.process() call; cached.
     _archetype_encoder: CharNgramHashEncoder | None = None
     _archetype_hvs: dict[str, np.ndarray] | None = None
+    # Cycle 11 #00P13c11-08 dual-mode composer — register archetype hvs for
+    # hormone-modulated intent classification.
+    _register_archetype_hvs: dict[str, np.ndarray] | None = None
 
     @classmethod
     def _ensure_archetypes_encoded(cls) -> None:
-        """Lazy init: encode all problem-shape archetype prompts once."""
+        """Lazy init: encode all problem-shape AND register archetype prompts once."""
         if cls._archetype_hvs is not None:
             return
         cls._archetype_encoder = CharNgramHashEncoder()
         cls._archetype_hvs = {
             name: cls._archetype_encoder.encode([archetype])[0]
             for name, archetype in _PARSER_ARCHETYPES.items()
+        }
+        cls._register_archetype_hvs = {
+            name: cls._archetype_encoder.encode([archetype])[0]
+            for name, archetype in _REGISTER_ARCHETYPES.items()
         }
 
     def process(self, prompt: str) -> AgentResponse:
@@ -964,6 +1019,20 @@ class ReasoningAgent:
                 confidence="refused",
             )
 
+        # Cycle 11 #00P13c11-08 dual-mode composer — register-archetype intent
+        # classification + re-render at chosen register. The BG-dispatcher
+        # picked WHICH parser; the register classifier picks WHICH FLAVOR of
+        # rendered output. For formal-mode responses (lemma != None), re-render
+        # at the chosen register if it's not the default. For natural-mode
+        # responses (lemma == None; the K-rollout already rendered with
+        # provenance trail), the register selection is informational only.
+        register = _classify_intent_register(
+            prompt, encoder=self._archetype_encoder,
+            archetype_hvs=self._register_archetype_hvs,
+        )
+        if top_response.lemma is not None and register != "default":
+            top_response.answer_text = top_response.lemma.render(register=register)
+
         # Annotate the response with BG dispatcher metadata for inspectability.
         # Limit to top-5 for context budget. Stored in dispatcher_metadata
         # (separate field) so strict `parsed_inputs == {...}` assertions stay
@@ -973,6 +1042,7 @@ class ReasoningAgent:
             "top5_candidates": [(m, round(c, 4)) for c, _, m, _ in candidates[:5]],
             "alpha": self._ALPHA,
             "tau_dispatch": self._TAU_DISPATCH,
+            "intent_register": register,
         }
         return top_response
 

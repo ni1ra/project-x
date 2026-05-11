@@ -1114,3 +1114,74 @@ def test_bg_dispatcher_regression_diophantine_quadratic_disambiguation():
     )
     assert response.problem_shape == "diophantine_binary_quadratic"
     assert response.dispatcher_metadata["top5_candidates"][0][0] == "_try_diophantine_binary_quadratic"
+
+
+# --- Cycle 11 #00P13c11-08 dual-mode composer (intent-classified register selection) ---
+
+
+def test_dual_mode_register_classifier_terse_intent():
+    """Prompts asking for 'just the answer / one line / no explanation' classify
+    to terse register. HDC-cosine similarity to register archetype."""
+    from project_x.reasoning_agent import _classify_intent_register
+    register = _classify_intent_register("Just give me the roots one line answer no explanation.")
+    assert register == "terse"
+
+
+def test_dual_mode_register_classifier_tutorial_intent():
+    """Prompts asking for 'explain / step by step / why each step works' classify
+    to tutorial register."""
+    from project_x.reasoning_agent import _classify_intent_register
+    register = _classify_intent_register("Explain step by step how to solve this and why each step works pedagogically.")
+    assert register == "tutorial"
+
+
+def test_dual_mode_register_classifier_casual_intent():
+    """Prompts with chat-flavored phrasing classify to casual register."""
+    from project_x.reasoning_agent import _classify_intent_register
+    register = _classify_intent_register("Hey, what do you think about this — let's chat casually about it.")
+    assert register == "casual"
+
+
+def test_dual_mode_register_classifier_default_intent():
+    """Plain factual prompts without specific flavor markers default to default register."""
+    from project_x.reasoning_agent import _classify_intent_register
+    register = _classify_intent_register("Solve this problem and show your work structured.")
+    assert register == "default"
+
+
+def test_dual_mode_agent_renders_quadratic_at_terse_register():
+    """Terse-framed quadratic prompt produces terse-register Lemma render via
+    agent.process() — same underlying substrate computation, different output flavor."""
+    agent = ReasoningAgent()
+    response = agent.process("Just give me the roots of 3 x^2 - 14 x - 5 = 0, one line answer.")
+    assert response.problem_shape == "quadratic"
+    assert response.dispatcher_metadata["intent_register"] == "terse"
+    # Terse output: claim + Affirmative only, no Step lines
+    assert "Step 1" not in response.answer_text
+    assert "Affirmative —" in response.answer_text
+
+
+def test_dual_mode_agent_renders_quadratic_at_tutorial_register():
+    """Tutorial-framed prompt produces tutorial-register render with 💡 prefix."""
+    agent = ReasoningAgent()
+    response = agent.process("Explain how to solve 3 x^2 - 14 x - 5 = 0 step by step and why each step works.")
+    assert response.problem_shape == "quadratic"
+    assert response.dispatcher_metadata["intent_register"] == "tutorial"
+    assert "💡 Why this matters:" in response.answer_text
+
+
+def test_dual_mode_agent_renders_quadratic_at_casual_register():
+    """Casual-framed prompt produces casual-register render with 'OK so —' opener."""
+    agent = ReasoningAgent()
+    response = agent.process("Hey Raphael, what do you think about the quadratic 3 x^2 - 14 x - 5 = 0 — just chat with me.")
+    assert response.problem_shape == "quadratic"
+    assert response.dispatcher_metadata["intent_register"] == "casual"
+    assert response.answer_text.startswith("OK so —")
+
+
+def test_dual_mode_register_metadata_populated_on_dispatch():
+    """Every successful dispatch carries `intent_register` in dispatcher_metadata."""
+    agent = ReasoningAgent()
+    response = agent.process("Solve for x: 3 x^2 - 14 x - 5 = 0.")
+    assert "intent_register" in response.dispatcher_metadata
+    assert response.dispatcher_metadata["intent_register"] in ("default", "terse", "tutorial", "casual")
