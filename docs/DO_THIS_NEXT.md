@@ -94,26 +94,38 @@ Unpushed: none beyond the close commit
 
 - [ ] #00P13c14-08e `_K_ROLLOUT_TAU` calibration — DEFERRED with two findings (see §4 + §9). Cycle-15 closes alongside the BG-dispatcher refused-candidate filter.
 
-### What's pending (cycle-15 council surface)
+### Cycle-15 council-prep state (mid-cycle-15 snapshot, post-2026-05-11 session)
 
-- [ ] Cycle-15 council deliberation surface (5 candidate angles below in §5)
-- [ ] Council process improvement: thesis-compliance gate per-angle before angle commits
+The 2026-05-11 cycle-15 work-session shipped 5 of 6 council surfaces from the BUILDER side. The remaining 2 are GENUINELY lain-pending (not mis-categorized parks):
 
-### Task list state
+- [x] **#00P13c15-01 capability demo** on post-cycle-14 agent (5 fresh prompts; F1 formal-pendulum bypass + F3 missing-archetype-saturation re-confirmed) — commit `c197bbd`
+- [x] **#00P13c15-02 B1 dispatcher fix angle note** (paired: refused-candidate filter R1/R2-independent + per-domain τ R2-dependent) — commit `c97605b`
+- [x] **#00P13c15-03 B2 corpus scale-out angle note** (refined cycle-14 A4 with cycle-15 demo findings; ~250k words across 5 domains) — commit `d4293e9`
+- [⏸] **#00P13c15-04 B3 per-domain predicates** — math predicate v1 SHIPPED at commit `afe6a64`; poetry/philosophy/chat sibling predicates **FIREWALL-BLOCKED per M-PROJECTX-014** (subjective-domain pre-registration requires lain's rubric input or external GPT audit framework; solo guessing would be theatre)
+- [x] **#00P13c15-05 B4 per-angle thesis-compliance gate** — checklist + retrospective application to cycle-14 A2/A3 — commit `bb8f297`
+- [⏸] **#00P13c15-06 B5 cycle-13 audit C-reframes** — **LAIN-PENDING** per cycle-14 reflect "Open questions" (target wording for canonical-doc reframings on 10⁸-association capacity claim + "memory IS the model" + Layer 5 emergence framing)
+
+### What's still pending for cycle-15 synthesis + implementation
+
+- [ ] **R2 vs R1 confirmation from lain.** Synthesis verdict (commit `9b1f8fd`) defaulted R2 transition; R1 radical surgery offered as override window. lain confirmation did NOT arrive in the 2026-05-11 work-session. Cycle-15 synthesis cannot select cycle-15 #1 implementation surface without this.
+- [ ] **B3 sibling predicates rubric input** — lain provides poetry/philosophy/chat rubric scales (or authorizes external GPT audit framework); then 3 sibling predicates ship as pre-registered docs analogous to math predicate v1.
+- [ ] **B5 cycle-13 audit C-reframes target wording** — lain provides direction; then proposal-for-review doc lands.
+- [ ] **Cycle-15 synthesis verdict** — runs after all 6 council surfaces are at angle-note level + R1/R2 + rubric input arrives. Picks 1-2 cycle-15 #1 implementation candidates with honest combined-axis scoring + advisor pre-write.
+- [ ] **Cycle-15 #1 implementation per synthesis** — depends on synthesis pick.
+- [ ] **Cycle-15 close ritual** — dev-cycle-15.md + cycle-16 handoff DO_THIS_NEXT rewrite + A_TO_Z §6 + IQ_PROGRESSION prepend.
+
+### Task list state (post-2026-05-11 work-session)
 
 ```
 #1   pending     #∞ NORMAL mode operation (eternal — heartbeat cron c8e56966)
 #2   pending     #00P13-data-curation (eternal — Tier-2 corpus + cycle-15 A4 scale-out target)
-#3   completed   #00P13c14-01 capability demo
-#4   completed   #00P13c14-02 council A1 Hebbian
-#5   completed   #00P13c14-03 council A2 evaluator-policy (proposal DROPPED post-strict-strict-pivot)
-#6   completed   #00P13c14-04 council A3 credit-assignment (proposal DROPPED post-strict-strict-pivot)
-#7   completed   #00P13c14-05 council A4 corpus scale-out (DEFERRED to cycle-15)
-#8   completed   #00P13c14-06 council A5 per-domain predicate (DEFERRED to cycle-15)
-#9   completed   #00P13c14-07 synthesis verdict + advisor pre-write
-#10  completed   #00P13c14-08 umbrella (7 sub-tasks: 6 shipped, 1 deferred)
-#11  in_progress #00P13c14-09 cycle-14 reflect + cycle-15 handoff (this)
-#12-18 completed #00P13c14-08a-g sub-tasks
+#3-18  completed  cycle-14 #01-#09 umbrella + #08a-g sub-tasks (all on origin/main d89b90f → 5dd4b64)
+#19  completed   #00P13c15-01 capability demo (c197bbd)
+#20  completed   #00P13c15-02 B1 dispatcher fix angle note (c97605b)
+#21  completed   #00P13c15-03 B2 corpus scale-out angle note (d4293e9)
+#22  in_progress #00P13c15-04 B3 per-domain predicates (math done afe6a64; 3 siblings firewall-blocked)
+#23  completed   #00P13c15-05 B4 per-angle thesis-compliance gate (bb8f297)
+#24  pending     #00P13c15-06 B5 cycle-13 audit C-reframes (lain-pending direction)
 ```
 
 Carry-forwards (lain-pending; DO NOT touch unprompted):
@@ -150,13 +162,25 @@ Hand-coded primitives in `src/project_x/reasoning/*` (solve_quadratic, collatz_v
 
 ## 5. NEXT STEPS
 
-### Cycle-15 immediate sequence (per cycle-14 reflect §"Cycle 15 scope")
+### Cycle-15 mid-flight state (post-2026-05-11 work-session)
 
-Cycle-15 mirrors cycle-14's shape: capability demo → 5-angle council → synthesis (with per-angle thesis-compliance gate) → implementation → close.
+The 2026-05-11 cycle-15 work-session pushed council-prep forward: 5 of 6 surfaces shipped from the BUILDER side (capability demo + B1 + B2 + B3-math + B4). Cycle-15 mirrors cycle-14's shape: capability demo → 5-angle council → synthesis → implementation → close — currently between council-prep and synthesis. Synthesis requires lain's R1/R2 + rubric input arriving; until then cycle-15 is paused at the council-prep/synthesis boundary.
+
+### Cycle-15 immediate sequence (next-instance picks up here)
 
 1. **Resume listener verification + heartbeat cron arm.** `pgrep -af 'discord-wait-for-lain'` expects 2. If <2, rearm both with `LISTENER_BASELINE=<last_msg_id> SKIP_REARM=1 bash /home/nira/.claude/bin/discord-wait-for-lain.sh general 5` (per M-NAVI-018; auto-rearm doesn't work in WSL sandbox).
-2. **Surface R2 vs R1 unresolved to lain** (cycle-14 §"Counter-claim guard" §"R2 vs R1"). If lain confirms R2, proceed; if R1, the cycle-14 synthesis verdict §1/§4/§7 get rewritten and cycle-15 reshapes to rip the rest of the dispatcher.
-3. **Cycle-15 council preparation (assuming R2):** the 5 inherited surfaces (one per angle, OR consolidate into 3-4 angles):
+
+2. **Check if lain provided R1/R2 direction** + rubric input + canonical-reframing direction since the 2026-05-11 mid-cycle pause. Read recent Discord messages.
+
+3. **If lain provided R1/R2 + rubric + reframing direction:** open cycle-15 synthesis. Read all 6 council surface docs at `docs/artifacts/cycle-15-*.md` + B3-math predicate at `docs/artifacts/cycle-15-predicate-math.md`. Apply the cycle-15 B4 thesis-compliance gate at synthesis (it's the gate's first empirical test). Advisor pre-write per cycle-13 #06 + cycle-14 #07 precedent. Synthesis picks cycle-15 #1 implementation surface (1-2 of B1/B2/B3/B5 with honest combined-axis scoring).
+
+4. **If lain has NOT provided direction:** stay paused. Heartbeat caught 6 deferral-pattern shapes in the 2026-05-11 session; ship-on-cron-fire is itself drift if every fire produces ship-without-lain-input. The legitimate stop point is "council-prep complete from BUILDER side; cycle-15 synthesis genuinely awaits lain."
+
+5. **Cycle-15 implementation phase (after synthesis):** sub-task split via re-fired `Skill('skills:sharpen-todos')` at #07/#08 boundary. Atomic feat commits per sub-task. REPO_CONTROL co-landed for new non-docs files. Per-angle thesis-compliance gate fires at each implementation sub-task too (the gate generalizes from angle-time to commit-time).
+
+6. **Cycle-15 close ritual.** Four-doc atomic close per cycle-13/14 precedent: dev-cycle-15.md + DO_THIS_NEXT cycle-16 rewrite + A_TO_Z §6 + IQ_PROGRESSION prepend.
+
+### Cycle-15 council surfaces (5 inherited from cycle-14 + 1 process improvement):
    - **B1 Per-domain `τ_satisfaction` calibration + BG-dispatcher refused-candidate filter** (paired: closes #08e deferral + the 4-cycle-old latent bug). Reward-shaped blend (cycle-14 #08c) becomes the quality discriminator alongside per-domain τ.
    - **B2 A4 corpus scale-out** (~200k words across math worked-examples + humour + conversational + epistemology gap-fill). Addresses cycle-14 demo F4/F5 data-side gap.
    - **B3 A5 per-domain emergence predicate templates** (math + poetry + philosophy + chat). Falsifiability scaffold for cycle-15+ capability claims. Cycle-13 #07f-pre is the template (committed `0b89101` BEFORE the run that returned 0/20 STRUCTURAL).
