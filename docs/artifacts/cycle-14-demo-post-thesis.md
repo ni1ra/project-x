@@ -162,3 +162,67 @@ These are **informal pre-council estimates**; the synthesis at #07 commits to a 
 ---
 
 *Single-line takeaway: the post-cycle-13 agent routes more prompts correctly than any prior cycle but the STRICT-thesis gap remains essentially whole — capability is BUILDER-authored, not AGENT-learned, and the dispatcher itself is the most-load-bearing piece of scaffold left.*
+
+---
+
+## 8. Cycle-14 #08f verification — re-run on HebbianBank-active agent
+
+**Run date:** 2026-05-11. **Commit:** appended post-cycle-14 #08a-d + #08g ship; bank consumer wired via #08b/c.
+**Path:** `agent.process()` end-to-end (Arm A — cold-start, no bank file on disk); direct `KRolloutComposer.compose()` with synthetic-rating-populated bank (Arm B).
+
+### 8.1 Arm A — cold-start regression (empty bank, α=0)
+
+`data/hebbian_bank/main.pkl` does NOT exist → `HebbianBank.load(...)` returns an empty bank → `entry_count=0` → blend alpha=0 → `blend_score` collapses to identity. Re-run produces dispatcher metadata IDENTICAL to the cycle-14 demo's original (commit `d89b90f`):
+
+| Prompt | Domain | Problem shape | Combined confidence | Register | Match |
+|---|---|---|---|---|---|
+| P1 math | maths | quadratic | 0.9683 | tutorial | ✓ exact |
+| P2 poetry off-trigger | open_domain | natural_mode_walk_poetry | 0.8351 | terse | ✓ exact |
+| P3 philosophy off-canon | open_domain | natural_mode_walk_philosophy | 0.8223 | casual | ✓ exact |
+| P4 humour | open_domain | natural_mode_walk_math (misroute) | 0.8320 | terse | ✓ exact |
+| P5 casual chat | open_domain | natural_mode_walk_poetry (misroute) | 0.8336 | casual | ✓ exact |
+
+**Cold-start contract verified.** The cycle-14 strict-thesis ship preserves cycle-13/cycle-14-demo behavior exactly when the bank is empty. The substrate's writability is shipped WITHOUT regressing the read path.
+
+### 8.2 Arm B — synthetic-rating injection (P4/P5 misroute rejections)
+
+Constructed an empty bank, injected 5 `reject` ratings (rating=1.0 → delta=-0.2 per fragment) on each P4 + P5 misroute fragment from §3 (Cantor / diagonal-argument / prime-number-theorem / Stokes / residue-theorem for P4; Shakespeare sonnet / Whitman thought-of-justice / Whitman day-most-splendid / Yeats Innisfree / Whitman charity-and-personal-force for P5). Padded with 120 synthetic filler (filler-prompt, filler-fragment) approves to drive entry_count to 130 and saturate α at 1.0.
+
+State after injection:
+- `bank.entry_count() = 130 → α = min(1.0, 130/100) = 1.0`
+- `bank.lookup(P4-prompt, "Cantor's diagonal argument: …") = -1.0` (5 × -0.2)
+- `bank.lookup(P5-prompt, "Shall I compare thee to a summer's day?") = 0.0` (Shakespeare sonnet 18 was NOT in the rejected set — different from P5's actual misroute "For I am shamed by that which I bring forth")
+
+Re-running `KRolloutComposer.compose(domain="all")` on P4 + P5:
+
+| Prompt | Cycle-14 demo top fragment | Arm B top fragment | Shift? |
+|---|---|---|---|
+| P4 | *"Aleph-null is the cardinality of the natural numbers …"* (Cantor; rejected) | *"Shall I compare thee to a summer's day? …"* (Shakespeare sonnet 18; unrated) | ✓ moved AWAY from rejected misroute |
+| P5 | *"For I am shamed by that which I bring forth …"* (Shakespeare; rejected) | *"Shall I compare thee to a summer's day? …"* (Shakespeare sonnet 18; unrated) | ✓ moved AWAY from rejected misroute |
+
+**The bank mechanism shifts retrieval as designed.** Rejected fragments drop to `lookup = -1.0`; at α=1.0 the blended score on those pairs = -1.0 dominates; retrieval ranks them below any unrated pair (lookup = 0.0). Unrated fragments win the ranking. The strategy collapses to `bind` because all rated (rejected) fragments fall to the negative tail.
+
+### 8.3 Honest reading of Arm B
+
+The shift is real but doesn't mean the agent *learned humour* or *learned chat*. It means the bank successfully drove the previously-confident misroute fragments DOWN. The new top fragments are still off-topic (Shakespeare sonnet 18 is not a humour-prompt answer); but the corpus has no humour material to retrieve, and no chat material — the F4/F5 misroutes are DATA gaps (corpus coverage), not just routing gaps. The bank fixes the routing-side half (rejected pairs measurably drop in ranking). The DATA-side half waits on cycle-15+ A4 corpus scale-out.
+
+**What Arm B verifies:**
+1. Reward signal propagates from `audit_log.apply_rating` through to the substrate-wide bank.
+2. `blend_score` correctly weights bank lookup vs static cosine as α grows.
+3. Negative ratings drive (prompt_atom, fragment_atom) pairs to negative scores → they drop in retrieval ranking.
+4. The substrate's behavior shifts cycle-over-cycle with audit signal, without ANY hand-coded per-tool routing changes.
+
+**What Arm B does NOT verify:**
+1. Right-routing on humour / chat prompts (corpus lacks the target material).
+2. Per-domain calibration of α growth schedule.
+3. Real audit-cadence behavior (synthetic-injection vs lain's actual rating rate).
+4. Cycle-13 framing-walk preservation under high audit volume (cycle-15+ verification once both sides accumulate signal).
+
+### 8.4 Cycle-14 ship verdict
+
+- **Cold-start regression:** PRESERVED (Arm A: 5/5 prompts produce identical dispatcher metadata).
+- **Reward-signal propagation:** VERIFIED (Arm B: rejected pairs measurably shift retrieval ranking).
+- **Strict-thesis fraction at the substrate layer:** SHIPPED — the substrate is now writable from rated experience. Capability lift waits on audit cadence.
+
+Cycle-14's strict-thesis-fraction shifts at the routing layer + substrate-write-path; cycles 15+ accumulate the audit signal that turns *capacity-to-learn* into *measured-learning*.
+
