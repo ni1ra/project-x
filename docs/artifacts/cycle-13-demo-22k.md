@@ -77,9 +77,9 @@
 
 22,052 fragments encoded once at composer init; per-prompt retrieval through the 22k space runs sub-second after the cold start. The WSL-crash failure mode of cycle 12 was specifically the k-means clustering step, not the retrieval path. **Retrieval is NOT the bottleneck.**
 
-### F2 — Bundle wins poetry + philosophy; greedy wins math
+### F2 — Bundle wins poetry + philosophy; greedy wins math (n=2 + n=1)
 
-`bundle` (same-theme continuation, additive context update) was chosen for both subjective-domain walks; `greedy` (no context update; always score against original prompt) won the math walk. This is consistent with the canonical doc Layer 4 framing — bundling produces same-theme drift suited to expressive domains; greedy holds tight to the original prompt for fact-shaped queries. **Reproducible empirical pattern**; not a fluke.
+`bundle` (same-theme continuation, additive context update) was chosen for both subjective-domain walks; `greedy` (no context update; always score against original prompt) won the math walk. This is consistent with the canonical doc Layer 4 framing — bundling produces same-theme drift suited to expressive domains; greedy holds tight to the original prompt for fact-shaped queries. **One run, n=2 subjective vs n=1 math** — too small a sample to call reproducible; the directionality is suggestive but a real claim needs ~20+ prompts per domain. Flag for cycle-14+ empirical work, not a cycle-13 verdict.
 
 ### F3 — Average similarities are low (0.18–0.35) — the WALK doesn't converge tightly
 
@@ -113,17 +113,19 @@ P1 returned 5 Whitman fragments out of 22k available. The poetry-tagged subset (
 4. **Refusal on P4/P5 is correctly preferred over confabulation** but reveals trigger-gate brittleness, not architectural depth.
 5. **22k fragments is still 2-3 OoM below the canonical Layer 6 spec** (1-10M words/domain). Cycle-12 expansion was real progress; the corpus is NOT yet at the spec.
 
-## 6. Hooks for the 4-angle council
+## 6. Hooks for the 5-angle council
 
-| Finding | Bitpack+emergence (angle 1) | Variable-res HDC (angle 2) | Quality-curation (angle 3) | Bootstrap-audit (angle 4) |
-|---|---|---|---|---|
-| F1 retrieval works fine | retrieval not the lever | retrieval not the lever | retrieval not the lever | audit signal is downstream of retrieval; still relevant |
-| F3 walks don't converge | unrelated | **variable-res could lift per-step similarity** by giving high-detail subspaces to the prompt's semantic core | **better-curated corpus could raise avg_sim** if higher-quality nearest-neighbors exist | bootstrap audit IS the loop that learns what counts as "converged" |
-| F5 Collatz routed wrong | unrelated | unrelated | unrelated | unrelated — this is dispatcher calibration |
-| F6 narrow trigger gate | unrelated | unrelated | unrelated | unrelated — this is parser-archetype work |
-| F7 Whitman dominance | unrelated | unrelated | **angle 3 directly addresses** — per-domain corpus diversity is a curation parameter | unrelated |
+The original corpse named 4 council angles. F5 + F6 — the demo's two most-load-bearing structural findings — map to **none** of them. Per the demo-first discipline, the council scope expanded to include a 5th angle (dispatcher + trigger calibration) before deliberation. Symmetric council, symmetric synthesis; ~60 lines more total at the angle-5 note.
 
-**Surprises:** the demo's most-load-bearing findings (F5 dispatcher calibration + F6 trigger gate) map to NONE of the 4 council angles. The synthesis pass should explicitly account for whether the cycle-13 #1 should be one of the 4 angles OR a 5th candidate ("dispatcher-and-trigger refinement") surfaced by the demo data.
+| Finding | Bitpack+emergence (a1) | Variable-res HDC (a2) | Quality-curation (a3) | Bootstrap-audit (a4) | Dispatcher+trigger-calibration (a5) |
+|---|---|---|---|---|---|
+| F1 retrieval works fine | retrieval not the lever | retrieval not the lever | retrieval not the lever | audit signal is downstream of retrieval; still relevant | unrelated |
+| F3 walks don't converge | unrelated | **a2 could lift per-step similarity** by giving high-detail subspaces to the prompt's semantic core | **a3 could raise avg_sim** if higher-quality nearest-neighbors exist | bootstrap audit IS the loop that learns what counts as "converged" | a5 dispatcher calibration shapes WHICH walk-mode runs but doesn't change per-step similarity within natural mode |
+| F5 Collatz routed wrong | unrelated | unrelated | unrelated | unrelated | **a5 directly addresses** — BG-dispatcher confidence formula |
+| F6 narrow trigger gate | unrelated | unrelated | unrelated | unrelated | **a5 directly addresses** — HDC-similarity gate replaces keyword regex |
+| F7 Whitman dominance | unrelated | unrelated | **a3 directly addresses** — per-domain corpus diversity is a curation parameter | unrelated | unrelated |
+
+**Synthesis tension surfaced by the demo:** angle 5's fixes unlock **demo-rateable capability NOW** (P4 + P5 are answerable by the existing 22k corpus once the gate accepts them); angle 1's fix unlocks an **experiment** (primitive emergence at scale) whose capability payoff is downstream + speculative. The synthesis pass holds this tension — substrate-axis (a1) vs capability-axis (a5) — against the Terminus.
 
 ## 7. Atomic commit info
 
