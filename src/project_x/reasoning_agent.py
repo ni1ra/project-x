@@ -702,6 +702,11 @@ _NATURAL_MODE_TRIGGERS: dict[str, tuple[str, ...]] = {
              "matiyasevich", "hilbert tenth", "fermat", "honest framing about"),
     "lain_voice": ("project x", "what is raphael", "what is project x",
                    "your design philosophy", "your standing rules"),
+    # Cycle 12 #00P13c12-01b — narrative_prose triggers for Tier-2-ingested
+    # novels (Pride and Prejudice / Walden / Tale of Two Cities / Frankenstein
+    # / Alice). Activated by "tell me a story / about / describe" phrasings.
+    "narrative_prose": ("tell me a story", "tell me about", "describe a scene",
+                        "narrate", "what happens in", "the story of"),
 }
 
 

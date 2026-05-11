@@ -40,8 +40,13 @@ def composer() -> NaturalModeComposer:
 
 
 def test_composer_loads_and_exposes_domains(composer: NaturalModeComposer):
-    """Smoke: composer initializes without error; reports the 5 canonical domains."""
-    assert composer.available_domains == ["all", "poetry", "philosophy", "math", "lain_voice"]
+    """Smoke: composer initializes without error; reports the 7 canonical domains
+    after cycle-12 #00P13c12-01b Tier-2 ingestion (added narrative_prose + general
+    for ingested novels/general-non-poetry-non-philosophy content)."""
+    assert composer.available_domains == [
+        "all", "poetry", "philosophy", "math", "lain_voice",
+        "narrative_prose", "general",
+    ]
 
 
 def test_composer_emits_five_fragments_with_provenance(composer: NaturalModeComposer):
@@ -163,8 +168,10 @@ def test_agent_natural_mode_falls_through_on_unrecognized_open_prompt():
     """An open-ended prompt with no natural-mode trigger AND no primitive match
     falls through to the existing 'unrecognized' refusal path."""
     agent = ReasoningAgent()
-    # "Tell me about Tuesdays" — no triggers in any dispatcher; honest refusal expected
-    response = agent.process("Tell me about Tuesdays.")
+    # "asdf qwerty" — no triggers in any dispatcher; honest refusal expected.
+    # (post cycle-12 #00P13c12-01b: "Tell me about X" now matches narrative_prose
+    # triggers; need a prompt that doesn't match any natural_mode keyword either.)
+    response = agent.process("asdf qwerty random nonsense characters here.")
     assert response.problem_shape == "unrecognized"
     assert response.confidence == "refused"
 

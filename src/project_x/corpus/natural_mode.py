@@ -41,6 +41,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pathlib import Path
+
+from project_x.corpus.ingestion import INGESTION_MANIFEST, ingest_corpus_dir
 from project_x.corpus.mini_seed import (
     LAIN_VOICE_FRAGMENTS,
     MATH_FRAGMENTS,
@@ -48,6 +51,32 @@ from project_x.corpus.mini_seed import (
     POETRY_FRAGMENTS,
 )
 from project_x.experiments.encoder import CharNgramHashEncoder, cosine_bipolar
+
+
+# Cycle 12 #00P13c12-01b Tier-2 corpus ingestion — at-import-time, attempt to
+# load fragments from `data/corpus_raw/` if it exists. Domain-tag assignment is
+# based on source-tag substring matching: poetry-flavored authors → 'poetry',
+# philosophy-flavored → 'philosophy', narrative-prose → 'narrative_prose' (new
+# domain tag for novels), default → 'general'. Honest framing: this is a
+# rough domain-tagging heuristic; cycle-12+ extension could pre-tag at ingestion
+# time per the manifest.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_INGESTED_CORPUS_DIR = _REPO_ROOT / "data" / "corpus_raw"
+
+
+def _classify_domain(source_tag: str) -> str:
+    """Heuristic source-tag → domain mapping for Tier-2 ingested fragments."""
+    s = source_tag.lower()
+    if any(kw in s for kw in ("shakespeare", "whitman", "leaves of grass", "sonnets")):
+        return "poetry"
+    if any(kw in s for kw in ("aurelius", "lao tzu", "tao te ching", "republic", "plato",
+                              "meditations")):
+        return "philosophy"
+    if any(kw in s for kw in ("austen", "dickens", "shelley", "frankenstein", "carroll",
+                              "alice", "tale of two cities", "pride and prejudice", "walden",
+                              "thoreau")):
+        return "narrative_prose"
+    return "general"
 
 
 @dataclass
@@ -106,7 +135,7 @@ class NaturalModeComposer:
       - `available_domains` (property): list of corpus tags.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, include_ingested: bool = True) -> None:
         # Collect all fragments with a domain tag for filtering.
         # (domain_tag, fragment_text, source)
         self._tagged: list[tuple[str, str, str]] = []
@@ -118,6 +147,16 @@ class NaturalModeComposer:
             self._tagged.append(("math", text, source))
         for text, source in LAIN_VOICE_FRAGMENTS:
             self._tagged.append(("lain_voice", text, source))
+        # Cycle 12 #00P13c12-01b — Tier-2 ingested corpus from
+        # `data/corpus_raw/` if present. Heuristic source-tag → domain
+        # mapping via `_classify_domain`. Falls back to hand-seeded-only if
+        # the directory doesn't exist or include_ingested=False.
+        if include_ingested and _INGESTED_CORPUS_DIR.exists():
+            for text, source in ingest_corpus_dir(
+                _INGESTED_CORPUS_DIR, manifest=INGESTION_MANIFEST
+            ):
+                domain = _classify_domain(source)
+                self._tagged.append((domain, text, source))
 
         # Encode all fragments once via the deterministic char-n-gram encoder.
         # No training; encode is one matrix multiply per text.
@@ -127,7 +166,10 @@ class NaturalModeComposer:
 
     @property
     def available_domains(self) -> list[str]:
-        return ["all", "poetry", "philosophy", "math", "lain_voice"]
+        # 4 original mini_seed domains + 2 new from Tier-2 ingestion
+        # (narrative_prose for novels; general fallback)
+        return ["all", "poetry", "philosophy", "math", "lain_voice",
+                "narrative_prose", "general"]
 
     def _filtered_indices(self, domain: str) -> list[int]:
         """Return indices into `self._tagged` matching the domain filter."""

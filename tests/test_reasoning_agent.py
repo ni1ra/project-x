@@ -1072,7 +1072,9 @@ def test_bg_dispatcher_refusal_path_when_no_parser_matches():
     dispatcher_metadata (because the BG-dispatcher's top-candidate annotation
     only fires when a candidate clears the threshold and dispatches)."""
     agent = ReasoningAgent()
-    response = agent.process("Tell me about Tuesdays.")
+    # post cycle-12 #00P13c12-01b: "Tell me about X" now matches narrative_prose
+    # natural_mode trigger; use a prompt that doesn't match any keyword gate.
+    response = agent.process("asdf qwerty random nonsense characters here.")
     assert response.problem_shape == "unrecognized"
     assert response.confidence == "refused"
     # The honest-refusal path returns AgentResponse with default dispatcher_metadata=None
