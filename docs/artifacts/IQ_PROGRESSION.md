@@ -8,6 +8,29 @@
 
 ---
 
+## Phase 13 cycle 10 CLOSE (2026-05-11) — Pell dispatcher integration + canonical semantics architecture from 4-angle deep-research phase
+
+**Hardest end-to-end at agent-runtime (NEW capability shape this cycle):** *"Find the first 5 integer solutions (x, y) to the Diophantine Pell equation x² − 2·y² = 1."* The dispatcher parses the prompt, detects Pell-shape (a=1, b=0, c=-2, N=1), routes to `solve_pell_equation(n=2, k_max=5)`. The substrate computes √2 = [1; 2, 2, ...] via the Hardy+Wright (m, d, a) triple recurrence (period 1; odd-period branch → square (1 + √2) to lift negative-Pell to +1); fundamental (x₁, y₁) = (3, 2) verified by integer-equality `9 − 8 = 1`. Recurrence `(x_{m+1}, y_{m+1}) = (3·x_m + 4·y_m, 3·y_m + 2·x_m)` iterates 5 steps yielding **(3, 2), (17, 12), (99, 70), (577, 408), (3363, 2378)** — every solution satisfies `x² − 2·y² = 1` by direct integer arithmetic check. STRONG cross-check: brute-force search x ∈ [1, 1000] independently finds (3, 2) as fundamental, matching the continued-fraction path. Honest framing: PASS = "enumerated first 5 via Hardy+Wright continued-fraction fundamental + recurrence", NOT general Hilbert-10 decidability (Matiyasevich 1970 still holds).
+
+**Capability lift vs cycle 10 #1:** at cycle 10 #1 close, the agent could only HONESTLY REFUSE indefinite forms (`x² − 2y² = 1` → "NotImplementedError; cycle 10+ extension"). Now it solves them honestly. Cycle 9 honest-refusal pattern is preserved on the non-Pell-N≠1 fall-through path (`x² − 2y² = 3` still refused; Pell substrate handles only the canonical N=1 case at this milestone).
+
+**Bonus capability:** unicode minus (U+2212) parser normalization across the Diophantine dispatcher (mirrors cycle 8 #06 quadratic parser-robustness precedent). LaTeX-rendered prompts with typographic minus now parse cleanly.
+
+**Pytest baseline:** 531 / 531 passing (was 515 at cycle 10 #1 close; +16 from Pell substrate tests + dispatcher tests + parser unicode-minus tests).
+**Bench-replay --agent-runtime:** **48 / 0** (was 46/0; +2 for maths-026 + maths-027 land green via the new dispatcher). First IQ-ladder PASS-count progress since the cycle 7 dispatcher buildout.
+**Bench-replay frozen:** 46 / 0 maintained (parity).
+**Capability shape:** intermediate Pell equation x² − n·y² = 1 for positive non-square n via continued-fraction fundamental + recurrence. First step into INDEFINITE binary quadratic territory (cycle 9 closed positive-definite only with honest refusal on indefinite).
+
+**Design artifact (NOT a capability — the contract cycle 11 honors):** canonical `docs/artifacts/cycle-10-semantics-architecture.md` at `a06a51a` (268 lines) replaces the DRAFT-PRELIMINARY (`9b9aa7e`). Synthesizes the 4-angle deep-research phase (commits `4133eaa`, `9f93ea2`, `4781366`, `c8362cf`) into a 7-layer architecture with substrate/runtime/learning trichotomy. Three NEW architectural commitments beyond DRAFT's 5: BG-style confidence-scored parallel-bid dispatcher (LOAD-BEARING for cycle-11 open-domain semantics); surprise-biased offline consolidation pass (the four-angle quadruple-merge as ONE primitive); K-rollout iteration with honest-refusal exit (the curiosity mechanism via `1 - cos(hv_pred, hv_actual)` — HDC SIMPLIFIES Pathak 2017 because hypervectors ARE the feature space). ~12 explicit rejections framed as cycle-11 guardrails. Cycle-11 implementation estimated ~16-20h Raphael-time.
+
+**Hassabis-bar verdict (cycle 10 CLOSE):** still no impressed eyebrow on math content individually — Pell with k=5 is intermediate number theory; dispatcher integration is mechanical; predicate-strength verifiers are classical (Newton / Vieta / Sarrus / Simpson / Riemann / Taylor / Jacobi). The semantics architecture canonical doc is design-dominant; capability test is cycle 11. What MIGHT register mildly: (1) the deep-research-before-implement discipline — 4 advisor consults + literature integration + asymmetric-loading-honored synthesis BEFORE committing to canonical design, rather than reactive iteration; (2) the HDC-simplifies-Pathak insight (substrate is feature space → Pathak's hardest engineering work disappears); (3) the consolidation-quadruple-merge reduction (4 angles describing same mechanism with different vocabularies, synthesis lands as ONE primitive). These are PROCESS artifacts of design discipline, not capability artifacts.
+
+**Self-impression-score: 375 / 420.** Cycle 10 closed cleanly across two instances: planning-raphael shipped 7 atomic predicate-strength commits + paper.md sync + Pell substrate + DRAFT semantics + research plan + universal codifications + repo public flip; execute-raphael (this instance) shipped Pell dispatcher + 4 deep-research notes + canonical synthesis + dual-listener protocol patch + cycle reflect. Honest 375 (not 395+) because no capability shape leap — the synthesis is a design contract, not validated implementation. The capability test is cycle 11.
+
+**Counter-claim guard:** cycle 10 did NOT produce a research-grade math capability — would_surprise_hassabis ladder field remains uniformly false. The 4-angle deep-research phase was 5h of writing within a single Claude Code session, not a multi-day multi-expert deliberation; the advisor model is one strong reviewer answering different per-angle framings, not a council. Asymmetric loading was honored honestly (~20%, ~65%, ~17%, ~35%) but the analysis depth per angle was bounded by ~30 min/angle. Cycle 11 will reveal whether any of the synthesis's claims survive empirical test.
+
+---
+
 ## Phase 13 cycle 10 #1 close (2026-05-11) — predicate-strength uniformity pass complete
 
 **Hardest end-to-end (unchanged from cycle 9 close in capability terms — cycle 10 #1 is a rigor pass, not a capability extension):** all 46 of 46 auto-graded benchmark entries still PASS at agent-runtime; no new capability shapes added at this sub-milestone. What changed is the *trust property* of every existing answer.
