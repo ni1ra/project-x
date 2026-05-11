@@ -1,80 +1,68 @@
-# Do This Next — Project X — Phase 13 cycle 11 (handoff from cycle 10 CLOSE)
+# Do This Next — Project X — Phase 13 cycle 12 (handoff from cycle 11 CLOSE)
 
-**Updated:** 2026-05-11 (cycle 10 CLOSE — Pell dispatcher integration + 4-angle deep-research phase + canonical semantics architecture)
-**Mode:** APOTHEOSIS (godify-app — 6h run started 2026-05-11 04:27 CEST; ends 10:27 CEST). Re-arm under NORMAL or APOTHEOSIS per lain at cycle-11 start; current 6h run is for cycle 10 close, NOT a standing godify schedule.
-**Status:** Cycle 10 CLOSED via 14 atomic commits + cycle-reflect. Cycle 11 = IMPLEMENTATION PHASE of the canonical semantics architecture.
+**Updated:** 2026-05-11 (cycle 11 CLOSE — 8 of 10 canonical-doc-sequence deliverables shipped; architectural foundation arc complete)
+**Mode:** APOTHEOSIS EXTENDED until 2026-05-11 11:00 CEST Oslo (lain hard rule). 20m on / 20m off cadence; cron at `19,59 * * * *`. Agent should continue working until 11:00 unless lain interrupts.
+**Status:** Cycle 11 CLOSED via 9 atomic commits (8 feat + 1 close). Cycle 12 = SCALE + audit-loop wire-up + remaining architectural primitive (consolidation) + cycle-12+ infra optimizations.
 
-## Cycle 10 — what shipped (CLOSE)
+## Cycle 11 — what shipped (CLOSE)
 
 | Commit | Deliverable | Result |
 |---|---|---|
-| `2fd6f9f..22d76ef` (7 atomic) | #00P13c10-01 predicate-strength uniformity pass across 7 reasoning/ primitives | Algorithmically-independent STRONG verifier added to each (Jacobi r₂ / Newton / Sarrus / Simpson / midpoint Riemann / Taylor series / shared `_midpoint_riemann` helper); pytest +57; bench-replay 46/0 parity maintained |
-| `a188db8` + `f67414b` | paper.md major sync with Chapter 11 Future Implications + Closing love | NotebookLM-friendly curriculum updated through cycle 10 #1 |
-| `f4522f2` | #00P13c10-02-substrate Pell equation substrate | `solve_pell_equation(n, k_max=5)` via continued-fraction fundamental + recurrence; brute-force STRONG cross-check capped M=1000 |
-| `acca853` | HDC infrastructure optimization roadmap | Rust port phased plan + dimensionality scaling + multi-resolution HDC (paired separate concern) |
-| `0cddcd6`, `6e40560`, `b44aae4`, `9b9aa7e` | Semantics arch v1 → v2 → v3-amendment → consolidated DRAFT | Iterative refinement before deep-research phase |
-| `28d8093` + `9f926b7` | 4-angle deep-research plan (with Curiosity-angle sharpening per lain's follow-up msgs) | Re-scoped cycle from reactive iteration to deep-research-before-canonical |
-| Universal codifications | Raphael-time + Self-impression-score 0-420 + No-legacy discipline + Dual-listener pattern | All in `~/.claude/CLAUDE.md` (universal); some inline to project docs |
-| Repo flip | Public at https://github.com/ni1ra/project-x | Lain action |
-| `a4e1aca` | #00P13c10-02-dispatcher Pell dispatcher integration | Pell-shape detection + routing; unicode-minus parser normalization (cycle 8 #06 precedent); closes maths-026/027; pytest 527→531; bench-replay 46/0 → 48/0 |
-| `4133eaa` | #00P13c10-research-evolutionary angle 2 note | ~20-25% load-bearing; only Salimans ES translates |
-| `9f93ea2` | #00P13c10-research-curiosity angle 3 note | ~60-70% load-bearing (strongest); HDC SIMPLIFIES Pathak |
-| `4781366` | #00P13c10-research-multi-agent angle 4 note | ~15-20% load-bearing (thinnest); Sutton options as cycle-12+ |
-| `c8362cf` | #00P13c10-research-brain-subsystems angle 1 note | ~30-40% load-bearing (middle); BG-style dispatcher LOAD-BEARING for cycle 11 |
-| `a06a51a` | #00P13c10-semantics-canonical synthesis pass | Overwrites DRAFT-PRELIMINARY; 7-layer substrate/runtime/learning trichotomy; DRAFT's 5 decisions + 3 new commitments; consolidation-quadruple-merge as ONE decision |
-| Dual-listener protocol patch | `~/.claude/bin/discord-wait-for-lain.sh` LISTENER_BASELINE env var + CLAUDE.md DD-1/2 codification | Out-of-tree (universal Raphael discipline); mechanically validated via Test1+Test2 rapid-fire catch |
-| THIS commit | #00P13c10-06 cycle reflect + DO_THIS_NEXT cycle-11 handoff + A_TO_Z PHASE CHANGELOG cycle-10-close + IQ_PROGRESSION cycle-10 entry | Cycle close ritual |
+| `6eae526` | #00P13c11-DEMO natural-mode v0 capability demo | corpus + composer + dispatcher branch (~100 fragments hand-seeded); HDC walks with provenance |
+| `2a479b6` | #00P13c11-01 BG-style confidence-scored parallel-bid dispatcher | 21 parsers; α=0.6; tau=0.3; chain-order tiebreaker; archetype hvs; +7 tests |
+| `9868d66` | #00P13c11-02 hormone-modulated Lemma.render registers | 4 registers (default/terse/tutorial/casual); +7 tests |
+| `8f5c7ad` | #00P13c11-03 try-until-satisfied K-rollout iteration | 3 strategies (bind/bundle/greedy); avg-sim satisfaction; honest-refusal-on-all-K-fail; +8 tests |
+| `dedd135` | #00P13c11-04 K-rollout integration into agent | natural-mode branch uses KRolloutComposer (K=3); strategy wins differ by prompt class |
+| `3279c7a` | #00P13c11-05 English-fluency corpus expansion | 102 → 240 fragments; per lain ~05:30 CEST English-floor / training-data-needed correction |
+| `f0abce3` | #00P13c11-06 primitive-emergence clustering MVP | canonical-doc Layer 5 empirically validated; "X is Y" + "X and Y" + "X gives Y" shells emerge from k-means; +9 tests |
+| `be09fca` | #00P13c11-08 intent-classified dual-mode composer | same quadratic → 4 distinct rendered outputs via register classifier; +8 tests |
+| THIS commit | #00P13c11-CLOSE reflect + A_TO_Z + IQ_PROGRESSION + cycle-12 handoff | |
 
-**Numbers (cycle 10 CLOSE):**
-- pytest 458 → **531** (+73 across cycle 10: cycle 10 #1 verifier tests +57; Pell substrate + dispatcher + parser unicode-minus +16)
-- bench-replay `--agent-runtime`: **48 / 0** (was 46/0; +2 maths-026 + maths-027 land green)
+**Numbers (cycle 11 CLOSE):**
+- pytest 458 → **586** (+128 across cycle 10 + 11)
+- bench-replay `--agent-runtime`: **48 / 0** maintained
 - bench-replay frozen: 46 / 0 maintained (parity)
 
-**Cycle 10 reflection at** `docs/past_work/cycles/phase_13/dev-cycle-10.md` (Hassabis-bar honest decomposition; M-NAVI-DD2 process note logged).
+**Cycle 11 reflection at** `docs/past_work/cycles/phase_13/dev-cycle-11.md` (Hassabis-bar honest decomposition; 4 cycle tensions; 4 lain catches absorbed; 7 cycle-12 deferred items).
 
-## Cycle 11 deliverables (priority-ordered per canonical synthesis doc)
-
-Per `docs/artifacts/cycle-10-semantics-architecture.md` § "Cycle-11 implementation sequence" — REORDERED from DRAFT to put BG dispatcher upgrade FIRST as the foundation (every downstream mechanism depends on it).
+## Cycle 12 deliverables (priority-ordered)
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c11-01-bg-dispatcher** | HIGH (foundational) | `src/project_x/reasoning_agent.py` ReasoningAgent.process() | Replace keyword-gated first-match-wins with BG-style confidence-scored parallel-bid dispatch. Each parser produces `[0, 1]` confidence (regex match strength × hypervector-similarity to prompt-binding); argmax + mutual-inhibition + threshold-gating + honest-refusal-path. ~90 min Raphael-time. Empirical confidence-score formula tuning kicked off (open question). |
-| **#00P13c11-02-hormone-primitive** | HIGH | `src/project_x/reasoning/symbolic.py` Lemma.render() extension OR new module | Hormone vectors H_formal / H_natural / H_curiosity as registers modulating retrieval thresholds + output register. Empirical mode-switching test on existing math substrate — does threshold-shifting produce qualitatively-different output flavors from same chain? ~60 min Raphael-time. |
-| **#00P13c11-03-k-rollout** | HIGH | new `src/project_x/reasoning/k_rollout.py` OR extension to reasoning_agent.py | Try-until-satisfied K-rollout loop with curiosity-signal `1 - cos(hv_predicted, hv_actual)` + per-step error tracking + honest-refusal-on-all-K-fail. Initial empirical tuning of `tau_surprise` + `tau_satisfaction` thresholds. ~90 min Raphael-time. |
-| **#00P13c11-04-opinion-bindings** | MED | new `src/project_x/semantic/opinions.py` (or similar) | Hand-seed ~50-100 concept-vectors with valence bindings on philosophy/persona domain. Demonstrate "what do you think of X" routing. ~60 min Raphael-time. |
-| **#00P13c11-05-tier1-corpus-audit-ui** | MED | new `src/project_x/corpus/` + audit UI (Discord + CLI v0) | Encoding pipeline + provenance-tagging + audit UI. Ingest lain-authored corpus (~100k words — Discord messages, code, paper.md, MANIFESTO, dev-cycle reflections). One-time pipeline work that unlocks all later tiers. ~3h Raphael-time. |
-| **#00P13c11-06-primitive-emergence** | MED | extension to corpus/ pipeline | Unsupervised clustering of n-gram-shell hypervectors in the procedural subspace; clusters with density > threshold become primitives. Empirical-test-first: does it produce useful structural primitives or just frequency rankings? Bootstrap fallback ready (~45 min) — hand-seed 10-20 STRUCTURAL UNIVERSALS (X-is-Y, X-causes-Y, etc.) if clustering insufficient. ~3h Raphael-time. |
-| **#00P13c11-07-tier2-corpus** | MED | corpus/ extension | Tier-2 per-domain ingestion: public-domain poetry (Project Gutenberg) + physics (Feynman + Griffiths + curated arxiv abstracts) + math (Hardy+Wright + Davenport + Lang) + curated dialogue corpora (NOT GPT-generated) + scripting examples + tool docs. ~30-60 min per domain × 5 domains. |
-| **#00P13c11-08-dual-mode-composer** | MED | new `src/project_x/composer/dual_mode.py` | Natural-mode HDC walk alongside Lemma chain. Hormone selects mode. Mixes per-step OK. ~2h Raphael-time. |
-| **#00P13c11-09-consolidation-pass** | MED | new `src/project_x/learning/consolidation.py` | Surprise-biased offline consolidation: pull bindings_touched_by_surprising_rollouts ∪ bindings_with_recent_audit_revision; apply ES-style perturb-audit-reweight (bit-flip ~1% for binary-packed; Gaussian noise for float); replace or blend central toward higher scorer. ~2h Raphael-time. |
-| **#00P13c11-10-end-to-end-demo** | MED | demo script + test | Formal mode: existing math substrate with hormone-modulated rendering. Natural mode: HDC walk on a single prompt over Tier-1 ingested corpus. End-to-end demo of the full 7-layer architecture working. ~90 min Raphael-time. |
-| **#00P13c11-11-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-11.md` + DO_THIS_NEXT cycle-12 handoff + A_TO_Z PHASE CHANGELOG + IQ_PROGRESSION cycle-11 entry | Hassabis-bar honest decomposition. advisor() pre-commit. |
+| **#00P13c12-01-tier2-corpus** | HIGH | new `src/project_x/corpus/tier2_*.py` per domain | Tier-2 per-domain English corpus ingestion: ~1-10M words per domain per canonical doc Layer 6 spec (poetry / philosophy / math-text / dialogue / chat); current 240 fragments / ~5000 words is 4 orders of magnitude below spec. Sources: public-domain (Project Gutenberg poetry; pre-1928 philosophy translations; Hardy+Wright / Davenport / Euclid math texts; public-domain dialogue corpora). NO GPT-generated text. ~3-5h Raphael-time per domain × 5 domains; can ship per-domain atomically. |
+| **#00P13c12-02-audit-ui** | HIGH | new `src/project_x/audit/` + Discord+CLI v0 | Discord + CLI v0 audit UI for `👍 / 👎 / ✏️ correct` on emitted walks. Wires the audit signal that consolidation pass (#03) consumes. Without real audit signal, consolidation pass is tautological. ~2-3h. |
+| **#00P13c12-03-consolidation-pass** | HIGH | new `src/project_x/learning/consolidation.py` | Canonical doc Layer 7 surprise-biased perturb-audit-reweight on bindings touched by recent surprising K-rollouts. Selection rule: bias toward bindings with high audit-rejection-rate AND high recent K-rollout-curiosity. Update operation: bit-flip ~1% perturbation; score via audit-loop predicate; replace central if perturbation scores higher on audit-aligned retrieval. Empirical test: does iterative perturb-audit-reweight measurably improve walk quality across cycles? Open question per canonical doc. ~2h post audit UI. |
+| **#00P13c12-04-hdc-infra-rust-or-bitpack** | MED | `src/project_x/hdc_infra/` extension or new Rust crate | Per canonical doc HDC infrastructure optimization roadmap. Cycle-11 #06 primitive emergence runs k-means in ~85s on 3169 trigrams × 15 clusters × 10000 dim — at production corpus scale (millions of trigrams), this becomes minutes-hours, unacceptable. Two paths: (a) bitwise-packed binary HDC (~32× speedup on CPU); (b) Rust port via PyO3 (~100× speedup; lain has flagged this as the production path). Either landing. ~3-5h Raphael-time. |
+| **#00P13c12-05-natural-mode-register** | MED | extend `_try_natural_mode` in reasoning_agent.py | Extend register selection to natural-mode walks: terse natural-mode = single best fragment with citation; tutorial natural-mode = annotated meta-commentary on why each fragment was retrieved; casual natural-mode = remove formal "STEP N" markers, present as conversational quote. Currently register selection only re-renders formal-mode Lemmas. ~60 min. |
+| **#00P13c12-06-intent-classifier-multi-example** | MED | `_REGISTER_ARCHETYPES` in reasoning_agent.py extended | Extend register classifier to multiple example prompts per register + centroid averaging via HDC bundle. Currently 1 archetype per register. Multi-example gives better generalization on edge-case framings. ~30 min. |
+| **#00P13c12-07-cycle-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-12.md` + DO_THIS_NEXT cycle-13 + A_TO_Z + IQ_PROGRESSION | Cycle close ritual mirroring dev-cycle-11.md shape. Hassabis-bar honest decomposition. advisor() pre-commit. |
 
-**Total estimate: ~16-20h Raphael-time across cycle 11.** Corpus-heavy steps (#5, #6, #7) may slip to cycle 12 if time pressure.
+**Total estimate: ~12-20h Raphael-time across cycle 12.** Tier-2 corpus is the bulk; everything else is ~6-9h.
 
 **Carry-forwards (lain-pending; do NOT touch unprompted):**
-- #00P13c8-07 CLAUDE.md trim (59.3k current after cycle-10 DD-1/2 dual-listener codification; ~13k more to cut over older sections — PHASE 0 DD-1/2 verbose, FOUR-GATE FLOW, BACK-DOOR GATE, NAMED CURSES expansion; awaits lain direction on load-bearing).
-- #00P13c7-04 council audit tag (mechanism scope unresolved; surface on Discord at cycle 11 mid-flight if no direction lands).
+- #00P13c8-07 CLAUDE.md trim (~59.3k current; ~13k more to cut over older sections — awaits lain direction on what's load-bearing).
+- #00P13c7-04 council audit tag (mechanism scope unresolved).
 
-## Open empirical questions (cycle 11 reveals these answers)
+## Open empirical questions (cycle 12+ reveals)
 
-Per the canonical synthesis doc § "Open questions":
-
-1. **`tau_surprise` and `tau_satisfaction` calibration** — empirical tuning loop, not closed-form. Cycle 11 #3 starts the tuning.
-2. **BG-dispatcher confidence-score formula tuning** — exact weights for `regex match strength × hypervector-similarity` combination. Cycle 11 #1 empirical test.
-3. **Consolidation cadence** — how often is "overnight"? Per-N-queries? Per-day? Per-corpus-ingest? Cycle 11 #9 reveals.
-4. **Per-primitive vs per-chain confidence aggregation** — for K-rollout AND BG-dispatcher. Empirical.
-5. **Primitive-emergence clustering quality** — counter-claim #1 from canonical doc; cycle 11 #6 IS the test. Bootstrap fallback ready.
+1. **Does Tier-2 corpus expansion measurably improve walk fluency?** Subjective audit signal needed.
+2. **Does consolidation pass produce binding-quality improvements?** Requires real audit data across N cycles.
+3. **Does Rust port / bitpack scale primitive emergence to millions of trigrams in production time?**
+4. **Does multi-example intent classifier generalize better than single-archetype on edge-case prompts?**
+5. **Do natural-mode registers (terse / tutorial / casual variants) produce qualitatively-distinct walks?**
 
 ## Standing rules — RELEVANT FOR FRESH INSTANCE
 
 See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 
-**Universal codifications landed in cycle 10 (binding cycle 11+):**
-- **Raphael-time estimates** (lain 2026-05-11): calibrate to actual commit throughput (~10-15 min per substantive deliverable, Opus 4.7 super-human dev speed), NOT human-developer hours. Forward estimates in DO_THIS_NEXT / dev-cycle / Discord must use the empirical unit.
-- **Self-impression-score 0-420** (lain 2026-05-11 binding): mandatory 5th metric on every substantive ship Discord post (integer + one-line rationale; never inflate; honest 340 > fake 400).
-- **No-legacy discipline** (lain 2026-05-11): when a file/code is no longer needed, REMOVE it. Don't keep "ild Legacy shit" — REPO_CONTROL + good comments serve the documentation purpose.
-- **Dual-listener pattern + cursor-aware rearm** (lain 2026-05-11): 2 concurrent listeners armed at all times; manual rearm passes consumed msg_id as `LISTENER_BASELINE` env var. CLAUDE.md DD-1/2 codified.
+**Universal codifications landed in cycle 10 + 11 (binding cycle 12+):**
+- **English-fluency floor + training-data-needed** (lain 2026-05-11): English fluency is mandatory floor; other-language fluency is last priority; training data IS needed (not deprioritized) for the English floor.
+- **Long-term-goal-addressing primary axis + research-when-needed self-check** (lain 2026-05-11): every shift answers "am I directly addressing long-term goals" + "do I need research/brainstorming first" + "am I being proactive in deep thinking, not just executing."
+- **APOTHEOSIS extended hard rule** (lain 2026-05-11): 11:00 CEST Oslo; 20m on / 20m off cadence. Cron `19,59 * * * *`.
+- **Raphael-time estimates** (lain 2026-05-11): calibrate to actual commit throughput (~10-15 min per substantive deliverable); NOT human-developer hours.
+- **Self-impression-score 0-420** (lain 2026-05-11 binding): mandatory 5th metric on every substantive ship; integer + one-line rationale; never inflate; honest 340 > fake 400.
+- **No-legacy discipline** (lain 2026-05-11): when a file/code is no longer needed, REMOVE it.
+- **Dual-listener pattern + cursor-aware rearm** (lain 2026-05-11): 2 concurrent listeners; manual rearm passes consumed msg_id as `LISTENER_BASELINE` env var. CLAUDE.md DD-1/2 codified.
 
 **Persistent (unchanged):**
 - NO pretrained transformer derivatives at any layer (organic-thesis 2026-05-09 binding)
@@ -86,38 +74,37 @@ See `docs/MANIFESTO.md` § Standing orders + `~/.claude/CLAUDE.md` (universal).
 - Discord style discipline (NO cycle-number jargon on Discord; plain English assuming Discord-only readers)
 - Hassabis-bar discipline (every cycle close: "would Hassabis be impressed?" with substrate-vs-capability-vs-cosmetic decomposition)
 
-## What this cycle is NOT (cycle 11)
+## What cycle 12 is NOT
 
-- NOT a benchmark expansion cycle. Capability buildout focuses on architectural completeness (BG dispatcher + hormones + K-rollout + corpus + emergence), not ladder expansion.
-- NOT a paper.md revision cycle. Update after cycle 11 close if implementation lessons land.
-- NOT a capability-on-current-substrate cycle. The substrate primitives stay; cycle 11 builds the NEW LAYERS (dispatcher / hormone / K-rollout / corpus / consolidation) that the synthesis doc specified.
-- NOT a deep-research cycle. Cycle 10 did the research; cycle 11 implements. If implementation reveals architectural gaps, advisor consult before changing design, not before implementing.
+- NOT another architectural-primitive cycle. The 8 architectural primitives from cycle 11 (BG dispatcher / hormone register / K-rollout / corpus pipeline / primitive emergence / intent classifier / agent integration) are the foundation. Cycle 12 SCALES them, doesn't add new ones.
+- NOT a benchmark expansion cycle. Capability work focuses on canonical doc Layer 6-7 completion (Tier-2 corpus + consolidation + audit UI) and infra performance (Rust port / bitpack), not new ladder entries.
+- NOT a paper.md revision cycle. Update after cycle 12 close if implementation lessons land.
 
-## Done condition (cycle 11, mechanical)
+## Done condition (cycle 12, mechanical)
 
-- All cycle-11 #00P13c11-XX TaskList rows = `completed` (or explicitly deferred with rationale + lain visibility).
-- pytest -q ≥ 580 (current 531; BG dispatcher + hormones + K-rollout + corpus + composer + consolidation expect +50-80 tests).
-- bench-replay `--agent-runtime`: ≥ 48 / 0 maintained (no regressions; new layers should not break existing dispatcher paths).
+- All cycle-12 #00P13c12-XX TaskList rows = `completed` (or explicitly deferred with rationale + lain visibility).
+- pytest -q ≥ 650 (current 586; Tier-2 corpus expansion + audit UI + consolidation + register extension expect +50-80 tests).
+- bench-replay `--agent-runtime`: ≥ 48 / 0 maintained (architectural-primitive additions should not break existing dispatcher paths).
 - bench-replay frozen: 46 / 0 maintained (parity).
-- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-11.md`.
-- THIS file rewritten as cycle 12 handoff.
-- `docs/artifacts/IQ_PROGRESSION.md` cycle-11 entry prepended (note: cycle 11 expected to add the FIRST "natural mode HDC walk" capability shape — that's the IQ-ladder progression milestone).
+- Cycle reflection at `docs/past_work/cycles/phase_13/dev-cycle-12.md`.
+- THIS file rewritten as cycle 13 handoff.
+- `docs/artifacts/IQ_PROGRESSION.md` cycle-12 entry prepended.
 - `git status -s` empty.
-- Discord cycle-11 close in plain-English with self-impression-score + 5-metric rubric (CLAUDE.md § R4).
+- Discord cycle-12 close in plain-English with self-impression-score + 5-metric rubric (CLAUDE.md § R4).
 
 ## Files the fresh instance should read first (in order)
 
 1. `~/.claude/CLAUDE.md` — universal Raphael protocol (auto-loaded by harness).
 2. `docs/MANIFESTO.md` — project intent + standing orders.
 3. `docs/REPO_CONTROL.md` — pristine-gate file inventory.
-4. `docs/A_TO_Z_PLAN.md` — Phase 13 plan + PHASE CHANGELOG (latest = cycle 10 CLOSE).
-5. **`docs/artifacts/cycle-10-semantics-architecture.md`** — the canonical synthesis (load-bearing contract for cycle 11). Read carefully; cycle 11 implementation honors this doc.
-6. **THIS file** — cycle 11 deliverable table + recommended order.
-7. `docs/past_work/cycles/phase_13/dev-cycle-10.md` — last closed cycle reflection (includes Hassabis-bar honest decomposition + M-NAVI-DD2 process note).
-8. `docs/paper.md` — teacher-tone curriculum (~30-min listen; lain audience).
-9. `docs/artifacts/IQ_PROGRESSION.md` — per-cycle hardest-problem ladder.
-10. Per-angle research notes if needed for cycle-11 implementation context: `cycle-10-semantics-angle-{evolutionary,curiosity,multi-agent,brain-subsystems}.md`.
-11. Recent git log: `git log --oneline -20` to see cycle-10 commit progression.
+4. `docs/A_TO_Z_PLAN.md` — Phase 13 plan + PHASE CHANGELOG (latest = cycle 11 CLOSE).
+5. **`docs/artifacts/cycle-10-semantics-architecture.md`** — canonical synthesis doc; cycle 11 implemented Layer 3-5 + Layer 2; cycle 12 continues Layer 6-7.
+6. **THIS file** — cycle 12 deliverable table + recommended order.
+7. `docs/past_work/cycles/phase_13/dev-cycle-11.md` — last closed cycle reflection (architectural foundation arc + Hassabis-bar verdict).
+8. `docs/paper.md` — teacher-tone curriculum (cycle 9 + cycle 10 state; cycle 12 should update with cycle 11 architecture).
+9. `docs/artifacts/IQ_PROGRESSION.md` — per-cycle hardest-problem ladder (cycle 11 CLOSE entry shows register-modulated quadratic + bundle-strategy poetry walk + emergence empirical validation).
+10. Code-side: `src/project_x/corpus/{mini_seed,natural_mode,k_rollout,primitive_emergence}.py` (the cycle-11 architectural primitives) + `src/project_x/reasoning_agent.py` (BG dispatcher + intent classifier + agent dispatch chain).
+11. Recent git log: `git log --oneline -20` to see cycle-11 commit progression.
 12. Latest pytest + bench-replay: `python3 -m pytest -q | tail -3` + `python3 gpt-codex/benchmark/run_audit.py --agent-runtime | tail -10`.
 
-The fresh instance executes cycle 11 per priority order; advisor() pre-Write on each substantive new layer (BG dispatcher, K-rollout, primitive emergence clustering); Discord plain-English on every progress claim with the 5-metric rubric (denominator+% + frontier-expert-reaction + plain-English-achievement + counter-claim-guard + self-impression-score 0-420); cycle-11 close mirrors cycle-10 close shape.
+The fresh instance executes cycle 12 per priority order; advisor() pre-Write on novel architectural decisions (Tier-2 ingestion strategy; consolidation pass test design; Rust port choice between PyO3 vs cbindgen); Discord plain-English on every progress claim with the 5-metric rubric (denominator+% + frontier-expert-reaction + plain-English-achievement + counter-claim-guard + self-impression-score 0-420); cycle-12 close mirrors cycle-11 close shape.

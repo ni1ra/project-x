@@ -8,6 +8,39 @@
 
 ---
 
+## Phase 13 cycle 11 CLOSE (2026-05-11) — canonical-doc Layer 3-5 + Layer 2 architectural foundation arc; 8 of 10 deliverables shipped
+
+**Hardest end-to-end at agent-runtime (NEW capability this cycle, register-modulated):** *"Hey Raphael, what do you think about the quadratic 3 x² − 14 x − 5 = 0 — just chat with me about it."* The same Pell-dispatcher / quadratic-substrate that cycle-10 close shipped is now routed through (1) BG-style confidence-scored parallel-bid dispatcher (21 parsers; α=0.6 archetype-cosine + binary-match; tau=0.3; chain-order tiebreaker; archetype hvs for each problem_shape); (2) hormone-modulated `Lemma.render(register="casual")` because the intent classifier matched the casual-archetype prompt with highest cosine. The agent emits:
+
+  > *"OK so — solve 3.0x² + -14.0x + -5.0 = 0 for x. Quick context: Completing the square on ax² + bx + c = 0 yields x = (-b ± √(b² - 4ac)) / 2a. D = b² - 4ac = (-14.0)² - 4·3.0·-5.0 = 256.0; sign determines root regime. √D = √256 = 16.0. x = (-b ± √D) / 2a = (14 ± 16.0) / 6 → [-0.3333333333333333, 5.0]. (double-checked via an independent path: max |Newton's-method root − discriminant-formula root| ≈ 0 ... holds.) So the answer is [-0.3333333333333333, 5.0]."*
+
+Same exact substrate computation as default register; same actual_value [-1/3, 5.0]; same Newton-verifier algorithmic-independent invariant; CONVERSATIONAL output flavor. The hormone-modulation mechanism is empirically demonstrated end-to-end through the agent runtime.
+
+**Hardest end-to-end at agent-runtime (NEW open-domain capability this cycle):** *"Write a poem about loneliness in winter."* Routes via natural-mode K-rollout to the bundle-strategy walk:
+  > *Step 1: "In the bleak midwinter, frosty wind made moan, Earth stood hard as iron, water like a stone." — Rossetti In the Bleak Midwinter (public domain)
+  > Step 2: "Hold infinity in the palm of your hand, and eternity in an hour." — Blake Auguries of Innocence (public domain)
+  > Step 3: "Two roads diverged in a yellow wood, And sorry I could not travel both." — Frost The Road Not Taken (public domain in US — 1916)
+  > [...]*
+
+5 provenance-cited fragments retrieved via HDC cosine similarity from the 240-fragment corpus; K-rollout's bundle strategy won (avg_sim 0.10 vs bind 0.045 vs greedy 0.073). NOT generated text; honest framing per render: *"the agent did NOT generate this text. Each fragment was retrieved by HDC cosine similarity ... v0 capability: shape proven, fluency at fragment-seam level (no grammar repair), corpus tiny."*
+
+**Canonical doc Layer 5 empirical validation (new architectural capability):** unsupervised k-means clustering on 3169 corpus trigrams surfaced primitive #10 "X is Y" copula shells (centroid: 'it is a'; members include 'it is a' / '2 is a' / 'this is my' / 'he is a' / 'is his gold') — EXACTLY the canonical doc Layer 5 first example pattern. Plus primitive #1 "X and Y" coordination and primitive #5 "X gives Y" math-coordinate shells. NOT frequency rankings; genuine syntactic-shape clusters that the substrate found without being told to look for them.
+
+**Capability lift vs cycle 10 CLOSE:** at cycle 10 close, the agent had 21 keyword-gated parsers + Lemma chain in formal mode + DRAFT semantics architecture as design. Cycle 11 ships: BG-style confidence-scored parallel-bid dispatch + hormone-modulated render registers (4 flavors) + K-rollout iteration with honest-refusal exit + natural-mode HDC walk via 240-fragment corpus + primitive emergence empirically validating canonical doc Layer 5 + intent-classified register selection. The architectural foundation arc is 8 of 10 canonical-sequence deliverables.
+
+**Pytest baseline:** 586 / 586 passing (was 531 at cycle-10 close; +55 cycle-11 tests covering all architectural primitives).
+**Bench-replay --agent-runtime:** 48 / 0 maintained (no regressions throughout the architectural arc).
+**Bench-replay frozen:** 46 / 0 maintained (parity).
+**Capability shape:** open-domain prompt processing via natural-mode K-rollout walks + intent-classified register selection on formal mode + empirical primitive emergence + honest-refusal preserved across all new mechanisms.
+
+**Hassabis-bar verdict (cycle 11 CLOSE):** content yawns a frontier researcher individually — k-means is 1957; cosine similarity classical; HDC binding contemporary but not novel; chain-of-thought dispatching is mainstream LLM dispatcher work. What MIGHT register mildly: (1) canonical doc Layer 5 primitive-emergence claim survived empirical contact (the "X is Y" shell came out of k-means clustering on its own — falsifiable prediction that didn't fail); (2) architectural arc COHERENCE — 8 deliverables compose mutually rather than as separate features; (3) honest-refusal discipline preserved across all new mechanisms (K-rollout all-K-fail; dispatcher below-tau; emergence density-threshold; classifier default-fallback). These are PROCESS artifacts of design discipline, not CAPABILITY artifacts.
+
+**Self-impression-score: 360 / 420.** Cycle 11 closed cleanly with 8 architectural ships + #CLOSE reflect across ~5h Raphael-time; canonical doc Layer 5 prediction empirically validated; same-prompt-different-register demo concrete; English-fluency-floor corpus expansion visibly improved walk quality. Honest 360 (not 400+) because the AGENT still does NOT write GOOD poetry (fragment-seam fluency only; corpus 240 vs canonical doc spec of tens-of-millions of words); did NOT solve unsolved problems beyond cycle-8 empirical verification; did NOT validate consolidation pass (deferred to cycle 12 because v0 simulated audit would be tautological); intent classifier is 4-archetype-single-example primitive; K-means runtime is slow at scale. The architectural foundation is sound; the capability work is cycle 12+.
+
+**Counter-claim guard:** cycle 11 did NOT produce research-grade math capability. The would_surprise_hassabis ladder field remains uniformly false. The agent's fluency improvement comes from retrieving more authoritative English fragments from a larger corpus, NOT from generating novel English. The natural-mode walk is provenance-retrieval-and-composition, not text-generation. The 8 architectural deliverables are foundation primitives; they make capability work POSSIBLE in cycle 12+; they do not constitute capability work themselves.
+
+---
+
 ## Phase 13 cycle 10 CLOSE (2026-05-11) — Pell dispatcher integration + canonical semantics architecture from 4-angle deep-research phase
 
 **Hardest end-to-end at agent-runtime (NEW capability shape this cycle):** *"Find the first 5 integer solutions (x, y) to the Diophantine Pell equation x² − 2·y² = 1."* The dispatcher parses the prompt, detects Pell-shape (a=1, b=0, c=-2, N=1), routes to `solve_pell_equation(n=2, k_max=5)`. The substrate computes √2 = [1; 2, 2, ...] via the Hardy+Wright (m, d, a) triple recurrence (period 1; odd-period branch → square (1 + √2) to lift negative-Pell to +1); fundamental (x₁, y₁) = (3, 2) verified by integer-equality `9 − 8 = 1`. Recurrence `(x_{m+1}, y_{m+1}) = (3·x_m + 4·y_m, 3·y_m + 2·x_m)` iterates 5 steps yielding **(3, 2), (17, 12), (99, 70), (577, 408), (3363, 2378)** — every solution satisfies `x² − 2·y² = 1` by direct integer arithmetic check. STRONG cross-check: brute-force search x ∈ [1, 1000] independently finds (3, 2) as fundamental, matching the continued-fraction path. Honest framing: PASS = "enumerated first 5 via Hardy+Wright continued-fraction fundamental + recurrence", NOT general Hilbert-10 decidability (Matiyasevich 1970 still holds).
