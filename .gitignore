@@ -41,3 +41,8 @@ gpt-codex/runs/*/
 # - sandbox/.gitkeep stays tracked so the locked-folder root is git-visible.
 sandbox/*
 !sandbox/.gitkeep
+
+# Cycle 12 #00P13c12-02 — audit log runtime data
+# (directory tracked via .gitkeep so it exists on fresh clone; JSONL contents
+# are per-instance lain feedback on emitted walks, not source-controlled)
+data/audit_log/*.jsonl
