@@ -103,14 +103,13 @@ def test_lemma_has_introduction_prose():
 
 
 def test_lemma_ic_invariant_holds():
-    """IC preservation invariant: y(x_0) == y_0."""
+    """IC preservation (tautological) + cycle 10 #01e Taylor STRONG. Two invariants total."""
     lemma = first_order_linear_ode_exp_solution(k=2.0, y_0=3.0, x_target=1.0)
-    assert len(lemma.invariant_checks) == 1
-    inv = lemma.invariant_checks[0]
-    assert "initial condition" in inv.predicate.lower()
-    assert inv.holds is True
-    assert inv.expected_value == 3.0
-    assert abs(inv.expected_value - inv.actual_value) < 1e-15
+    assert len(lemma.invariant_checks) == 2
+    ic_inv = [i for i in lemma.invariant_checks if "initial condition" in i.predicate.lower()][0]
+    assert ic_inv.holds is True
+    assert ic_inv.expected_value == 3.0
+    assert abs(ic_inv.expected_value - ic_inv.actual_value) < 1e-15
 
 
 def test_lemma_render_has_raphael_proof_shape():
@@ -139,3 +138,87 @@ def test_ode_substrate_thesis_compliant():
     ]
     for token in forbidden:
         assert token not in source, f"ode.py imports forbidden token '{token}'"
+
+
+# --- Cycle 10 #01e — Taylor-series STRONG verifier ---
+
+
+def test_taylor_exp_standalone_zero():
+    """e^0 = 1 exactly via Taylor; term_0 = 1 only contribution."""
+    from project_x.reasoning.ode import _exp_via_taylor_series
+    assert _exp_via_taylor_series(0.0) == 1.0
+
+
+def test_taylor_exp_standalone_unit_arguments():
+    """e^1 ≈ 2.71828 within 1e-12 via 20-term Taylor."""
+    import math
+    from project_x.reasoning.ode import _exp_via_taylor_series
+    for z in (0.5, 1.0, 1.5, -1.0, -0.5):
+        taylor = _exp_via_taylor_series(z)
+        expected = math.exp(z)
+        assert abs(taylor - expected) < 1e-12, (
+            f"e^{z}: Taylor={taylor}, math.exp={expected}, drift={abs(taylor-expected):.2e}"
+        )
+
+
+def test_taylor_exp_canonical_maths_011_range():
+    """e^2 via Taylor within 1e-9 — this is the canonical maths-011 cycle-8 case."""
+    import math
+    from project_x.reasoning.ode import _exp_via_taylor_series
+    taylor = _exp_via_taylor_series(2.0)
+    expected = math.exp(2.0)
+    assert abs(taylor - expected) < 1e-9
+
+
+def test_taylor_invariant_fires_and_holds():
+    """The cycle 10 #01e Taylor STRONG invariant fires + holds on canonical cases."""
+    cases = [
+        (2.0, 3.0, 1.0, 0.0),     # maths-011 canonical: y(1) = 3e²
+        (-1.0, 5.0, 2.0, 0.0),    # decay
+        (0.0, 7.0, 10.0, 0.0),    # constant (k=0 → math.exp(0)=1; Taylor 1.0 exactly)
+        (1.0, 0.0, 5.0, 0.0),     # trivial zero (y_0=0)
+    ]
+    for k, y0, x_t, x_0 in cases:
+        lemma = first_order_linear_ode_exp_solution(k=k, y_0=y0, x_target=x_t, x_0=x_0)
+        taylor_invariants = [
+            inv for inv in lemma.invariant_checks
+            if "Taylor" in inv.predicate
+        ]
+        assert len(taylor_invariants) == 1, (
+            f"k={k}, y_0={y0}, x_target={x_t}: "
+            f"expected 1 Taylor invariant, got {len(taylor_invariants)}"
+        )
+        assert taylor_invariants[0].holds, (
+            f"k={k}, y_0={y0}, x_target={x_t}: Taylor invariant failed "
+            f"(expected={taylor_invariants[0].expected_value}, "
+            f"actual={taylor_invariants[0].actual_value})"
+        )
+
+
+def test_taylor_helper_does_not_call_math_exp():
+    """_exp_via_taylor_series must NOT call math.exp (with paren) or math.factorial in
+    its code body. Docstring mentions of math.exp are allowed (they're documentation
+    explaining the algorithmic-independence claim, not actual calls)."""
+    from pathlib import Path
+    import re
+    src = Path("src/project_x/reasoning/ode.py").read_text()
+    func_start = src.find("def _exp_via_taylor_series")
+    assert func_start >= 0
+    next_def = src.find("\ndef ", func_start + 1)
+    func_section = src[func_start:next_def if next_def > 0 else len(src)]
+
+    # Strip the docstring (triple-quoted block at the start of the function body).
+    # The docstring legitimately mentions "math.exp" in explanatory prose.
+    docstring_match = re.search(r'"""(.*?)"""', func_section, re.DOTALL)
+    if docstring_match:
+        code_only = func_section[:docstring_match.start()] + func_section[docstring_match.end():]
+    else:
+        code_only = func_section
+
+    # Code (not docstring) must NOT contain actual calls to math.exp( or math.factorial(
+    assert "math.exp(" not in code_only, (
+        "_exp_via_taylor_series CODE calls math.exp — defeats algorithmic-independence"
+    )
+    assert "math.factorial(" not in code_only, (
+        "_exp_via_taylor_series CODE calls math.factorial — should use incremental term recurrence"
+    )
