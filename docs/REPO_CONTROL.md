@@ -159,7 +159,21 @@ Exemptions (don't need rows):
 | `test_natural_mode_v0.py` | Phase 13 cycle 11 #00P13c11-DEMO — coverage of the v0 natural-mode HDC walk: composer end-to-end (load → encode → compose); provenance trail integrity per emitted fragment; cosine similarity scores in valid [-1, 1] range; bind-based context update prevents same-fragment double-emission; domain filtering (poetry / philosophy / math / lain_voice / all); unknown-domain rejection; edge cases (max_fragments=1; render contains provenance); `ReasoningAgent._try_natural_mode` dispatcher integration (poetry / philosophy / Collatz-open-question prompts route correctly; structured Pell + quadratic prompts NOT hijacked; truly-unrecognized prompts fall through to honest refusal); thesis-compliance source-grep on `natural_mode.py` (no transformer/torch/openai/sentence-transformers imports); corpus integrity (every fragment in mini_seed.py carries (text, source) pair, no empties). 16 tests. |
 | `test_reasoning_agent.py` | Phase 13 cycle 7..10 — end-to-end coverage of `ReasoningAgent.process()` dispatcher chain across all 15 problem-shapes (cycle 7 quadratic baseline; cycle 7+ char-poly-2x2 / 3×3 determinant / residue theorem / quadratic integral / free-fall / pendulum-small / pendulum-large / relativistic momentum / projectile horizontal / Doppler / first-order ODE; cycle 8 #10 Collatz/Goldbach/twin-primes/Mertens; cycle 9 #01 symbolic integration parts + u-sub; cycle 9 #03 Diophantine binary quadratic; cycle 10 #02 Pell dispatcher route). Each dispatcher has happy-path tests on canonical ladder entries + refused-with-reason tests on out-of-scope inputs + keyword-gate fall-through tests + parser-robustness regression tests (cycle 8 #06: meters/metres full-word, length phrasing, unicode x²/− in quadratic). **Cycle 10 #02 additions:** maths-026 happy (x²−2y²=1 → 5 sols, problem_shape='pell_equation') + maths-027 happy (x²−3y²=1 → 5 sols) + perfect-square-n refusal (x²−4y²=1 → 'pell_equation_degenerate') + non-Pell indefinite N≠1 still refused (x²−2y²=3 falls through to 'diophantine_binary_quadratic_out_of_scope') + first-solution mechanical correctness (drills into `lemma.derivation_steps` apply_recurrence output for exact `(3, 2)`...`(3363, 2378)` integer pairs). Thesis-compliance source-grep on the agent module. ~80 tests as of cycle 10 #02. |
 
-## `data/corpus_raw/` — Phase 13 cycle 12 #00P13c12-01b Tier-2 ingested public-domain works
+## `data/audit_log/` — Phase 13 cycle 12 #00P13c12-02 audit-log persistence
+
+| Path | Justification |
+|---|---|
+| `data/audit_log/.gitkeep` | Tracks empty dir so it exists on fresh clone. Runtime JSONL audit-log content is `.gitignore`'d (per-instance feedback data, not source). The audit log captures lain ratings on natural-mode walks — the load-bearing input signal for canonical doc Layer 7 consolidation pass (which is otherwise tautological if computed from the same substrate that produced the walks). |
+
+## `src/project_x/audit/` — Phase 13 cycle 12 #00P13c12-02 audit log + CLI
+
+| Path | Justification |
+|---|---|
+| `src/project_x/audit/__init__.py` | Package marker. |
+| `src/project_x/audit/log.py` | Cycle 12 #00P13c12-02 — JSONL-based audit log for natural-mode walks. Per canonical synthesis doc Layer 6-7 audit-as-environment + lain 2026-05-11 "dataset must be very well curated" directive. Schema: `AuditEvent(walk_id, prompt, domain, fragments, sources, similarities, strategy, rating, rating_note, ts_emitted, ts_rated)`. Append-only JSONL at `data/audit_log/walks.jsonl`. `AuditLog.record_walk(event)` appends pending; `apply_rating(walk_id, rating, note)` appends rating-applied copy (latest-wins). Read paths: `all_events` / `pending_walks` / `all_rated` / `stats`. `make_walk_id()` returns timestamp-derived unique id. Honest framing per M-PROJECTX-013: v1 is human-CLI-rating-driven; Discord-reaction polling for automatic rating capture is cycle-12+. |
+| `src/project_x/audit/cli.py` | Cycle 12 #00P13c12-02 — lightweight CLI for reviewing + rating walks in the audit log. Commands: `list` (pending; --rated for rated; --limit N), `show <walk_id>` (full detail), `rate <walk_id> <approve|reject|correct> [--note]`, `stats` (counts). Stdlib argparse + project_x.audit.log only. |
+
+## `scripts/` — Phase 13 cycle 12 fetcher scripts
 
 | Path | Justification |
 |---|---|

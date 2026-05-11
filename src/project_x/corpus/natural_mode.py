@@ -118,6 +118,7 @@ class NaturalWalkResult:
     domain_filter: str  # "all" / "poetry" / "philosophy" / "math" / "lain_voice"
     fragments: list[EmittedFragment]
     note: str  # honest-framing prelude
+    audit_walk_id: str | None = None  # populated when compose(record_audit=True)
 
     def render(self) -> str:
         """Render the full walk with provenance trail."""
@@ -199,6 +200,8 @@ class NaturalModeComposer:
         prompt: str,
         domain: str = "all",
         max_fragments: int = 5,
+        record_audit: bool = False,
+        audit_log: "AuditLog | None" = None,
     ) -> NaturalWalkResult:
         """Run the natural-mode HDC walk.
 
@@ -267,9 +270,25 @@ class NaturalModeComposer:
             f"mini-corpus (~{len(self._tagged)} fragments). Domain filter: {domain}. "
             f"Per canonical synthesis doc Layer 4 § Natural mode (commit a06a51a)."
         )
-        return NaturalWalkResult(
+        result = NaturalWalkResult(
             prompt=prompt,
             domain_filter=domain,
             fragments=emitted,
             note=note,
         )
+        if record_audit:
+            # Lazy-import to avoid circular dependency on test-paths that don't use audit
+            from project_x.audit.log import AuditEvent, AuditLog, make_walk_id
+            log_instance = audit_log if audit_log is not None else AuditLog()
+            event = AuditEvent(
+                walk_id=make_walk_id(),
+                prompt=prompt,
+                domain=domain,
+                fragments=[f.text for f in emitted],
+                sources=[f.source for f in emitted],
+                similarities=[f.similarity for f in emitted],
+                strategy=None,  # single-walk; K-rollout fills strategy at its level
+            )
+            log_instance.record_walk(event)
+            result.audit_walk_id = event.walk_id
+        return result
