@@ -43,7 +43,7 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
-from project_x.reasoning.diophantine import solve_binary_quadratic
+from project_x.reasoning.diophantine import solve_binary_quadratic, solve_pell_equation
 from project_x.reasoning.integration import (
     definite_integral_x_times_cos,
     definite_integral_x_times_exp,
@@ -589,13 +589,17 @@ def _parse_diophantine_binary_quadratic(prompt: str) -> tuple[int, int, int, int
     ):
         return None
 
-    # Normalize: drop spaces, swap unicode ² → ^2, drop · and * coefficient separators.
+    # Normalize: drop spaces, swap unicode ² → ^2, drop · and * coefficient separators,
+    # swap unicode minus − (U+2212) → ASCII -. Last step matches the cycle 8 #06 quadratic
+    # parser-robustness fix — typographic minus is common in LaTeX-rendered prompts and
+    # would otherwise miss the [+-] regex character class.
     normalized = (
         prompt
         .replace(" ", "")
         .replace("²", "^2")
         .replace("·", "")
         .replace("*", "")
+        .replace("−", "-")
     )
 
     m = _DIOPHANTINE_LHS_PATTERN.search(normalized)
@@ -951,18 +955,55 @@ class ReasoningAgent:
         )
 
     def _try_diophantine_binary_quadratic(self, prompt: str) -> AgentResponse | None:
-        """Cycle 9 #00P13c9-03 — Diophantine binary-quadratic dispatcher.
+        """Cycle 9 #00P13c9-03 + cycle 10 #00P13c10-02 — Diophantine dispatcher with Pell route.
 
-        Parses (a, b, c, N) for Q(x, y) = a·x² + b·xy + c·y² = N then routes to
-        `solve_binary_quadratic`. Honest failure mode on non-positive-definite forms:
-        the substrate raises NotImplementedError; we wrap that as a refusal-with-reason
-        response rather than letting it propagate. Catches Pell-equation prompts and
-        degenerate forms.
+        Parses (a, b, c, N) for Q(x, y) = a·x² + b·xy + c·y² = N. Cycle 10 #02 adds
+        Pell-shape detection: (a=1, b=0, c<0, N=1) ⇒ x² − n·y² = 1 (with n = -c) routes
+        to `solve_pell_equation(n, k_max=5)` instead of falling through to
+        `solve_binary_quadratic` (which would raise NotImplementedError on the indefinite
+        form). Honest M-PROJECTX-013 framing: PASS = "enumerated first 5 positive integer
+        solutions via continued-fraction fundamental + recurrence", NOT general Hilbert-10
+        decidability. Perfect-square n (degenerate Pell — equation factors as linear-form
+        difference) → refused-with-reason via the helper's ValueError. Other non-positive-
+        definite forms still fall through to the existing solve_binary_quadratic refusal.
         """
         parsed = _parse_diophantine_binary_quadratic(prompt)
         if parsed is None:
             return None
         a, b, c, N = parsed
+
+        # Cycle 10 #02 — Pell-shape route. x² − n·y² = 1 has a=1, b=0, c=-n, N=1.
+        # We require n > 0 (Pell form); perfect-square n is rejected inside the helper
+        # because the equation degenerates to (x − √n·y)(x + √n·y) = 1 with only trivial
+        # integer solutions. Non-Pell indefinite forms (N ≠ 1, or other shape) keep
+        # falling through to solve_binary_quadratic's NotImplementedError path below.
+        if a == 1 and b == 0 and c < 0 and N == 1:
+            n = -c
+            try:
+                lemma = solve_pell_equation(n, k_max=5)
+            except ValueError as e:
+                return AgentResponse(
+                    domain="maths",
+                    problem_shape="pell_equation_degenerate",
+                    parsed_inputs={"a": a, "b": b, "c": c, "N": N, "n": n},
+                    lemma=None,
+                    answer_text=(
+                        f"Notice. Pell-shaped prompt parsed as x² − {n}·y² = 1, but "
+                        f"n = {n} is degenerate (perfect square or n ≤ 1): {e} "
+                        f"Honest framing — perfect-square n reduces Pell to a linear-form "
+                        f"difference with only trivial integer solutions."
+                    ),
+                    confidence="refused",
+                )
+            return AgentResponse(
+                domain="maths",
+                problem_shape="pell_equation",
+                parsed_inputs={"a": a, "b": b, "c": c, "N": N, "n": n, "k_max": 5},
+                lemma=lemma,
+                answer_text=lemma.render(),
+                confidence="high",
+            )
+
         try:
             lemma = solve_binary_quadratic(a, b, c, N)
         except NotImplementedError as e:
@@ -975,8 +1016,10 @@ class ReasoningAgent:
                     f"Notice. Diophantine binary-quadratic prompt parsed as "
                     f"({a})x² + ({b})xy + ({c})y² = {N}, but the substrate refuses: {e} "
                     f"Honest M-PROJECTX-013 framing — Hilbert's 10th (Matiyasevich 1970) "
-                    f"proves no general Diophantine algorithm exists; cycle 9 ships "
-                    f"positive-definite only."
+                    f"proves no general Diophantine algorithm exists; the cycle 9 substrate "
+                    f"handles positive-definite (Δ < 0) only, and the cycle 10 #02 Pell "
+                    f"extension handles the canonical x² − n·y² = 1 shape — other indefinite "
+                    f"shapes remain cycle 11+ territory."
                 ),
                 confidence="refused",
             )

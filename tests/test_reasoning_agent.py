@@ -759,19 +759,88 @@ def test_reasoning_agent_solves_maths_025_asymmetric_binary_quadratic():
     assert response.lemma.actual_value == 8
 
 
-def test_reasoning_agent_diophantine_indefinite_refused_with_reason():
-    """Pell-equation prompt x² - 2y² = 1 parses successfully but substrate raises
-    NotImplementedError on the indefinite form; dispatcher wraps as refused-with-reason
-    rather than letting the exception propagate or confabulating an answer."""
+def test_reasoning_agent_diophantine_non_pell_indefinite_refused():
+    """Non-Pell indefinite shape (N ≠ 1) still falls through to substrate refusal.
+    Cycle 10 #02 Pell route only catches (a=1, b=0, c<0, N=1); other indefinite forms
+    like x² − 2y² = 3 retain the original NotImplementedError-wrapped refusal because
+    fundamental-solution + recurrence for general Pell-like x² − n·y² = N (N ≠ ±1) is
+    cycle 11+ territory."""
     agent = ReasoningAgent()
     response = agent.process(
-        "Find all integer solutions (x, y) to the Diophantine equation x² - 2·y² = 1."
+        "Find all integer solutions (x, y) to the Diophantine equation x² - 2·y² = 3."
     )
     assert response.confidence == "refused"
     assert response.problem_shape == "diophantine_binary_quadratic_out_of_scope"
-    assert response.parsed_inputs == {"a": 1, "b": 0, "c": -2, "N": 1}
+    assert response.parsed_inputs == {"a": 1, "b": 0, "c": -2, "N": 3}
     # Honest M-PROJECTX-013 framing surfaces in the refusal text
     assert "Matiyasevich" in response.answer_text or "Hilbert" in response.answer_text
+
+
+# --- Cycle 10 #02 Pell dispatcher (maths-026/027) ---
+
+
+def test_reasoning_agent_solves_maths_026_pell_n2():
+    """Maths-026: x² − 2·y² = 1 → first 5 positive integer solutions via Pell substrate.
+    Fundamental (3, 2); recurrence yields (17, 12), (99, 70), (577, 408), (3363, 2378).
+    Dispatcher routes Pell-shape (a=1, b=0, c=-n, N=1) to solve_pell_equation instead
+    of refusing as out-of-scope."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the first 5 integer solutions (x, y) to the Diophantine Pell equation "
+        "x² − 2·y² = 1. Report the count."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "pell_equation"
+    assert response.parsed_inputs == {"a": 1, "b": 0, "c": -2, "N": 1, "n": 2, "k_max": 5}
+    assert response.lemma.actual_value == 5
+
+
+def test_reasoning_agent_solves_maths_027_pell_n3():
+    """Maths-027: x² − 3·y² = 1 → first 5 positive integer solutions.
+    Fundamental (2, 1); recurrence yields (7, 4), (26, 15), (97, 56), (362, 209)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the first 5 integer solutions (x, y) to the Diophantine Pell equation "
+        "x² − 3·y² = 1. Report the count."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "pell_equation"
+    assert response.parsed_inputs == {"a": 1, "b": 0, "c": -3, "N": 1, "n": 3, "k_max": 5}
+    assert response.lemma.actual_value == 5
+
+
+def test_reasoning_agent_pell_perfect_square_n_refused():
+    """Perfect-square n is a degenerate Pell — equation factors as (x − √n·y)(x + √n·y) = 1
+    with only trivial integer solutions. The substrate raises ValueError inside
+    _continued_fraction_sqrt; dispatcher wraps as refused-with-reason rather than crashing.
+    n = 4 (√n = 2) is the canonical degenerate case."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find integer solutions (x, y) to the Diophantine equation x² − 4·y² = 1."
+    )
+    assert response.confidence == "refused"
+    assert response.problem_shape == "pell_equation_degenerate"
+    assert response.parsed_inputs == {"a": 1, "b": 0, "c": -4, "N": 1, "n": 4}
+    # Honest framing should surface in refusal text
+    assert "degenerate" in response.answer_text.lower() or "perfect square" in response.answer_text.lower()
+
+
+def test_reasoning_agent_pell_first_solution_correctness_n2():
+    """Mechanical correctness: first emitted (x, y) for n=2 must be (3, 2) — the
+    well-known Pell fundamental. Catches any off-by-one in the recurrence or seed
+    that would slip past the count-only assertion in maths-026."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find the first 5 integer solutions (x, y) to the Diophantine Pell equation "
+        "x² − 2·y² = 1."
+    )
+    assert response.confidence == "high"
+    # Drill into the Lemma's apply_recurrence step output for the solutions list
+    apply_step = next(s for s in response.lemma.derivation_steps if s.operation == "apply_recurrence")
+    solutions = apply_step.output["solutions"]
+    assert solutions[0] == (3, 2)
+    assert solutions[-1] == (3363, 2378)  # 5th solution, exact integer arithmetic
 
 
 def test_reasoning_agent_diophantine_no_keyword_falls_through():
