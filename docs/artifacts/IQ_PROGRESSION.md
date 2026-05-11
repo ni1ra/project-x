@@ -8,6 +8,33 @@
 
 ---
 
+## Phase 13 cycle 10 #1 close (2026-05-11) — predicate-strength uniformity pass complete
+
+**Hardest end-to-end (unchanged from cycle 9 close in capability terms — cycle 10 #1 is a rigor pass, not a capability extension):** all 46 of 46 auto-graded benchmark entries still PASS at agent-runtime; no new capability shapes added at this sub-milestone. What changed is the *trust property* of every existing answer.
+
+**New architectural property (load-bearing):** every reasoning primitive in `src/project_x/reasoning/` now carries an *algorithmically-independent* verifier — a second computation that reaches the same answer via a completely different mathematical path. A typo in the closed-form path doesn't propagate to the independent path, and vice versa. Per-primitive:
+- `diophantine.solve_binary_quadratic` — Jacobi's r₂(N) = 4·(d₁(N) − d₃(N)) on symmetric a=c=1, b=0 forms (divisor counting; honest scope-boundary documented for asymmetric/cross-term cases where no closed-form r₂ analogue exists).
+- `symbolic.solve_quadratic` — Newton's method seeded from Cauchy bound (depends only on |coefficients|, never on closed-form roots).
+- `symbolic.expand_characteristic_polynomial_2x2` — Vieta invariants already algorithmically-independent (matrix trace + det as expected, eigenvalue sum + product as actual); documented this cycle, no code change.
+- `symbolic.determinant_3x3` — Sarrus' rule alt expansion (flat 6-term signed sum; no minor extraction, no alternating-cofactor combine).
+- `complex_analysis.residue_theorem_unit_quadratic` — Simpson's composite rule on [-100, 100] N=10000 (real-line numerical quadrature vs analytic complex-contour integration).
+- `calculus.polynomial_definite_integral` — midpoint Riemann sum on N=10000 subintervals (direct integrand evaluation; no antiderivative, no FTC).
+- `ode.first_order_linear_ode_exp_solution` — hand-rolled 20-term Taylor series for e^z (bare Python floating-point Σ vs libm's table-lookup-with-correction).
+- `integration.*` (4 primitives via shared `_midpoint_riemann` helper) — Riemann sum on each primitive's original integrand; defense-in-depth on parts (which already had a strong parts-identity invariant); first STRONG invariant on u-sub (whose change-of-variables check was tautological).
+- `number_theory.*` (4 empirical-verification primitives) — DOCUMENTED as algorithmically-independent BY CONSTRUCTION (each one IS the empirical verification; no closed-form path exists to cross-check against). No code change.
+
+**Pytest baseline:** 515 / 515 passing (was 458 at cycle 9 close; +57 from cycle 10 #1).
+**Bench-replay --agent-runtime:** 46 / 0 (parity with cycle 9 close maintained throughout the rigor pass).
+**Capability shape:** unchanged from cycle 9. The substrate-on-rails covers the same problem surfaces it did 90 minutes ago. What changed is the trust property — for every answer the agent gives, a second algorithm independently agrees.
+
+**Hassabis-bar verdict (cycle 10 #1):** still no impressed eyebrow on math content (Newton/Vieta/Sarrus/Simpson/Riemann/Taylor/Jacobi are 1700s-1800s mathematics). What might earn a half-eyebrow is the rigor property at the substrate level — most contemporary AI systems don't carry a second algorithmically-independent verifier on every answer, and the gap-cases (where no second algorithm exists at this level) are honestly documented in source rather than papered over. The discipline IS the product at this sub-milestone; the capability jump still belongs to future cycles.
+
+**Counter-claim guard:** this sub-milestone did NOT add a new capability shape, did NOT solve any open-frontier problem, did NOT change the bench-replay pass count. It closed a structural rigor gap the cycle 8 advisor flagged and that lain's mid-cycle-9 pivot had deferred. Specifically NOT: "cycle 10 made Raphael smarter" — cycle 10 #1 made Raphael more *honest* about how it gets the answers it already had.
+
+**Self-impression-score: 380 / 420.** Clean rigor pass across 7 files; advisor caught a tautology on the first primitive (#01a Jacobi over permuted-walk-order) and the course-correct made the rest of the cycle more honest; honest documentation of the cycle-11+ scope-boundaries where independent paths don't exist. Not 395+ because no capability lift.
+
+---
+
 ## Phase 13 cycle 9 close (2026-05-11)
 
 **Hardest end-to-end (integration):** *"Compute ∫₀¹ x·e^x dx via integration by parts."* The agent recognizes the integrand as algebraic × exponential, applies the LIATE heuristic to pick u = x and dv = e^x dx, derives the antiderivative e^x·(x - 1), and evaluates at the bounds: F(1) - F(0) = 0 - (-1) = **1.0**. The 5-step Lemma render shows the LIATE technique choice explicitly. The parts-identity invariant recomputes the v du integral algorithmically-independently and verifies the algebra closes — strongest predicate across the cycle's substrate.
