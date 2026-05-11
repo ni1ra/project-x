@@ -431,3 +431,149 @@ class TestDeterminant3x3:
         assert "laplace" in intro
         assert "minor" in intro
         assert "alternating signs" in intro
+
+
+# --- Cycle 10 #01b — STRONG (algorithmically-independent) verifiers ---
+
+
+class TestNewtonStrongVerifier:
+    """Newton's-method root verifier on solve_quadratic — Cauchy-bound-seeded,
+    algorithmically independent from the discriminant formula."""
+
+    def test_newton_invariant_holds_canonical_quadratics(self):
+        """Newton's method converges to the same roots as the discriminant formula
+        across a range of canonical quadratics. Max element-wise drift well within
+        tolerance — both paths agree to ~1e-12 or better."""
+        from project_x.reasoning.symbolic import solve_quadratic
+        cases = [
+            (1, -5, 6),     # roots 2, 3
+            (3, -14, -5),   # roots -1/3, 5 (maths-001)
+            (4, 4, -3),     # roots -1.5, 0.5 (maths-008)
+            (1, 0, -9),     # roots -3, 3 (b=0 symmetric)
+            (1, -4, 4),     # repeated root 2 (discriminant=0)
+            (2, -3, -2),    # roots -0.5, 2
+        ]
+        for a, b, c in cases:
+            lemma = solve_quadratic(a, b, c)
+            newton_invariants = [
+                inv for inv in lemma.invariant_checks
+                if "Newton" in inv.predicate
+            ]
+            assert len(newton_invariants) == 1, (
+                f"{a}x²+{b}x+{c}=0: expected 1 Newton invariant, "
+                f"got {len(newton_invariants)}"
+            )
+            assert newton_invariants[0].holds, (
+                f"{a}x²+{b}x+{c}=0: Newton invariant failed "
+                f"(drift={newton_invariants[0].actual_value})"
+            )
+
+    def test_newton_uses_cauchy_bound_seed_not_closed_form_roots(self):
+        """The _newton_quadratic_root helper must depend ONLY on coefficient magnitudes
+        for its seed — not on the closed-form roots. We verify by checking that the
+        helper itself doesn't accept roots-derived inputs."""
+        from project_x.reasoning.symbolic import _newton_quadratic_root
+        import inspect
+        sig = inspect.signature(_newton_quadratic_root)
+        param_names = set(sig.parameters.keys())
+        # Must accept (a, b, c) coefficients + seed_sign + iter/tol; must NOT accept
+        # 'roots', 'seed_value', 'target', or similar that would couple it to closed form.
+        forbidden = {"roots", "seed_value", "seed", "target", "expected_roots"}
+        assert not (param_names & forbidden), (
+            f"_newton_quadratic_root signature couples to closed-form roots: {param_names & forbidden}"
+        )
+        assert "seed_sign" in param_names, (
+            "_newton_quadratic_root should accept seed_sign (+1 / -1) — derived from "
+            "Cauchy bound, not from closed-form roots"
+        )
+
+    def test_newton_handles_repeated_root_case(self):
+        """Newton converges slowly on repeated roots (discriminant=0) but still
+        within the lemma's default tolerance."""
+        from project_x.reasoning.symbolic import solve_quadratic, _newton_quadratic_root
+        # x² - 4x + 4 = (x-2)² → repeated root at 2
+        r_pos = _newton_quadratic_root(1, -4, 4, seed_sign=+1)
+        r_neg = _newton_quadratic_root(1, -4, 4, seed_sign=-1)
+        assert abs(r_pos - 2.0) < 1e-6
+        assert abs(r_neg - 2.0) < 1e-6
+        # And the integrated invariant holds
+        lemma = solve_quadratic(1, -4, 4)
+        newton_inv = [i for i in lemma.invariant_checks if "Newton" in i.predicate][0]
+        assert newton_inv.holds
+
+
+class TestSarrusStrongVerifier:
+    """Sarrus' rule verifier on determinant_3x3 — flat 6-term sum,
+    algorithmically distinct from Laplace cofactor expansion."""
+
+    def test_sarrus_invariant_holds_across_matrices(self):
+        """Sarrus and Laplace cofactor must agree on every 3×3 matrix."""
+        matrices = [
+            [[1, 2, 3], [4, 5, 6], [7, 8, 10]],     # det = -3
+            [[1, 0, 0], [0, 1, 0], [0, 0, 1]],       # identity → 1
+            [[2, -1, 3], [0, 5, 1], [-1, 2, 4]],     # mixed signs
+            [[0.5, 1.5, -2.5], [3, -4, 5], [-6, 7, 8]],  # floats
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9]],       # singular → 0
+        ]
+        for m in matrices:
+            lemma = determinant_3x3(m)
+            sarrus_invariants = [
+                inv for inv in lemma.invariant_checks
+                if "Sarrus" in inv.predicate
+            ]
+            assert len(sarrus_invariants) == 1, (
+                f"matrix {m}: expected 1 Sarrus invariant, got {len(sarrus_invariants)}"
+            )
+            assert sarrus_invariants[0].holds, (
+                f"matrix {m}: Sarrus disagreed with Laplace cofactor — possible "
+                f"arithmetic bug in either path"
+            )
+
+    def test_sarrus_predicate_supersedes_tautological(self):
+        """Cycle 10 #01b replaces the cycle 8 tautological inlined-cofactor invariant
+        with a STRONG algorithmically-independent Sarrus check. The tautological
+        predicate text must NOT be present in the new invariant set."""
+        lemma = determinant_3x3([[1, 2, 3], [4, 5, 6], [7, 8, 10]])
+        for inv in lemma.invariant_checks:
+            assert "inlined" not in inv.predicate.lower(), (
+                "tautological inlined-cofactor invariant still present after cycle 10 #01b"
+            )
+            # Should be Sarrus or another STRONG verifier
+            assert "Sarrus" in inv.predicate or "algorithmically-independent" in inv.predicate
+
+    def test_sarrus_catches_synthetic_laplace_typo(self):
+        """If Laplace cofactor were buggy (e.g. wrong sign on the middle minor),
+        Sarrus would catch it. Synthetic test: hand-compute Sarrus for a fixed
+        matrix and verify it agrees with the substrate's det."""
+        m = [[1, 2, 3], [4, 5, 6], [7, 8, 10]]
+        a, b, c = m[0]
+        d, e, f = m[1]
+        g, h, i = m[2]
+        expected_sarrus = a*e*i + b*f*g + c*d*h - c*e*g - b*d*i - a*f*h
+        lemma = determinant_3x3(m)
+        # Laplace path (substrate's primary computation)
+        assert lemma.actual_value == expected_sarrus, (
+            f"Laplace cofactor result {lemma.actual_value} disagrees with hand-computed "
+            f"Sarrus {expected_sarrus} — would be caught by the invariant"
+        )
+
+
+class TestVietaStrongVerifierAlreadyPresent:
+    """Document that char_poly_2x2's existing Vieta invariants are algorithmically
+    independent STRONG verifiers and don't need cycle 10 #01b retrofit. They use
+    matrix trace + det (computed from matrix entries) as expected_value and
+    sum/product of eigenvalues (computed from quadratic-formula roots) as
+    actual_value — two genuinely independent paths."""
+
+    def test_vieta_invariants_use_matrix_path_for_expected(self):
+        """expected_value of Vieta invariants is the matrix trace/det (independent
+        of the eigenvalue computation)."""
+        lemma = expand_characteristic_polynomial_2x2([[2, 1], [1, 2]])
+        # trace = 4, det = 3, eigenvalues = [1, 3] → sum=4, product=3
+        trace_inv = [i for i in lemma.invariant_checks if "tr(A)" in i.predicate][0]
+        det_inv = [i for i in lemma.invariant_checks if "det(A)" in i.predicate][0]
+        assert trace_inv.expected_value == 4  # from matrix
+        assert det_inv.expected_value == 3    # from matrix
+        # actual_value computed from eigenvalues (independent path via solve_quadratic)
+        assert abs(trace_inv.actual_value - 4) < 1e-9
+        assert abs(det_inv.actual_value - 3) < 1e-9

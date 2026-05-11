@@ -274,7 +274,75 @@ def solve_quadratic(a: float, b: float, c: float, lemma_id: str = "quadratic") -
     )
 
     lemma.actual_value = roots
+
+    # Cycle 10 #01b STRONG (algorithmically-independent) verifier: Newton's method.
+    # Newton iterates x_{n+1} = x_n - f(x_n)/f'(x_n) where f(x) = ax² + bx + c,
+    # f'(x) = 2ax + b. Seeded from Cauchy bounds (depending only on |coeffs|, NOT on
+    # the closed-form roots) so the comparison is genuinely independent: a typo or
+    # arithmetic error in the discriminant-formula path would not propagate to
+    # Newton's iterative convergence. Catches a bug class the (existing absent
+    # before this cycle) consistency-checks could not.
+    newton_pos = _newton_quadratic_root(a, b, c, seed_sign=+1)
+    newton_neg = _newton_quadratic_root(a, b, c, seed_sign=-1)
+    newton_roots = sorted([newton_pos, newton_neg])
+    # Compare via max element-wise drift so float tolerance applies (list-equality
+    # in add_invariant_check is exact; Newton's typical ~1e-12 epsilon drift would
+    # fail that). expected=0.0, actual=max_drift → numerical-close check fires.
+    max_drift = max(abs(roots[0] - newton_roots[0]), abs(roots[1] - newton_roots[1]))
+    lemma.add_invariant_check(
+        predicate=(
+            "max |Newton's-method root − discriminant-formula root| ≈ 0 "
+            "(algorithmically-independent STRONG verifier)"
+        ),
+        expected_value=0.0,
+        actual_value=max_drift,
+        justification=(
+            "Newton iteration x_{n+1} = x_n − f(x_n)/f'(x_n) seeded from the Cauchy "
+            f"bound on root magnitude (depending only on |a|, |b|, |c|, never on the "
+            f"closed-form roots). Both seeds converge to {newton_roots}; closed-form "
+            f"yields {roots}; max element-wise drift = {max_drift:.2e} (well within "
+            f"tolerance {lemma.tolerance}). Algorithmically independent because Newton's "
+            "iterative path never references the b²−4ac discriminant or √D extraction; "
+            "a typo in either path would not propagate to the other."
+        ),
+    )
+
     return lemma
+
+
+def _newton_quadratic_root(
+    a: float, b: float, c: float, *, seed_sign: int,
+    max_iter: int = 100, tol: float = 1e-12,
+) -> float:
+    """Find a root of ax² + bx + c = 0 via Newton's method.
+
+    Seed is derived from the Cauchy bound on root magnitude (|root| ≤ 1 + max(|b/a|, |c/a|)),
+    so the seed depends ONLY on |coefficients|, never on the closed-form roots. This makes
+    the resulting root genuinely algorithmically-independent from the discriminant formula.
+
+    `seed_sign`: +1 starts above the Cauchy bound (converges to max real root);
+    -1 starts below (converges to min real root) — under the convention a > 0
+    (the function normalizes internally).
+
+    Used as a STRONG invariant verifier in `solve_quadratic`. Hand-rolled — no scipy.optimize.
+    """
+    # Normalize so a > 0; doesn't change roots, simplifies monotonic-convergence reasoning.
+    if a < 0:
+        a, b, c = -a, -b, -c
+    cauchy = 1.0 + max(abs(b / a), abs(c / a))
+    x = seed_sign * (cauchy + 1.0)
+    for _ in range(max_iter):
+        fx = a * x * x + b * x + c
+        fpx = 2 * a * x + b
+        if abs(fpx) < 1e-20:
+            # Derivative vanishes — at vertex of parabola; perturb to break the saddle.
+            x += 1.0 if seed_sign > 0 else -1.0
+            continue
+        delta = fx / fpx
+        x -= delta
+        if abs(delta) < tol:
+            return x
+    return x
 
 
 def expand_characteristic_polynomial_2x2(
@@ -426,24 +494,30 @@ def determinant_3x3(matrix: list[list[float]], lemma_id: str = "determinant_3x3"
 
     lemma.actual_value = det
 
-    # Invariant: two-step chain output equals the inlined cofactor formula.
-    # det = a·(ei - fh) - b·(di - fg) + c·(dh - eg) — tautological under the
-    # formula; verifies the intermediate minor-storage and final summation produce
-    # the same result as direct in-expression computation. Cycle 9 predicate-
-    # strength uniformity pass will swap this for a Sarrus-rule independent-path
-    # verifier (algorithmically different formula for 3×3 determinant).
-    direct = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    # Cycle 10 #01b STRONG (algorithmically-independent) verifier: Sarrus' rule.
+    # Sarrus formula for 3×3 determinant: sum of three "down-diagonal" products
+    # minus sum of three "up-diagonal" products. Computed as a flat 6-term sum
+    # with NO minor extraction — algorithmically distinct from Laplace cofactor
+    # expansion's 3-minor-storage + alternating-sign-combine pattern. Both compute
+    # det(A); they reach it through different summation orderings and intermediate
+    # quantities. A typo or arithmetic error in Laplace's minor extraction wouldn't
+    # propagate to Sarrus's flat product sum.
+    sarrus_down = a * e * i + b * f * g + c * d * h
+    sarrus_up = c * e * g + b * d * i + a * f * h
+    sarrus_det = sarrus_down - sarrus_up
     lemma.add_invariant_check(
-        predicate="det = a·(ei-fh) - b·(di-fg) + c·(dh-eg) (cofactor formula inlined)",
+        predicate="Sarrus' rule det = (aei + bfg + cdh) − (ceg + bdi + afh) (algorithmically-independent STRONG verifier)",
         expected_value=det,
-        actual_value=direct,
+        actual_value=sarrus_det,
         justification=(
-            "The two-step chain (build_minors + cofactor_expansion) should equal "
-            "the inlined cofactor formula. Tautological under the formula; verifies "
-            "the intermediate minor-storage and final summation are implemented "
-            "consistently. Cycle 9 lifts this to a Sarrus-rule independent-path "
-            "predicate (algebraically equivalent but computed via a different "
-            "permutation sum)."
+            f"Sarrus' rule expresses the 3×3 determinant as a flat 6-term sum: "
+            f"three down-diagonal products ({a}·{e}·{i} + {b}·{f}·{g} + "
+            f"{c}·{d}·{h} = {sarrus_down}) minus three up-diagonal products "
+            f"({c}·{e}·{g} + {b}·{d}·{i} + {a}·{f}·{h} = {sarrus_up}). "
+            f"Result: {sarrus_det}. Algorithmically distinct from Laplace cofactor "
+            f"expansion — Sarrus never extracts the 2×2 minors and never applies "
+            f"alternating cofactor signs; it sums signed triple-products directly "
+            f"per the Leibniz formula restricted to 3×3."
         ),
     )
 
