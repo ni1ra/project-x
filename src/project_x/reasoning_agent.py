@@ -1225,13 +1225,30 @@ class ReasoningAgent:
     _natural_mode_composer: NaturalModeComposer | None = None
     _k_rollout_composer: KRolloutComposer | None = None
 
-    # K-rollout dispatch parameters (cycle 11 #00P13c11-04 integration). v1
-    # tau_satisfaction floor is honest; cycle-11+ empirical calibration.
+    # K-rollout dispatch parameters (cycle 11 #00P13c11-04 integration).
     _K_ROLLOUT_K: int = 3
-    _K_ROLLOUT_TAU: float = 0.0  # accept any rollout above 0.0; v1 lets
-    # the BG-dispatcher's tau_dispatch handle higher-level refusal. Setting
-    # tau_satisfaction > 0 here would gate natural-mode dispatch on
-    # avg-similarity quality; deferred to cycle-11+ calibration.
+    # Cycle-14 #08e DEFERRED to cycle-15 — tau_satisfaction calibration is
+    # structurally brittle on cycle-14 demo data:
+    #   - cycle-14 misroute walks (P4 humour->math 0.1905; P5 chat->poetry
+    #     0.1997) sit JUST above
+    #   - cycle-13 desired natural-mode walks (Collatz framing-surface,
+    #     "what does the Collatz conjecture mean?") sit BELOW 0.20 (~0.17)
+    #   - acceptable cycle-14 on-topic walks (P2 0.2378, P3 0.2512) sit
+    #     well ABOVE 0.20
+    # No single global tau cleanly separates "good cycle-13 framing walks"
+    # from "cycle-14 misroutes" because avg-cosine is not a quality
+    # discriminator across these prompt regimes — both produce low-cosine
+    # retrievals; one is desired (canonical framing surfacing), one is not
+    # (wrong-domain confident emission). Per-domain tau + reward-shaped
+    # blend (cycle-14 #08c HebbianBank) are the cycle-15 path: the bank's
+    # accumulated approve/reject signal becomes the quality discriminator,
+    # NOT bare cosine. Cycle-15 work: per-domain tau calibration sweep
+    # over the rated audit log + (collatz-prompt, framing-fragment) pair
+    # approvals so the bank's reward-blend correctly emits the framing
+    # walks the cycle-13 tests assert. Tau stays 0.0 cycle-14 to preserve
+    # the cycle-13 capability surface; misroute-refusal waits on rated
+    # bank.
+    _K_ROLLOUT_TAU: float = 0.0  # DEFERRED cycle-15 — see comment above
 
     def _try_natural_mode(self, prompt: str) -> AgentResponse | None:
         """Natural-mode K-rollout dispatcher (cycle 11 #00P13c11-DEMO + #03 + #04).
@@ -1275,6 +1292,8 @@ class ReasoningAgent:
         )
         if result.chosen_strategy is None:
             # All K rollouts fell below tau_satisfaction → honest refusal
+            # (cycle-14 #08e reverted — see _K_ROLLOUT_TAU comment for the
+            # cycle-15 deferral rationale; at tau=0.0 this branch never fires).
             return AgentResponse(
                 domain="open_domain",
                 problem_shape=f"natural_mode_k_rollout_refused_{domain}",
