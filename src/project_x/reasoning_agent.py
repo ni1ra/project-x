@@ -43,6 +43,7 @@ from typing import Any
 
 from project_x.reasoning.calculus import polynomial_definite_integral
 from project_x.reasoning.complex_analysis import residue_theorem_unit_quadratic
+from project_x.reasoning.diophantine import solve_binary_quadratic
 from project_x.reasoning.integration import (
     definite_integral_x_times_cos,
     definite_integral_x_times_exp,
@@ -554,6 +555,67 @@ def _parse_mertens_verify(prompt: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+# Diophantine binary-quadratic regex (cycle 9 #00P13c9-03). Parses the LHS of a
+# Q(x, y) = N equation in the canonical shape a·x² + b·xy + c·y² = N. Handles:
+# - unicode ² and ASCII ^2 (normalized to ^2 before regex)
+# - middle dot · and asterisk * separators (normalized away)
+# - whitespace (stripped)
+# - implicit coefficients (a or c absent → 1; b absent → 0; explicit signs preserved)
+# Cross-term and y² require explicit + or - sign because the x² term is the anchor.
+_DIOPHANTINE_LHS_PATTERN = re.compile(
+    r"(?P<a>[+-]?\d*)x\^2"                 # ax^2 (sign + magnitude both optional)
+    r"(?:(?P<b>[+-]\d*)xy)?"               # optional cross term ±bxy
+    r"(?P<c>[+-]\d*)y\^2"                  # ±cy^2 (sign required)
+    r"=(?P<N>-?\d+)",                       # = N
+)
+
+
+def _parse_diophantine_binary_quadratic(prompt: str) -> tuple[int, int, int, int] | None:
+    """Extract (a, b, c, N) from a Diophantine binary-quadratic problem prompt.
+
+    Gated by a Diophantine-flavor keyword ('diophantine' / 'integer solutions' /
+    'integer pairs' / 'binary quadratic form'). Returns None if the prompt isn't
+    in this shape — caller (dispatcher chain) then falls through to next parser.
+
+    Default coefficients on absent terms: a=1 (when prompt starts directly with x²);
+    c=1 (no magnitude on +y² → +1); b=0 (no cross term in prompt).
+    """
+    lower = prompt.lower()
+    if not any(
+        kw in lower for kw in (
+            "diophantine", "integer solutions", "integer pairs",
+            "binary quadratic", "all integer (x", "all integer pairs",
+        )
+    ):
+        return None
+
+    # Normalize: drop spaces, swap unicode ² → ^2, drop · and * coefficient separators.
+    normalized = (
+        prompt
+        .replace(" ", "")
+        .replace("²", "^2")
+        .replace("·", "")
+        .replace("*", "")
+    )
+
+    m = _DIOPHANTINE_LHS_PATTERN.search(normalized)
+    if not m:
+        return None
+
+    def _coeff(s: str, default: int = 1) -> int:
+        """Parse signed coefficient string into int. '' → default, '+' → 1, '-' → -1, '+3'→3."""
+        if not s or s in ("+", "-"):
+            sign = -1 if s == "-" else 1
+            return sign * default
+        return int(s)
+
+    a = _coeff(m.group("a") or "", default=1)
+    b = _coeff(m.group("b") or "", default=1) if m.group("b") else 0
+    c = _coeff(m.group("c") or "+", default=1)
+    N = int(m.group("N"))
+    return (a, b, c, N)
+
+
 # 3x3 matrix regex: matches `[[a, b, c], [d, e, f], [g, h, i]]` with optional whitespace.
 # All nine entries captured as signed decimal strings; whitespace inside brackets allowed.
 # Closes maths-012 (cycle 8 #00P13c8-04). Placed BEFORE 2x2 pattern so longer-match wins
@@ -676,6 +738,14 @@ class ReasoningAgent:
 
     def process(self, prompt: str) -> AgentResponse:
         """Attempt to solve `prompt` by dispatching to a matched problem-shape parser."""
+        # Maths Diophantine binary-quadratic — covers maths-024/025 (cycle 9 #00P13c9-03).
+        # Placed FIRST among maths because "integer solutions" + "x^2+y^2=N" form regex
+        # would otherwise route to generic quadratic dispatcher (which expects ax²+bx+c=0
+        # in single variable). Keyword gate is specific enough to avoid false positives.
+        response = self._try_diophantine_binary_quadratic(prompt)
+        if response is not None:
+            return response
+
         # Maths number-theory dispatchers (cycle 8 #00P13c8-10) — covers maths-017/018/019/020.
         # Specific single-keyword gates ('collatz' / 'goldbach' / 'twin prime' / 'mertens')
         # — placed FIRST so the unique keywords win over any later generic-shape regex match.
@@ -875,6 +945,45 @@ class ReasoningAgent:
             domain="maths",
             problem_shape="mertens_bound_verify",
             parsed_inputs={"N": N},
+            lemma=lemma,
+            answer_text=lemma.render(),
+            confidence="high",
+        )
+
+    def _try_diophantine_binary_quadratic(self, prompt: str) -> AgentResponse | None:
+        """Cycle 9 #00P13c9-03 — Diophantine binary-quadratic dispatcher.
+
+        Parses (a, b, c, N) for Q(x, y) = a·x² + b·xy + c·y² = N then routes to
+        `solve_binary_quadratic`. Honest failure mode on non-positive-definite forms:
+        the substrate raises NotImplementedError; we wrap that as a refusal-with-reason
+        response rather than letting it propagate. Catches Pell-equation prompts and
+        degenerate forms.
+        """
+        parsed = _parse_diophantine_binary_quadratic(prompt)
+        if parsed is None:
+            return None
+        a, b, c, N = parsed
+        try:
+            lemma = solve_binary_quadratic(a, b, c, N)
+        except NotImplementedError as e:
+            return AgentResponse(
+                domain="maths",
+                problem_shape="diophantine_binary_quadratic_out_of_scope",
+                parsed_inputs={"a": a, "b": b, "c": c, "N": N},
+                lemma=None,
+                answer_text=(
+                    f"Notice. Diophantine binary-quadratic prompt parsed as "
+                    f"({a})x² + ({b})xy + ({c})y² = {N}, but the substrate refuses: {e} "
+                    f"Honest M-PROJECTX-013 framing — Hilbert's 10th (Matiyasevich 1970) "
+                    f"proves no general Diophantine algorithm exists; cycle 9 ships "
+                    f"positive-definite only."
+                ),
+                confidence="refused",
+            )
+        return AgentResponse(
+            domain="maths",
+            problem_shape="diophantine_binary_quadratic",
+            parsed_inputs={"a": a, "b": b, "c": c, "N": N},
             lemma=lemma,
             answer_text=lemma.render(),
             confidence="high",

@@ -729,6 +729,71 @@ def test_reasoning_agent_number_theory_no_keyword_refuses():
     }
 
 
+# --- Diophantine binary-quadratic dispatcher (maths-024/025, cycle 9 #00P13c9-03) ---
+
+
+def test_reasoning_agent_solves_maths_024_sum_of_two_squares():
+    """Maths-024: integer solutions to x² + y² = 25 → 12 solutions."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find all integer solutions (x, y) to the Diophantine equation x² + y² = 25. "
+        "Report the count."
+    )
+    assert response.confidence == "high"
+    assert response.domain == "maths"
+    assert response.problem_shape == "diophantine_binary_quadratic"
+    assert response.parsed_inputs == {"a": 1, "b": 0, "c": 1, "N": 25}
+    assert response.lemma.actual_value == 12
+
+
+def test_reasoning_agent_solves_maths_025_asymmetric_binary_quadratic():
+    """Maths-025: integer solutions to 2x² + 3y² = 35 → 8 solutions."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find all integer solutions (x, y) to the Diophantine equation "
+        "2·x² + 3·y² = 35. Report the count."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "diophantine_binary_quadratic"
+    assert response.parsed_inputs == {"a": 2, "b": 0, "c": 3, "N": 35}
+    assert response.lemma.actual_value == 8
+
+
+def test_reasoning_agent_diophantine_indefinite_refused_with_reason():
+    """Pell-equation prompt x² - 2y² = 1 parses successfully but substrate raises
+    NotImplementedError on the indefinite form; dispatcher wraps as refused-with-reason
+    rather than letting the exception propagate or confabulating an answer."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find all integer solutions (x, y) to the Diophantine equation x² - 2·y² = 1."
+    )
+    assert response.confidence == "refused"
+    assert response.problem_shape == "diophantine_binary_quadratic_out_of_scope"
+    assert response.parsed_inputs == {"a": 1, "b": 0, "c": -2, "N": 1}
+    # Honest M-PROJECTX-013 framing surfaces in the refusal text
+    assert "Matiyasevich" in response.answer_text or "Hilbert" in response.answer_text
+
+
+def test_reasoning_agent_diophantine_no_keyword_falls_through():
+    """A prompt 'x² + y² = 25' WITHOUT a Diophantine-flavor keyword must NOT match
+    the Diophantine dispatcher. The keyword gate prevents misrouting plain algebra."""
+    agent = ReasoningAgent()
+    response = agent.process("Compute x² + y² = 25 for some (x, y).")
+    assert response.problem_shape != "diophantine_binary_quadratic"
+
+
+def test_reasoning_agent_diophantine_cross_term_form():
+    """Eisenstein-style cross term: x² + xy + y² = 3 → 6 solutions, Δ = -3 (positive-definite)."""
+    agent = ReasoningAgent()
+    response = agent.process(
+        "Find all integer solutions (x, y) to x² + xy + y² = 3 (Eisenstein form)."
+    )
+    assert response.confidence == "high"
+    assert response.problem_shape == "diophantine_binary_quadratic"
+    assert response.parsed_inputs == {"a": 1, "b": 1, "c": 1, "N": 3}
+    assert response.lemma.actual_value == 6
+
+
 # --- Cycle 8 #06 parser-robustness regression tests ---
 
 

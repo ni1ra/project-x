@@ -26,6 +26,10 @@ from project_x.reasoning.complex_analysis import (
     INTRO_RESIDUE_UNIT_QUADRATIC,
     residue_theorem_unit_quadratic,
 )
+from project_x.reasoning.diophantine import (
+    INTRO_BINARY_QUADRATIC_DIOPHANTINE,
+    solve_binary_quadratic,
+)
 from project_x.reasoning.integration import (
     INTRO_INTEGRATION_BY_PARTS_X_COS,
     INTRO_INTEGRATION_BY_PARTS_X_EXP,
@@ -78,6 +82,7 @@ from project_x.reasoning.symbolic import (
 from project_x.reasoning.verifier import numerical_verify
 
 __all__ = [
+    "INTRO_BINARY_QUADRATIC_DIOPHANTINE",
     "INTRO_CHAR_POLY_2X2",
     "INTRO_COLLATZ_VERIFICATION",
     "INTRO_DETERMINANT_3X3",
@@ -116,6 +121,7 @@ __all__ = [
     "relativistic_doppler_shift",
     "relativistic_momentum",
     "residue_theorem_unit_quadratic",
+    "solve_binary_quadratic",
     "solve_quadratic",
     "twin_primes_in_range",
 ]
