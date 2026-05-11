@@ -8,16 +8,21 @@
 
 ---
 
-## Phase 13 cycle 9 in flight (2026-05-11)
+## Phase 13 cycle 9 close (2026-05-11)
 
-**Hardest end-to-end:** *"Compute the value of the definite integral from 0 to 1 of x·e^x dx via integration by parts."* The agent recognizes that the integrand is a product of an algebraic term (x) and an exponential term (e^x), applies the LIATE heuristic to pick u = x and dv = e^x dx, computes du = dx and v = e^x, applies the parts formula `∫ u dv = uv - ∫ v du` to derive the antiderivative `e^x · (x - 1)`, and evaluates at the bounds: F(1) - F(0) = 0 - (-1) = **1.0**. Renders a 5-step Raphael-voice derivation including the LIATE rationale and an invariant check that recomposes the parts identity from algorithmically-independent computation of the v du integral.
+**Hardest end-to-end (integration):** *"Compute ∫₀¹ x·e^x dx via integration by parts."* The agent recognizes the integrand as algebraic × exponential, applies the LIATE heuristic to pick u = x and dv = e^x dx, derives the antiderivative e^x·(x - 1), and evaluates at the bounds: F(1) - F(0) = 0 - (-1) = **1.0**. The 5-step Lemma render shows the LIATE technique choice explicitly. The parts-identity invariant recomputes the v du integral algorithmically-independently and verifies the algebra closes — strongest predicate across the cycle's substrate.
 
-Also passing: *"∫₀¹ x·sin(x²) dx via u-substitution"* → recognizes x dx as half-the-differential-of-x², transforms to (1/2)·∫₀¹ sin(u) du, integrates to -cos(u)/2, back-substitutes to get **(1 - cos(1))/2 ≈ 0.2298**.
+**Hardest end-to-end (Diophantine):** *"Find all integer solutions (x, y) to x² + y² = 25."* The agent classifies the form as positive-definite via discriminant Δ = -4 < 0, derives the Lagrange bound |x|, |y| ≤ √25 = 5 from completing-the-square, brute-force enumerates the 121-candidate rectangle, filters by exact equality, and returns **12 solutions**: the 4 axis-aligned (±5, 0), (0, ±5) + the 8 Pythagorean (3, 4, 5) sign-and-swap permutations. The D₄ symmetry invariant (count divisible by 4 for a=c, b=0 forms) holds.
 
-**Pytest baseline:** 458 / 458 passing.
-**Bench-replay --agent-runtime:** 44 / 0 (44 of 44 auto-graded entries PASS via runtime substrate solve; 0 fail).
-**Capability shape:** symbolic integration via technique-choice (parts vs u-sub) — first step beyond freshman power-rule integration. The agent picks the technique from the prompt's keyword gate, parses the integrand shape via regex, dispatches to the right substrate primitive, and renders a derivation that shows the technique choice in step justification.
-**Remaining cycle 9 scope:** Diophantine binary-quadratic substrate (`x² + y² = N` integer-solution enumeration; capability touchpoint at integer-search frontier); benchmark difficulty_tier audit + relabel; cycle close.
+**HONEST refusal at the indefinite frontier:** *"Find all integer (x, y) to x² - 2·y² = 1"* (Pell). The dispatcher parses the form, the substrate raises `NotImplementedError` because Δ = 8 > 0 (indefinite — infinite solution sets via fundamental-solution + recurrence, cycle 10+ extension), and the AgentResponse wraps that as a `refused`-with-reason answer citing Matiyasevich 1970. NO confabulation. This is the load-bearing capability artifact of cycle 9 — an agent that REFUSES out-of-scope rather than inventing an answer.
+
+**Pytest baseline:** 479 / 479 passing.
+**Bench-replay --agent-runtime:** 46 / 0 (46 of 46 auto-graded entries PASS).
+**Capability shape:** symbolic integration via technique-choice (parts vs u-sub) — first step beyond freshman power-rule integration; bounded Diophantine binary-quadratic enumeration — first step into integer-search territory. Honest refusal pattern operational on indefinite + degenerate forms.
+
+**Hassabis-bar honest decomposition (cycle 9):** the math content individually would YAWN a frontier researcher (integration-by-parts is freshman calculus; bounded brute-force binary-quadratic enumeration is graduate-textbook number theory with a single Lagrange-inequality bound). What might register as mildly interesting is the HONEST-REFUSAL pattern (the Pell refusal in particular), the 4-step Lemma chain + invariant-verifier composition, and the no-LLM-in-substrate discipline. These are PROCESS artifacts, not CAPABILITIES. Nothing in cycle 9 reaches the research-grade tier (the would_surprise_hassabis ladder field is uniformly `false` at close — by design, that's the cycle-10+ target). Counter-claim guard: cycle 9 did NOT produce a research-grade math capability; it produced a polished mid-level substrate with strong honest-framing discipline. The discipline is the product, not the math.
+
+**Ladder retrofit (cycle 9 #02):** 74 ladder entries across 6 domains now carry `difficulty_tier` (5-level: trivial-baseline 15 / intro 13 / intermediate 25 / hard 21 / research-grade 0) + `would_surprise_hassabis` on rubric-graded entries (uniformly false at close). At-a-glance progression auditing now mechanical.
 
 ---
 
