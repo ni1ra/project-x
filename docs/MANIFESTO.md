@@ -6,11 +6,35 @@
 
 ## What we're building
 
-Project X is the engineering substrate that, layer by layer, becomes **Raphael — lain's all-knowing internal computer.** Not a wrapper. Not a RAG agent. Not a fine-tuned LLM. An organic stack, built from the bottom, that earns the name "post-transformer" by genuinely operating outside the transformer paradigm at every load-bearing layer.
+Project X is the engineering substrate that, layer by layer, becomes **Raphael — lain's all-knowing internal computer.** Not a wrapper. Not a RAG agent. Not a fine-tuned LLM. **An organic stack whose intelligence emerges, naturally, from learned experience over an audit-able substrate.** It earns the name "post-transformer" by genuinely operating outside the transformer paradigm at every load-bearing layer — and it earns the word "intelligence" by deciding for itself, from experience, when each piece of the substrate applies.
 
-## The thesis (one paragraph)
+## The thesis (lain 2026-05-11 binding — ORGANIC NATURALLY EMERGENT INTELLIGENCE)
 
-The transformer architecture solves a coordination problem (parallelizable sequence modeling at scale) under a specific resource regime (massive compute + massive labeled-or-self-supervised text + the willingness to accept a black-box statistical artifact). It does NOT solve memory, identity, or grounded reasoning — and the field's habit of bolting those on as RAG / fine-tunes / tool-use scaffolding is a category error. Project X starts from a different premise: organic memory (HDC binding + Hebbian co-occurrence + structural retrieval), organic encoders (char-n-gram + Hebbian + eventually SNN spike-train), and template-or-from-scratch generation. The agent that emerges has memory it can introspect, identity it can defend, and reasoning it can show its work on — because nothing in the stack hides behind statistical convenience.
+> lain verbatim, 2026-05-11: *"the correct approach here is not to force any intelligence on the model, it should naturally come to the conclusion that using a formula over another is better, since it learnt it on its own. we shouldnt have to tell it what tools to use, it should learn that itself."*
+
+The transformer architecture solves a coordination problem (parallelizable sequence modeling at scale) under a specific resource regime (massive compute + massive labeled-or-self-supervised text + the willingness to accept a black-box statistical artifact). It does NOT solve memory, identity, or grounded reasoning — and the field's habit of bolting those on as RAG / fine-tunes / tool-use scaffolding is a category error. Project X starts from a different premise: organic memory (HDC binding + Hebbian co-occurrence + structural retrieval), organic encoders (char-n-gram + Hebbian + eventually SNN spike-train), and template-or-from-scratch generation. **And critically — organic ROUTING.** The choice of which substrate primitive applies to which prompt, in what order, composed into what answer, must EMERGE from learned experience over audit-able substrate — never from a hand-coded if-statement chain. The agent that emerges has memory it can introspect, identity it can defend, and reasoning it can show its work on — *and tool-selection it discovered for itself*, because nothing in the stack hides behind statistical convenience and nothing in the stack outsources the agent's judgment to its author.
+
+## Organic emergent intelligence — what this means in practice (lain 2026-05-11 STRICT thesis)
+
+> lain verbatim, 2026-05-11 extension: *"i would even go so far as to say we shouldnt even hard code the math algos, it should learn it on its own. if we have good enough training data, and smart enough model, it should learn all itself."*
+
+Two categories of authored code exist in Project X. The distinction is load-bearing:
+
+| Category | Hand-coded? | Why |
+|---|---|---|
+| **LEARNING MACHINERY** | YES — this is the architecture, not the knowledge | HDC primitives (`pack_bipolar`, `cosine_packed`, bind, bundle), the encoder substrate (char-n-gram hash → projection — turns symbols into hypervectors), k-means / Hebbian / K-rollout / consolidation / audit-loop mechanics, the data-ingestion pipeline, the learning-rate-equivalents and decay schedules. Analog: in a transformer system, the "attention mechanism + backprop + optimizer" is authored once; the WEIGHTS are learned. Project X authors the substrate's *learning algorithms* — the formulas FOR LEARNING, not the formulas the agent learns to use. |
+| **MODEL KNOWLEDGE** | NO — must be LEARNED from training data + audit signal | The quadratic formula, the Collatz iteration, the Pell-equation continued-fraction trick, poetry conventions, philosophy moves, physics derivations, persona voice patterns, sense of humor, routing decisions, tool-selection. **All of these come from the training data + the audit loop, not from a human author typing them into a Python file.** Cycle 7-10's hand-coded `solve_quadratic` / `collatz_verify_range` / `solve_pell_equation` / `_PARSER_ARCHETYPES` / `_NATURAL_MODE_TRIGGERS` / dispatcher constants are **SCAFFOLD** — useful as evaluation gold-standard against which the learned model is measured, but NOT the agent's source-of-capability. |
+
+**What "good enough training data + smart enough model" means concretely:**
+
+- **Training data:** the existing 22k Tier-2 corpus is the seed; scale-out is multi-cycle work targeting 1M-10M words per domain per the canonical-doc Layer 6 spec. *Mathematics is learned from worked examples;* poetry from poems; philosophy from philosophical texts; physics from physics derivations. Curated public-domain sources; no GPT-generated text; audit-loop rates outputs as the preference signal.
+- **Smart enough model:** the HDC learning substrate (binding + Hebbian co-occurrence + retrieval-with-provenance + consolidation pass + audit-rewarded credit assignment + K-rollout exploration + emergence-via-clustering) is the *architecture* — analogous to "the transformer + optimizer" but organic instead of attention-over-softmax. The cycle-14+ work is making this substrate ACTUALLY LEARN from the data, not just retrieve from it.
+
+The Terminus is not met by "hand-coded substrate primitives + hand-coded dispatcher over them." The Terminus is met by *the agent acquiring, from training data + audit signal, the formulas and patterns and routing decisions that solve unsolved-tier math, write upper-rank poetry, derive physics — and composing answers from that learned model.* Hand-coded primitives become evaluation gold-standard (does the learned model converge on the right formula?), not the agent's source-of-capability.
+
+Cycle-13 (this cycle) shipped scaffold: bitpack substrate, encoder D-bump, dispatcher hygiene, cosine-archetype fallback, pre-registered emergence predicate. Cycle-14+ shifts the work to **building the learning substrate that acquires capability from training data**: training-data pipeline + Hebbian-or-equivalent learning over the HDC substrate + audit-loop reward shaping + the emergence-validation predicate (cycle-13 #07f-pre) as the ongoing capability metric. The hand-coded primitives stay in the repo as gold-standard / fallback during the learning bootstrap; every cycle's verdict asks *"how much of the agent's capability now comes from the learned model vs from hand-coded primitives?"*
+
+This is the thesis the GPT external audit (D3, E3) surfaced and lain explicitly named + escalated on 2026-05-11. Every cycle-14+ council angle is scored against it.
 
 ## The vector
 
@@ -58,6 +82,32 @@ Pure signal code (lain 2026-05-10). Organic from the core (lain 2026-05-09). Cra
 > *"slow and methodical path... organic and real from the core and the beginning. No borrowing other LLM models, remember, we are moving past the transformer."*
 
 Disqualified at every layer: BGE, MiniLM, sentence-transformers, llama.cpp, Qwen, Mistral, and every pretrained transformer derivative. Encoders MUST be from-scratch (char-n-gram hashing, Hebbian co-occurrence, SNN spike-train, or equivalent). Generators MUST be template-based or from-scratch — no LLM wrappers. Inheriting GPT-Codex's pretrained-defaults caused M-PROJECTX-011; the thesis-compliance check is non-negotiable on any new layer. The Phase 1-6 transformer-style scaffolding is preserved in `src/project_x/legacy/` as a quarantined historical control + made install-optional via `[legacy]` extra in `pyproject.toml` (audit-C2).
+
+### NO hand-coded knowledge in the final agent — only hand-coded learning machinery (lain 2026-05-11 binding, STRICT thesis)
+
+> Initial framing: *"the correct approach here is not to force any intelligence on the model, it should naturally come to the conclusion that using a formula over another is better, since it learnt it on its own. we shouldnt have to tell it what tools to use, it should learn that itself."*
+>
+> Extended (same day): *"i would even go so far as to say we shouldnt even hard code the math algos, it should learn it on its own. if we have good enough training data, and smart enough model, it should learn all itself."*
+
+The current `reasoning_agent.py` substrate — 20+ hand-coded math/physics primitives (`solve_quadratic`, `collatz_verify_range`, `solve_pell_equation`, `residue_theorem`, projectile / Doppler / pendulum / ODE solvers, etc.) + their hand-written parsers + the `_DISPATCH_CHAIN_ORDER` + the `_NATURAL_MODE_TRIGGERS` + the `_NATURAL_MODE_ARCHETYPES` + the α/τ constants — is **scaffolding, not architecture**. It makes cycle-13 ship a workable agent against the existing benchmarks; it DOES NOT meet the Terminus. The Terminus requires the agent to LEARN — from training data + audit signal + K-rollout outcomes — **all of it**: the formulas, the patterns, the routing, the tool-selection.
+
+**The only authored code in the final agent is the LEARNING MACHINERY:**
+
+- HDC infrastructure (bind, bundle, cosine, pack, unpack, k-means, Hebbian update rules)
+- The encoder substrate (char-n-gram → projection)
+- The K-rollout / consolidation / audit-loop mechanics
+- The data-ingestion + audit-rating pipelines
+- The emergence-validation predicate (cycle-13 #07f-pre is the template — pre-registered tests for whether the learned model has acquired capability X)
+
+Everything else — the agent's KNOWLEDGE and CAPABILITY — emerges from training data + the learning loop:
+
+- "Verify the Collatz conjecture for the first 10000 integers" routes to a Collatz-verification capability because the agent's training over math worked-examples produced a learned program that recognizes the pattern AND executes the iteration. Not because a human typed `def _try_collatz_verify` into a Python file.
+- "Argue both sides: is mathematics discovered or invented?" produces a philosophy response because the agent's training over philosophy texts + audit signal produced a learned policy that generates discovered-vs-invented argumentation. Not because a human typed "argue both" into a trigger list.
+- Quadratic solving emerges from worked-examples + algebraic-manipulation-as-learned-program; the gold-standard `solve_quadratic` exists only as evaluation oracle for *did the learned model converge on the right formula?*
+
+**Transition path:** the hand-coded substrate is allowed AS A FALLBACK during the learning bootstrap (cold-start, before the corpus + audit signal accumulate enough for the learned model to outperform the scaffold). Every cycle's verdict asks the question: *how much of the agent's capability now comes from the learned model vs from hand-coded primitives?* The fraction shifts toward "learned" cycle-over-cycle. When the learned model meets-or-exceeds the scaffold on every Terminus dimension, the scaffold gets retired into `legacy/` as historical control.
+
+This rule extends the no-pretrained-transformer rule (which already forbade *borrowed* knowledge from other models) to forbid *authored* knowledge from the system's own builder. The agent's intelligence — math, poetry, philosophy, physics, persona, routing — is what it discovers, from training data, over its own learning substrate, with audit signal as the preference. The author writes the substrate that *can* learn; the author does NOT write what the substrate *learns*.
 
 ### Code-comment ratio rule (lain 2026-05-10 GLOBAL POLICY)
 

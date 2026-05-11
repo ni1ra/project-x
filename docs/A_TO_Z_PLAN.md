@@ -7,6 +7,40 @@
 
 ---
 
+## §0.0 PHASE 13 THESIS SHIFT — ORGANIC NATURALLY EMERGENT INTELLIGENCE (lain 2026-05-11 STRICT binding)
+
+> lain verbatim, 2026-05-11 (mid-cycle-13 close, after GPT external audit + clarifying exchange):
+>
+> Initial: *"the correct approach here is not to force any intelligence on the model, it should naturally come to the conclusion that using a formula over another is better, since it learnt it on its own. we shouldnt have to tell it what tools to use, it should learn that itself."*
+>
+> Extended (same day): *"i would even go so far as to say we shouldnt even hard code the math algos, it should learn it on its own. if we have good enough training data, and smart enough model, it should learn all itself."*
+>
+> Codification directive: *"update and realign the docs (manifesto, A TO Z etc.) so this is clearer. ORGANIC, NATURALLY EMERGENT INTELLIGENCE."*
+
+Phase 13 was originally framed as *"sandbox + capability buildout against the Terminus"* — a substrate + benchmark + manual-grade harness. Cycles 1-13 shipped against that framing (sandbox, persona scaffolding, BG-style dispatcher, K-rollout, 22k-corpus expansion, audit UI, bitpack substrate, cosine-archetype dispatch fallback, 20+ hand-coded math/physics primitives). The GPT external audit at the #07a/b boundary (`docs/artifacts/cycle-13-external-audit.md`) surfaced as its single biggest signal (E3) that the **generative composition / evaluator-driven policy learning / credit-assignment-loop angle** was missing — i.e., the cycle was building substrate but not yet building the agent's own *learned capability*. lain's 2026-05-11 directive (initial framing + same-day strict extension) crystallizes this as the Phase 13 thesis: **organic naturally emergent intelligence — the model learns EVERYTHING from training data + audit signal, including the math algorithms themselves; the author writes only the learning machinery.**
+
+**What this means for phase scope (STRICT version):**
+
+| Was (cycle 1-13 framing) | Now (cycle 14+ STRICT framing) |
+|---|---|
+| Hand-coded math primitives (`solve_quadratic`, `collatz_verify_range`, `solve_pell_equation`, residue theorem, integrals, ODE, projectile, Doppler, pendulum…) are the SUBSTRATE the agent operates over. | Hand-coded math primitives are **SCAFFOLD / EVALUATION GOLD-STANDARD ONLY**. The agent learns the formulas from worked-examples in training data, over the HDC learning substrate. Hand-coded primitives exist as oracles that say *did the learned model converge on the right answer?* — not as the agent's source-of-capability. |
+| Hand-coded dispatcher routes prompts to those primitives via regex + cosine-to-archetype + α/τ. | Learned policy selects approach based on accumulated audit signal + K-rollout outcomes + retrieval performance. Hand-coded dispatcher is bootstrap scaffold during cold-start; deprecated as learning matures. |
+| The agent's KNOWLEDGE (formulas, poetry conventions, philosophy moves, physics derivations, persona patterns, routing) is partly authored, partly retrieved. | The agent's KNOWLEDGE comes ENTIRELY from training data + audit signal. Authored code is the LEARNING MACHINERY: HDC primitives, encoder substrate, k-means / Hebbian / K-rollout / consolidation / audit-loop mechanics, the data-ingestion + audit-rating pipelines, the emergence-validation predicate. |
+| Terminus = "auditable substrate that the dispatcher can call." | Terminus = "agent that has LEARNED, from training data + audit signal, math + poetry + philosophy + physics + persona + routing + tool-selection — and composes answers from that learned model." |
+
+**Concrete cycle-14+ implications:**
+
+- **Cycle 14 council MUST include "build the learning substrate that acquires capability from training data" as the #1 angle.** Scope: Hebbian-or-equivalent learning rule over the HDC substrate; training-data pipeline; audit-loop reward shaping; the emergence-validation predicate (cycle-13 #07f-pre is the template) generalized into an ongoing capability metric per domain.
+- **Hand-coded primitives become a deprecation surface — but slowly.** They are gold-standard during the bootstrap. Each cycle's verdict asks: *what fraction of the agent's capability now comes from the learned model vs from hand-coded primitives?* The fraction shifts toward learned cycle-over-cycle.
+- **Training data scales become load-bearing.** The 22k Tier-2 corpus is a seed; canonical-doc Layer 6 spec is 1M-10M words per domain. Cycle-14+ corpus expansion is not optional — it is the data the learning substrate trains over. Domain-coverage gaps (math worked-examples; physics derivations; persona-aligned text) become explicit cycle scope.
+- **Audit UI (cycle 12 #02) is load-bearing.** It is the preference signal for the learned policy. Until ~50+ real lain ratings accumulate, the policy can learn from K-rollout self-consistency + retrieval-vs-substrate coverage; with real ratings, the policy gradient turns on real preference signal.
+- **Cycle-13's hand-coded substrate commits (#07c-e dispatcher, the prior cycle-7-10 math primitives) are NOT deprecated YET.** They are correct scaffold. The phase-13 thesis shift reframes their PURPOSE: they ship a workable agent against existing benchmarks while cycle-14+ builds the learning substrate that will eventually replace them.
+- **"Smart enough model" → cycle-14+ defines this concretely per the canonical-doc Layer 4-7 spec.** The HDC learning substrate (binding + Hebbian co-occurrence + retrieval-with-provenance + consolidation + audit-rewarded credit assignment + K-rollout exploration + emergence-via-clustering) is the *architecture* — analogous to "the transformer + optimizer" but organic. Cycle-14+ closes the gap between *substrate that retrieves* and *substrate that learns*.
+
+**MANIFESTO cross-reference:** `docs/MANIFESTO.md` § Thesis (lain 2026-05-11 STRICT binding) + § "Organic emergent intelligence — what this means in practice" + § Standing orders "NO hand-coded knowledge in the final agent — only hand-coded learning machinery (lain 2026-05-11 binding, STRICT thesis)". All cycle-14+ council angles are scored against the thesis there.
+
+---
+
 ## §0. PHASE 13 CONTRACT
 
 ### §0.1 The Terminus (binding from MANIFESTO)
