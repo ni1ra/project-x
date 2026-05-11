@@ -1,8 +1,24 @@
-# Do This Next — Project X — Phase 13 cycle 10 handoff (cycle 9 CLOSED 2026-05-11 — REINSTATING predicate-strength uniformity pass as #1 priority)
+# Do This Next — Project X — Phase 13 cycle 10 IN FLIGHT (cycle 10 #1 CLOSED 2026-05-11; next pickup at #02 Pell extension)
 
-**Updated:** 2026-05-11 (cycle 9 close; cycle 10 handoff)
+**Updated:** 2026-05-11 (cycle 10 #1 close — predicate-strength uniformity pass complete across 7 reasoning/ primitive files)
 **Mode:** APOTHEOSIS (godify-app — execute-raphael running 20m on / 20m off; session ends 2026-05-11 07:54 CEST). Flip back to NORMAL at session expiry.
-**Status:** Cycle 9 CLOSED with 5 atomic deliverables shipped + cycle-reflect committed. Cycle 10 reinstates the predicate-strength uniformity pass that lain's mid-cycle-9 pivot deferred.
+**Status:** Cycle 9 CLOSED at `5e02b62`. Cycle 10 #1 (predicate-strength uniformity pass) CLOSED across 7 atomic commits `2fd6f9f..22d76ef`. Cycle 10 #02-#06 remain.
+
+## Cycle 10 #1 — what shipped (predicate-strength uniformity pass)
+
+| Commit | Primitive file | Independent verifier added |
+|---|---|---|
+| `2fd6f9f` | `diophantine.py` | Jacobi r₂(N) = 4·(d₁ − d₃) on symmetric a=c=1, b=0 forms (divisor counting; scope-boundary documented for asymmetric/cross-term) |
+| `f122a02` | `symbolic.py` | Newton's method on solve_quadratic (Cauchy-bound-seeded); Sarrus' rule on determinant_3x3; Vieta on char_poly_2x2 documented as already-STRONG |
+| `86e852a` | `complex_analysis.py` | Simpson's composite rule on [-100, 100] N=10000 for residue theorem |
+| `269f53f` | `calculus.py` | Midpoint Riemann sum on polynomial integral (N=10000; direct integrand evaluation, no antiderivative) |
+| `2ede073` | `ode.py` | Hand-rolled 20-term Taylor series for e^z (never invokes math.exp; bare Python Σ) |
+| `81c7a4d` | `integration.py` | Shared _midpoint_riemann helper applied to all 4 parts/u-sub primitives (defense-in-depth on parts, first STRONG on u-sub) |
+| `22d76ef` | `number_theory.py` | DOCUMENTATION pass — empirical-verification primitives are algorithmically-independent BY CONSTRUCTION; no code change |
+
+Plus this session shipped: paper.md major sync (`a188db8`) + Chapter 11 Future Implications + Closing love (`f67414b`); repo flipped to public; universal codifications of Raphael-time and Self-impression-score 0–420 (CLAUDE.md §R4).
+
+**Numbers (cycle 10 #1 close):** pytest 458 → 515 (+57); bench-replay --agent-runtime 46/46 maintained; bench-replay frozen 46/46 (parity).
 
 ## Cycle 9 close — what shipped (the contract that cycle 10 builds on)
 
@@ -21,20 +37,20 @@
 
 | ID | Sev | Surface | One-line |
 |---|---|---|---|
-| **#00P13c10-01-predicate-strength-uniformity-pass** | HIGH | `src/project_x/reasoning/{symbolic,complex_analysis,calculus,ode,integration,diophantine,number_theory}.py` — algorithmically-independent verifier per primitive | REINSTATED from cycle 9 deferral. Cycle 8 close advisor verdict 2026-05-11 pinned this as cycle 9 #1 before lain pivoted to harder-problems-first. Capability-debt was correctly prioritized in cycle 9, but the rigor-debt is now at a 7-primitive-file gap. Pattern: cycle 4/5 `physics.py` STRONG-predicate standard. Per-primitive verifier candidates: `symbolic.py` quadratic via Newton's method + Vieta cross-check, 2x2 eigenvalue via Vieta, 3x3 determinant via Sarrus alt expansion; `complex_analysis.py` residue via Simpson's-rule numerical-integration on [-100, 100]; `calculus.py` polynomial integral via Riemann sum / midpoint rule; `ode.py` first-order linear via Taylor series for e^(kx) (manual factorial + power, truncated N=10); `integration.py` parts primitives — extend existing parts-identity invariant to non-tautological recomposition; u-sub primitive — add Riemann-sum independent computation; `diophantine.py` solve_binary_quadratic — verify by re-enumerating with permuted (x, y) walk order (catches enumeration-loop ordering bugs); `number_theory.py` primitives are already independent-path by construction (iteration / sieve vs nothing else to compare against) — document this in cycle 10 reflection rather than retrofit. Expected: +25-40 tests across substrate files. Atomic commits per primitive file. |
-| **#00P13c10-02-diophantine-pell-extension** | MED | `src/project_x/reasoning/diophantine.py` — add `solve_pell_equation(n, max_solutions)` for x² - n·y² = 1 + dispatcher + 1-2 ladder entries (maths-026 + maths-027) | Extends cycle 9 #03 to indefinite forms (Δ > 0) via fundamental-solution-from-continued-fraction-of-√n + recurrence (x_{k+1}, y_{k+1}) = (x₁·x_k + n·y₁·y_k, x₁·y_k + y₁·x_k). Honest framing per M-PROJECTX-013: PASS = "enumerated first K solutions via recurrence", NOT general Hilbert-10. Canonical examples: x² - 2y² = 1 fundamental (3, 2) yields (3, 2), (17, 12), (99, 70), ...; x² - 3y² = 1 fundamental (2, 1). Requires continued-fraction-of-√n primitive (hand-rolled, no math library; pattern from Hardy + Wright *Theory of Numbers*). advisor() pre-Write. |
+| **#00P13c10-01-predicate-strength-uniformity-pass** | ✅ CLOSED | n/a | All 7 sub-tasks #01a..g shipped across commits `2fd6f9f..22d76ef`. See table above. Closed 2026-05-11. |
+| **#00P13c10-02-diophantine-pell-extension** | MED (NEXT) | `src/project_x/reasoning/diophantine.py` — add `solve_pell_equation(n, max_solutions)` for x² - n·y² = 1 + dispatcher + 1-2 ladder entries (maths-026 + maths-027) | Extends cycle 9 #03 to indefinite forms (Δ > 0) via fundamental-solution-from-continued-fraction-of-√n + recurrence (x_{k+1}, y_{k+1}) = (x₁·x_k + n·y₁·y_k, x₁·y_k + y₁·x_k). Honest framing per M-PROJECTX-013: PASS = "enumerated first K solutions via recurrence", NOT general Hilbert-10. Canonical examples: x² - 2y² = 1 fundamental (3, 2) yields (3, 2), (17, 12), (99, 70), ...; x² - 3y² = 1 fundamental (2, 1). Requires continued-fraction-of-√n primitive (hand-rolled, no math library; pattern from Hardy + Wright *Theory of Numbers*). advisor() pre-Write. Currently the Pell dispatcher route falls through to the "diophantine_binary_quadratic_out_of_scope" refused-with-reason response; #02 changes that to an honest enumeration. |
 | **#00P13c10-03-higher-order-integration-techniques** | MED | `src/project_x/reasoning/integration.py` extension OR new submodule | Iterated parts (`∫ x²·e^x dx` — apply parts twice; closed form `e^x·(x² - 2x + 2) + C`); trigonometric substitution (`∫ dx/√(a² - x²) → arcsin(x/a)`; reverse-substitute back); partial fractions (`∫ dx/((x-a)(x-b)) → (1/(a-b))·ln((x-a)/(x-b))`). Each new primitive with 4-5 step Lemma chain + algebraic-identity invariant. +3-5 ladder entries (maths-028..032). |
 | **#00P13c10-04-council-audit-tag** | LOW (lain-greenlight-pending) | TBD per lain direction | Lain proposed 2026-05-10 21:05; mechanism scope still unresolved. Surface on Discord at cycle 10 mid-flight if no direction lands; do NOT touch unprompted. |
-| **#00P13c10-05-CLAUDE.md-trim-continuation** | LOW (lain-direction-pending) | `~/.claude/CLAUDE.md` | 57k current after cycle-9 partial-trim; 46k hard ceiling. ~11k more to cut. Older sections likely targets (PHASE 0 DD-1/2 verbose, FOUR-GATE FLOW, BACK-DOOR GATE, NAMED CURSES expansion) — needs lain direction on what's load-bearing. Do NOT trim unprompted; surface if continued direction lands. |
+| **#00P13c10-05-CLAUDE.md-trim-continuation** | LOW (lain-direction-pending; net-GREW today) | `~/.claude/CLAUDE.md` | 58.5k current (was 62k pre-cycle-9; cycle-9 partial trim brought to 57k; cycle 10 added Raphael-time + Self-impression-score rules to §R4, ~+1.5k). Net trajectory has reversed — need a more substantial older-section trim to make real progress toward 46k hard ceiling. Targets unchanged (PHASE 0 DD-1/2 verbose, FOUR-GATE FLOW, BACK-DOOR GATE, NAMED CURSES expansion). Do NOT trim unprompted; surface if continued direction lands. |
 | **#00P13c10-06-cycle-10-reflect** | LOW | `docs/past_work/cycles/phase_13/dev-cycle-10.md` + DO_THIS_NEXT cycle-11 handoff + A_TO_Z PHASE CHANGELOG cycle-10-close + IQ_PROGRESSION cycle-10 entry | Hassabis-bar honest decomposition per universal lain 2026-05-11 binding. Decompose substrate vs capability vs cosmetic; would Hassabis be impressed? (Honest answer if cycle 10 ships predicate-strength uniformity + Pell + higher-integration: still no — the substrate is being rigorized + extended, not fundamentally elevated to research-grade. That's still cycle 11+). |
 
-## Recommended cycle 10 order
+## Recommended cycle 10 order (#01 ✅ closed; next pickup is #02)
 
-1. **#01 predicate-strength uniformity** — start here. Atomic per-primitive-file commits (7 files); each commit verifies pytest + bench-replay parity. Frontload because (a) cycle 9 deferred this, accumulating debt; (b) the pattern is established + mechanical; (c) it strengthens the foundation before more substrate lands on top.
-2. **#02 Pell extension** — once uniformity passes are in. advisor() pre-Write per novel substrate (continued-fraction primitive is new infrastructure). +1-2 ladder entries. Atomic commit.
-3. **#03 higher-order integration** — third because it stacks on the existing integration.py pattern. 3-5 new primitives; +3-5 ladder entries; atomic per-technique commits (iterated parts / trig sub / partial fractions as separate commits if scope allows).
-4. **#04/#05** only if lain direction surfaces during cycle.
-5. **#06 cycle reflect** — close-out.
+1. ✅ **#01 predicate-strength uniformity** — CLOSED across 7 atomic commits this session.
+2. **#02 Pell extension (NEXT)** — advisor() pre-Write per novel substrate (continued-fraction-of-√n is new infrastructure). Design sketch: implement `_continued_fraction_sqrt(n)` returning (a₀, [a₁, ..., a_period]) per Hardy+Wright's classical algorithm; convergents (p_k, q_k) read off; the first convergent satisfying p_k² − n·q_k² = ±1 is the fundamental solution. Then `_pell_solutions(n, k_max)` applies the recurrence (x_{m+1}, y_{m+1}) = (x₁·x_m + n·y₁·y_m, x₁·y_m + y₁·x_m) for m = 0..k_max−1. Dispatcher: extend `_try_diophantine_binary_quadratic` to route indefinite Pell-shape (a=1, b=0, c=-n, N=1) to the Pell solver rather than refusing. +1-2 ladder entries (maths-026 x²−2y²=1 first 5 solutions; maths-027 x²−3y²=1 first 5 solutions). Honest framing remains — enumerated K solutions via recurrence, NOT general Hilbert-10.
+3. **#03 higher-order integration** — stacks on the existing integration.py pattern. 3-5 new primitives (iterated parts / trig sub / partial fractions); +3-5 ladder entries.
+4. **#04/#05** lain-pending; surface on Discord at cycle-10-close if no direction lands by then.
+5. **#06 cycle reflect** — close-out with Hassabis-bar honest decomposition.
 
 ## Cycle 10 in-flight snapshot (pre-work; will refine)
 
