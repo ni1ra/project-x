@@ -2,6 +2,8 @@
 
 **Generated:** 2026-05-11 (cycle 14 CLOSE — substrate writability + reward-loop wiring + one piece of dispatcher scaffolding retired)
 **Session Context:** Cycle 14 shipped the substrate's first reward-driven write path (HebbianBank substrate-wide co-occurrence + audit-rating wire + retrieval blend) + retired the `_NATURAL_MODE_TRIGGERS` keyword-regex gate as proof-of-direction. Mid-synthesis, lain caught the pre-correction A2 + A3 verdict as still hand-coding (per-primitive learned embeddings + per-decision-coefficient credit propagation); synthesis pivoted to A1 alone (substrate-wide Hebbian). 15 atomic commits across cycle 14; 6 of 7 #08 implementation sub-tasks shipped clean; #08e (τ_satisfaction calibration) deferred to cycle 15 with two substantive findings.
+**Codex 2026-05-12 addendum:** `src/project_x/hdc_infra/hebbian.py` now generalizes audit reward across prompt prefix/token/bigram atoms, and `src/project_x/reasoning_agent.py` now filters refused dispatcher candidates plus neutralizes missing-archetype confidence. `scripts/reward_transfer_replay.py` measures the effect on held-out paraphrases. Evidence: `docs/artifacts/codex-2026-05-12-reward-generalization-and-dispatcher.md`; replay result `pass=true` with rejected fragment rank `28/49 -> 49/49`; focused tests `151 passed`; benchmark audit `48 PASS / 0 FAIL`; full suite `663 passed / 1 known timing flake` with isolated timing rerun passing.
+**Codex 2026-05-12 shrine-council addendum:** `scripts/rewarded_humor_walk_demo.py` now runs an end-to-end rewarded natural-walk demo through the real `AuditLog.apply_rating` → persisted `HebbianBank` path. Synthetic ratings on generated bad/good walks shift a held-out paraphrase `cardinality joke please`: wrong-domain set-theory fragment rank `1/22052 -> 21996/22052`, public-domain Alice fragment rank `1948/22052 -> 1/22052`, fresh composer loaded from saved bank. Evidence: `docs/artifacts/codex-2026-05-12-shrine-council-rewarded-walk-demo.md`; JSON `/tmp/project-x-rewarded-humor-walk-demo.json`; audit log `/tmp/project-x-rewarded-humor-walk-demo.walks.jsonl`; bank `/tmp/project-x-rewarded-humor-walk-demo.bank.pkl`.
 **Warning Level:** NORMAL — clean handoff; cycle-14 reflect doc is at `docs/past_work/cycles/phase_13/dev-cycle-14.md` for the full ledger.
 
 ---
@@ -207,11 +209,11 @@ The 2026-05-11 cycle-15 work-session pushed council-prep forward: 5 of 6 surface
 | `docs/past_work/cycles/phase_13/dev-cycle-14.md` | Cycle-14 reflect (full deliverables ledger, 365/420 score, counter-claims) | NEW (cycle-14 close) | Cite for cycle-15 retrospective claims |
 | `docs/artifacts/cycle-14-priority-decision.md` | Synthesis verdict (A1 alone, R2 transition, #08g pre-retire) — load-bearing §0 advisor catches + §4 retirement criterion | NEW (cycle 14) | Cycle-15 inherits §4.b retirement criterion; B1-B5 council deliberates spillover |
 | `docs/artifacts/cycle-14-demo-post-thesis.md` | Demo + verification artifact (§1-7 cycle-open snapshot + §8 cycle-close two-arm verification) | NEW (cycle 14) | Cold-start regression mechanically verified Arm A |
-| `src/project_x/hdc_infra/hebbian.py` | HebbianBank substrate-wide reward-driven co-occurrence + blend_score helper | NEW (cycle 14 #08a) | Pure substrate; no per-primitive structure |
+| `src/project_x/hdc_infra/hebbian.py` | HebbianBank substrate-wide reward-driven co-occurrence + blend_score helper | EXTENDED 2026-05-12 | Pure substrate; no per-primitive structure; prompt reward now transfers across normalized prefix/token/bigram atoms |
 | `src/project_x/audit/log.py` | AuditLog with cycle-14 #08b Hebbian-update wire | EXTENDED (cycle 14) | apply_rating fires HebbianBank.update on rated walks |
 | `src/project_x/corpus/natural_mode.py` + `k_rollout.py` | Retrieval blend with HebbianBank lookup (cycle-14 #08c) | EXTENDED (cycle 14) | Cold-start α=0 preserves cycle-13 baseline |
-| `src/project_x/reasoning_agent.py` | Dispatcher (21-parser BG-style chain) + natural-mode classifier (keyword gate retired cycle-14 #08g) | EXTENDED (cycle 14) | `_K_ROLLOUT_TAU=0.0` cycle-14 deferred-with-finding; `_NATURAL_MODE_TRIGGERS` no longer consulted by `_classify_natural_mode_domain` |
-| `tests/test_hebbian_bank.py` | 23-test suite (5 classes: math correctness + cold-start regression + synthetic-rating sweep + persistence + blend helper) | NEW (cycle 14 #08d) | Cold-start regression is the load-bearing test |
+| `src/project_x/reasoning_agent.py` | Dispatcher (21-parser BG-style chain) + natural-mode classifier (keyword gate retired cycle-14 #08g) | EXTENDED 2026-05-12 | Refused candidates no longer compete in confidence sort; missing-archetype valid responses use neutral confidence; formal scope-boundary refusals still veto loose natural-mode walks |
+| `tests/test_hebbian_bank.py` | HebbianBank suite (math correctness + cold-start regression + synthetic-rating sweep + persistence + blend helper + paraphrase reward transfer) | EXTENDED 2026-05-12 | Cold-start regression and held-out paraphrase reward transfer are the load-bearing tests |
 | `data/hebbian_bank/main.pkl` | HebbianBank persistence file | NOT YET CREATED | First rating via apply_rating creates it; cold-start agent gets empty bank |
 | `data/audit_log/walks.jsonl` | Audit-rating JSONL log | EXISTS | Each apply_rating appends a rated AuditEvent; downstream Hebbian update fires |
 | `scripts/cycle_14_demo_post_thesis.py` | Demo script (5 fresh prompts → AgentResponse + GAP analysis) | EXISTS | Cycle-14 #08f verification re-ran this for Arm A baseline |
@@ -232,7 +234,7 @@ PYTHONPATH=src python3 -c "from project_x.hdc_infra import HebbianBank; b=Hebbia
 
 ```bash
 PYTHONPATH=src python3 -m pytest --tb=no -q                     # Full suite; expect 661/662 (1 timing flake)
-PYTHONPATH=src python3 -m pytest tests/test_hebbian_bank.py -q  # 23 cycle-14 #08d tests
+PYTHONPATH=src python3 -m pytest tests/test_hebbian_bank.py -q  # Hebbian bank + reward-transfer tests
 PYTHONPATH=src python3 -m pytest tests/test_audit_log_v1.py -q  # 10 audit tests (cycle-14 #08b coverage)
 ```
 
