@@ -1120,10 +1120,14 @@ class ReasoningAgent:
         prompt_hv = self._archetype_encoder.encode([prompt])[0]
 
         candidates: list[tuple[float, int, str, AgentResponse]] = []
+        refused_candidates: list[tuple[int, str, AgentResponse]] = []
         for chain_index, (_archetype_key, method_name) in enumerate(self._DISPATCH_CHAIN_ORDER):
             method = getattr(self, method_name)
             response = method(prompt)
             if response is None:
+                continue
+            if response.confidence == "refused":
+                refused_candidates.append((chain_index, method_name, response))
                 continue
             # Look up the archetype for the ACTUAL problem_shape returned (handles
             # cases where one parser produces multiple shapes — e.g.,
@@ -1132,10 +1136,12 @@ class ReasoningAgent:
             # `pell_equation_degenerate` or `diophantine_binary_quadratic_out_of_scope`).
             archetype_hv = self._archetype_hvs.get(response.problem_shape)
             if archetype_hv is None:
-                # Fallback: use the prompt itself as its own archetype (gives hv_sim=1.0
-                # baseline; safe default for problem-shapes without a dedicated archetype
-                # like refusal variants or natural-mode domain sub-keys).
-                hv_sim_normalized = 1.0
+                # Neutral fallback for problem-shapes without a dedicated
+                # archetype. The old self-archetype fallback gave hv_sim=1.0,
+                # which let missing-archetype candidates saturate confidence.
+                # Refused candidates are filtered above; this neutral value is
+                # for valid but newly-added shapes awaiting an archetype.
+                hv_sim_normalized = 0.5
             else:
                 cos_sim = cosine_bipolar(prompt_hv, archetype_hv)
                 hv_sim_normalized = (cos_sim + 1.0) / 2.0  # map [-1, 1] → [0, 1]
@@ -1143,6 +1149,9 @@ class ReasoningAgent:
             candidates.append((combined_confidence, chain_index, method_name, response))
 
         if not candidates:
+            if refused_candidates:
+                refused_candidates.sort(key=lambda c: c[0])
+                return refused_candidates[0][2]
             return AgentResponse(
                 domain="unrecognized",
                 problem_shape="unrecognized",
@@ -1166,6 +1175,17 @@ class ReasoningAgent:
         natural_mode_present = any(
             r.problem_shape.startswith("natural_mode_walk_") for _, _, _, r in candidates
         )
+        formal_candidate_present = any(
+            not r.problem_shape.startswith("natural_mode_walk_") for _, _, _, r in candidates
+        )
+        if natural_mode_present and not formal_candidate_present:
+            formal_refusals = [
+                item for item in refused_candidates if item[1] != "_try_natural_mode"
+            ]
+            if formal_refusals:
+                formal_refusals.sort(key=lambda c: c[0])
+                return formal_refusals[0][2]
+
         if natural_mode_present:
             candidates = [
                 (

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from project_x.reasoning_agent import (
     AgentResponse,
     ReasoningAgent,
@@ -1148,6 +1150,78 @@ def test_bg_dispatcher_refusal_path_when_no_parser_matches():
     assert response.confidence == "refused"
     # The honest-refusal path returns AgentResponse with default dispatcher_metadata=None
     assert response.dispatcher_metadata is None
+
+
+def test_bg_dispatcher_excludes_refused_parser_candidates(monkeypatch: pytest.MonkeyPatch):
+    """Refused parser outputs are a no-match signal, not competing candidates."""
+
+    def fake_refused(self: ReasoningAgent, prompt: str) -> AgentResponse:
+        return AgentResponse(
+            domain="open_domain",
+            problem_shape="missing_archetype_refused_shape",
+            parsed_inputs={},
+            lemma=None,
+            answer_text="refused",
+            confidence="refused",
+        )
+
+    monkeypatch.setattr(ReasoningAgent, "_try_fake_refused", fake_refused, raising=False)
+    monkeypatch.setattr(
+        ReasoningAgent,
+        "_DISPATCH_CHAIN_ORDER",
+        (("missing_archetype_refused_shape", "_try_fake_refused"),)
+        + ReasoningAgent._DISPATCH_CHAIN_ORDER,
+    )
+
+    response = ReasoningAgent().process("Solve the quadratic 3x² - 14x - 5 = 0.")
+    assert response.problem_shape == "quadratic"
+    top5_methods = [method for method, _score in response.dispatcher_metadata["top5_candidates"]]
+    assert "_try_fake_refused" not in top5_methods
+
+
+def test_bg_dispatcher_formal_refusal_vetoes_natural_mode_when_no_formal_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A formal scope-boundary refusal should not be replaced by a loose walk."""
+    agent = ReasoningAgent()
+    monkeypatch.setattr(agent, "_K_ROLLOUT_TAU", 0.0)
+    response = agent.process(
+        "Find integer solutions (x, y) to the Diophantine equation x² − 4·y² = 1."
+    )
+    assert response.confidence == "refused"
+    assert response.problem_shape == "pell_equation_degenerate"
+
+
+def test_bg_dispatcher_missing_archetype_uses_neutral_similarity(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Valid missing-archetype candidates get neutral confidence, not saturation."""
+
+    def fake_missing_archetype(self: ReasoningAgent, prompt: str) -> AgentResponse:
+        return AgentResponse(
+            domain="test",
+            problem_shape="missing_archetype_valid_shape",
+            parsed_inputs={},
+            lemma=None,
+            answer_text="valid synthetic candidate",
+            confidence="high",
+        )
+
+    monkeypatch.setattr(
+        ReasoningAgent, "_try_fake_missing_archetype", fake_missing_archetype, raising=False
+    )
+    monkeypatch.setattr(
+        ReasoningAgent,
+        "_DISPATCH_CHAIN_ORDER",
+        (("missing_archetype_valid_shape", "_try_fake_missing_archetype"),),
+    )
+
+    response = ReasoningAgent().process("Synthetic prompt with no matching archetype.")
+    assert response.problem_shape == "missing_archetype_valid_shape"
+    assert response.dispatcher_metadata["combined_confidence"] == pytest.approx(0.8)
+    assert response.dispatcher_metadata["top5_candidates"] == [
+        ("_try_fake_missing_archetype", 0.8)
+    ]
 
 
 def test_bg_dispatcher_runs_all_parsers_collects_candidates():
