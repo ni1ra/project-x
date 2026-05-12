@@ -34,13 +34,15 @@ gpt-codex/sources/
 # - See docs/MANIFESTO.md § gpt-codex/runs/ retention policy for criteria.
 gpt-codex/runs/*/
 
-# sandbox/ runtime artifacts (Phase 13 cycle 2 D4 fresh-catch):
+# sandbox/ runtime artifacts (Phase 13 cycle 2 D4 fresh-catch; refined 2026-05-12):
 # - The agent (Project X Raphael) writes verification scripts + intermediate
-#   artifacts to sandbox/ via _tool_write_file_sandbox. These are runtime artifacts,
-#   NOT deliverables — promotion to tracked status requires explicit force-add.
-# - sandbox/.gitkeep stays tracked so the locked-folder root is git-visible.
-sandbox/*
-!sandbox/.gitkeep
+#   artifacts to sandbox/workdir/ via the action-taking primitives. These are
+#   runtime artifacts, NOT deliverables.
+# - Named snapshots in sandbox/.snapshots/ are also runtime state.
+# - The Python source under sandbox/ (agent_io.py, __init__.py) IS tracked —
+#   it's the substrate's action-taking infrastructure.
+sandbox/workdir/
+sandbox/.snapshots/
 
 # Cycle 12 #00P13c12-02 — audit log runtime data
 # (directory tracked via .gitkeep so it exists on fresh clone; JSONL contents
