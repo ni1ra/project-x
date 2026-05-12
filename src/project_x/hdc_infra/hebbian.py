@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import pickle
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
@@ -56,28 +57,74 @@ DEFAULT_DECAY_RATE = 0.01
 # Keeps the bank's footprint bounded.
 DECAY_EPSILON = 1e-4
 
-# Atom-derivation knob: how many leading tokens of the prompt are hashed into
-# the prompt-atom. Larger = more-specific atom; smaller = more-shared atom
-# across paraphrases. 10 tokens is a defensible cycle-14 v0 default — captures
-# the prompt's opening "shape" without over-fitting to surface phrasing.
+# Atom-derivation knobs. Prefix atoms preserve cycle-14's prompt-shape memory;
+# token and bigram atoms let audit reward transfer to held-out paraphrases
+# without introducing domain-specific routing rules.
 _PROMPT_ATOM_TOKEN_LIMIT = 10
+_PROMPT_FEATURE_TOKEN_LIMIT = 16
+_TOKEN_RE = re.compile(r"[a-z0-9']+")
+
+
+def _normalize_tokens(text: str, max_tokens: int | None = None) -> tuple[str, ...]:
+    """Return lowercase alphanumeric tokens, punctuation-stripped.
+
+    The reward bank should not split "stones" from "stones," or "entropy?"
+    from "entropy". This is learning machinery, not model knowledge: the
+    normalization is domain-neutral and only makes the audit signal less brittle.
+    """
+    tokens = tuple(_TOKEN_RE.findall(text.lower()))
+    if max_tokens is not None:
+        return tokens[:max_tokens]
+    return tokens
 
 
 def _atom_from_prompt(prompt: str, max_tokens: int = _PROMPT_ATOM_TOKEN_LIMIT) -> PromptAtom:
     """Derive a stable prompt-atom from the prompt string.
 
-    Strategy: lowercase + whitespace-split + take first max_tokens + rejoin.
-    Same prompt shape (modulo capitalization + trailing content) maps to the
-    same atom; different prompt shapes get different atoms.
-
-    This is intentionally coarser than the encoder's char-n-gram hash —
-    the bank tracks PROMPT-SHAPE → FRAGMENT-COOCCURRENCE, not exact-prompt
-    → exact-fragment lookup. Paraphrases of "Write a poem about X" all
-    land on a similar atom; the bank's reward signal generalises across
-    them.
+    Strategy: normalize + take first max_tokens + rejoin. This is the cycle-14
+    exact-shape atom, kept as the first atom for compatibility with existing
+    bank files and tests.
     """
-    tokens = prompt.lower().split()
+    tokens = _normalize_tokens(prompt, max_tokens=max_tokens)
     return " ".join(tokens[:max_tokens])
+
+
+def _atoms_from_prompt(prompt: str) -> tuple[PromptAtom, ...]:
+    """Derive multiple neutral prompt atoms for reward generalization.
+
+    A single first-N-token atom makes ratings too local: rejecting a bad walk
+    for "tell me a joke about entropy" does not affect "write a joke about
+    entropy please". The substrate needs transfer without hand-coded domains,
+    so each prompt contributes:
+
+    - one prefix atom: exact prompt-shape memory;
+    - unique token atoms: topic / intent overlap;
+    - adjacent bigram atoms: weak phrase-level structure.
+
+    Lookup averages over the query atoms, so exact repeats keep the original
+    delta while partial-overlap paraphrases receive a smaller, measurable
+    reward signal instead of zero.
+    """
+    tokens = _normalize_tokens(prompt, max_tokens=_PROMPT_FEATURE_TOKEN_LIMIT)
+    if not tokens:
+        return (_atom_from_prompt(prompt),)
+
+    atoms: list[PromptAtom] = [_atom_from_prompt(prompt)]
+    seen: set[PromptAtom] = set(atoms)
+
+    for token in tokens:
+        atom = f"tok:{token}"
+        if atom not in seen:
+            atoms.append(atom)
+            seen.add(atom)
+
+    for left, right in zip(tokens, tokens[1:]):
+        atom = f"bigram:{left} {right}"
+        if atom not in seen:
+            atoms.append(atom)
+            seen.add(atom)
+
+    return tuple(atoms)
 
 
 def _atom_from_fragment(fragment_text: str) -> FragmentAtom:
@@ -134,12 +181,13 @@ class HebbianBank:
         cycle-14 v0); per-step credit-distribution coefficients would be
         the A3-style hand-coded structure the strict-strict thesis rejects.
         """
-        prompt_atom = _atom_from_prompt(prompt)
+        prompt_atoms = _atoms_from_prompt(prompt)
         delta = self.learning_rate * (rating - RATING_MIDPOINT)
         for fragment_text in fragments:
             fragment_atom = _atom_from_fragment(fragment_text)
-            key = (prompt_atom, fragment_atom)
-            self._bank[key] = self._bank.get(key, 0.0) + delta
+            for prompt_atom in prompt_atoms:
+                key = (prompt_atom, fragment_atom)
+                self._bank[key] = self._bank.get(key, 0.0) + delta
 
     def lookup(self, prompt_atom: PromptAtom, fragment_atom: FragmentAtom) -> float:
         """Return the bank's accumulated score for `(prompt_atom, fragment_atom)`.
@@ -154,14 +202,15 @@ class HebbianBank:
     def lookup_for(self, prompt: str, fragment_text: str) -> float:
         """Convenience wrapper — derive atoms from raw prompt + fragment strings.
 
-        Equivalent to: `lookup(_atom_from_prompt(prompt), _atom_from_fragment(fragment_text))`.
-        Used by the retrieval-blend path (#08c) where the caller has the
-        raw strings on hand and doesn't want to pre-derive atoms.
+        Averages lookup scores across the prompt's neutral atoms. Exact repeats
+        see the full learned delta because update() wrote the same delta to all
+        atoms. Paraphrases sharing only token/bigram atoms receive fractional
+        transfer instead of the cycle-14 all-or-nothing prefix hit.
         """
-        return self.lookup(
-            _atom_from_prompt(prompt),
-            _atom_from_fragment(fragment_text),
-        )
+        fragment_atom = _atom_from_fragment(fragment_text)
+        prompt_atoms = _atoms_from_prompt(prompt)
+        total = sum(self.lookup(prompt_atom, fragment_atom) for prompt_atom in prompt_atoms)
+        return total / len(prompt_atoms)
 
     def decay(self, rate: float | None = None) -> int:
         """Apply multiplicative decay to all entries; prune below `decay_epsilon`.

@@ -29,6 +29,7 @@ from project_x.hdc_infra.hebbian import (
     RATING_MIDPOINT,
     _atom_from_fragment,
     _atom_from_prompt,
+    _atoms_from_prompt,
 )
 
 
@@ -37,23 +38,31 @@ from project_x.hdc_infra.hebbian import (
 # =========================================================================
 
 
-def test_atom_derivation_is_case_insensitive_on_token_match():
-    """Same first-N tokens across casing differences → same prompt_atom.
+def test_atom_derivation_is_case_and_punctuation_insensitive_on_token_match():
+    """Same first-N tokens across casing/punctuation differences → same atom.
 
-    Honest framing: _atom_from_prompt is a first-N-tokens hash, NOT a
-    paraphrase-aware semantic match. Same tokens (modulo case) → same atom;
-    different leading tokens → different atom. Punctuation attaches to the
-    token it follows, so "stones." and "stones" tokenize as different.
-    Cycle-15+ could add a punctuation-strip pass for broader generalization.
+    Honest framing: _atom_from_prompt is still a first-N-token atom, not a
+    semantic parser. Cycle-16 generalization comes from _atoms_from_prompt,
+    which adds token/bigram atoms around this prefix atom.
     """
     atom1 = _atom_from_prompt("Write a poem about stones")
     atom2 = _atom_from_prompt("write A POEM about stones")  # case-only difference
     atom3 = _atom_from_prompt("Different question about clouds")
     assert atom1 == atom2  # case-insensitive
     assert atom1 != atom3  # genuine difference detected
-    # Punctuation attaches to token → different atom (acknowledged limitation)
+    # Punctuation no longer splits otherwise-identical atoms.
     atom_with_comma = _atom_from_prompt("Write a poem about stones, please")
-    assert atom_with_comma != atom1  # 5th token "stones," != "stones"
+    assert atom_with_comma.startswith(atom1)
+
+
+def test_prompt_atoms_include_prefix_tokens_and_bigrams():
+    """Prompt atomization gives exact-shape + overlap features."""
+    atoms = _atoms_from_prompt("Tell me a joke about entropy, please.")
+    assert _atom_from_prompt("Tell me a joke about entropy, please.") == atoms[0]
+    assert "tok:joke" in atoms
+    assert "tok:entropy" in atoms
+    assert "bigram:about entropy" in atoms
+    assert len(atoms) == len(set(atoms))
 
 
 def test_atom_derivation_fragment_is_stable_hash():
@@ -99,10 +108,11 @@ def test_update_at_midpoint_is_noop():
 
 
 def test_update_writes_each_fragment_independently():
-    """Each fragment in the walk gets its own (prompt_atom, fragment_atom) entry."""
+    """Each fragment gets entries for each neutral prompt atom."""
     bank = HebbianBank(learning_rate=0.1)
-    bank.update("test", ["frag A", "frag B", "frag C"], rating=5.0)
-    assert bank.entry_count() == 3
+    prompt = "test"
+    bank.update(prompt, ["frag A", "frag B", "frag C"], rating=5.0)
+    assert bank.entry_count() == 3 * len(_atoms_from_prompt(prompt))
     for frag in ("frag A", "frag B", "frag C"):
         assert bank.lookup_for("test", frag) == pytest.approx(0.2)
 
@@ -129,7 +139,7 @@ def test_decay_multiplies_and_prunes():
     assert pruned == 0
     # Decay again → 0.05, 0.025 — second drops below floor
     pruned = bank.decay(rate=0.5)
-    assert pruned == 1  # f2 entry pruned
+    assert pruned == len(_atoms_from_prompt("p"))  # every f2 atom-pair pruned
     assert bank.lookup_for("p", "f2") == 0.0
 
 
@@ -179,12 +189,15 @@ def test_composer_default_is_cold_start():
 
 
 def test_synthetic_rating_populates_bank_with_correct_entry_count():
-    """20 synthetic ratings on 3-fragment walks → bank populates 60-ish entries."""
+    """20 synthetic ratings on 3-fragment walks populate all prompt-atom pairs."""
     bank = HebbianBank(learning_rate=0.1)
+    expected = 0
     for i in range(20):
-        bank.update(f"prompt {i}", [f"frag_{i}_a", f"frag_{i}_b", f"frag_{i}_c"], rating=5.0)
-    # 20 prompts × 3 fragments each = 60 unique (prompt_atom, fragment_atom) pairs
-    assert bank.entry_count() == 60
+        prompt = f"prompt {i}"
+        fragments = [f"frag_{i}_a", f"frag_{i}_b", f"frag_{i}_c"]
+        bank.update(prompt, fragments, rating=5.0)
+        expected += len(_atoms_from_prompt(prompt)) * len(fragments)
+    assert bank.entry_count() == expected
 
 
 def test_synthetic_rating_shifts_blend_for_rated_pair():
@@ -206,14 +219,17 @@ def test_synthetic_rating_shifts_blend_for_rated_pair():
 def test_synthetic_rating_alpha_grows_proportionally():
     """alpha = min(1.0, entry_count / 100); blend shifts smoothly with bank growth."""
     bank = HebbianBank(learning_rate=0.1)
-    # Add 50 entries → alpha should be 0.5
-    for i in range(50):
+    # Add enough entries to make alpha partial but unsaturated.
+    for i in range(10):
         bank.update(f"prompt {i}", [f"frag {i}"], rating=5.0)
-    # Rate the target — adds entry 51, alpha=0.51
+    alpha = min(1.0, bank.entry_count() / 100.0)
+    assert 0.0 < alpha < 1.0
+    # Rate the target — alpha grows according to the generalized atom count.
     bank.update("p", ["f"], rating=5.0)
     blended = blend_score(bank, 0.4, "p", "f")
-    # alpha=0.51; cosine=0.4; lookup=0.2 → 0.49*0.4 + 0.51*0.2 = 0.196 + 0.102 = 0.298
-    assert blended == pytest.approx(0.298, abs=0.01)
+    alpha_after = min(1.0, bank.entry_count() / 100.0)
+    expected = (1.0 - alpha_after) * 0.4 + alpha_after * 0.2
+    assert blended == pytest.approx(expected, abs=0.01)
 
 
 def test_misroute_correction_pattern():
@@ -251,6 +267,30 @@ def test_misroute_correction_pattern():
     )
     # alpha=1.0 → blended = 1.0 * -1.0 = -1.0; misroute drops below ANY cosine
     assert blended == pytest.approx(-1.0)
+
+
+def test_rating_transfers_to_held_out_prompt_paraphrase():
+    """Shared token/bigram atoms transfer audit correction to a new prompt shape.
+
+    This is the cycle-16 load-bearing regression: the bank no longer needs the
+    exact same first-10-token prefix to learn away from a bad fragment.
+    """
+    bank = HebbianBank(learning_rate=0.1)
+    rated_prompt = "Tell me a joke about entropy"
+    held_out_prompt = "Write a joke about entropy please"
+    bad_fragment = "Aleph-null is the cardinality of the natural numbers"
+
+    assert _atom_from_prompt(rated_prompt) != _atom_from_prompt(held_out_prompt)
+    assert bank.lookup_for(held_out_prompt, bad_fragment) == 0.0
+
+    for _ in range(5):
+        bank.update(rated_prompt, [bad_fragment], rating=1.0)
+
+    exact_penalty = bank.lookup_for(rated_prompt, bad_fragment)
+    transferred_penalty = bank.lookup_for(held_out_prompt, bad_fragment)
+    assert exact_penalty == pytest.approx(-1.0)
+    assert transferred_penalty < 0.0
+    assert abs(transferred_penalty) < abs(exact_penalty)
 
 
 # =========================================================================
