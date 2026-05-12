@@ -115,15 +115,25 @@ extended.
 
 ## Counter-claims (what this does NOT mean)
 
+- **The "held-out" set is structurally similar to the training set,
+  by construction.** Three of five held-out prompts share the bigram
+  "consider the" with three of eight training prompts (also: "the
+  nature of", "the meaning of"). The substrate-wide Hebbian update
+  naturally lights up those shared bigram atoms; the curve therefore
+  demonstrates **the atom-family mechanism works as designed**, NOT
+  that the substrate generalizes to lexically-unrelated prompts. A
+  stricter generalization test would use held-out prompts whose
+  bigrams have zero overlap with any training prompt — the substrate
+  would then have to generalize via prefix or token atoms alone.
+  That stricter test is owed to a future pass. The plateau at k=15 is
+  consistent with this reading: once the shared-bigram atoms are
+  saturated, no more retrieval shifts because the held-out set has
+  no further atom-family overlap to draw from.
 - This is **not** subjective persona quality. The agent did not pass a
   blind A/B against a frontier model; we counted the appearance of a
   marker word.
 - The marker set is **closed** (12 words). A more demanding measurement
   would use a held-out marker set or rely on external GPT/lain rating.
-- The held-out shift is real but the **plateau is fast** (k=15). A
-  larger, more diverse held-out set would show whether the substrate
-  generalizes further or saturates because the persona-prompt shape
-  itself caps how many marker-bearing fragments the corpus can serve.
 - The corpus is small (~22k fragments). Real corpus scale-out
   (cycle-15 B2 / brief candidate E) would test whether the curve holds
   at 200k-500k words. That is the next-cycle work.
