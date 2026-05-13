@@ -665,19 +665,72 @@ class OrganicBrain {
           int role_slot = match->first;
           size_t span = match->second;
           int action_id = kAscii + role_slot;
+          // CYCLE-3.5 DUAL-LEARNING (trace-id-anchored literal channel):
+          //   primary channel — mode-switch weight at action_id = kAscii + role_slot,
+          //     supervised across ALL state features (globals + base context + trace-id
+          //     bindings). This is the cycle-3 path: the role-routing abstraction that
+          //     generalizes across unseen fillers via shared base-context features.
+          //   secondary channel — per-character literal weights at action_id = char, but
+          //     supervised ONLY via the TRACE-ID-derived state features (the per-event
+          //     memory anchor). Global features (global-prev / global-pos / global-bucket)
+          //     and base-context features (input-tokens, obs-tokens) are intentionally
+          //     EXCLUDED from the literal walk.
+          //
+          // WHY this asymmetry: cycle-3 routed the span ONLY to mode-switch, and when the
+          //   matching role was absent in a held-out observation the missing-role guardrail
+          //   zeroed mode-switch and no literal vote existed — the brain stalled. A naive
+          //   dual-learning that supervised literals across ALL features pushed literal
+          //   chars above mode-switch on unseen-filler events because shared base-context
+          //   features (memory-tok, person-obs, etc.) accumulated literal supervision from
+          //   every training event with the same shared token, and reward asymmetry
+          //   (source_fidelity-bonused train events have reward 2.0 vs others' 1.5) tipped
+          //   one literal past the mode-switch even after segment_mode_gain=0.3 scaling.
+          //
+          //   Trace-id-only literal supervision sidesteps the asymmetry. The trace-id
+          //   feature is event-specific by construction — at inference it fires in
+          //   proportion to the cosine similarity between the test query and that trained
+          //   trace. On direct_replay events (test query close to one trained trace), the
+          //   matched trace's trace-id supervises the trained char specifically; the brain
+          //   recovers the literal via the activated memory anchor. On unseen_filler events
+          //   (test query spreads similarity across multiple traces), trace-id literal
+          //   contributions diffuse across competing chars, while mode-switch retains its
+          //   full strength via globals + base-context + diffuse trace-id contributions.
+          //
+          // NEGATIVE-SPACE: still no inference-time substring-match, still no parser
+          //   branch. The literal supervision routing is training-time machinery; both
+          //   action paths live in the same connections_ substrate keyed by feature_id.
+          //   The literal walk uses a LOCAL `prev` that advances char-by-char so the
+          //   bigram chain (e.g. kStart → 'a' → 'r' → 'i' → 'n') exists at fallback time.
+          //   The OUTER `previous` after the span still becomes the span's last char so
+          //   the post-span transition feature scores against (filler-last → space).
           for (const auto& feature : state_features(features, previous, static_cast<int>(pos))) {
             connections_[feature.id].value[action_id] +=
                 trace.reward_scalar * feature.scale * config_.learning_rate;
             ++deltas;
           }
+          unsigned char local_prev = previous;
+          for (size_t k = 0; k < span; ++k) {
+            unsigned char c = static_cast<unsigned char>(target[pos + k]);
+            if (c >= kAscii) { local_prev = c; continue; }
+            if (config_.use_trace_id_feature) {
+              // Build trace-id-only state features and walk them. state_features prefixes
+              // its return with 3 global features (global-prev / global-pos / global-bucket)
+              // — skip indices [0..3) so literal supervision lands ONLY on the trace-id-
+              // derived bindings.
+              std::vector<Feature> trace_only = {{hash_pair("trace", event.event_id), 1.0}};
+              auto sf = state_features(trace_only, local_prev, static_cast<int>(pos + k));
+              for (size_t i = 3; i < sf.size(); ++i) {
+                connections_[sf[i].id].value[c] +=
+                    trace.reward_scalar * sf[i].scale * config_.learning_rate;
+                ++deltas;
+              }
+            }
+            learned_chars_.insert(c);
+            local_prev = c;
+          }
           // Advance past the copied span; previous becomes the filler's last char so the
           // post-span position scores against the correct transition feature.
           unsigned char last_in_span = static_cast<unsigned char>(target[pos + span - 1]);
-          // Filler chars participate in learned_chars_ so the loader catches them on round-trip.
-          for (size_t k = 0; k < span; ++k) {
-            unsigned char fc = static_cast<unsigned char>(target[pos + k]);
-            if (fc < kAscii) learned_chars_.insert(fc);
-          }
           pos += span;
           previous = (last_in_span < kAscii) ? last_in_span : previous;
         } else {
@@ -826,7 +879,21 @@ class OrganicBrain {
         if (A.second != B.second) return A.second > B.second;
         return A.first < B.first;
       });
-      if (ranked.empty()) break;
+      // CYCLE-3.5: emit an explicit END step when the only surviving votes are mode-switches
+      // for missing roles (all zeroed by the guardrail above) but a literal vote pre-zeroing
+      // had set `any=true`. Before this fix, the loop broke silently here; the generation
+      // evidence trail lost the decision and downstream artifact consumers had to infer the
+      // END from a missing step. The architecture doc names this the intended behavior.
+      if (ranked.empty()) {
+        GenerationStep end_step;
+        end_step.position = pos;
+        end_step.chosen = static_cast<unsigned char>(kEnd);
+        end_step.score = 0.0;
+        end_step.active_state_feature_count = active.size();
+        end_step.active_slot_copy_count = slot_copy_count;
+        gen.steps.push_back(end_step);
+        break;
+      }
 
       int chosen_action = ranked.front().first;
       double chosen_score = ranked.front().second;
@@ -1132,6 +1199,16 @@ class OrganicBrain {
     if (next_line().rfind("CREATED_UTC ", 0) != 0) throw std::runtime_error("pxstate: missing CREATED_UTC");
 
     // CONFIG line: space-separated key=value pairs. Override config_ fields bit-exactly.
+    // CYCLE-3.5 LEGACY DEFAULTS: cycle-2 snapshots predate the cycle-3 fields and write
+    // no `use_segment_mode=...`, `max_roles=...`, or `segment_mode_gain=...` tokens. Without
+    // an explicit reset here, those fields keep the binary defaults (use_segment_mode=true,
+    // segment_mode_gain=0.3) when loading a legacy snapshot, which silently changes the
+    // answer-path semantics of an old hash. The fix is to seed legacy defaults BEFORE
+    // parsing so present tokens override and absent tokens stay legacy. Cycle-3 snapshots
+    // always write all three keys (see serialize_state), so they round-trip identically.
+    config_.use_segment_mode = false;
+    config_.max_roles = kMaxRoles;
+    config_.segment_mode_gain = 0.3;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
     std::istringstream cfg_stream(cfg_line.substr(7));
@@ -1158,16 +1235,9 @@ class OrganicBrain {
       else if (k == "use_segment_mode") config_.use_segment_mode = (v != "0");
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
-    // Cycle-2 saves had no use_segment_mode key; default to FALSE so legacy state retains
-    // legacy behavior even though the binary defaults the flag to TRUE for new training.
-    // We detect cycle-2 saves by absence: the loader has already iterated all key=value
-    // pairs; if use_segment_mode was missing, the field still holds the binary default
-    // (TRUE). We can't tell "absent" from "explicitly set true" here without restructuring,
-    // so instead the cycle-3 saved snapshot ALWAYS writes the field (see serialize_state).
-    // Cycle-2 snapshots that lacked the field load with the binary default — but legacy
-    // CONNS rows have zero weights at indices [kAscii..), so generate never picks a
-    // mode-switch action anyway. The state_hash gate similarly fires only when there ARE
-    // segment_connections to hash. Net: behavior preserved.
+    // Legacy-default seeding (above) is what makes cycle-2 snapshots reload safely.
+    // Cycle-3 snapshots write use_segment_mode=1 explicitly; cycle-2 snapshots are silent
+    // and inherit the legacy-default false set just above the CONFIG parse loop.
     role_token_table_.clear();
     hdc_ = Hdc{config_};  // re-seed HDC from config_ (Hdc only depends on Config)
 
@@ -1678,6 +1748,12 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
         << ", \"score\": " << std::fixed << std::setprecision(6) << step.score << std::defaultfloat
         << ", \"active_state_feature_count\": " << step.active_state_feature_count
         << ", \"active_slot_copy_count\": " << step.active_slot_copy_count
+        // CYCLE-3.5: segment-mode evidence fields are exported so eval artifacts can audit
+        // when the brain entered copy mode and which observation role drove the copy. These
+        // fields were tracked on GenerationStep since cycle 3 but were never serialized.
+        << ", \"is_mode_switch\": " << (step.is_mode_switch ? "true" : "false")
+        << ", \"is_copy_emit\": " << (step.is_copy_emit ? "true" : "false")
+        << ", \"copy_role\": " << q(step.copy_role)
         << ", \"top_chars\": [";
     for (size_t j = 0; j < step.top_chars.size(); ++j) {
       if (j) out << ", ";
@@ -1694,6 +1770,10 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
 }
 
 void write_config(std::ostream& out, const Config& config) {
+  // CYCLE-3.5: segment-mode fields are part of the config-hash because they change
+  // answer-path behavior (action-space width + softmax mixing). Pre-3.5 artifacts
+  // omitted these and reported the same model_config_hash for cycle-2 and cycle-3 runs,
+  // which masked a meaningful semantic shift in audit comparisons.
   out << "{\"dimensions\": " << config.dimensions
       << ", \"seed\": " << config.seed
       << ", \"learning_rate\": " << config.learning_rate
@@ -1705,8 +1785,11 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"position_gain\": " << config.position_gain
       << ", \"state_binding_gain\": " << config.state_binding_gain
       << ", \"slot_pass_gain\": " << config.slot_pass_gain
+      << ", \"segment_mode_gain\": " << config.segment_mode_gain
       << ", \"use_trace_id_feature\": " << (config.use_trace_id_feature ? "true" : "false")
-      << ", \"use_slot_pass_through\": " << (config.use_slot_pass_through ? "true" : "false") << "}";
+      << ", \"use_slot_pass_through\": " << (config.use_slot_pass_through ? "true" : "false")
+      << ", \"use_segment_mode\": " << (config.use_segment_mode ? "true" : "false")
+      << ", \"max_roles\": " << config.max_roles << "}";
 }
 
 uint64_t config_hash(const Config& config) {
