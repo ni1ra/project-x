@@ -9,7 +9,7 @@ Generated: 2026-05-13 (post cycle-4 ship — trace-span-position literal memory 
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
 5. `docs/artifacts/CYCLE3_MECHANISM.md` — segment-mode architecture lock
-6. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-4.md` — cycle-4 mechanism, scoring, and measured lift
+6. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-4-422ed12.md` — cycle-4 mechanism, scoring, and measured lift
 7. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-3-5-5c69d51.md` — audit-vs-measured calibration canon
 8. `docs/past_work/` only when older context is needed
 
