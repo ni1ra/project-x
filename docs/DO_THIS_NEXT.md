@@ -100,6 +100,11 @@ jq '{run_id, model_state_hash, persistence, summary: .summary_metrics.overall, b
 git status --short
 ```
 
+## Follow-up Notes (advisor, not blocking)
+
+- `PXSTATE_V0` line format uses `|` as the field delimiter and trusts benchmark strings are pipe-free. The failure mode if a future benchmark item contains `|` in input/target/observation is `load_serialized_state` throwing on field-count mismatch — detected, not silent. A one-line `assert` in `serialize_state` on encountering `|` would lift this from "throws on next load" to "fails fast at write." Acceptable as-shipped; queue for next cycle if structural work overlaps the serializer.
+- Branch `feat/organic-v0-trace-id-ablation` now carries two distinct cycles' commits (cycle 1: trace-id ablation in `dab6e41`; cycle 2: benchmark + persistence in `a1168ec` + `787fe9b`). Branch name is stale relative to its contents. If lain plans to merge as one PR — fine. If as two — branch-split needed; do not act unprompted.
+
 ## Close Criteria For The Next Pass
 
 - A structural mechanism (segment generator OR HDC unbinding) that materially improves `unseen_filler` / `unseen_filler_long` / `intent_transfer` scores on the tightened benchmark.
