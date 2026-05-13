@@ -1,3 +1,10 @@
 build/
 __pycache__/
 *.pyc
+.claude/
+
+# Persistence runtime substrate — state snapshots and append-only event logs regenerate per run.
+# These ARE the organism's memory, but at this scale they are local-runtime artifacts, not source.
+# The eval-artifact JSONs (run/artifacts/) point to these paths and are the load-bearing evidence
+# tracked in git. To audit a snapshot, regenerate with `make test` or the persistence-self-test phase.
+run/state/

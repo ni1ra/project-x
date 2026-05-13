@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -38,7 +40,9 @@ struct Config {
   double transition_gain = 0.65;
   double position_gain = 0.35;
   double state_binding_gain = 1.35;
+  double slot_pass_gain = 7.5;
   bool use_trace_id_feature = true;
+  bool use_slot_pass_through = true;
 };
 
 struct Event {
@@ -52,6 +56,7 @@ struct Event {
   std::string target_output;
   std::map<std::string, double> reward;
   std::string source;
+  std::string composition = "unspecified";
 
   double reward_scalar() const {
     if (reward.empty()) return 0.0;
@@ -93,6 +98,7 @@ struct GenerationStep {
   double score = 0.0;
   std::vector<std::pair<unsigned char, double>> top_chars;
   size_t active_state_feature_count = 0;
+  size_t active_slot_copy_count = 0;
 };
 
 struct Generation {
@@ -102,10 +108,16 @@ struct Generation {
   uint64_t state_hash = 0;
   size_t connection_feature_count = 0;
   size_t connection_nonzero_count = 0;
+  size_t slot_copy_link_count = 0;
 };
 
 struct Weights {
   std::array<double, kAscii> value{};
+};
+
+struct ObservationSlot {
+  std::string type;
+  std::string value;
 };
 
 uint64_t fnv1a(std::string_view text, uint64_t seed = 1469598103934665603ull) {
@@ -246,6 +258,13 @@ std::string get_string(const std::string& line, const std::string& key) {
   return parse_string_at(line, pos);
 }
 
+std::optional<std::string> maybe_get_string(const std::string& line, const std::string& key) {
+  std::string needle = "\"" + key + "\"";
+  if (line.find(needle) == std::string::npos) return std::nullopt;
+  size_t pos = key_pos(line, key);
+  return parse_string_at(line, pos);
+}
+
 int get_int(const std::string& line, const std::string& key) {
   size_t pos = key_pos(line, key);
   size_t end = pos;
@@ -307,8 +326,68 @@ Event parse_event(const std::string& line) {
   event.target_output = get_string(line, "target_output");
   event.reward = get_number_object(line, "reward");
   event.source = get_string(line, "source");
+  if (auto composition = maybe_get_string(line, "composition")) event.composition = *composition;
   return event;
 }
+
+std::vector<ObservationSlot> parse_slots(const std::vector<std::string>& observations) {
+  std::vector<ObservationSlot> slots;
+  for (const auto& observation : observations) {
+    size_t colon = observation.find(':');
+    if (colon == std::string::npos || colon == 0 || colon + 1 >= observation.size()) continue;
+    slots.push_back({lower_ascii(observation.substr(0, colon)), lower_ascii(observation.substr(colon + 1))});
+  }
+  return slots;
+}
+
+// Persistence helpers — bit-exact double <-> hex64 so state_hash matches across save/load.
+std::string double_to_hex(double v) {
+  uint64_t bits;
+  std::memcpy(&bits, &v, sizeof(bits));
+  return hex64(bits);
+}
+
+double hex_to_double(const std::string& hex) {
+  uint64_t bits = std::stoull(hex, nullptr, 16);
+  double v;
+  std::memcpy(&v, &bits, sizeof(v));
+  return v;
+}
+
+// Split on a single delimiter char. No quoting; benchmark strings are pipe-free by audit.
+std::vector<std::string> split_delim(const std::string& s, char delim) {
+  std::vector<std::string> out;
+  std::string current;
+  for (char c : s) {
+    if (c == delim) { out.push_back(current); current.clear(); }
+    else current.push_back(c);
+  }
+  out.push_back(current);
+  return out;
+}
+
+// Forward decl — append_event_log_line is defined late (near orchestration phases) but called by
+// the artifact writers above it. C++ needs the prototype visible at the call site.
+struct Event;
+void append_event_log_line(const std::string& log_path, const std::string& organism_id,
+                           const std::string& phase, const Event& event,
+                           const std::string& raw_output, const std::string& expected,
+                           uint64_t state_before_hash, uint64_t state_after_hash,
+                           const std::string& source_kind, const std::string& source_path);
+
+// Persistence context plumbed through artifact writers and orchestration phases.
+struct PersistenceContext {
+  std::string loaded_state_path;
+  std::string saved_state_path;
+  std::string event_log_path;
+  std::string organism_id = "raphael-local-0001";
+  // load_status reports the actual runtime state of persistence for this run:
+  //   schema_only_not_runtime_persistence — neither save nor load nor event-log active
+  //   save_only_no_load_yet — saved state to disk but load contract not exercised this run
+  //   save_and_load_verified — fresh-process load round-trip succeeded with hash match
+  //   loaded_from_disk — this run started from a loaded state file
+  std::string load_status = "schema_only_not_runtime_persistence";
+};
 
 std::vector<Event> load_events(const std::string& path) {
   std::ifstream in(path);
@@ -331,6 +410,7 @@ std::vector<Event> load_events(const std::string& path) {
 struct SplitAudit {
   std::map<std::string, int> splits;
   std::map<std::string, std::set<int>> levels_by_domain;
+  std::map<std::string, std::map<std::string, int>> held_out_composition_by_domain;
   std::vector<std::string> duplicates;
 };
 
@@ -341,6 +421,7 @@ SplitAudit validate_splits(const std::vector<Event>& events) {
     audit.splits[event.split] += 1;
     audit.levels_by_domain[event.domain].insert(event.level);
     if (event.split == "train") train_inputs.insert(event.input);
+    else audit.held_out_composition_by_domain[event.domain][event.composition] += 1;
   }
   std::set<std::string> seen_duplicates;
   for (const auto& event : events) {
@@ -433,6 +514,8 @@ class OrganicBrain {
       return;
     }
 
+    learn_slot_pass_through(event.observations, event.target_output, trace.reward_scalar);
+
     auto features = context_features(event.input, event.observations);
     if (config_.use_trace_id_feature) {
       features.push_back({hash_pair("trace", event.event_id), 1.0});
@@ -459,6 +542,7 @@ class OrganicBrain {
     auto query = hdc_.encode_event(input, observations);
     gen.activations = retrieve(query);
     auto features = context_features(input, observations);
+    auto slots = parse_slots(observations);
     if (config_.use_trace_id_feature) {
       for (const auto& activation : gen.activations) {
         if (activation.similarity > 0.0) {
@@ -482,6 +566,8 @@ class OrganicBrain {
           }
         }
       }
+      size_t slot_copy_count = add_slot_pass_scores(scores, slots, pos);
+      if (slot_copy_count > 0) any = true;
       if (!any) break;
 
       std::vector<std::pair<unsigned char, double>> ranked;
@@ -499,6 +585,7 @@ class OrganicBrain {
       step.chosen = ranked.front().first;
       step.score = ranked.front().second;
       step.active_state_feature_count = active.size();
+      step.active_slot_copy_count = slot_copy_count;
       for (size_t i = 0; i < std::min<size_t>(5, ranked.size()); ++i) step.top_chars.push_back(ranked[i]);
       gen.steps.push_back(step);
 
@@ -509,6 +596,7 @@ class OrganicBrain {
     gen.state_hash = state_hash();
     gen.connection_feature_count = connections_.size();
     gen.connection_nonzero_count = connection_nonzero_count();
+    gen.slot_copy_link_count = slot_copy_weights_.size();
     return gen;
   }
 
@@ -516,6 +604,7 @@ class OrganicBrain {
     uint64_t h = fnv1a("organic-v0-state");
     h = combine(h, static_cast<uint64_t>(traces_.size()));
     h = combine(h, static_cast<uint64_t>(connections_.size()));
+    h = combine(h, static_cast<uint64_t>(slot_copy_weights_.size()));
     for (const auto& trace : traces_) {
       h = combine(h, fnv1a(trace.event_id));
       h = combine(h, fnv1a(trace.input));
@@ -532,6 +621,14 @@ class OrganicBrain {
         if (weights[c] != 0.0) h = combine(h, combine(static_cast<uint64_t>(c), static_cast<uint64_t>(std::llround(weights[c] * 1000000.0))));
       }
     }
+    std::vector<uint64_t> slot_keys;
+    slot_keys.reserve(slot_copy_weights_.size());
+    for (const auto& item : slot_copy_weights_) slot_keys.push_back(item.first);
+    std::sort(slot_keys.begin(), slot_keys.end());
+    for (uint64_t key : slot_keys) {
+      h = combine(h, key);
+      h = combine(h, static_cast<uint64_t>(std::llround(slot_copy_weights_.at(key) * 1000000.0)));
+    }
     return h;
   }
 
@@ -547,8 +644,254 @@ class OrganicBrain {
     return count;
   }
   size_t learned_char_count() const { return learned_chars_.size(); }
+  size_t slot_copy_link_count() const { return slot_copy_weights_.size(); }
+  const Config& config() const { return config_; }
+
+  // Line-oriented state snapshot. Ugly but loadable + hash-checked, per brief.
+  // Bit-exact doubles via hex64-of-IEEE-bits so state_hash matches across save/load.
+  void serialize_state(std::ostream& out, const std::string& organism_id) const {
+    out << "PXSTATE_V0\n";
+    out << "SCHEMA project_x.state_snapshot.v0\n";
+    out << "ORGANISM_ID " << organism_id << "\n";
+    out << "CREATED_UTC " << timestamp_utc() << "\n";
+    out << "CONFIG dimensions=" << config_.dimensions
+        << " seed=" << config_.seed
+        << " learning_rate=" << double_to_hex(config_.learning_rate)
+        << " top_k=" << config_.top_k
+        << " max_output_chars=" << config_.max_output_chars
+        << " trace_gain=" << double_to_hex(config_.trace_gain)
+        << " context_gain=" << double_to_hex(config_.context_gain)
+        << " transition_gain=" << double_to_hex(config_.transition_gain)
+        << " position_gain=" << double_to_hex(config_.position_gain)
+        << " state_binding_gain=" << double_to_hex(config_.state_binding_gain)
+        << " slot_pass_gain=" << double_to_hex(config_.slot_pass_gain)
+        << " use_trace_id_feature=" << (config_.use_trace_id_feature ? 1 : 0)
+        << " use_slot_pass_through=" << (config_.use_slot_pass_through ? 1 : 0)
+        << "\n";
+    out << "TRACES " << traces_.size() << "\n";
+    for (const auto& tr : traces_) {
+      // Observations joined with ','; benchmark observations contain no commas (audit).
+      std::string obs_csv;
+      for (size_t i = 0; i < tr.observations.size(); ++i) {
+        if (i) obs_csv.push_back(',');
+        obs_csv += tr.observations[i];
+      }
+      out << "T " << tr.event_id << "|" << tr.episode_id << "|" << tr.split << "|"
+          << tr.domain << "|" << tr.level << "|" << tr.input << "|" << obs_csv << "|"
+          << tr.target_output << "|" << double_to_hex(tr.reward_scalar) << "|";
+      for (int i = 0; i < kDim; ++i) {
+        if (i) out << ' ';
+        out << double_to_hex(tr.vector[i]);
+      }
+      out << "\n";
+    }
+    // Connections — sort by feature_id for determinism (matches state_hash ordering).
+    std::vector<uint64_t> conn_keys;
+    conn_keys.reserve(connections_.size());
+    for (const auto& kv : connections_) conn_keys.push_back(kv.first);
+    std::sort(conn_keys.begin(), conn_keys.end());
+    out << "CONNS " << conn_keys.size() << "\n";
+    for (uint64_t key : conn_keys) {
+      out << "C " << hex64(key) << "|";
+      const auto& weights = connections_.at(key).value;
+      bool first = true;
+      for (int c = 0; c < kAscii; ++c) {
+        if (weights[c] == 0.0) continue;
+        if (!first) out << ',';
+        out << c << ':' << double_to_hex(weights[c]);
+        first = false;
+      }
+      out << "\n";
+    }
+    std::vector<uint64_t> slot_keys;
+    slot_keys.reserve(slot_copy_weights_.size());
+    for (const auto& kv : slot_copy_weights_) slot_keys.push_back(kv.first);
+    std::sort(slot_keys.begin(), slot_keys.end());
+    out << "SLOTS " << slot_keys.size() << "\n";
+    for (uint64_t key : slot_keys) {
+      out << "S " << hex64(key) << ' ' << double_to_hex(slot_copy_weights_.at(key)) << "\n";
+    }
+    out << "LEARNED";
+    for (unsigned char c : learned_chars_) out << ' ' << static_cast<int>(c);
+    out << "\n";
+    out << "STATE_HASH " << hex64(state_hash()) << "\n";
+    out << "PXSTATE_END\n";
+  }
+
+  // Load a state snapshot. Throws on schema mismatch or malformed lines.
+  // After load, state_hash() must equal the STATE_HASH line value — caller verifies.
+  void load_serialized_state(std::istream& in) {
+    traces_.clear();
+    connections_.clear();
+    slot_copy_weights_.clear();
+    learned_chars_.clear();
+    mutation_connection_deltas_.clear();
+
+    std::string line;
+    auto next_line = [&]() -> std::string {
+      if (!std::getline(in, line)) throw std::runtime_error("pxstate: unexpected EOF");
+      return line;
+    };
+    if (next_line() != "PXSTATE_V0") throw std::runtime_error("pxstate: bad magic");
+    if (next_line().rfind("SCHEMA ", 0) != 0) throw std::runtime_error("pxstate: missing SCHEMA");
+    if (next_line().rfind("ORGANISM_ID ", 0) != 0) throw std::runtime_error("pxstate: missing ORGANISM_ID");
+    if (next_line().rfind("CREATED_UTC ", 0) != 0) throw std::runtime_error("pxstate: missing CREATED_UTC");
+
+    // CONFIG line: space-separated key=value pairs. Override config_ fields bit-exactly.
+    std::string cfg_line = next_line();
+    if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
+    std::istringstream cfg_stream(cfg_line.substr(7));
+    std::string token;
+    while (cfg_stream >> token) {
+      size_t eq = token.find('=');
+      if (eq == std::string::npos) continue;
+      std::string k = token.substr(0, eq);
+      std::string v = token.substr(eq + 1);
+      if (k == "dimensions") config_.dimensions = std::stoi(v);
+      else if (k == "seed") config_.seed = std::stoull(v);
+      else if (k == "top_k") config_.top_k = std::stoi(v);
+      else if (k == "max_output_chars") config_.max_output_chars = std::stoi(v);
+      else if (k == "learning_rate") config_.learning_rate = hex_to_double(v);
+      else if (k == "trace_gain") config_.trace_gain = hex_to_double(v);
+      else if (k == "context_gain") config_.context_gain = hex_to_double(v);
+      else if (k == "transition_gain") config_.transition_gain = hex_to_double(v);
+      else if (k == "position_gain") config_.position_gain = hex_to_double(v);
+      else if (k == "state_binding_gain") config_.state_binding_gain = hex_to_double(v);
+      else if (k == "slot_pass_gain") config_.slot_pass_gain = hex_to_double(v);
+      else if (k == "use_trace_id_feature") config_.use_trace_id_feature = (v != "0");
+      else if (k == "use_slot_pass_through") config_.use_slot_pass_through = (v != "0");
+    }
+    hdc_ = Hdc{config_};  // re-seed HDC from config_ (Hdc only depends on Config)
+
+    // TRACES N
+    std::string traces_header = next_line();
+    if (traces_header.rfind("TRACES ", 0) != 0) throw std::runtime_error("pxstate: missing TRACES");
+    size_t n_traces = std::stoull(traces_header.substr(7));
+    for (size_t i = 0; i < n_traces; ++i) {
+      std::string tline = next_line();
+      if (tline.rfind("T ", 0) != 0) throw std::runtime_error("pxstate: bad TRACE row");
+      auto fields = split_delim(tline.substr(2), '|');
+      if (fields.size() != 10) throw std::runtime_error("pxstate: TRACE field count");
+      Trace tr;
+      tr.event_id = fields[0];
+      tr.episode_id = fields[1];
+      tr.split = fields[2];
+      tr.domain = fields[3];
+      tr.level = std::stoi(fields[4]);
+      tr.input = fields[5];
+      if (!fields[6].empty()) tr.observations = split_delim(fields[6], ',');
+      tr.target_output = fields[7];
+      tr.reward_scalar = hex_to_double(fields[8]);
+      std::istringstream vec_stream(fields[9]);
+      std::string elem;
+      int idx = 0;
+      while (vec_stream >> elem) {
+        if (idx >= kDim) throw std::runtime_error("pxstate: vector overflow");
+        tr.vector[idx++] = hex_to_double(elem);
+      }
+      if (idx != kDim) throw std::runtime_error("pxstate: vector dim mismatch");
+      traces_.push_back(std::move(tr));
+    }
+
+    // CONNS M
+    std::string conns_header = next_line();
+    if (conns_header.rfind("CONNS ", 0) != 0) throw std::runtime_error("pxstate: missing CONNS");
+    size_t n_conns = std::stoull(conns_header.substr(6));
+    for (size_t i = 0; i < n_conns; ++i) {
+      std::string cline = next_line();
+      if (cline.rfind("C ", 0) != 0) throw std::runtime_error("pxstate: bad CONN row");
+      auto pipe = cline.find('|');
+      if (pipe == std::string::npos) throw std::runtime_error("pxstate: CONN missing |");
+      uint64_t fid = std::stoull(cline.substr(2, pipe - 2), nullptr, 16);
+      Weights w{};
+      std::string rest = cline.substr(pipe + 1);
+      if (!rest.empty()) {
+        for (const auto& pair : split_delim(rest, ',')) {
+          auto colon = pair.find(':');
+          if (colon == std::string::npos) throw std::runtime_error("pxstate: CONN missing :");
+          int c = std::stoi(pair.substr(0, colon));
+          if (c < 0 || c >= kAscii) throw std::runtime_error("pxstate: CONN c out of range");
+          w.value[c] = hex_to_double(pair.substr(colon + 1));
+        }
+      }
+      connections_[fid] = w;
+    }
+
+    // SLOTS K
+    std::string slots_header = next_line();
+    if (slots_header.rfind("SLOTS ", 0) != 0) throw std::runtime_error("pxstate: missing SLOTS");
+    size_t n_slots = std::stoull(slots_header.substr(6));
+    for (size_t i = 0; i < n_slots; ++i) {
+      std::string sline = next_line();
+      if (sline.rfind("S ", 0) != 0) throw std::runtime_error("pxstate: bad SLOT row");
+      auto sp = sline.find(' ', 2);
+      if (sp == std::string::npos) throw std::runtime_error("pxstate: SLOT missing space");
+      uint64_t key = std::stoull(sline.substr(2, sp - 2), nullptr, 16);
+      slot_copy_weights_[key] = hex_to_double(sline.substr(sp + 1));
+    }
+
+    // LEARNED <chars>
+    std::string learned_line = next_line();
+    if (learned_line.rfind("LEARNED", 0) != 0) throw std::runtime_error("pxstate: missing LEARNED");
+    std::istringstream learned_stream(learned_line.substr(7));
+    int cv;
+    while (learned_stream >> cv) {
+      if (cv < 0 || cv >= kAscii) throw std::runtime_error("pxstate: LEARNED char out of range");
+      learned_chars_.insert(static_cast<unsigned char>(cv));
+    }
+
+    // STATE_HASH (caller verifies match against state_hash() after load).
+    std::string hash_line = next_line();
+    if (hash_line.rfind("STATE_HASH ", 0) != 0) throw std::runtime_error("pxstate: missing STATE_HASH");
+    expected_state_hash_ = std::stoull(hash_line.substr(11), nullptr, 16);
+    std::string end_line = next_line();
+    if (end_line != "PXSTATE_END") throw std::runtime_error("pxstate: missing PXSTATE_END");
+  }
+
+  uint64_t expected_state_hash() const { return expected_state_hash_; }
 
  private:
+  uint64_t slot_copy_key(const std::string& type, int output_position, int filler_position) const {
+    return combine(hash_pair("slot-copy-type", type),
+                   combine(static_cast<uint64_t>(output_position),
+                           combine(fnv1a("filler-pos"), static_cast<uint64_t>(filler_position))));
+  }
+
+  void learn_slot_pass_through(const std::vector<std::string>& observations, const std::string& target,
+                               double reward_scalar) {
+    if (!config_.use_slot_pass_through) return;
+    std::string lower_target = lower_ascii(target);
+    for (const auto& slot : parse_slots(observations)) {
+      if (slot.value.empty()) continue;
+      size_t start = lower_target.find(slot.value);
+      while (start != std::string::npos) {
+        for (size_t i = 0; i < slot.value.size(); ++i) {
+          if (static_cast<unsigned char>(slot.value[i]) >= kAscii) continue;
+          slot_copy_weights_[slot_copy_key(slot.type, static_cast<int>(start + i), static_cast<int>(i))] +=
+              reward_scalar * config_.learning_rate;
+        }
+        start = lower_target.find(slot.value, start + 1);
+      }
+    }
+  }
+
+  size_t add_slot_pass_scores(std::array<double, kAscii>& scores, const std::vector<ObservationSlot>& slots,
+                              int position) const {
+    if (!config_.use_slot_pass_through) return 0;
+    size_t active = 0;
+    for (const auto& slot : slots) {
+      for (size_t i = 0; i < slot.value.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(slot.value[i]);
+        if (c >= kAscii) continue;
+        auto found = slot_copy_weights_.find(slot_copy_key(slot.type, position, static_cast<int>(i)));
+        if (found == slot_copy_weights_.end()) continue;
+        scores[c] += found->second * config_.slot_pass_gain;
+        ++active;
+      }
+    }
+    return active;
+  }
+
   std::vector<Feature> context_features(const std::string& input, const std::vector<std::string>& observations) const {
     std::vector<Feature> features;
     features.push_back({fnv1a("bias"), 0.15});
@@ -608,8 +951,10 @@ class OrganicBrain {
   Hdc hdc_;
   std::vector<Trace> traces_;
   std::unordered_map<uint64_t, Weights> connections_;
+  std::unordered_map<uint64_t, double> slot_copy_weights_;
   std::set<unsigned char> learned_chars_;
   std::vector<size_t> mutation_connection_deltas_;
+  uint64_t expected_state_hash_ = 0;  // populated by load_serialized_state for round-trip verification
 };
 
 OrganicBrain train_brain(const std::vector<Event>& events, const Config& config) {
@@ -705,6 +1050,21 @@ void write_split_audit(std::ostream& out, const std::vector<Event>& events, cons
     first = false;
   }
   out << "},\n";
+  out << pad << "  \"held_out_composition_by_domain\": {";
+  first = true;
+  for (const auto& domain_item : audit.held_out_composition_by_domain) {
+    if (!first) out << ", ";
+    out << q(domain_item.first) << ": {";
+    bool first_comp = true;
+    for (const auto& comp_item : domain_item.second) {
+      if (!first_comp) out << ", ";
+      out << q(comp_item.first) << ": " << comp_item.second;
+      first_comp = false;
+    }
+    out << "}";
+    first = false;
+  }
+  out << "},\n";
   out << pad << "  \"levels_0_to_3_present\": {";
   first = true;
   for (const auto& item : audit.levels_by_domain) {
@@ -749,6 +1109,7 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
         << ", \"chosen\": " << q(char_label(step.chosen))
         << ", \"score\": " << std::fixed << std::setprecision(6) << step.score << std::defaultfloat
         << ", \"active_state_feature_count\": " << step.active_state_feature_count
+        << ", \"active_slot_copy_count\": " << step.active_slot_copy_count
         << ", \"top_chars\": [";
     for (size_t j = 0; j < step.top_chars.size(); ++j) {
       if (j) out << ", ";
@@ -760,6 +1121,7 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
   }
   out << "], \"connection_feature_count\": " << gen.connection_feature_count
       << ", \"connection_nonzero_count\": " << gen.connection_nonzero_count
+      << ", \"slot_copy_link_count\": " << gen.slot_copy_link_count
       << ", \"state_hash\": " << q(hex64(gen.state_hash)) << "}";
 }
 
@@ -774,7 +1136,9 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"transition_gain\": " << config.transition_gain
       << ", \"position_gain\": " << config.position_gain
       << ", \"state_binding_gain\": " << config.state_binding_gain
-      << ", \"use_trace_id_feature\": " << (config.use_trace_id_feature ? "true" : "false") << "}";
+      << ", \"slot_pass_gain\": " << config.slot_pass_gain
+      << ", \"use_trace_id_feature\": " << (config.use_trace_id_feature ? "true" : "false")
+      << ", \"use_slot_pass_through\": " << (config.use_slot_pass_through ? "true" : "false") << "}";
 }
 
 uint64_t config_hash(const Config& config) {
@@ -810,6 +1174,21 @@ void write_backend_facts(std::ostream& out) {
   out << "}";
 }
 
+void write_persistence_contract(std::ostream& out, const PersistenceContext& ctx) {
+  auto path_or_null = [&](const std::string& p) -> std::string {
+    return p.empty() ? std::string("null") : (std::string("\"") + json_escape(p) + "\"");
+  };
+  out << "{";
+  out << "\"status\": \"" << json_escape(ctx.load_status) << "\", ";
+  out << "\"event_log_schema_path\": \"docs/PERSISTENCE_SCHEMA.md#event-log-jsonl-v0\", ";
+  out << "\"state_snapshot_schema_path\": \"docs/PERSISTENCE_SCHEMA.md#state-snapshot-binary-v0\", ";
+  out << "\"organism_id\": \"" << json_escape(ctx.organism_id) << "\", ";
+  out << "\"loaded_state_path\": " << path_or_null(ctx.loaded_state_path) << ", ";
+  out << "\"saved_state_path\": " << path_or_null(ctx.saved_state_path) << ", ";
+  out << "\"appended_event_log_path\": " << path_or_null(ctx.event_log_path);
+  out << "}";
+}
+
 std::vector<std::string> reward_keys(const std::vector<Event>& events) {
   std::set<std::string> keys;
   for (const auto& event : events) {
@@ -833,13 +1212,24 @@ std::string command_string(int argc, char** argv) {
 }
 
 void write_train_artifact(const std::string& out_path, const std::string& data_path, const std::string& mode,
-                          const std::string& command, const std::vector<Event>& events, const Config& config) {
+                          const std::string& command, const std::vector<Event>& events, const Config& config,
+                          PersistenceContext& persistence) {
   auto audit = validate_splits(events);
   if (!audit.duplicates.empty()) throw std::runtime_error("held-out prompt duplicates training prompt");
   auto brain = train_brain(events, config);
   std::string ts = timestamp_utc();
   uint64_t state = brain.state_hash();
   std::string run_id = "organic-v0-train-" + hex64(fnv1a(ts + hex64(state))).substr(0, 12);
+
+  // Persistence side-effects: save state and/or append event log if paths were provided.
+  if (!persistence.saved_state_path.empty()) {
+    ensure_parent_dir(persistence.saved_state_path);
+    std::ofstream state_out(persistence.saved_state_path);
+    brain.serialize_state(state_out, persistence.organism_id);
+    if (persistence.load_status == "schema_only_not_runtime_persistence") {
+      persistence.load_status = "save_only_no_load_yet";
+    }
+  }
 
   ensure_parent_dir(out_path);
   std::ofstream out(out_path);
@@ -853,6 +1243,7 @@ void write_train_artifact(const std::string& out_path, const std::string& data_p
   out << "  \"model_config_hash\": " << q(hex64(config_hash(config))) << ",\n";
   out << "  \"model_state_hash\": " << q(hex64(state)) << ",\n";
   out << "  \"benchmark_path\": " << q(data_path) << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
   out << "  \"train_dev_test_split\": "; write_split_audit(out, events, audit, 2); out << ",\n";
   out << "  \"available_tools\": [\"native_cpp20_stdlib\"],\n";
   out << "  \"backend_facts\": "; write_backend_facts(out); out << ",\n";
@@ -871,6 +1262,7 @@ void write_train_artifact(const std::string& out_path, const std::string& data_p
     out << "    {\"event_id\": " << q(event.event_id)
         << ", \"domain\": " << q(event.domain)
         << ", \"level\": " << event.level
+        << ", \"composition\": " << q(event.composition)
         << ", \"input\": " << q(event.input)
         << ", \"target_output\": " << q(event.target_output)
         << ", \"raw_generated_output\": " << q(gen.output)
@@ -883,6 +1275,7 @@ void write_train_artifact(const std::string& out_path, const std::string& data_p
   out << "  \"model_state\": {\"trace_count\": " << brain.trace_count()
       << ", \"connection_feature_count\": " << brain.connection_feature_count()
       << ", \"connection_nonzero_count\": " << brain.connection_nonzero_count()
+      << ", \"slot_copy_link_count\": " << brain.slot_copy_link_count()
       << ", \"learned_char_count\": " << brain.learned_char_count()
       << ", \"state_hash\": " << q(hex64(state)) << "},\n";
   out << "  \"honest_interpretation\": \"Native organic-v0 stores rewarded event/output associations as state-bound character connections. Raw outputs are generated after training and are not cleaned.\"\n";
@@ -917,10 +1310,31 @@ void write_summary_map(std::ostream& out, const std::map<std::string, EvalSummar
 }
 
 void write_eval_artifact(const std::string& out_path, const std::string& data_path, const std::string& mode,
-                         const std::string& command, const std::vector<Event>& events, const Config& config) {
+                         const std::string& command, const std::vector<Event>& events, const Config& config,
+                         PersistenceContext& persistence) {
   auto audit = validate_splits(events);
   if (!audit.duplicates.empty()) throw std::runtime_error("held-out prompt duplicates training prompt");
-  auto brain = train_brain(events, config);
+  OrganicBrain brain(config);
+  if (!persistence.loaded_state_path.empty()) {
+    std::ifstream state_in(persistence.loaded_state_path);
+    if (!state_in) throw std::runtime_error("cannot open loaded state: " + persistence.loaded_state_path);
+    brain.load_serialized_state(state_in);
+    if (brain.state_hash() != brain.expected_state_hash()) {
+      throw std::runtime_error("loaded state hash mismatch: file=" + hex64(brain.expected_state_hash()) +
+                               " recomputed=" + hex64(brain.state_hash()));
+    }
+    persistence.load_status = "loaded_from_disk";
+  } else {
+    brain = train_brain(events, config);
+    if (!persistence.saved_state_path.empty()) {
+      ensure_parent_dir(persistence.saved_state_path);
+      std::ofstream state_out(persistence.saved_state_path);
+      brain.serialize_state(state_out, persistence.organism_id);
+      if (persistence.load_status == "schema_only_not_runtime_persistence") {
+        persistence.load_status = "save_only_no_load_yet";
+      }
+    }
+  }
   auto alphabet = collect_alphabet(events);
 
   struct Result {
@@ -931,10 +1345,17 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
     double ratio = 0.0;
   };
 
+  // Held-out generation does not mutate brain state — state_hash is constant for all eval events,
+  // so we capture it once and reuse it for the event-log's state_before/state_after fields.
+  uint64_t eval_state_hash = brain.state_hash();
+  std::string eval_source = persistence.loaded_state_path.empty() ? std::string("benchmark") : std::string("loaded_state");
+  std::string eval_source_path = persistence.loaded_state_path.empty() ? data_path : persistence.loaded_state_path;
+
   std::vector<Result> results;
   std::map<std::string, EvalSummary> by_split;
   std::map<std::string, EvalSummary> by_domain;
   std::map<std::string, EvalSummary> by_level;
+  std::map<std::string, EvalSummary> by_composition;
   EvalSummary overall;
   for (const auto& event : events) {
     if (event.split == "train") continue;
@@ -950,6 +1371,12 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
     add_summary(by_split, event.split, result.exact, result.ratio);
     add_summary(by_domain, event.domain, result.exact, result.ratio);
     add_summary(by_level, std::to_string(event.level), result.exact, result.ratio);
+    add_summary(by_composition, event.composition, result.exact, result.ratio);
+    // Persistence side-effect: append one event-log line per held-out generate so the organism's
+    // experience stream records what it was asked and what it emitted. before==after (no learning).
+    append_event_log_line(persistence.event_log_path, persistence.organism_id, "generate", event,
+                          result.gen.output, event.target_output, eval_state_hash, eval_state_hash,
+                          eval_source, eval_source_path);
     results.push_back(std::move(result));
   }
 
@@ -970,6 +1397,7 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
   out << "  \"model_config_hash\": " << q(hex64(config_hash(config))) << ",\n";
   out << "  \"model_state_hash\": " << q(hex64(state)) << ",\n";
   out << "  \"benchmark_path\": " << q(data_path) << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
   out << "  \"train_dev_test_split\": "; write_split_audit(out, events, audit, 2); out << ",\n";
   out << "  \"available_tools\": [\"native_cpp20_stdlib\"],\n";
   out << "  \"backend_facts\": "; write_backend_facts(out); out << ",\n";
@@ -989,6 +1417,7 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
         << ", \"split\": " << q(event.split)
         << ", \"domain\": " << q(event.domain)
         << ", \"level\": " << event.level
+        << ", \"composition\": " << q(event.composition)
         << ", \"input\": " << q(event.input)
         << ", \"observations\": [";
     for (size_t j = 0; j < event.observations.size(); ++j) { if (j) out << ", "; out << q(event.observations[j]); }
@@ -1020,6 +1449,7 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
   write_summary_map(out, by_split);
   out << ", \"by_domain\": "; write_summary_map(out, by_domain);
   out << ", \"by_level\": "; write_summary_map(out, by_level);
+  out << ", \"by_composition\": "; write_summary_map(out, by_composition);
   out << "},\n";
   out << "  \"failure_cases\": [";
   bool first_failure = true;
@@ -1030,6 +1460,7 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
     out << "{\"event_id\": " << q(event.event_id)
         << ", \"domain\": " << q(event.domain)
         << ", \"level\": " << event.level
+        << ", \"composition\": " << q(event.composition)
         << ", \"raw_generated_output\": " << q(result.gen.output)
         << ", \"expected_output\": " << q(event.target_output)
         << ", \"failure_reason\": " << q(failure_reason(result.gen.output, event.target_output))
@@ -1077,6 +1508,11 @@ struct Args {
   std::string mode = "test";
   std::string data = "benchmarks/v2_ladder/organic_v0.jsonl";
   std::string out;
+  std::string save_state;
+  std::string load_state;
+  std::string event_log;
+  std::string verify_event_id;
+  std::string organism_id = "raphael-local-0001";
   bool ablate_trace_id = false;
 };
 
@@ -1092,6 +1528,11 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--mode") args.mode = need_value(key);
     else if (key == "--data") args.data = need_value(key);
     else if (key == "--out") args.out = need_value(key);
+    else if (key == "--save-state") args.save_state = need_value(key);
+    else if (key == "--load-state") args.load_state = need_value(key);
+    else if (key == "--event-log") args.event_log = need_value(key);
+    else if (key == "--verify-event") args.verify_event_id = need_value(key);
+    else if (key == "--organism-id") args.organism_id = need_value(key);
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
@@ -1099,25 +1540,231 @@ Args parse_args(int argc, char** argv) {
   return args;
 }
 
+// Append one JSONL event-log line per the docs/PERSISTENCE_SCHEMA.md v0 schema.
+// Open in append mode; flush after each line so a crash mid-run preserves history.
+void append_event_log_line(const std::string& log_path, const std::string& organism_id,
+                           const std::string& phase, const Event& event,
+                           const std::string& raw_output, const std::string& expected,
+                           uint64_t state_before_hash, uint64_t state_after_hash,
+                           const std::string& source_kind, const std::string& source_path) {
+  if (log_path.empty()) return;
+  ensure_parent_dir(log_path);
+  std::ofstream log(log_path, std::ios::app);
+  if (!log) throw std::runtime_error("cannot open event log: " + log_path);
+  log << "{\"schema\":\"project_x.event_log.v0\","
+      << "\"event_id\":\"" << json_escape(event.event_id) << "\","
+      << "\"organism_id\":\"" << json_escape(organism_id) << "\","
+      << "\"timestamp_utc\":\"" << timestamp_utc() << "\","
+      << "\"source\":{\"kind\":\"" << json_escape(source_kind)
+      << "\",\"path\":\"" << json_escape(source_path)
+      << "\",\"source_event_id\":\"" << json_escape(event.event_id) << "\"},"
+      << "\"phase\":\"" << json_escape(phase) << "\","
+      << "\"input\":{\"text\":" << q(event.input) << ",\"observations\":[";
+  for (size_t i = 0; i < event.observations.size(); ++i) {
+    if (i) log << ",";
+    log << q(event.observations[i]);
+  }
+  log << "]},\"output\":{\"raw_generated_output\":" << q(raw_output)
+      << ",\"expected_output\":" << q(expected)
+      << ",\"oracle_used_in_generation\":false},"
+      << "\"state_before_hash\":\"" << hex64(state_before_hash) << "\","
+      << "\"state_after_hash\":\"" << hex64(state_after_hash) << "\"}\n";
+}
+
+// Orchestrate the persistence round-trip: train → save → spawn child → load+generate → verify.
+// Honors brief's "fresh process must load prior state and generate without replaying full training stream".
+void persistence_self_test(const Args& args) {
+  if (args.save_state.empty()) throw std::runtime_error("persistence-self-test requires --save-state");
+  if (args.out.empty()) throw std::runtime_error("persistence-self-test requires --out");
+
+  Config config;
+  if (args.ablate_trace_id) config.use_trace_id_feature = false;
+  auto events = load_events(args.data);
+  std::string verify_id = args.verify_event_id.empty() ? "evt_mem_test_001" : args.verify_event_id;
+  const Event* verify_event = nullptr;
+  for (const auto& ev : events) {
+    if (ev.event_id == verify_id) { verify_event = &ev; break; }
+  }
+  if (!verify_event) throw std::runtime_error("verify event not in benchmark: " + verify_id);
+
+  // Parent process: train INCREMENTALLY so we can record honest per-event state-hash transitions.
+  // (train_brain() exists but trains in one shot; the event log requires before/after hashes per event,
+  //  so we replicate its inner loop here. Cost: ~2M hash ops over 20 events — microseconds.)
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();  // start fresh; child will append
+  }
+  OrganicBrain brain(config);
+  uint64_t before_hash = brain.state_hash();
+  for (const auto& ev : events) {
+    if (ev.split != "train") continue;
+    brain.learn(ev);
+    uint64_t after_hash = brain.state_hash();
+    if (!args.event_log.empty()) {
+      // Per-event log line — state_before/after are HONEST transitions, not final-state stamps.
+      // raw_generated_output == target_output because learning is rewarded against the target.
+      append_event_log_line(args.event_log, args.organism_id, "learn", ev, ev.target_output, ev.target_output,
+                            before_hash, after_hash, "benchmark", args.data);
+    }
+    before_hash = after_hash;
+  }
+  uint64_t pre_hash = brain.state_hash();
+  auto pre_gen = brain.generate(verify_event->input, verify_event->observations);
+  if (!args.event_log.empty()) {
+    // Generate is read-only (no learning) — state_after equals state_before.
+    append_event_log_line(args.event_log, args.organism_id, "generate", *verify_event, pre_gen.output,
+                          verify_event->target_output, pre_hash, pre_hash, "benchmark", args.data);
+  }
+
+  // Save state snapshot AFTER training — this is what the child will load.
+  ensure_parent_dir(args.save_state);
+  {
+    std::ofstream state_out(args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+  }
+
+  // Child process: load state, generate same event, write verdict JSON.
+  std::string child_out = args.out + ".child.json";
+  std::ostringstream cmd;
+  cmd << "./build/organic_v0 --phase persistence-load-verify"
+      << " --load-state " << args.save_state
+      << " --data " << args.data
+      << " --verify-event " << verify_id
+      << " --out " << child_out
+      << " --organism-id " << args.organism_id;
+  if (!args.event_log.empty()) cmd << " --event-log " << args.event_log;
+  if (args.ablate_trace_id) cmd << " --ablate-trace-id";
+  int rc = std::system(cmd.str().c_str());
+  if (rc != 0) throw std::runtime_error("child persistence-load-verify failed with rc=" + std::to_string(rc));
+
+  // Parse child verdict — minimal JSON: read two keys from a single-line JSON file.
+  // The .child.json is a temp file; the parent verdict written below contains all the same fields
+  // plus the parent-side ones, so the child file is redundant and deleted after read.
+  std::ifstream child(child_out);
+  std::string verdict((std::istreambuf_iterator<char>(child)), std::istreambuf_iterator<char>());
+  child.close();
+  std::string child_hash = get_string(verdict, "loaded_state_hash");
+  std::string child_output = get_string(verdict, "raw_generated_output");
+  std::error_code rm_ec;
+  std::filesystem::remove(child_out, rm_ec);  // best-effort cleanup; ignore errors
+  std::string parent_hash = hex64(pre_hash);
+  bool hash_match = (child_hash == parent_hash);
+  bool output_match = (child_output == pre_gen.output);
+
+  // Write parent-side verdict artifact.
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-persist-" + hex64(fnv1a(ts + parent_hash)).substr(0, 12);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"persistence-self-test\",\n";
+  out << "  \"organism_id\": " << q(args.organism_id) << ",\n";
+  out << "  \"saved_state_path\": " << q(args.save_state) << ",\n";
+  out << "  \"appended_event_log_path\": " << (args.event_log.empty() ? "null" : q(args.event_log)) << ",\n";
+  out << "  \"child_verdict_path\": " << q(child_out) << ",\n";
+  out << "  \"verify_event_id\": " << q(verify_id) << ",\n";
+  out << "  \"parent_state_hash\": " << q(parent_hash) << ",\n";
+  out << "  \"parent_raw_output\": " << q(pre_gen.output) << ",\n";
+  out << "  \"child_state_hash\": " << q(child_hash) << ",\n";
+  out << "  \"child_raw_output\": " << q(child_output) << ",\n";
+  out << "  \"hash_match\": " << (hash_match ? "true" : "false") << ",\n";
+  out << "  \"output_match\": " << (output_match ? "true" : "false") << ",\n";
+  out << "  \"load_status\": " << (hash_match && output_match ? q("save_and_load_verified") : q("save_and_load_FAILED")) << ",\n";
+  out << "  \"honest_interpretation\": \"Round-trip persistence: parent trained from JSONL, saved state, child process loaded state, generated same held-out event. Hash + output match proves the load contract.\"\n";
+  out << "}\n";
+
+  if (!hash_match || !output_match) {
+    throw std::runtime_error("persistence round-trip FAILED — hash_match=" + std::to_string(hash_match) +
+                             " output_match=" + std::to_string(output_match));
+  }
+  std::cout << "persistence round-trip OK (hash " << parent_hash << " match, output " << q(pre_gen.output) << " match)\n";
+}
+
+// Child phase: load state, generate one event, write minimal verdict JSON. Invoked by persistence_self_test.
+void persistence_load_verify(const Args& args) {
+  if (args.load_state.empty()) throw std::runtime_error("persistence-load-verify requires --load-state");
+  if (args.verify_event_id.empty()) throw std::runtime_error("persistence-load-verify requires --verify-event");
+  if (args.out.empty()) throw std::runtime_error("persistence-load-verify requires --out");
+
+  Config config;
+  if (args.ablate_trace_id) config.use_trace_id_feature = false;
+  OrganicBrain brain(config);
+  std::ifstream state_in(args.load_state);
+  if (!state_in) throw std::runtime_error("cannot open state file: " + args.load_state);
+  brain.load_serialized_state(state_in);
+  uint64_t recomputed = brain.state_hash();
+  uint64_t expected = brain.expected_state_hash();
+  bool hash_ok = (recomputed == expected);
+
+  auto events = load_events(args.data);
+  const Event* ev = nullptr;
+  for (const auto& e : events) if (e.event_id == args.verify_event_id) { ev = &e; break; }
+  if (!ev) throw std::runtime_error("verify event not in benchmark: " + args.verify_event_id);
+
+  auto gen = brain.generate(ev->input, ev->observations);
+  if (!args.event_log.empty()) {
+    append_event_log_line(args.event_log, args.organism_id, "child_generate", *ev, gen.output,
+                          ev->target_output, recomputed, recomputed, "loaded_state", args.load_state);
+  }
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\"phase\":\"persistence-load-verify\","
+      << "\"loaded_state_path\":" << q(args.load_state) << ","
+      << "\"loaded_state_hash\":" << q(hex64(recomputed)) << ","
+      << "\"expected_state_hash\":" << q(hex64(expected)) << ","
+      << "\"hash_self_check\":" << (hash_ok ? "true" : "false") << ","
+      << "\"verify_event_id\":" << q(args.verify_event_id) << ","
+      << "\"raw_generated_output\":" << q(gen.output) << ","
+      << "\"expected_output\":" << q(ev->target_output) << "}\n";
+  if (!hash_ok) {
+    throw std::runtime_error("load_state_hash mismatch after deserialization: expected=" +
+                             hex64(expected) + " recomputed=" + hex64(recomputed));
+  }
+}
+
 }  // namespace px
 
 int main(int argc, char** argv) {
   try {
     px::Args args = px::parse_args(argc, argv);
+    // Sentinel phases bypass the normal artifact-writer pipeline:
+    //   self-test                 — cold-brain emit-then-learn-then-emit substrate guard
+    //   persistence-self-test     — full round-trip save/spawn-child/load/verify orchestration
+    //   persistence-load-verify   — child phase invoked by persistence-self-test
     if (args.phase == "self-test") {
       px::self_test();
       return 0;
     }
+    if (args.phase == "persistence-self-test") {
+      px::persistence_self_test(args);
+      return 0;
+    }
+    if (args.phase == "persistence-load-verify") {
+      px::persistence_load_verify(args);
+      return 0;
+    }
+
+    // train / eval — normal artifact-writer pipeline. Persistence side-effects honored if paths provided.
     if (args.out.empty()) throw std::runtime_error("--out is required for train/eval");
     px::Config config;
     if (args.ablate_trace_id) config.use_trace_id_feature = false;
     auto events = px::load_events(args.data);
     std::string command = px::command_string(argc, argv);
+
+    // PersistenceContext threaded through artifact writers; status updates as side-effects occur (save / load).
+    px::PersistenceContext persistence;
+    persistence.organism_id = args.organism_id;
+    persistence.loaded_state_path = args.load_state;
+    persistence.saved_state_path = args.save_state;
+    persistence.event_log_path = args.event_log;
+
     if (args.phase == "train") {
-      px::write_train_artifact(args.out, args.data, args.mode, command, events, config);
+      px::write_train_artifact(args.out, args.data, args.mode, command, events, config, persistence);
       std::cout << "wrote " << args.out << "\n";
     } else if (args.phase == "eval") {
-      px::write_eval_artifact(args.out, args.data, args.mode, command, events, config);
+      px::write_eval_artifact(args.out, args.data, args.mode, command, events, config, persistence);
       std::cout << "wrote " << args.out << "\n";
     } else {
       throw std::runtime_error("unknown phase: " + args.phase);

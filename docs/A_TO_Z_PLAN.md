@@ -236,3 +236,13 @@ Prefer structural changes over patches.
 If a path is wrong, delete it. Do not layer complexity over a broken center. The project should become smarter by changing the organism's learning machinery, not by adding cosmetic behavior.
 
 Quality can be poor at first. Honesty cannot.
+
+## 9. Phase Changelog (v2 — organic substrate)
+
+Per-cycle status row. Each cycle ticks one or more architecture-target sub-points from §2 with mechanical-proof evidence linked.
+
+| Cycle | Date closed | Scope | Status | Evidence |
+|---|---|---|---|---|
+| v2-c1 | 2026-05-13 | Native HDC organism + trace-id ablation | ✅ | commit `dab6e41`; `run/artifacts/organic-v0/eval_{with,no}_trace.json`; proved trace-id feature is redundant, position-bound bigram chain is load-bearing |
+| v2-c2 | 2026-05-13 | Benchmark honesty (parity-cheat removal + abstention contrastive + length variance) + persistence pass-0 (save/load + event log + round-trip self-test) | ✅ | `run/artifacts/organic-v0/eval_compositional_tightened_persisted.json` (overall 0.36 with persistence active); `run/artifacts/organic-v0/persist_self_test.json` (`load_status: save_and_load_verified`); manifesto §"Persistence Is Pass-0" materialized |
+| v2-c3 | _open_ | One structural mechanism: learned segment generation OR HDC unbinding + cleanup, with measured composition lift on tightened benchmark | 🚧 | _next cycle's contract — see `docs/DO_THIS_NEXT.md`_ |

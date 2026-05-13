@@ -1,75 +1,79 @@
 # Do This Next - Project X v2
 
-Generated: 2026-05-13 (post trace-id ablation)
+Generated: 2026-05-13 (post persistence-pass-0 ship)
 
 ## Read First
 
 1. `docs/MANIFESTO.md`
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
-4. `docs/past_work/` only when historical context is needed
+4. `docs/PERSISTENCE_SCHEMA.md`
+5. `docs/past_work/` only when historical context is needed
 
 ## What Just Happened
 
-The first round of organic-v0 measurement produced a 95.6% exact-rate eval (22 / 23). External critique (lain + Claude + Codex) converged on the diagnosis that this score is theater — 22 of 23 eval items are near-duplicates of training, only one (`evt_lang_test_004`, the "lina" probe) requires composition with an unseen filler, and it failed.
+This cycle shipped two manifesto-load-bearing deltas in order: (1) benchmark tightening to expose a known parity-label cheat; (2) persistence pass-0 — line-oriented save/load + append-only event log + fresh-process round-trip self-test.
 
-Both Claude and Codex agreed the cheapest, highest-information first move was a **trace-id ablation**: gate the per-event-id feature (`hash_pair("trace", event_id)`) behind a `Config.use_trace_id_feature` flag and run eval twice. Predicted outcome (advisor + Claude): exact rate would collapse to <10%, proving the system was almost entirely retrieval-keyed replay.
+### Benchmark tightening (#00a)
 
-### Ablation result
+`benchmarks/v2_ladder/organic_v0.jsonl` held-out items rewritten:
 
-| metric | with trace-id | without trace-id |
+- **hidden_rule:** `parity:even`/`parity:odd` removed from held-out observations (training kept them as learning material). 2 of 4 test items are now `distractor_rule_transfer` — the trained signal-association (`signal:blue → go`, `signal:red → stay`) directly contradicts the parity rule on those items.
+- **abstention:** 2 of 4 held-out items are now `evidence_present` (`topic:arin → "copper"`, `topic:bea → "glass"`) with identical wording shape to the 2 `evidence_absence` items. The "?" target is no longer a domain shortcut.
+- **memory:** mem_test_004 → 6-char object + 8-char place (`tavi marble lantern6`).
+- **causal_chain:** test_004 effect → 4 chars (`horn`); variance now 4/5/5/6 across test items.
+- **language_expression:** test_003 → 7-char name (`quintus`); test_004 → non-greeting (`intent:farewell name:elena → "bye elena"`) — first held-out probe that requires composing an unseen intent with a slot.
+
+### Cheat-collapse quantified (#00b)
+
+| metric | prior cycle (`eval_compositional_slot_pass.json`) | this cycle (`eval_compositional_tightened_persisted.json`) |
 |---|---|---|
-| `model_state_hash` | `5a870dad7f70de83` | `35b32e4c2790826a` (genuinely different model) |
-| overall exact rate | **0.956522** | **0.956522** (identical) |
-| count | 23 | 23 |
-| random baseline | 0.043478 | 0.043478 |
-| failure case | `evt_lang_test_004`: "hi mira" | `evt_lang_test_004`: "hi sora" (novel, never in train) |
-| by_domain | memory/causal/rule/abstention 100%, language 80% | identical |
-| by_level | 0,1,3 100%; level-2 83% | identical |
+| overall exact_rate | `0.520000` | `0.360000` |
+| hidden_rule | 4/4 = 100% | 2/5 = 40% (cheat exposed) |
+| abstention | 5/5 = 100% | 3/5 = 60% (domain-shortcut exposed) |
+| by_composition.evidence_present | n/a | 0/2 — model cannot recall arin/bea via abstention wording |
+| by_composition.distractor_rule_transfer | n/a | 0/2 — model picks trained signal-association over parity rule |
+| by_composition.intent_transfer | n/a | 0/1 — "hi elena" instead of "bye elena" (no path for non-greeting) |
 
-Artifacts:
-- `run/artifacts/organic-v0/eval_with_trace.json` (run_id `organic-v0-eval-20bc1ccc037b`)
-- `run/artifacts/organic-v0/eval_no_trace.json` (run_id `organic-v0-eval-f8f88c89de09`)
+Same brain weights, same state_hash (`3536309de837d3e2`). The benchmark got more honest; the score dropped accordingly. That drop IS the proof.
 
-### What the ablation actually revealed
+### Persistence pass-0 (#00c / #00d)
 
-The trace-id feature is **redundant**, not load-bearing. The system retains identical performance without it. The honest load-bearing replay mechanism lives elsewhere — in the `state_features()` function's position-bound bigram chains: `combine(pos_id, prev_id)` (gain 1.35), `(token-feature × position)`, `(token-feature × previous-char)`. Cutting trace-id removes ~7-8 score points from each character's top score (compare with-trace pos-0 `h=30.47` to no-trace pos-0 `h=22.53`) but does not change the argmax orderings.
+`native/organic_v0.cpp` extended with line-oriented `PXSTATE_V0` format (config + traces + connections + slots + learned-chars + state_hash), bit-exact via hex64-of-IEEE-bits so the state_hash matches across save/load. Three new flags: `--save-state`, `--load-state`, `--event-log`. Three new phases: `persistence-self-test` (parent: train → save → spawn child → verify), `persistence-load-verify` (child: load → generate → emit verdict JSON), and integration into `eval` for load-then-generate-without-training.
 
-The position-3 fork is the most telling. With trace-id, `m=15.71 vs s=15.55` (mira wins by 0.16). Without trace-id, `s=11.76 vs m=11.49` (soren wins by 0.27). The trace-id feature was tilting one narrow fork; everything else stayed the same. Position-6 still picks `a` (mira's tail) over `e` (soren's tail) regardless — the `a` bias is purely in the position-bound bigram chain.
+**Round-trip evidence** (`run/artifacts/organic-v0/persist_self_test.json`):
+- `parent_state_hash: 3536309de837d3e2`, `child_state_hash: 3536309de837d3e2` — bit-exact match
+- `parent_raw_output: "milaquart arch6"`, `child_raw_output: "milaquart arch6"` — bit-exact match
+- `load_status: save_and_load_verified`
+- `scripts/test_organic_v0.sh` now runs BOTH the substrate self-test AND the persistence round-trip; either failure is `set -e` fatal
 
-Honest reframing of the failure: with trace-id, the system replays the bit-for-bit training string "hi mira" for an input containing "lina". Without trace-id, it produces "hi sora" — a string never seen in training, a 4-character blend of soren's `sor` prefix and mira's `a` suffix. That is arguably the first **emergent organic output** in the project — wrong, but learned-from-state, not retrieved.
+**Fresh-process eval evidence** (`run/artifacts/organic-v0/eval_compositional_tightened_persisted.json`):
+- `persistence.status: loaded_from_disk`
+- `persistence.loaded_state_path: run/state/organic-v0/snapshots/raphael-local-0001/cycle_persistence_pass0.pxstate`
+- `summary_metrics` IDENTICAL to a from-JSONL training run — proven by `diff` on `summary_metrics + by_composition + model_state_hash`
 
-### What this means for the architecture
+The organism survives a restart. MANIFESTO §"Persistence Is Pass-0, Not Future Work" is no longer a gap; pass-0 ships.
 
-The HDC encoder binds role-filler structure (`add_bound("role:input", ...)`, `add_bound("role:observation:i", ...)`) but **never unbinds**. The bound vector is collapsed to a 256-d cosine-similarity key. The literal characters of the input observation `name:lina` are never plumbed into the generator's output path. The generator only sees `intent:greet`'s position-bound character chain, which is memorized from the two training names.
+## Next Cycle Contract
 
-The system is doing **context-keyed Markov memorization with HDC retrieval as auxiliary biasing**. It is not doing slot-filling, role-filler unbinding, concept abstraction, or composition. Calling the HDC vector a "memory spine" is currently misleading — it is a hash function.
+The structural work the brief deferred is now unblocked. The honest baseline is in place and persistence substrate exists, so any new mechanism can be measured against the tightened benchmark AND saved-loaded for inspection without re-running training.
 
-## Revised Priority Order (after ablation)
+### Candidate structural mechanism — dynamic slot/segment generation
 
-Both Claude and Codex agreed on this order. The ablation result confirms steps 1-2 are already accomplished; steps 3+ are the next-cycle actions.
+The slot pass-through (prior cycle) is structurally inadequate: it copies typed observation characters at ABSOLUTE output positions learned from training. This fails the moment filler length or separator structure varies — exactly the failure modes the tightened benchmark now exposes (`unseen_filler_long`, `intent_transfer`).
 
-1. ✅ **Run trace-id ablation.** Done.
-2. ✅ **Produce eval_with_trace.json vs eval_no_trace.json.** Done.
-3. ✅ **Treat the delta as the real diagnostic.** Done — the delta is "the trace-id was not the leak; the position-bound bigram chain is."
-4. **Redesign benchmark probes so at least half require unseen fillers / composition.** Currently 1 of 23 (4.3%) requires composition. Target: ≥50% per domain. Per-domain candidates:
-   - memory: novel `(person, object, place)` triples never co-occurring in train; recall must produce literal characters from observations
-   - hidden_rule: signals + colors not in train; rule must transfer abstract structure
-   - causal_chain: novel cause/middle/effect chains; effect must be predicted, not pair-memorized
-   - language_expression: ≥5 novel name fillers for greet; abstention and accept/decline tested with novel intent wording
-   - abstention: novel topics; require the model to detect lack-of-evidence by absence of activation, not by matching a `support:missing` marker token
-5. **One structural change.** Direction now clearer: the generator must consume the input's literal observation characters. Two honest paths:
-   - **(a) HDC unbinding + cleanup memory.** `unbind(query, "role:observation:name") → cleanup → name_atom`, then a per-character emit conditioned on the unbound filler. Honest HDC.
-   - **(b) Slot-typed observation pass-through.** Generator reads typed observation strings (e.g., `name:lina`) as candidate fillers for output positions. Closer to a template but only at the substrate level — the WHEN-to-fill is still learned.
-   - Pick after the redesigned benchmark is in place. Picking now picks the wrong fix.
-6. **Defer CUDA kernels** until the workload justifies parallelism. Current scale: ~40 traces, 23 eval items. CPU is fine for orders of magnitude more before GPU is justified.
-7. **Promote persistence / state serialization to manifesto requirement.** Already done in `docs/MANIFESTO.md` (new "Persistence Is Pass-0, Not Future Work" section). Pass-0 spec:
-   - append-only event log on disk
-   - serializable learned state with state hash
-   - load-state + ingest-one-event + emit, without re-running full training stream
-   - artifact records both the loaded state path and the appended event log path
+Direction: replace absolute-position slot copying with **learned segment generation**:
 
-## Hard Gates (unchanged from prior cycle)
+- learn segment STARTS (when does a copied slot span begin?)
+- learn segment SEPARATORS (what literal characters connect segments?)
+- learn segment STOP conditions (when does a span end and the next literal/copy begin?)
+- the generator emits a sequence of segment-typed steps; each step is either a literal-learned-char OR a copied slot span; segment-type selection is learned from state, not hardcoded by domain
+
+Sister candidate: **HDC unbinding + cleanup memory** — `unbind(query, role:observation:name) → cleanup → name_atom`, then a per-character emit conditioned on the unbound filler. Honest HDC.
+
+Pick the mechanism via `/pick-one` after re-reading the artifacts.
+
+### Hard gates (unchanged)
 
 Reject any implementation that:
 
@@ -77,27 +81,29 @@ Reject any implementation that:
 - adds fixed response text as the agent output
 - scores itself on subjective quality
 - hides bad outputs
-- creates many files before one honest organism loop exists
+- adds new files without a `REPO_CONTROL.md` row in the same commit
 - optimizes for "all tests pass" over organic learning
 - adds CUDA kernels before the workload justifies parallelism
-- ships a structural change without first re-running on the redesigned compositional benchmark
+- ships a structural change without re-running on the tightened benchmark AND verifying the persistence self-test still passes
 
 ## Suggested Command Sequence (current state)
 
 ```bash
-make
-scripts/test_organic_v0.sh
-scripts/eval_organic_v0.sh --mode test --out run/artifacts/organic-v0/eval_with_trace.json
-scripts/eval_organic_v0.sh --mode test --out run/artifacts/organic-v0/eval_no_trace.json --ablate-trace-id
-jq '{run_id, model_state_hash, exact: .summary_metrics.overall.exact_rate, failures: [.failure_cases[] | {event_id, raw: .raw_generated_output, expected: .expected_output}]}' run/artifacts/organic-v0/eval_no_trace.json
+make                                    # build/organic_v0
+scripts/test_organic_v0.sh              # substrate guard + persistence round-trip
+scripts/eval_organic_v0.sh --mode test --out /tmp/eval_current.json
+# OR — load this cycle's saved state and eval without re-training:
+build/organic_v0 --phase eval --mode test \
+  --load-state run/state/organic-v0/snapshots/raphael-local-0001/cycle_persistence_pass0.pxstate \
+  --out /tmp/eval_from_disk.json
+jq '{run_id, model_state_hash, persistence, summary: .summary_metrics.overall, by_composition: .summary_metrics.by_composition, failures: [.failure_cases[] | {event_id, domain, composition, raw: .raw_generated_output, expected: .expected_output}]}' /tmp/eval_current.json
 git status --short
 ```
 
 ## Close Criteria For The Next Pass
 
-- Benchmark redesigned. Each domain has ≥50% held-out items requiring unseen fillers or unseen rule transfer.
-- The new benchmark's exact rate on the unchanged organic-v0 is reported honestly. If it collapses (likely), that delta is the honest baseline for any future structural claim.
-- One structural change implemented (HDC unbinding + cleanup memory OR slot-typed observation pass-through), with run on both old and new benchmarks for comparison.
-- Persistence Pass-0 designed but not necessarily implemented this cycle — at minimum, the event-log schema and state-serialization schema are written in `docs/` and the artifact format is extended to reference them.
-- Empty placeholder dirs (`src/project_x_v2/`, `tests/`) either removed or filled with content that owns a `REPO_CONTROL.md` row.
+- A structural mechanism (segment generator OR HDC unbinding) that materially improves `unseen_filler` / `unseen_filler_long` / `intent_transfer` scores on the tightened benchmark.
+- The mechanism MUST survive the persistence round-trip: trained brain saves, fresh process loads, generates the same outputs bit-exactly.
+- No regression on `direct_replay` / `evidence_absence` / `unseen_rule_transfer` (the things the model currently gets right honestly).
+- Empty placeholder dirs (`src/project_x_v2/`, `tests/`) either removed or filled with content owning a `REPO_CONTROL.md` row.
 - No GPU/CUDA work, no Python answer-path migration, no template wrapper.
