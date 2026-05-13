@@ -55,7 +55,7 @@ def test_extract_trigrams_dedupes():
 def test_discover_primitives_runs_on_default_corpus():
     """End-to-end: clustering runs over the mini_seed corpus (~240 fragments;
     ~3000+ unique trigrams) and produces a discoverable EmergenceResult."""
-    result = discover_primitives(k=15, min_density=4, seed=42)
+    result = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
     assert isinstance(result, EmergenceResult)
     assert result.n_trigrams > 1000  # mini-corpus produces thousands of trigrams
     assert result.k == 15
@@ -66,7 +66,7 @@ def test_discover_primitives_runs_on_default_corpus():
 
 def test_discovered_primitives_have_required_shape():
     """Each DiscoveredPrimitive carries centroid + member_count + samples + sim."""
-    result = discover_primitives(k=15, min_density=4, seed=42)
+    result = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
     for p in result.primitives:
         assert isinstance(p, DiscoveredPrimitive)
         assert p.centroid_text  # non-empty
@@ -81,8 +81,8 @@ def test_discovered_primitives_have_required_shape():
 
 def test_density_threshold_rejects_small_clusters():
     """High min_density should produce fewer primitives + more rejected clusters."""
-    low = discover_primitives(k=15, min_density=4, seed=42)
-    high = discover_primitives(k=15, min_density=20, seed=42)
+    low = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
+    high = discover_primitives(max_iters=10, k=15, min_density=20, seed=42)
     # At higher threshold, fewer primitives surface (more rejected)
     assert len(high.primitives) <= len(low.primitives)
     assert high.rejected_clusters >= low.rejected_clusters
@@ -90,8 +90,8 @@ def test_density_threshold_rejects_small_clusters():
 
 def test_seed_reproducibility():
     """Fixed seed produces deterministic clustering output."""
-    r1 = discover_primitives(k=15, min_density=4, seed=42)
-    r2 = discover_primitives(k=15, min_density=4, seed=42)
+    r1 = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
+    r2 = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
     # Number of primitives + centroids should be identical
     assert len(r1.primitives) == len(r2.primitives)
     centroids1 = sorted(p.centroid_text for p in r1.primitives)
@@ -108,7 +108,7 @@ def test_empirical_signal_meaningful_patterns_emerge():
     'is' copula pattern OR 'and' coordination pattern OR another structural
     shell. Verifies that clustering produces structural-shape signal at all,
     not the strength of that signal."""
-    result = discover_primitives(k=15, min_density=4, seed=42)
+    result = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
     # Look at all sample members across all primitives
     all_samples = []
     for p in result.primitives:
@@ -124,7 +124,7 @@ def test_empirical_signal_meaningful_patterns_emerge():
 
 def test_render_produces_readable_report():
     """`EmergenceResult.render()` produces human-readable text with primitive details."""
-    result = discover_primitives(k=15, min_density=4, seed=42)
+    result = discover_primitives(max_iters=10, k=15, min_density=4, seed=42)
     rendered = result.render()
     assert "PRIMITIVE EMERGENCE RESULT" in rendered
     assert "CENTROID:" in rendered
@@ -138,4 +138,4 @@ def test_discover_primitives_rejects_too_small_corpus():
     """Corpus with too few trigrams for k * min_density raises ValueError."""
     tiny_corpus = [("hello world", "src1"), ("foo bar baz", "src2")]
     with pytest.raises(ValueError, match="corpus too small"):
-        discover_primitives(fragments=tiny_corpus, k=15, min_density=4, seed=42)
+        discover_primitives(max_iters=10, fragments=tiny_corpus, k=15, min_density=4, seed=42)

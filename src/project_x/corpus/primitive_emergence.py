@@ -180,6 +180,7 @@ def discover_primitives(
     min_density: int = 5,
     seed: int = 42,
     samples_per_primitive: int = 5,
+    max_iters: int = 30,
 ) -> EmergenceResult:
     """V0 primitive-emergence pipeline.
 
@@ -215,7 +216,7 @@ def discover_primitives(
     encoder = CharNgramHashEncoder()
     trigram_hvs = encoder.encode(trigrams)
 
-    assignments, centroids = _kmeans_cosine_bipolar(trigram_hvs, k=k, seed=seed)
+    assignments, centroids = _kmeans_cosine_bipolar(trigram_hvs, k=k, seed=seed, max_iters=max_iters)
 
     primitives: list[DiscoveredPrimitive] = []
     rejected_clusters = 0

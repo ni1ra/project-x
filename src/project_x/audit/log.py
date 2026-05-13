@@ -153,6 +153,7 @@ class AuditLog:
         walk_id: str,
         rating: str,
         note: str | None = None,
+        trace_bank: object | None = None,
     ) -> bool:
         """Apply a rating to a previously-recorded walk.
 
@@ -201,6 +202,18 @@ class AuditLog:
         # safe: empty bank returns lookup=0.0, retrieval blend collapses to
         # identity (cycle-13 baseline preserved).
         self._propagate_rating_to_hebbian_bank(latest, rating)
+
+        # v1 — wire TemporalTraceBank into audit loop so natural-mode strategy
+        # ratings also shape action-selection policy. The walk's strategy
+        # (bind/bundle/greedy) is treated as a discrete action.
+        if trace_bank is not None and latest.strategy is not None:
+            try:
+                numeric = _RATING_STR_TO_NUMERIC.get(rating)
+                if numeric is not None:
+                    trace_bank.apply_rating_to_action(latest.strategy, numeric)
+            except Exception:
+                # Defensive: trace-bank update failure must not break audit
+                pass
         return True
 
     def _propagate_rating_to_hebbian_bank(

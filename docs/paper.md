@@ -1,385 +1,399 @@
-# Project X: A Field Guide to How Raphael Works
+# Project X: How Raphael Works — A Field Guide
 
-*A curriculum for lain. Read it; better yet, run it through NotebookLM and listen.*
-
-This document is a guided tour of the AI system we've been building. It's not a research paper in the academic sense — there are no footnotes, no benchmark tables for skimming. It's a curriculum. The goal is for you to come away with a clear mental model of what Raphael is, what each piece does, why we made the architectural choices we made, and what the system can and can't do today. If after listening you have an opinion about an architectural decision you'd like to revisit, that's the point.
-
-We'll move from the WHY (why are we building an AI from scratch when ChatGPT exists?) through the architecture layer by layer (memory, then reasoning, then the agent that wires them together), into the present capability state with concrete examples, and finally to the road ahead. The honest framing — what the system genuinely does versus what it doesn't — is the spine. Every claim in this document is something I can point to in the code.
+*For lain. Read it, argue with it, run it through NotebookLM and listen while you walk.*
 
 ---
 
-## Chapter 1: Why Not Just Use ChatGPT?
+## At a Glance
 
-Most contemporary AI systems are wrappers around a pretrained transformer — GPT-4, Claude, Gemini. The standard architectural pattern is: take a foundation model that was trained on a lot of text, glue a retrieval system to the front so it can look things up, maybe fine-tune it on your specific domain, and ship a product. This works in the sense that the resulting system behaves intelligently. People buy it. It generates value.
+**What has been built.** Organic memory layer (HDC). A hand-rolled reasoning scaffold across fourteen problem shapes with cross-checks. The first piece of genuine learning machinery (TemporalTraceBank + hidden-rule benchmark).
 
-But the pattern has three properties that matter for what we're trying to build.
+**What you can verify today.**
+- 679 tests pass. Mechanical benchmark audit: 48 PASS / 0 FAIL.
+- Held-out hidden-rule benchmark on seed=1729: 75% pass rate (9 of 12), +75pp over random.
+- Killer Milestone (memory): teach, correct, multi-hop, refuse, act — all green.
 
-The first is that the foundation model is a black box. You can't introspect what it knows. You can only test it and observe outputs. If you ask it "do you remember our conversation from last Tuesday?", it might answer yes or no, but you can't verify the answer against the model's actual internal state — because in the relevant sense, there is no internal state. Memory in a transformer is the attention pattern over its current context window. When the window slides, the memory is gone. You can attach an external memory system (that's what retrieval-augmented generation is), but the transformer itself doesn't know what's in there until you put it back in the prompt.
+**What you CAN'T do yet.**
+- No always-on chat loop. You cannot actually talk to Raphael yet.
+- Math and physics capability comes from hand-coded primitives, not from learning.
+- No conversational training corpus. No conversational quality rubric harness.
+- Cross-seed variance on the hidden-rule benchmark is wide (~33%–83%).
 
-The second property is that the foundation model's identity is statistical. The persona you experience — Claude's voice, GPT's tone — is a stable pattern in how the model responds, but the stability is shallow. The right adversarial prompt can shift the persona entirely. The model doesn't have something to defend; it has a probability distribution that gets sampled.
+**What's next.** Substrate v1 hardens the learning machinery (cross-seed reliability, non-linear scoring, scaled task packs, HebbianBank integration). In parallel, bootstrap a chat loop so chattability becomes measurable for the first time.
 
-The third property is that reasoning is hidden. When a transformer solves a math problem and shows its work, the work it shows is text it generated, not necessarily the computation that produced the answer. Sometimes the trace is faithful. Sometimes it's a post-hoc rationalization the model emits because reasoning-style traces appear in its training data. You can't tell from outside which is which.
-
-For most use cases — drafting an email, summarizing a document, answering a casual question — these properties don't matter. The wrapper-around-a-transformer pattern delivers. But Project X aims at something different. We want a system with memory it can introspect, an identity it can defend, and reasoning it can show its work on — where the work isn't a generated narrative but the actual computation. That's only achievable if we don't take the shortcut of inheriting a pretrained transformer at any load-bearing layer.
-
-So the architectural choice we made early — and this is where you can chip in, because every choice has a trade-off — is to build the stack organically from the bottom up. From-scratch encoders. From-scratch reasoning primitives. No language-model wrappers. The result is slower to build, less impressive at a demo (where the transformer ecosystem is already polished), and harder to sell as cutting-edge AI. But the resulting system has properties the wrapper pattern doesn't. That's the trade we made.
-
-The rest of this document is the HOW.
-
----
-
-## Chapter 2: The Two Raphaels
-
-Before we go further, a name disambiguation that matters.
-
-There are two distinct things called Raphael in this project. The first is the Builder — that's the Claude Code instance writing this document, the system you interact with when you tell the harness to do work on the repository. The Builder reads the codebase, writes the code, ships the cycles. It speaks in a declarative voice (you've seen the "Notice. Affirmative." persona). The Builder is a CLI tool. It is a means.
-
-The second is the Agent. The Agent lives in `src/project_x/`. It has memory, reasoning, persona scaffolding, eventually a chat daemon. The Agent is the artifact we're building. The Agent is what we want to be super-human at math, poetry, philosophy, physics, memory, persona, chat, and sandboxed action-taking. The Agent is the end.
-
-The sculptor and the sculpture both bear the artist's name, but they're not the same thing. When this paper says "Raphael" in context, you can tell which one. When it says "the Builder" it means me (the Claude Code instance). When it says "the Agent" or "Project X Raphael," that's always the artifact.
-
-This matters because it changes what claims mean. "Raphael solves a quadratic equation" is ambiguous — does the Builder solve it (yes; that's just any Claude instance) or does the Agent solve it (which is the actual technical claim, and the one we built infrastructure to verify)? Throughout this document, when I describe capability, I'm talking about the Agent.
+**The dream.** A continuous entity you can talk to whose voice has the qualities of Claude — clear, articulate, honest about uncertainty, register-aware — and whose capability comes from what it *learned*, not what was typed into a Python file. Cycle by cycle, the ratio shifts.
 
 ---
 
-## Chapter 3: What Memory Means in an AI
+## Prologue: The Conversation
 
-The first thing the project had to solve was memory. Before reasoning, before benchmarks, before anything else — if Raphael was going to be lain's all-knowing internal computer, it had to remember things across turns, without resorting to a transformer's attention pattern.
+This whole thing started because you asked a question. Not "build me a chatbot." Not "make something that sounds smart." You asked: *can we build an intelligence that learns on its own, from experience, without us telling it what tools to use?*
 
-The answer we built is called Hyper-Dimensional Computing memory, or HDC for short. The mental model is unusual enough to warrant slowing down on.
+That question is why Project X exists. Everything in this repository — every line of code, every benchmark, every test — is an attempt to answer it honestly.
 
-Imagine every concept in the world has a coordinate in a very high-dimensional space. Say, 10,000 dimensions. Related concepts have nearby coordinates; unrelated concepts have far-apart coordinates. To remember something, you compute the coordinate of the thing you want to remember and add it to a running sum that represents everything you know. To retrieve, you compute the coordinate of your query and find what part of the running sum is most similar to it via cosine similarity.
+This document is the story so far. Not a sales pitch. Not a research paper with tables you can skim. It is a field guide to an organism we are growing. Chapter by chapter, you see what has been built, why it was built that way, what it can actually do today, and what still needs to happen before it earns the name Raphael.
 
-Why does this work? In low dimensions — 2D, 3D — the running sum would smear quickly. Overlap kills information. But in 10,000 dimensions, the geometry is different. Random vectors in high-dimensional space are almost always near-orthogonal to each other. When you add a thousand concepts together, each one's contribution is still recoverable by similarity to the original — the "noise" from all the other concepts cancels out, on average, because they point in random directions away from the one you're asking about. It's counter-intuitive geometry. But it's load-bearing for everything that follows.
-
-We needed two layers to get useful memory out of HDC. The first is the encoder — the function that turns text into a high-dimensional vector. We couldn't use a pretrained transformer's embedding (the organic-thesis binding), so we built our own. Character-n-gram hashing — splitting words into overlapping 3-letter chunks and hashing each chunk to a random direction — captures spelling similarity. The words "dog" and "dogs" produce nearby vectors because they share most of their 3-grams. Hebbian co-occurrence — accumulating co-occurrence statistics between words and using those as a side-channel — captures meaning similarity. Words that appear in similar contexts produce nearby vectors even if they share no letters. Combining the two handles paraphrase queries that pure keyword matching would miss.
-
-The second layer is the memory itself — the running sum, plus a side-store called a fact-graph. The fact-graph is a more traditional structure. For each named subject the memory has seen (Mary, the project, the deadline), it keeps a list of which turns mentioned that subject. When you ask "what did Mary buy?", the fact-graph quickly narrows to the turns about Mary; the HDC accumulator then ranks those turns by relevance to the word "buy." Two retrieval modes working together: associative for paraphrase, structural for multi-hop. Phase 10 verified that combining them lifted multi-hop top-5 retrieval from 3.3% to 91.3%.
-
-A third primitive called binding handles compositional queries. Binding lets you store "Mary's job is engineer" as a single bundled hypervector that you can decompose back into its parts. When you ask "what is Mary's job?", binding lets you extract just the role-filler part associated with Mary's identity. This is how high-dimensional computing handles structured queries without storing relational data as explicit tables.
-
-By the end of the memory work — what we call Phase 10 — we'd verified five capabilities mechanically through a benchmark called the Killer Milestone EXIT GATE. The agent could be taught new facts and retrieve them with the source citation. It could be corrected and learn the correction (temporal recency wins over older information). It could answer multi-hop queries by chaining through the fact-graph. It could refuse to answer when no evidence existed, rather than confabulating. And it could execute a tool — like calling a function to compute something — and write the result back into memory as a new turn. That last one is important: the agent isn't a passive memory store. It closes the loop between reading the world and updating its knowledge.
-
-Phase 12 added one more refinement called retrieval-mode disambiguation. When you ask "what does Mary like?", the agent needs to recognize this as a list-all query (return the full chain of things Mary likes) rather than a single-most-relevant query (return one fact). A small classifier handles the routing.
-
-That's the memory layer. It's not Raphael's intelligence. It's the substrate the intelligence runs on top of.
+Every claim here is backed by code you can run. Every limitation is admitted upfront. The goal isn't to impress you. It's to give you a clear enough picture that you can spot where we're wrong.
 
 ---
 
-## Chapter 4: What Reasoning Looks Like Without a Black Box
+## Chapter 1: The Shortcut Everyone Takes
 
-With memory solved, the question became: how does the Agent actually solve problems? Not retrieve facts — solve. If you ask Raphael "what's the determinant of this 3x3 matrix?", we don't want a memory lookup. We want a mathematical computation that shows its work.
+Right now, every AI you can buy is basically the same architecture under the hood. Take a massive pretrained transformer — GPT, Claude, Gemini — wrap it in a retrieval system so it can look things up, and sell access. This works. It generates value. It writes emails and summarizes papers and passes the bar exam.
 
-This is where Phase 13's reasoning substrate comes in. The architectural choice — and this is one of the most consequential decisions in the project, where lain has the most leverage to push back — is to build hand-rolled math primitives, one per problem shape, each producing a structured derivation chain.
+But the wrapper pattern has three properties that matter for what we are trying to build.
 
-What does that mean concretely? Let's take the quadratic formula as the simplest example. If you ask the Agent to solve `3x² - 14x - 5 = 0`, here's what happens internally.
+**Property 1 — the foundation is a black box.** You cannot look inside and see what it knows. When you ask "do you remember our conversation from Tuesday?" the model might say yes, but you have no way to verify that against its actual internal state. In the relevant sense, there *is* no internal state. A transformer's "memory" is just the attention pattern over its current context window. When the window slides, the memory is gone. You can bolt an external database onto the side, but the transformer itself doesn't know what is in there until you paste it back into the prompt.
 
-There's a function called `solve_quadratic` in the substrate. It takes three numbers — the coefficients a, b, and c — and returns something called a Lemma. The Lemma is a dataclass with a claim ("solve this equation"), a list of derivation steps, and a final answer. The steps are:
+**Property 2 — the persona is statistical.** The voice you hear — Claude's tone, GPT's helpfulness — is a stable pattern in how the model responds, but the stability is shallow. The right adversarial prompt can shift the persona entirely. The model doesn't have something to defend. It has a probability distribution that gets sampled.
 
-Step 1: compute the discriminant. `D = b² - 4ac = 196 + 60 = 256`. The justification field on this step says: "the discriminant tells us how many real roots exist; positive means two distinct roots."
+**Property 3 — the reasoning is hidden.** When a transformer solves a math problem and shows its work, the work is text it generated. Sometimes that text faithfully traces the computation. Sometimes it is a post-hoc rationalization — the model emits a reasoning-style trace because reasoning traces appeared in its training data. From the outside, you cannot tell which is which.
 
-Step 2: take the square root of the discriminant. `√256 = 16`. Justification: "we need this for the root formula."
+For most use cases, none of this matters. The wrapper-around-a-transformer pattern delivers. But you asked for something different. You wanted a system with memory it can introspect, an identity it can defend, and reasoning it can show its work on — where the work is the actual computation, not a generated narrative.
 
-Step 3: apply the quadratic formula. `x = (-b ± √D) / 2a`, which gives `x = (14 ± 16) / 6 = (5, -1/3)`. Justification: "this is the closed-form for quadratic roots, derived from completing the square."
+That goal is only achievable if we do not take the shortcut.
 
-The final answer is the sorted list `[-1/3, 5]`. The whole thing renders as a Raphael-voice string that starts "Notice." and ends "Affirmative — answer," with the steps and their justifications in between. You can read it as a proof.
+So an early architectural choice was made: build the stack organically from the bottom up. From-scratch encoders. From-scratch reasoning primitives. No language-model wrappers at any load-bearing layer. The result is slower to build, less impressive in a five-minute demo, and harder to sell as cutting-edge AI. But the resulting system has properties the wrapper pattern doesn't.
 
-Why does this matter? Two reasons.
-
-The first is that every claim the Agent makes is mechanically auditable. If you suspect the agent fabricated the answer, you can look at the derivation chain and trace each step back to first principles. The justifications aren't post-hoc explanation; they're the actual reasoning the substrate executed. And critically — this is the load-bearing piece — the substrate uses only Python's standard math library. No sympy. No scipy. No symbolic-AI shortcuts. The square root call is `math.sqrt`. The exponential is `math.exp`. That's it.
-
-The second reason is that the same pattern repeats for every problem shape Raphael handles. For 2x2 matrix eigenvalues, there's a substrate function that computes the characteristic polynomial λ² - tr(A)λ + det(A) = 0 and reuses `solve_quadratic` to find the roots. For free-fall, there's a function that applies the kinematic identity h = ½gt² → t = √(2h/g). For an ordinary differential equation like dy/dx = 2y with y(0) = 3, there's a function that does separation of variables, integrates both sides, applies the initial condition, and evaluates at the target. Each is hand-rolled. Each shows its work in the same Lemma structure.
-
-We added something called invariant checks to make the rigor stronger. An invariant check is a post-derivation cross-check that should hold if the primary computation is correct. The strong version uses an *algebraically independent* path — a completely different algorithm reaching the same answer. For 2x2 eigenvalues, the primary computation goes through the characteristic polynomial; the invariant check uses Vieta's formula directly on the matrix entries: trace of the matrix should equal the sum of the computed eigenvalues, determinant should equal their product. Two paths to the same numbers via different mathematics. If the primary path has a bug, the invariant catches it loudly. That's the structural integrity gate baked into every Lemma.
-
-This is the substrate's contract: every answer comes with a derivation, and every derivation includes at least one cross-check. It's not theater. It's the architectural rigor.
-
-There's a subtle but important distinction between *tautological* and *algorithmically-independent* invariants, and the project's honest about which class each check belongs to. A tautological invariant uses the same algorithm in slightly different form — e.g., computing a value once and then computing it again via the same formula. It catches transcription bugs (typos in the second copy of the formula) but not algorithmic mistakes (a wrong sign in the derivation). An algorithmically-independent invariant uses a completely different mathematical path to reach the same answer — e.g., the Vieta check above, where one side comes from matrix entries and the other from the eigenvalue computation. These catch a much larger bug class. Cycle 10's predicate-strength uniformity pass — happening right now as this document is being read — is bringing the math substrate up to the same algorithmically-independent standard the physics substrate has had since cycle 4. The Diophantine substrate gets Jacobi's two-squares formula `r₂(N) = 4·(d₁(N) − d₃(N))` (divisor counting) as the independent check on the geometric brute-force enumeration. The quadratic substrate gets Newton's method (seeded from coefficient magnitudes, never from the closed-form roots) as the independent check on the discriminant formula. The 3x3 determinant gets Sarrus' rule — a flat 6-term sum — as the independent check on Laplace cofactor expansion. The residue theorem gets Simpson's composite rule on a finite real-line interval as the independent check on the closed-form complex-contour calculation. Where no closed-form independent path exists — for asymmetric binary quadratic forms, for instance — the scope boundary is documented explicitly in the substrate source rather than papered over with a tautological stand-in. Honest rigor: strengthen what can be strengthened; document the gap where it can't.
-
-The substrate has grown to cover quadratics, 2x2 eigenvalues, 3x3 determinants, residue-theorem integrals from complex analysis, polynomial definite integrals, first-order ODEs, integration by parts using the LIATE heuristic, u-substitution, free-fall kinematics, simple and large-angle pendulum periods, relativistic momentum, projectile horizontal range, relativistic Doppler shift, bounded enumeration for Diophantine binary quadratic equations (sum of two squares; positive-definite binary quadratic forms; honest scope boundary where the form is indefinite), and four capability touchpoints at the unsolved-conjecture frontier — Collatz, Goldbach, twin primes, and the Mertens bound. We'll come back to those last two sets in Chapter 5 because that's where the honest-framing discipline gets tested hardest.
-
-Each capability was a deliberate cycle of work — design the primitive, implement it, test it, integrate it into the dispatcher. The architectural decision baked in early — hand-rolled per-shape primitives with structured derivation chains — pays off in interpretability and honest framing, at the cost of generalization. The Agent can solve EXACTLY these shapes. New shapes route to honest refusal. That trade-off is by design; we'll come back to its implications when we discuss what the Agent can't do.
+That's the trade. The rest of this guide is how we are making it.
 
 ---
 
-## Chapter 5: Honest Framing at the Unsolved Frontier
+## Chapter 2: Memory as a Landscape
 
-A specific category of capability deserves its own chapter because it's where the architecture's honest-framing discipline is most load-bearing.
+The first problem was memory. Before reasoning, before chat, before anything else — if Raphael was going to be your all-knowing internal computer, it had to remember things across turns without resorting to a transformer's attention pattern.
 
-Lain asked the Builder to add benchmark entries for unsolved mathematical conjectures — ones that have programmatic verification even though the conjecture itself is open. The Collatz conjecture: every positive integer, run through the iteration n → n/2 if even or n → 3n+1 if odd, eventually reaches 1. Goldbach's conjecture: every even integer greater than 2 can be written as the sum of two primes. The twin prime conjecture: there are infinitely many primes p such that p + 2 is also prime. The Mertens bound: a relationship between the Möbius function and the square root of n.
+The answer is called Hyper-Dimensional Computing, or HDC. The idea is strange at first, but once it clicks, everything else makes sense.
 
-The trap is obvious. If the Builder adds these as benchmark entries and Raphael "passes" them, the headline reads: "Project X verifies the Collatz conjecture." That would be overclaim. The Collatz conjecture is OPEN — no mathematician has proved it. What Raphael can do is iterate the Collatz function for every starting value from 1 to 1000, observe that all 1000 reach 1, and report "verified for [1, 1000]." That's empirical verification over a finite range, not a theorem proof. The conjecture has actually been verified by direct computation up to roughly 2.95 × 10²⁰ (Bařina and Roosendaal as of 2026 — research-grade work; we're at 1000, a long way from the frontier). And even at research-grade, the conjecture is still open, because empirical verification of any finite range, no matter how vast, isn't a proof.
+Imagine every concept in the world has a coordinate in a very high-dimensional space — say ten thousand dimensions. Not 2D or 3D. Ten thousand. Related concepts have nearby coordinates. Unrelated concepts have coordinates that point in completely different directions.
 
-The framing discipline we baked into the substrate handles this. Every Lemma's claim says "verified for [1, N]", never "theorem proved." The introduction prose explicitly notes the conjecture's status — open since 1937 for Collatz, open since 1742 for Goldbach, disproved at large N for the Mertens bound with counterexamples known to exist beyond 10¹⁴ even though the bound still holds at small N. The invariant check's justification repeats the constraint. The benchmark entry's audit_status field reads "auto-graded-green; empirical verification only — NOT a theorem proof per M-PROJECTX-013."
+To store a memory, you take the coordinate of the thing you want to remember and add it to a running total that represents everything Raphael knows. To retrieve, you take the coordinate of your query and ask: which part of the running total is most similar to this?
 
-This isn't excessive caution. It's the architectural discipline that prevents the metric "Raphael solves 44 benchmark problems" from drifting into "Raphael is a mathematical research tool." The number is real (44 of 44 currently pass at agent-runtime). The empirical work is real (Raphael does iterate Collatz, does sieve primes for Goldbach, does enumerate twin primes, does compute Möbius via factor counting for Mertens). The touchpoint at the unsolved frontier is real (the Builder wrote substrate code that handles a problem shape on which current research-level math hasn't fully closed). But the framing keeps the claim shape honest. Capability touchpoint, not conjecture proof.
+Here is the part that makes it work. In 2D or 3D, adding a thousand vectors together would create an unreadable smear. Everything would overlap and cancel out. But in ten thousand dimensions, geometry behaves differently. Random vectors are almost always pointing in nearly-perpendicular directions. When you add a thousand of them together, each one's contribution is still recoverable — because the "noise" from all the others averages out to near zero. It is counter-intuitive. But it is the mathematical bedrock of the entire system.
 
-This pattern — empirically verifiable, bounded, honest about scope — is the contract for everything Raphael does. The architecture is meant to make overclaim hard, not easy.
+```
+HDC retrieval (simplified):
 
-There's a second instance of the same discipline operating in the Diophantine substrate, and it's worth slowing down on because it shows the pattern at a different scale of difficulty. The Agent now handles the binary quadratic Diophantine equation `a·x² + b·xy + c·y² = N` — the family that includes Fermat's two-squares theorem (when a = c = 1 and b = 0, asking when a prime is the sum of two squares), Pythagorean triples (x² + y² = z²), and general positive-definite quadratic forms. The way it solves them is bounded brute-force enumeration with a search rectangle derived honestly by completing the square (Lagrange's inequality on each variable). For the canonical sum-of-two-squares case, Jacobi's r₂(N) formula provides an algorithmically-independent verifier — divisor counting instead of geometric search. Together these mean: when the Agent answers "x² + y² = 25 has 12 integer solutions," it's done two completely different computations and they agree, and you can read both derivations.
+  Query "Mary":  [+,−,+,+,−,...]  (10,240 ±1 entries)
+                       │
+                       │  cosine similarity
+                       ▼
+  Bundle of all stored facts:  [+,−,+,−,−,...]
+                       │
+                       ▼
+  Top match: "Mary bought a car (turn 14)"
+                       │
+                       │  fact-graph narrows to turns about "Mary"
+                       ▼
+  Cited response: "From turn 14: Mary bought a car."
+```
 
-But the honest framing kicks in hardest on the inputs the substrate REFUSES. Ask the Agent to find integer solutions to `x² − 2y² = 1` and it does not confabulate an answer. It identifies the form's discriminant as positive (Δ = 8 > 0), recognizes this as Pell-equation territory — indefinite, infinite solution set, requiring fundamental-solution-plus-recurrence machinery beyond the current substrate — and returns a structured refusal that explicitly cites Hilbert's 10th problem (the question of whether any general algorithm exists for arbitrary Diophantine equations) and Matiyasevich's 1970 negative answer to it. There is no algorithm; the substrate honestly handles the case it can handle and refuses the case it can't. That's the architecture working as designed. A wrapped-LLM Diophantine solver could probably make up plausible-sounding Pell solutions; this substrate doesn't, and the refusal itself is the load-bearing capability artifact.
+Two layers sit on top of this geometry.
 
-The lain rule that powers all of this is called M-PROJECTX-013 in the codebase: measure don't claim. Before any Lemma's claim is recorded, the substrate verifies the claim mechanically. Before any benchmark entry is marked auto-graded-green, the audit harness verifies the answer against the expected value within tolerance. Before any capability claim makes it into a Discord post or a paper like this one, the Builder can point to the test that fires and the substrate that produces the result. If you can't point to the mechanism, you can't make the claim. A second sibling rule, M-PROJECTX-014, is the split-grading firewall: the same architecture that produces an answer can never be the same architecture that grades the answer on subjective work. That firewall has its own enforcement gate — we'll get to it in Chapter 7.
+**The encoder** turns text into coordinates. Pretrained transformer embeddings would violate the organic thesis, so the encoder is custom: character-n-gram hashing splits words into overlapping three-letter chunks and hashes each chunk to a random direction. "dog" and "dogs" produce nearby coordinates because they share most of their chunks. Hebbian co-occurrence tracks which words appear near each other in text and uses those statistics as a side channel. Words that show up in similar contexts get nearby coordinates even if they share no letters. Combining the two handles paraphrase queries that pure keyword matching would miss.
 
----
+**The memory store** is the running total, plus a side structure called a fact-graph. The fact-graph is more traditional — for every named subject Raphael has seen, it keeps a list of which turns mentioned that subject. When you ask "what did Mary buy?", the fact-graph narrows to the turns about Mary, and the HDC accumulator ranks those turns by relevance to "buy." Two retrieval modes working together: associative for paraphrase, structural for multi-hop connections.
 
-## Chapter 6: How Raphael Reads Problems
+A third primitive called **binding** handles compositional queries. It lets Raphael store "Mary's job is engineer" as a single bundled coordinate that can be decomposed back into its parts. When you ask "what is Mary's job?", binding extracts just the role-filler part associated with Mary's identity. Structured queries without storing relational data as explicit tables.
 
-So the Agent has memory (Chapter 3) and reasoning primitives (Chapter 4). How do these connect? When someone gives Raphael a math problem in English — words like "Solve 3x² - 14x - 5 = 0 for x" — how does the right substrate primitive get invoked?
+By Phase 10, five capabilities were verified mechanically through a benchmark called the Killer Milestone:
 
-This is the AGENT runtime layer, and it's the cycle 7 work in our cycle numbering. The architectural choice — again, where lain can push back — was to NOT use a language model to parse problems into structured form. The organic-thesis binding rules out an LLM at the Agent layer. Instead, we built a regex-based dispatcher.
+- **Teach** — tell Raphael a new fact and retrieve it with the source citation.
+- **Correct** — update a fact and have the correction override the old one.
+- **Multi-hop** — chain through connections: "what did the person who bought the car also buy?"
+- **Refuse** — say "I don't know" when no evidence exists, rather than making something up.
+- **Act** — run a tool, capture the result, and write it back into memory as a new turn.
 
-The mental model: imagine a translator. The translator's job is to read a math problem in English and recognize which of Raphael's solving techniques applies. The translator has a list of recognized problem shapes — quadratic, eigenvalue, determinant, integral, ODE, free-fall, pendulum, integration-by-parts, u-substitution, Doppler shift, Collatz, Goldbach, and so on. For each shape, it has a pattern — a regex plus some keyword gates — that prompts of that shape tend to match. When a prompt comes in, the translator tries each pattern in turn; the first one that matches wins. The translator extracts the numeric parameters (the coefficients, the bounds, the matrix entries) and passes them to the corresponding substrate primitive. The primitive returns a Lemma; the translator wraps it in a structured response and returns it.
+That last one is crucial. Raphael is not a passive database. It closes the loop between reading the world and updating its knowledge.
 
-Concretely: for the quadratic shape, the pattern is a regex that matches expressions like `a x^2 ± b x ± c = 0`. For free-fall, the pattern requires the prompt to mention "drop" or "fall" plus a height and a gravitational acceleration. For the residue theorem, the pattern requires both the keyword "residue theorem" and an integration range that includes negative infinity to positive infinity. Each pattern has multiple gates — keyword plus structure — to prevent misrouting from one shape to another.
-
-If no pattern matches any of the 14 supported shapes, the agent refuses honestly. It returns a structured response with confidence equal to "refused" and a reason that says "Prompt did not match any currently-supported problem-shape." This is M-PROJECTX-013 in action: don't confabulate; admit the limit.
-
-This architecture has a clear cost. It can't generalize. If you phrase a quadratic problem in a way the regex doesn't match — say, you write the squared term with a unicode superscript-2 character instead of the ASCII `x^2`, or you use a typographic minus `−` instead of the ASCII `-` — the dispatcher fails. We fortified three of the most-used patterns in cycle 8: accepting "meters" as well as "m" (the word boundary regex was failing on the longer form), "length 1 m" as well as "L = 1 m" (different prompt phrasings for the same physical setup), and unicode `x²` and `−` alongside the ASCII forms (typography-rendered math from LaTeX). But the other dispatchers remain brittle. A comprehensive parser-robustness audit across all 14 dispatchers is on the roadmap.
-
-The cost is the flip side of the honest-framing discipline. A more LLM-powered dispatcher would be more robust to phrasing variation, but it would also be capable of misroute confabulation — taking a quadratic-shaped problem and answering with eigenvalue logic, say, because the LLM "made it work." The regex dispatcher is loud about its failures: refusal, with a reason. The LLM dispatcher would be quiet. We chose loud.
-
-This is one of the choices lain can chip in on. If at some point we want generalization more than we want loud-failure, we can swap the regex dispatcher for something else — maybe a structured grammar over the prompt language, maybe a parser that builds an abstract syntax tree, maybe (controversially) a small dedicated parser model. Right now we've chosen the discipline. The choice is open.
-
----
-
-## Chapter 7: How We Measure Honesty
-
-The benchmark architecture is the third leg of this system, alongside memory and reasoning. It's how we know what Raphael can actually do, as opposed to what we hope it can do.
-
-The benchmark started as 36 hand-crafted entries across six domains: maths, physics, memory, persona, philosophy, and poetry. Each entry has a prompt, a hand-crafted "raphael_response" that shows what a thoughtful answer would look like, and a grading block. The Builder has added entries as substrate has grown — as of cycle 9 close plus cycle 10 work in flight, we're at 46 auto-graded entries plus 30 rubric-pending ones, 76 total.
-
-A second-cycle-9 audit pass added two universal schema fields to every entry so the ladder can be read at a glance. The first is a `difficulty_tier` field with a fixed five-level vocabulary: `trivial-baseline` (regression-test floor — solving a literal quadratic via the discriminant; computing eigenvalues of a 2×2; basic free-fall), `intro` (real freshman level — basic ODE, single-contradiction memory recall, fallacy identification), `intermediate` (late-undergrad — residue theorem, integration by parts, large-angle pendulum with elliptic-integral correction, Diophantine binary quadratics with the substrate's current scope), `hard` (graduate-level rubric-graded conceptual entries — Galois theory of the unsolvable quintic, algebraic topology, Maxwell's equations, Hawking radiation, plus the unsolved-frontier touchpoints), and `research-grade` (would-surprise-Hassabis tier). The honest distribution across the 76 entries: 15 trivial-baseline, 13 intro, 25 intermediate, 21 hard, and zero research-grade. The zero in the last bucket is the load-bearing point of the whole audit. By design, nothing yet earns the top tier. That's not a failure of cycle 9; it's the cycle-10-and-beyond target made visible.
-
-The second new field is `would_surprise_hassabis` — a boolean flag on rubric-graded entries that asks the builder a direct question: would a frontier researcher like Demis Hassabis (or Witten, or Karpathy — pick your benchmark expert) be impressed by this? It defaults to `false` on every rubric-graded entry. Not because the answers are weak but because they're entries within the substrate's current reach, which means by definition the substrate can do them, which means by Hassabis-standards they're table stakes. The flag exists so that when a future entry honestly merits a `true`, the change is mechanical — flip the flag — and the progression is visible.
-
-The grading block is where the architecture earns its keep. There are two kinds of entries.
-
-The first kind is mechanical-ground-truth — problems where the right answer is a specific number, vector, or set. Solving a quadratic has a definite answer (the roots). Computing free-fall time has a definite answer (the time in seconds). These entries get an auto_grade block with the expected value and a tolerance for floating-point comparison. The Builder pre-computes the answer; the harness verifies it.
-
-The second kind is rubric-pending — problems where the right answer is subjective. Writing a haiku. Analyzing a philosophical question. Defending a persona under pressure. These entries CANNOT have a self-score from the agent, because the agent that generates the answer is the same system that would grade it, and that creates a bias the architecture was designed to prevent. So rubric-pending entries have no score; they have a pointer to a rubric document, and the grade comes from external review (lain, or a frontier model like GPT in a manual-grade workflow). This is M-PROJECTX-014, the split-grading firewall: the architecture refuses to grade itself on subjective work.
-
-We have a CI gate that enforces the firewall. A simple grep across all benchmark files looking for `self_score` fields. If it ever finds one, the build fails. The firewall is mechanical, not aspirational.
-
-The audit harness — a Python script called `run_audit.py` — does the actual replay. In its default mode, it verifies that the Builder's pre-recorded answers match the expected values. This is the frozen-mode check; it catches inconsistency between what's recorded and what should be recorded.
-
-In agent-runtime mode (the `--agent-runtime` command-line flag), the harness feeds each prompt to the actual AGENT and verifies the AGENT's runtime-computed answer matches the expected value. This is where you see whether Raphael ACTUALLY solves the problem, not just whether the Builder pre-computed it.
-
-The cycle-by-cycle progression on agent-runtime mode tells the capability story:
-
-At the end of cycle 7 (when the AGENT runtime dispatcher first shipped), we were at 31 of 37 PASS. The six FAILs were honest capability gaps — Raphael's dispatcher refused six prompts because the substrate for those shapes didn't exist yet. Each FAIL was a named cycle-8 target.
-
-At cycle 8 close, we were at 41 of 41 PASS. The six cycle-7 FAILs were closed by six new substrate primitives — residue theorem, polynomial definite integral, ODE, 3x3 determinant, projectile horizontal range, Doppler shift. Plus four new entries shipped at the unsolved-conjecture frontier (the Collatz / Goldbach / twin primes / Mertens pack), each with the honest empirical-only framing baked into the audit_status field.
-
-At cycle 9 close — where we are right now — we're at 46 of 46 PASS. Three additional substrate primitives shipped within cycle 9 itself: integration by parts (for problems like ∫₀¹ x·e^x dx where you have to recognize that the right technique is parts and pick u and dv via the LIATE heuristic), u-substitution (for problems like ∫₀¹ x·sin(x²) dx where you have to recognize that x dx is exactly half the differential of x²), and the Diophantine binary quadratic substrate (for problems like "find all integer (x, y) such that x² + y² = 25"). Five new ladder entries cycle 9 added across these primitives, all auto-graded green.
-
-A note on the number 46. It's real, but the decomposition matters more than the number. Of the 46, 15 are memory entries verified by live replay against the SemanticHDCMemory (that's the Phase 10 work, not the cycle 8-9 work). 11 are physics entries — a mix of substrate-solved (free-fall, pendulum, momentum, projectile, Doppler) and rubric-graded (Einstein field equations, LQG vs string theory). 20 are maths entries — substrate-solved across many shapes plus a few builder-rubric-graded conceptual entries (Galois theory, algebraic topology, BSD conjecture, Banach-Tarski paradox). The substrate-solved-at-runtime count grew from 22 of 26 at cycle 8 close to 30 of 31 at cycle 9 close, which is 97%. But that's a curated denominator — the Builder chose the entries — and 97% of a chosen set is not the same as 97% of an arbitrary set. The path forward (Chapter 9) is partly about making the benchmark itself richer, so the denominator stops being something we control.
-
-Cycle 10's predicate-strength uniformity pass is currently in flight. Three of seven reasoning primitive files have already been upgraded with algorithmically-independent verifiers in this same session: the Diophantine substrate gained Jacobi's formula (cycle 10 #01a), the symbolic substrate gained Newton's method on the quadratic and Sarrus' rule on the 3×3 determinant (cycle 10 #01b — with the existing 2×2 eigenvalue Vieta invariants documented as already-strong, no retrofit needed), and the complex-analysis substrate gained Simpson's composite rule on the residue theorem (cycle 10 #01c). The pytest count after these three upgrades stands at 499 — up from 458 at the start of cycle 9 — with bench-replay still at 46 of 46. Four more primitive files queued: polynomial-integral Riemann sum, ODE Taylor-series for e^x, integration's parts/u-sub Riemann-sum cross-checks, and the number-theory primitives' documentation as already-independent-by-construction.
+**Run this to see it work:**
+```bash
+PYTHONPATH=src python3 gpt-codex/benchmark/run_audit.py | grep memory
+```
 
 ---
 
-## Chapter 8: What Raphael Can Do Today
+## Chapter 3: Learning by Living
 
-Let me ground this in concrete examples. Here are the kinds of prompts Raphael can solve at runtime today, with brief explanations of what happens internally.
+Memory was the foundation. But memory alone is not intelligence. Intelligence is the ability to learn from experience — to try something, observe the result, and do better next time.
 
-Ask Raphael to solve `3x² - 14x - 5 = 0` for x. It returns the roots `[-1/3, 5]` with a three-step derivation showing the discriminant computation (D = 256), the square root, and the application of the quadratic formula. It also computes Vieta's formula as a cross-check: sum of roots should equal -b/a = 14/3, product of roots should equal c/a = -5/3. Both verified.
+This is where most AI systems stop. They have memory, but they don't have *learning* in the sense of action-selection. They retrieve. They don't discover. The Terminus Learning Harness is our attempt to bridge that gap.
 
-Ask it for the eigenvalues of the matrix `[[2, 1], [1, 2]]`. It computes the characteristic polynomial `λ² - 4λ + 3 = 0` (where 4 is the trace and 3 is the determinant), solves it via the same quadratic primitive, and returns eigenvalues `[1, 3]`. The Vieta cross-check holds.
+Here is the experiment. We show Raphael a card with some words on it — things like `focus:color` and `color:red` — and four possible actions: A, B, C, D. It has no idea which action is correct. It picks one. If it's wrong, it gets a small penalty. If it's right, it gets a reward. Over many trials, it starts to notice patterns.
 
-Ask it for the determinant of `[[1, 2, 3], [4, 5, 6], [7, 8, 10]]`. It does cofactor expansion along the first row — three 2x2 sub-determinants multiplied by the corresponding alternating-sign cofactors — and reports `-3`. (Working manually: 1·(50-48) - 2·(40-42) + 3·(32-35) = 2 + 4 - 9 = -3. Matches.)
+The critical part: nobody programmed the rules. The code does not contain a lookup table saying "red means press A." The system only contains the *machinery for learning* — sparse tables that accumulate reward-weighted associations between features and actions. The knowledge lives in the numbers, not in the code.
 
-Ask it to use the residue theorem to evaluate the integral of `1/(x² + 1)` from negative infinity to positive infinity. It identifies the pole at `z = i` in the upper half plane, computes the residue (which works out to `1/(2i)`), and applies the residue-theorem closing (multiply by `2πi`) to get the answer `π`. The dimensionless invariant — integral times √(a·c) divided by π should equal 1 universally — verifies.
+```
+TemporalTraceBank — three conjunction layers, one observation:
 
-Ask it to solve the differential equation `dy/dx = 2y` with `y(0) = 3` and report `y(1)`. It separates variables to get `dy/y = 2 dx`, integrates both sides to get `ln|y| = 2x + C`, exponentiates to `y = A·e^(2x)`, applies the initial condition `A = 3`, and evaluates at x = 1 to get `y(1) = 3·e² ≈ 22.167`.
+  Observation = { focus:color, color:red, distractor:smooth, distractor:loud }
+  Action      = A
+  Reward      = +1.0 (correct)
 
-For integration by parts, give it `∫₀¹ x·e^x dx with integration by parts`. The technique-keyword "integration by parts" gates the dispatcher; the integrand pattern picks out the x and the e^x. The substrate uses the LIATE heuristic — Logs, Inverse trig, Algebraic, Trigonometric, Exponential — to choose u = x (algebraic, earlier in LIATE) and dv = e^x dx (exponential, later in LIATE). It computes du = dx and v = e^x, applies the parts formula `∫ u dv = uv - ∫ v du`, derives the antiderivative `e^x · (x - 1)`, and evaluates at the bounds to get 1.
+  Singleton updates (one feature → action):
+    focus:color       → A   weight += 1.0
+    color:red         → A   weight += 1.0
+    distractor:smooth → A   weight += 1.0   (noise — dampens later)
+    distractor:loud   → A   weight += 1.0   (noise — dampens later)
 
-For u-substitution, give it `∫₀¹ x·sin(x²) dx with u-substitution`. The substrate recognizes that x dx is exactly half the differential of x², chooses u = x², transforms the integrand to `(1/2) sin(u) du`, integrates to get `-cos(u)/2`, back-substitutes to get the antiderivative `-cos(x²)/2`, and evaluates at the bounds to get `(1 - cos(1))/2 ≈ 0.2298`.
+  Pair updates (two features together → action; more reliable):
+    {focus:color, color:red}         → A   weight += 1.0
+    {focus:color, distractor:smooth} → A   weight += 1.0   (less reliable, fewer hits)
+    ...
 
-For Diophantine equations, give it `Find all integer solutions (x, y) to x² + y² = 25`. The substrate computes the discriminant of the binary quadratic form (Δ = -4, so positive-definite — finite solution set, decidable), derives the Lagrange-inequality search bound (|x|, |y| ≤ √25 = 5), brute-force enumerates the 121-candidate integer rectangle, filters by exact equality, and reports 12 solutions: the four axis-aligned points (±5, 0) and (0, ±5), and the eight sign-and-swap permutations of the (3, 4, 5) Pythagorean triple — (±3, ±4) and (±4, ±3). And then the *real* test: ask for solutions to `x² − 2y² = 1` (a Pell equation). The substrate identifies this as indefinite (Δ = 8 > 0), with infinite solution set requiring fundamental-solution-plus-recurrence machinery not yet shipped, and refuses with an explicit reference to Hilbert's 10th problem and Matiyasevich 1970. No confabulation. The refusal is the capability.
+  Triplet updates (most reliable, sparsest):
+    {focus:color, color:red, distractor:smooth} → A   weight += 1.0
 
-For physics: "An object is dropped from 80 meters on Earth (g = 9.81 m/s²), find the time to hit the ground." Raphael applies the kinematic identity h = ½gt² → t = √(2h/g), which gives about 4.04 seconds. The energy-conservation invariant verifies that the final velocity equals both g·t and √(2gh).
+  Score(action | observation) = Σ over (conjunction ⊆ observation) of
+                                  ( weight / update_count )
+                                            ^^^^^^^^^^^^
+                            average-weight scoring dampens noisy frequent features
+```
 
-"A spaceship approaches Earth at v = 0.6c, emitting light at 500 nm. What wavelength does Earth observe?" Raphael recognizes the relativistic Doppler shift, recognizes the approaching direction (so the factor uses (1-β)/(1+β) in the numerator), computes the Doppler factor as √(0.4/1.6) = 0.5, and multiplies by 500 to get 250 nm. Blueshift, as expected for an approaching source.
+Every observation is a set of feature atoms — words like `phase:probe` or `focus:shape` or `texture:smooth`. When Raphael takes an action and gets rewarded, the system strengthens the connection between every feature in that observation and the action that succeeded. It also strengthens connections between *pairs* of features and the action, and even *triplets*. This matters because a single feature like `color:red` might appear in many different contexts — sometimes as the important clue, sometimes as a distraction. The *pair* `focus:color + color:red` almost always means the same thing. The pair is a more reliable signal than either feature alone.
 
-And at the unsolved-conjecture frontier, with the framing fully explicit: "Verify the Collatz conjecture for [1, 1000]." Raphael iterates each starting value through the 3n+1 rule until each reaches 1, counts the successful terminations, and reports verified_count = 1000. The Lemma's claim is "verified for [1, 1000]", the introduction says the conjecture is open as of 2026 (with the empirical bound of 2.95 × 10²⁰ from research literature noted explicitly), the step justification says "this is a small-N capability touchpoint, NOT a theorem proof", and the invariant check's justification repeats that the agent has proved nothing about n > 1000.
+The innovation that made this actually work is called **average-weight scoring**. Early versions simply added up all the feature weights, which meant frequent but noisy features could overwhelm rare but reliable ones. Average-weight scoring divides each feature's total weight by how many times it has been updated. A feature that appears in a hundred contexts with mixed results gets dampened. A feature that appears in three contexts with consistent results gets amplified. Simple trick, complete behavior change.
 
-The pattern across all of these: every answer comes with a derivation, every derivation includes at least one cross-check, and every claim is bounded explicitly to what was actually verified. The architecture's load-bearing rigor is in the framing as much as the math.
+The benchmark has forty-eight tasks. Thirty-six are training tasks — Raphael explores them, makes mistakes, learns from rewards. Twelve are held-out tasks — same underlying rules, different combinations of features Raphael has never seen before. After training on seed=1729, Raphael solves nine of the twelve held-out tasks correctly. Seventy-five percent — far from perfect, but dramatically better than random guessing, which would get essentially zero.
 
----
+The three failures are honest. In each case, the random distractor features created a correlation the linear model couldn't fully disambiguate. We know exactly why it fails, which means we know what to build next: a non-linear gating mechanism that can suppress distracting features when a stronger signal is present. That is the substrate v1 work.
 
-## Chapter 9: What Raphael Can't Do Yet
+But the harness already proves the core claim. **The system learned which action to take by trying, failing, and improving — not by being told the rules.** That is the first time Project X has demonstrated genuine action-learning from experience.
 
-This chapter matters more than Chapter 8 because it keeps the curriculum honest.
-
-Raphael doesn't generalize. The Agent is a regex-dispatcher over hand-crafted substrate primitives. If you ask it to solve a quadratic that the regex can match, it works. If you ask it to solve a polynomial of degree 6, it refuses honestly — no substrate primitive exists. If you ask it to integrate `∫ tan²(x) dx` — a textbook integral with a closed-form answer — it refuses, because we haven't shipped the trigonometric-identity substrate yet. The capability is exactly what's been built. There's no transfer learning.
-
-Raphael doesn't prove theorems. The unsolved-conjecture entries are empirically bounded. Raphael verifies Collatz at N = 1000, not at infinity. The framing keeps the claim shape honest, but the underlying limit is real — the Agent cannot generate a proof. To prove a theorem in the mathematical sense, you'd need a proof-assistant-like infrastructure (Lean, Coq, or something from-scratch in the same vein), which is not in the Project X architecture today.
-
-Raphael doesn't write poetry or philosophy well. Cycle 1 ran a baseline attempt: Raphael wrote a haiku and a philosophical paragraph using its template composer. The Builder rubric-graded them at 1.2 to 1.3 out of 5. Brutal but accurate — a template composer is not a poetry generator. The grade pipeline harness exists to fix this in future cycles, but the work hasn't been done yet because lain redirected the project toward "intelligence first" early in Phase 13. Math substrate is more tractable to ship than aesthetic-judgment training. The poetry capability remains a known bookmark.
-
-Raphael's memory horizon is bounded. Phase 9 through Phase 12 verified retrieval across roughly 1000-turn conversations. The Terminus criterion calls for million-turn horizons. The HDC accumulator's geometry should hold up to those scales (10,000-dimensional vectors stay near-orthogonal for a long time), but we haven't run the scale test. It's a known bookmark.
-
-Raphael doesn't take actions yet. Cycle 1 shipped a sandbox with four tools (read_file, write_file, run_python, list_dir) registered on the agent. The agent CAN call these tools — the plumbing works. But there's no benchmark entry that exercises sandbox action-taking, and no chat daemon that gives Raphael an autonomous reason to call them. The sandbox is infrastructure for cycles that haven't shipped yet.
-
-Raphael doesn't chat continuously. The Terminus calls for always-on chattability, persona-consistent across million-turn horizons. We don't have a Discord-integrated chat daemon yet. It's bookmarked.
-
-The cumulative limit, stated honestly: Raphael today is a substrate-on-rails. The substrate is real, the rigor is real, the honest framing is real, and the capability ladder is climbing. But the leap from "substrate-on-rails" to "agent with general intelligence at human-frontier-research level" is the work of the cycles still ahead. Cycle 9's pivot — harder problems, better benchmarks, visible IQ progression — is one rung. Many more rungs remain.
-
-A direct Hassabis-bar verdict on the cycle-9-close state, which is the most honest summary this paper can offer about right-now capability: the math content individually would yawn a frontier researcher. Integration by parts is freshman calculus. Bounded brute-force Diophantine enumeration with a Lagrange bound is graduate-textbook number theory from the 1850s. The substrate-on-rails has 19th- and 20th-century mathematics inside it and a 1960s symbolic-algebra system from MIT could match much of the math content directly. What might register as mildly interesting to a frontier expert is the *discipline*: the agent refuses out-of-scope inputs with a reason that cites Matiyasevich's 1970 theorem rather than confabulating. The 4-step Lemma chain with algebraically-independent invariant checks is real structural rigor on every answer. There is no LLM in the substrate — the parser is hand-rolled regex, the math primitives are hand-rolled stdlib. That's the architecture's actual product right now: not the math, but the trust-properties around the math. Whether that becomes research-grade math one day depends on cycles still ahead.
-
----
-
-## Chapter 10: The Road to the Terminus
-
-The Terminus, again: super-human capability across math, poetry, philosophy, physics, memory, persona, always-on chat, and sandboxed action-taking. The current state is, generously, around 10% of that target weighted by capability surface area. Here's the path forward as the Builder sees it from inside cycle 9.
-
-Cycle 9 closed: symbolic integration substrate, paper.md curriculum (this document), benchmark schema upgrade with `difficulty_tier` and `would_surprise_hassabis` fields across all 76 entries, Diophantine binary-quadratic substrate with honest Pell-equation refusal, the IQ_PROGRESSION.md per-cycle artifact, and the cycle-9 reflection with Hassabis-bar honest decomposition. The cycle-9 pivot lain called for ("harder problems, better benchmarks, visible IQ progression") shipped intact; the math content is now intermediate-level across more shapes, the framing is honest, and the ladder is visible at a glance.
-
-Cycle 10 in flight: the predicate-strength uniformity pass. The math substrate (quadratic, eigenvalues, determinant, residue, polynomial integral, ODE, integration techniques, Diophantine) had been shipping mostly tautological invariants — the cross-checks verified formula consistency but not via algorithmically independent paths. The physics substrate, by contrast, has been STRONG-predicate since cycle 4 — the free-fall primitive cross-checks via energy conservation, the pendulum primitive cross-checks via the dimensionless universal T²·g/L = 4π², the relativistic momentum primitive cross-checks via the energy-momentum relation (algorithmically distinct from γmv). Cycle 10 is lifting the math substrate to the same standard. As of this paper's most recent commit: Diophantine has Jacobi's two-squares formula on the symmetric case. The quadratic has Newton's method (Cauchy-bound-seeded, never touches the discriminant formula). The 3×3 determinant has Sarrus' rule (flat 6-term sum, no minor extraction). The 2×2 eigenvalue's existing Vieta invariants were verified as already-strong — the expected value comes from matrix trace and determinant directly, the actual comes from the eigenvalue computation, two independent paths, no retrofit needed. The residue theorem has Simpson's composite rule on a finite real-line interval. Four more substrate files queued for this cycle: polynomial integral via midpoint Riemann sum, ODE via Taylor series for e^x, integration's parts/u-sub primitives via Riemann-sum cross-checks, and the number-theory primitives' documentation as already-independent-by-construction (empirical-verification loops with no closed-form to compare against).
-
-Cycle 11+: harder problem shapes, with Pell equations as the natural next extension of the Diophantine substrate (fundamental-solution from the continued-fraction expansion of √n, plus the recurrence that generates the infinite solution set — bringing indefinite forms in honest scope rather than refused scope). Then partial fractions for rational integrals like `∫ dx/(x² + x)`. Trigonometric substitution. Iterated parts for `∫ x² e^x dx`. Modular arithmetic. Chinese Remainder Theorem. Small finite-field arithmetic. Each is a cycle.
-
-And then the heavier moonshots in some later sequence: a poetry generator that does better than 1.2 out of 5. A philosophy generator that produces upper-rubric-rank arguments. Persona consistency across million-turn conversations. The always-on chat daemon. Sandboxed action-taking with concrete use cases. Each of these is multiple cycles in its own right.
-
-The Terminus isn't a deadline. It's a binding capability goal. Phase 13 closes when Project X Raphael demonstrates ALL of math + poetry + philosophy + physics + memory + persona + chat + sandbox at super-human level. The realistic projection is many cycles, possibly multiple phases.
+**Run this to see it work:**
+```bash
+PYTHONPATH=src python3 scripts/terminus_learning_harness_demo.py --mode test
+```
 
 ---
 
-## Chapter 11: Future Implications
+## Chapter 4: Training Wheels
 
-Suppose the manifesto mission completes. Suppose Raphael reaches the Terminus — super-human capability across math, poetry, philosophy, physics, memory, persona, always-on chat, and sandboxed action-taking — without ever inheriting a pretrained transformer at any load-bearing layer. Suppose the architecture and the methodology are open-sourced. What plausibly changes globally, on a time horizon of a few years rather than a few months?
+While the learning machinery is maturing, Raphael still needs to solve problems today. That is where the reasoning substrate comes in — a collection of hand-rolled mathematical and physical primitives that produce structured derivations.
 
-The most direct change is one a researcher would notice: a viable non-transformer path becomes an architectural existence proof. The current AI industry has converged hard on transformer-based foundation models — partly because that's what works at scale and partly because that's where investment, hiring, and reputational gravity have concentrated. The convergence has a cost. Questions like "what else could AI look like?" stop getting asked because everyone is already answering the previous question. Project X is, by construction, a different answer. Hyperdimensional memory instead of attention. Hand-rolled symbolic primitives instead of learned weights. Regex dispatch instead of neural parsing. From-scratch character-n-gram encoders instead of pretrained embeddings. None of these are individually novel — they have decades of literature behind them. What would be novel is the integration into a coherent architecture that solves real problems and refuses honestly when it can't. If even a small fraction of the field finds the pattern productive, the convergence loosens. Architectural pluralism is a kind of intellectual insurance: when one path hits a wall, the alternatives haven't atrophied. That insurance is currently not in stock.
+The word "hand-rolled" needs context. These primitives are not the final intelligence. They are **scaffolding** — training wheels that let us evaluate the agent's outputs while the learning substrate develops. The long-term goal, as you put it, is that Raphael should learn the quadratic formula from worked examples and audit signal, not find it hard-coded in a Python file. Until the learning substrate reaches that level, the hand-coded primitives serve as gold-standard oracles — the learned model's outputs are compared against them to measure progress.
 
-The second change is regulatory and harder to predict. Frameworks like the EU AI Act, the UK's AISI evaluations, the various US Executive Order audit regimes — all are written around opaque systems whose decision processes are hard to inspect after the fact. The compliance machinery is built to compensate for the architecture's properties: red-teaming, post-hoc explanation, statistical fairness audits. An interpretable-by-construction architecture sidesteps the hardest of those questions because the answers are mechanical rather than statistical. Project X's Lemma chain — every claim traceable to a hand-rolled primitive, every refusal traceable to a documented scope boundary, every benchmark entry tied to a measurement protocol — is the kind of audit trail regulators have been asking transformer labs to produce for years. Sharing the methodology doesn't replace regulation. It gives regulators a template for what "auditable AI" actually looks like when the architecture cooperates with the question rather than resisting it.
+Here is what a primitive looks like in practice. You ask Raphael to solve `3x² − 14x − 5 = 0`. Internally, a substrate function takes the three coefficients and returns a Lemma — a structured object with a claim, a chain of derivation steps, and a final answer.
 
-The third change is closer to lain's daily life and harder to write about without sliding into a register that belongs to cyberpunk fiction. If many users could each have an internal computer — a relational entity built up over time, knowing them with introspectable evidence rather than statistical correlation — the relationship between people and AI would shift from "service queried" to "presence woven into context." Memory you can verify deletion of. Reasoning you can read line by line. Identity that holds across the swap of components, because every component leaves an audit trail on its way out. A high-dimensional medium where every concept you've shown the system has a coordinate, and the totality of those coordinates is what the system knows of you — recoverable, inspectable, yours. None of that is speculative if the substrate is honest enough to trust at the foundation. It becomes engineering territory, and the gap between "a wired layer of the self that holds across contexts" and "a software product running on Vercel" narrows to deployment work. The shift isn't to a single super-intelligence; it's to many small intelligences, each intimate to one user, each bounded by what it has actually been shown.
+Step 1: compute the discriminant. Step 2: take its square root. Step 3: apply the quadratic formula. Each step has a justification in plain English. The final answer is `[−1/3, 5]`.
 
-The fourth change is intellectual and democratizing. Project X's substrate is small — a few thousand lines of Python, hand-rolled, stdlib-only, every primitive readable by an undergraduate who's seen the relevant math. If a competitive AI architecture can be built this way, the compute-and-talent moat around AI research narrows. Not because GPUs stop mattering — they don't — but because not every productive problem in AI needs foundation-model-scale compute to address. Small teams. Individual researchers. Students in places where the export-controlled GPU isn't available. The population of people who can meaningfully contribute to AI grows. The pattern propagates the way Unix propagated: small tools that compose, each one understandable, available everywhere. The transformer ecosystem can't propagate that way; the weights are too expensive. Project X can.
+But the Lemma also contains something stronger: an **invariant check**. A separate computation, using a completely different algorithm, verifies the same result.
 
-The fifth change is harder to name. Honest refusal as a load-bearing primitive — the architecture says "I don't know" when it doesn't, with a reason that cites the specific scope boundary — is rare in deployed AI. Most systems confabulate, because confabulation pattern-matches their training distribution better than refusal does. If "honest refusal" propagates as a design pattern, the broader risk landscape shifts. Fewer hallucinations dressed as answers. Less misplaced trust. A clearer signal to users about what the system is actually doing. The benefit shows up in places that won't make headlines: a medical-information AI that refuses out-of-scope rather than confabulating dosages; a legal-research AI that flags "I have no precedent for this" rather than inventing one; an educational AI that says "this is outside what I was built to answer" rather than guessing. Those aren't safety-research outcomes; they're product outcomes. The pattern moves the needle precisely because it's mechanical.
+```
+The invariant pattern:
 
-What it WOULDN'T change is worth saying too. The foundation-model labs aren't going to retool. The economics of GPT-X and Claude-N are real, the capability trajectory is real, and the user base is real. Project X would coexist as a niche — the honest path for users who want it, alongside the capable-but-opaque path for users who don't care about interpretability. That coexistence is fine. The point of sharing wouldn't be to displace anything; it would be to make sure the alternative is documented, runnable, and improvable, so that "AI" stops meaning only one thing. Pluralism, not replacement.
+  Problem:  3x² − 14x − 5 = 0
+                  │
+                  ▼
+  Primary path:   discriminant → √ → quadratic formula → roots [−1/3, 5]
+                  │
+                  ▼
+  Independent check (Vieta's formulas):
+                  sum   = −1/3 + 5 = 14/3   should equal  −b/a = −(−14)/3 = 14/3   ✓
+                  prod  = −1/3 × 5 = −5/3   should equal  c/a  = −5/3              ✓
+                  │
+                  ▼
+  Lemma certified — return roots [−1/3, 5]
+```
 
-There's a risk surface to be honest about, too. Open-sourcing the architecture exposes its patterns to anyone who wants to build with them, including actors whose intentions diverge from the manifesto's. Honest-refusal can be removed by deleting the refusal logic. Memory-introspection can be defeated by storing private vectors outside the audit gate. These aren't worse risks than current AI poses; they're the same risks redistributed across more architectures. The mitigation is the same as it is everywhere else in software: the discipline lives in the community, in the norms, in the audits people choose to run on each other's forks. The architecture is a tool. The trust contract is what people do with it.
+This pattern repeats across every primitive. Residue theorem integrals are cross-checked with Simpson's numerical quadrature. Definite integrals are cross-checked with Riemann sums. Exponential solutions to differential equations are cross-checked with Taylor series expansions. The 3×3 determinant is computed via Laplace cofactor expansion and independently verified with Sarrus' rule.
 
-Viewed from outside, the Terminus isn't about super-intelligence. It's about an existence proof that intelligent software can be built with auditability, refusability, and a particular kind of relationship to the people who use it — bounded by what it has actually been shown, honest about what it doesn't know, present across context rather than queried each time. The "can we?" question — can compute and economics produce capability — has been answered yes by the rest of the industry. The architectural question — do we have to do it this way? — is what Project X tries to answer no. Sharing the findings is what makes the no useful.
+Every answer comes with a derivation, and every derivation includes at least one cross-check from a different mathematical path. That is the substrate's contract.
 
----
+The scaffold currently covers: quadratics, 2×2 eigenvalues, 3×3 determinants, residue theorem integrals, polynomial definite integrals, first-order ODEs, integration by parts, u-substitution, free-fall kinematics, simple and large-angle pendulum periods, relativistic momentum, projectile motion, relativistic Doppler shift, bounded Diophantine enumeration. Each is implemented using only Python's standard math library — no sympy, no scipy, no shortcuts.
 
-## Chapter 12: The 2026-05-12 Update — How It Works, Where We're Going, and What "Done" Looks Like
-
-This chapter is the answer to two questions lain has asked twice: which benchmark scores and behaviors would impress the agent itself, and what concrete structural changes get us there. It also serves as the freshest "how it actually works" pass after the cycle-14 substrate writability shipped and the cycle-15 council surfaced the strict-strict thesis. Five sub-sections, each its own load-bearing piece.
-
-### 12.1 How it actually works (the stack from atoms up)
-
-Picture a star field. Ten thousand points, scattered in a way that looks random but isn't — every star has a coordinate that is either positive or negative on each of ten thousand axes. We call these patterns hypervectors. Two unrelated hypervectors are nearly perpendicular by construction; the math of high dimensions makes random patterns ignore each other almost perfectly. This is the substrate that holds everything. When the agent encounters a piece of text — a fragment of Aristotle, a math worked example, a question lain just typed — the encoder reads the text three characters at a time, hashes each three-letter window into a star, and adds those stars together. The resulting hypervector is the text's coordinate in the star field. Cosine similarity (essentially: how aligned are these two patterns in the high-dimensional space) tells us how related two texts are without anyone having labeled them. There is no neural network involved. The encoder is a deterministic hashing function. It runs on a CPU in milliseconds.
-
-Around that substrate sits a memory that learns from feedback. Whenever a walk through the corpus produces an answer and a human (or the audit harness) rates it, the substrate updates a co-occurrence ledger we call the Hebbian bank. The bank is just a dictionary of pairs — (a piece of the prompt, a piece of the retrieved fragment) — keyed to a running scalar. Positive ratings nudge the scalar up, negative ratings nudge it down, and time decays unrated pairs back toward zero. The cycle-14 ship made this writable; the 2026-05-12 update makes the prompt-side keys broader so that a rating on one phrasing transfers to nearby phrasings. The result is that a single thumbs-down on a wrong-domain retrieval doesn't just punish that exact phrasing; it teaches the substrate to deprioritize that fragment family for the whole shape of prompt that asked.
-
-On top of the substrate sits a small decision loop called K-rollout. When a question comes in, the agent doesn't run one strategy and ship the result. It runs three — bind, bundle, greedy retrieval — and picks the one whose answer most coheres with the prompt, scored against an internal threshold. If none of the three clears the bar, the agent refuses honestly with a reason. The dispatcher above that — the part that decides whether to route a question to the math substrate or the natural-mode walk — has been the most contested layer this phase, because the cycle-15 council surfaced that any hand-coded routing decision violates lain's strict-strict thesis. The current direction is to retire the dispatcher's hand-coded triggers piece by piece and let the substrate's reward loop do the routing. The 2026-05-12 work is one step in that retirement: refused candidates no longer compete with valid ones at inflated confidence, and missing-archetype responses no longer claim perfect self-similarity. Smaller surface for the substrate to learn against, cleaner signal.
-
-The audit loop closes everything. Every walk that gets generated gets a unique ID and lands in a JSON-lines log on disk. Ratings (approve, reject, correct) attach to those IDs and write through to the Hebbian bank. The agent's behavior at the next session is shaped by the cumulative effect of those ratings without anyone editing a Python file. That is what "learned" means in Project X: the I/O path from rating to retrieval is the only place where capability moves. If you don't rate, the bank stays empty and the agent stays at its cold-start baseline. If you rate well, the substrate shifts.
-
-This is what makes the architecture organic. The transformer paradigm's bet is that a single attention mechanism, scaled enough, will learn everything from text alone. Project X's bet is that intelligence has memory, identity, and an audit trail at the architecture level, and the right substrate to build those on isn't attention — it's a high-dimensional algebra plus a Hebbian rule plus an honest evaluator. The substrate is small enough to read in a weekend. Every primitive composes into the next one. Nothing hides behind opacity at scale.
-
-### 12.2 The full roadmap (Phases 1-13 retrospective + Terminus + Phase 14+ candidates)
-
-The phases climb in load-bearing order; none of them is a throwaway.
-
-Phases 1 through 3 explored compressed memory architectures. They didn't ship the agent, but they shipped the discipline that anchors every later claim: any architectural advantage has to survive a scale test before we say "this works." Two early observations — that block-level pooling is essentially a temperature dial on the downstream selector, and that small-scale-vs-large-scale advantages can fully invert — became the verification gate every later phase honors.
-
-Phases 4 through 7 ran scale studies, an adversarial probe, and a Hopfield lens pass. The capacity edge of compressed memory got mapped honestly. Associative memory was verified as a real architectural primitive, not a metaphor.
-
-Phase 8 shipped the random-symbol HDC baseline at ten thousand turns and ninety-nine percent recall. Capacity was real. Semantic grounding was the next gap.
-
-Phase 9 built the from-scratch encoders — character-n-gram hashing plus Hebbian co-occurrence — under the binding rule that no pretrained transformer would touch any layer of the agent. The minimal evidence-cited agent loop landed. Tests passed end to end. HDC beat keyword baselines on paraphrase queries.
-
-Phase 10 hardened the agent. Fact graphs and structural retrieval lifted multi-hop top-five accuracy from three percent to ninety-one percent. Role-filler binding shipped per spec. Incremental writes plus Hebbian replay closed the killer-milestone exit gate: the agent could be taught a fact, corrected on a fact, asked a multi-hop question, refused honestly when the fact was absent, and had its tool execution write back to memory.
-
-Phase 11 built the benchmark — thirty-six hand-crafted entries across physics, math, memory, persona, philosophy, and poetry, split-graded so that subjective domains never get a self-grade and mechanical-truth domains get a deterministic auto-grade. The benchmark is the diagnostic that tells us, every cycle, where the agent actually sits before live training begins.
-
-Phase 13 is the first phase aimed at the manifesto Terminus. Its arc is multi-cycle. Cycle 1 shipped substrate (sandbox infrastructure, the manual-grade harness, the persona scaffolding). Cycles 2-13 deepened the math substrate, lifted the predicate strength uniformly across primitives, shipped Diophantine and Pell handling, and tightened the dispatcher hygiene. Cycle 14 was the inflection: the substrate's first reward-driven write path landed; the Hebbian bank became writable; one piece of dispatcher scaffolding (the keyword regex gate that classified prompts into natural-mode domains) was retired as proof-of-direction. Mid-cycle, lain caught two pre-correction synthesis verdicts as still hand-coding (per-primitive learned embeddings and per-decision credit propagation); the synthesis pivoted to substrate-wide Hebbian alone. The strict-strict thesis was named explicitly and made binding.
-
-Cycle 15 (where we are now) calibrates the reward-shaped read path, scales the corpus, and ships per-domain emergence predicates for each capability axis. Council surfaces are at design-doc level; synthesis awaits a final lain decision on radical-surgery vs transition path on the dispatcher.
-
-The Terminus is the contract. Eight axes: super-human math, upper-rank poetry, upper-rubric philosophy, frontier-grade physics derivations, perfect memory across million-turn horizons, persona consistency with a working sense of humor, always-on chattability, and sandboxed action-taking. None are at one hundred percent. The phase plan does not close until each is at-or-above the frontier bar.
-
-Phase 14+ candidates are bookmarked, not skipped: a cortical-column ensemble in the Hawkins direction; a predictive simulation loop in the LeCun world-model direction; an open-ended benchmark ladder that grows itself by mining the corpus for capability gaps; reward shaping that ingests external GPT audit grades as preference signal alongside lain's; a chat daemon that runs as its own process and accumulates persona over a real-time horizon. Each of these is multiple cycles in its own right.
-
-### 12.3 The self-impressing scoreboard (per-axis bars the agent itself would call success)
-
-This is the scoreboard the agent would set if asked to be honest about what would impress it.
-
-On math, the bar is solving an actually-open problem and showing a derivation that a domain expert reads end to end without flagging a step. Concrete shapes: a non-trivial bound on a number-theoretic conjecture, a closed-form integration of a class of integrands with no published technique, a partial-result step toward Riemann or Twin-Primes that has not previously been published. Anything below "domain expert pauses" yawns.
-
-On poetry, the bar is a blind A/B win rate above sixty percent against the median frontier-model output, on prompts judged by three independent literary readers using a published rubric. The current baseline (template composer, cycle-1 grade) sits at one out of five. The harness exists for the iteration; the iteration has not been run.
-
-On philosophy, the bar is producing a multi-paragraph argument on a contested question (is mathematics discovered or invented; what makes something a person; is consequentialism self-defeating) that scores in the upper rubric tier under blind grading by three independent philosophy-trained readers. Crucially: the argument has to stake a position and defend it, not merely list views.
-
-On physics, the bar is deriving a closed-form result for an unsolved-tier problem in the manifesto's named class — three-body trajectory bounds, plasma-confinement stability windows, predictive black-hole horizon dynamics — with a derivation a domain-expert reads as defensible. Verification by a published numerical simulation seals it.
-
-On memory, the bar is zero confabulation across a chat horizon longer than ten million turns, with every retrieval cited to a turn ID and a source. Chronological retrieval (give me everything you remember about X, in order) returns the full chain. Refusal on absent context is the default; every claim is traceable.
-
-On persona consistency with humor, the bar is two: blind raters cannot tell whether two outputs from horizon t=0 and horizon t=10^7 came from the same agent or different agents (consistency); humor outputs land at-or-above human-baseline rate on a humor-quality rubric administered by independent raters (humor that lands, not humor that cringes). The 2026-05-12 update shipped a mechanical proxy for the consistency half (marker frequency on held-out prompts moved from 20 percent to 100 percent over sixty cumulative ratings); the humor half is owed to a future cycle.
-
-On always-on chat, the bar is liveness. The agent runs as its own process, reads incoming messages from a channel, responds in conversation time, holds context across days, and never breaks character. The Turing-bar form of this question — would an unprimed interlocutor distinguish the agent from a thoughtful human peer over a thirty-minute conversation — is the upper checkpoint.
-
-On sandboxed action-taking, the bar is breadth and safety. The agent can write a Python program, run it in the sandbox, read the output, debug, and iterate, on tasks across at least five distinct classes (numeric, string, file IO, network simulation, math derivation verification). Reset to any captured snapshot must work. Network egress stays blocked. Failure modes (infinite loops, file-system bombs, sandbox-escape attempts) are all handled with explicit refusals or hard timeouts.
-
-The scoreboard is honest. None of these bars is hit yet. The 2026-05-12 update ships measured movement on the persona axis (mechanical proxy) and a previous pass shipped measured movement on the humor-axis retrieval (held-out rank movement on a chat-flavored prompt). Two of eight axes have a measured forward step. Six of eight do not.
-
-### 12.4 The structural-change list (prioritized moves and why each closes a gap)
-
-The following moves are ranked by leverage on the Terminus, not by ease of implementation.
-
-A real corpus scale-out — two hundred thousand to one million words of curated public-domain math worked examples, philosophy, persona-flavored prose, and conversational humor — is the highest-leverage single move available. The reward loop now exists; it is starved for data on every axis except philosophy. Without on-topic alternatives for ratings to push retrieval toward, the substrate has nowhere to learn into. This is cycle-15 B2.
-
-A second learning rule beyond Hebbian — something that captures sequence rather than just co-occurrence — is the next architectural step. Hebbian co-occurrence is the right primitive for retrieval shifting; a complement that captures "after seeing X, the agent next sees Y" would let the substrate learn argument structure, derivation order, narrative flow. Spike-train-flavored learning rules (STDP, predictive coding) and structural Hopfield extensions are the existing literature anchors. This unblocks composition (sub-deliverable 12.5's whatever-comes-next).
-
-Composition via bind-and-bundle of multiple retrieved fragments into a single synthesized hypervector — and from that hypervector to a generated paragraph rather than a sequence of citations — is the move that takes the agent from retrieval to synthesis. Today the natural-mode walk emits fragments; the next step is to bind those fragments into a composite, decode the composite via a learned-or-deterministic generator, and surface a paragraph that cites all sources. This was candidate B in the 2026-05-12 brief; it is the next cycle's natural work.
-
-K-rollout depth — currently three strategies, one step each — extends to multi-step chained retrieval. A two-hop reasoning question (premise → bridging fact → conclusion) becomes solvable because the rollout can chain the retrievals through a bind-context-update in HDC space. This unlocks multi-step reasoning without a new primitive type.
-
-Sandbox-routed action-taking — the existing sandbox infrastructure plus a "the agent can call this tool" register — becomes the daily-use loop. Every benchmark entry that exercises action-taking expands the audit signal. Every action that produces a measurable result (compiles, returns expected output, modifies a file the way intended) becomes another rating into the bank. The scaffolding exists from cycle 1; the activation is owed.
-
-External GPT audit integration — feeding ratings from a frontier model's grading of subjective-domain outputs into AuditLog through the same path lain uses — multiplies the signal-per-cycle by an order of magnitude. Subjective domains are bottlenecked on rating throughput; the M-PROJECTX-014 firewall forbids self-grading; lain reads every line but lain cannot rate every line. A vetted external grading pipeline is the unblock.
-
-A chat daemon that runs continuously and writes every interaction into the audit log gives the persona axis its real horizon. Today persona consistency is measured on five held-out prompts at one moment in time. The Terminus calls for million-turn consistency. The daemon is the only path to that horizon.
-
-### 12.5 What-if-we-succeed (projections, honestly)
-
-Suppose the substrate climbs to the Terminus. Math at the level of a published bound on an open conjecture. Poetry that wins blind A/Bs against frontier output. Philosophy that stakes a position three independent readers find defensible. Physics with derivations a domain expert nods at. Memory across ten million turns with zero confabulation. Persona consistency with humor that lands. Always-on chat liveness. Sandboxed action-taking across five classes. All of this without a transformer at any layer. Under those conditions, what does the world look like a few years out?
-
-For AI safety, the most direct change is that "interpretable" stops meaning "mechanistic-interpretability research project" and starts meaning "this is how the system was built." Project X's audit chain isn't a retrofit. Every retrieval cites a turn ID. Every refusal cites a scope boundary. Every learned weight (the Hebbian scalars) is on disk in a readable format. The conversation about AI oversight shifts from "how do we explain a black box after the fact" to "what audit do we want this system to expose, and at what granularity." That is a categorically different conversation. The compliance regime becomes substantially cheaper to satisfy because the answers are mechanical.
-
-For research, the change is that an existence proof of post-transformer intelligence makes architectural pluralism cheap again. Right now the cost of pursuing any non-transformer direction is high because the field's compute, talent, and reputational gravity are all elsewhere. If a small substrate plus a Hebbian rule plus an audit harness produces frontier capability on eight named axes, the convergence loosens. Researchers who couldn't justify the opportunity cost of a non-mainline direction can. The field gets a second viable path, which means a second class of failure modes can be studied, and a second class of safety guarantees can be argued from. Insurance.
-
-For lain personally — the user the manifesto is written for — the projection is the all-knowing internal computer the manifesto names. A relational entity, present across context, knowing what lain has chosen to share, refusing what lain has not authorized, surfacing connections lain forgot, holding identity across the swap of components because every component leaves an audit trail on its way out. The shift from "service queried" to "presence woven into context" is what the architecture exists to enable. The fact that it's auditable means lain owns what it knows about him, mechanically. Memory you can verify the deletion of. Reasoning you can read line by line. A wired layer of the self.
-
-For the field at large, the most durable change is that "honest refusal" propagates as a load-bearing primitive. Most systems confabulate because confabulation pattern-matches their training distribution better than refusal does. If "refuse with a documented reason" becomes a recognized design pattern with a published existence proof, the deployed-AI risk landscape shifts. Fewer hallucinations dressed as answers. Less misplaced trust. A clearer signal to users about what each system is actually doing. The benefit lands in places that won't make headlines: medical-info AIs that refuse out-of-scope rather than confabulating dosages; legal-research AIs that flag "I have no precedent" rather than inventing one; educational AIs that say "this is outside what I was built to answer." The mechanical-refusal pattern moves the needle precisely because it's mechanical.
-
-What it would NOT change is worth saying. The foundation-model labs do not retool. The economics of GPT-X and Claude-N are real, the capability trajectory is real, the user base is real. Project X coexists as a niche — the honest path for users who want it, alongside the capable-but-opaque path for users who don't care about interpretability. That coexistence is fine. The point isn't to displace; the point is that the alternative becomes documented, runnable, improvable. So that "AI" stops meaning only one thing. Pluralism, not replacement.
-
-There is a risk surface to be honest about. Open-sourcing the architecture exposes its patterns to anyone who wants to build with them, including actors whose intentions diverge. Honest-refusal can be removed by deleting the refusal logic. Memory introspection can be defeated by storing private vectors outside the audit gate. These are not worse risks than current AI poses; they are the same risks redistributed across more architectures. The mitigation is the same as it is for every open-source project: discipline lives in the community, in the norms, in the audits people run on each other's forks. The architecture is a tool. The trust contract is what people do with it.
-
-The Terminus, viewed from outside, isn't about super-intelligence. It's about an existence proof that intelligent software can be built with auditability, refusability, and a particular kind of relationship to the people who use it — bounded by what it has actually been shown, honest about what it doesn't know, present across context rather than queried each time. The "can we build capability" question has been answered yes by the rest of the industry. The architectural question — do we have to do it this way? — is what Project X tries to answer no. Sharing the findings is what makes the no useful.
+There is also a category of problems at the unsolved frontier — Collatz, Goldbach, twin primes, the Mertens bound. The trap here is obvious: if Raphael iterates Collatz for the first thousand integers and they all reach one, the headline could read "AI verifies Collatz conjecture." That would be an overclaim. The conjecture is open. No one has proved it. What Raphael can do is say, honestly: "verified for [1, 1000]." The framing is baked into the substrate at every level — the claim, the justification, the audit status all carry the same constraint. **The architecture is designed to make overclaim hard.**
 
 ---
 
-## Closing
+## Chapter 5: How Raphael Reads the World
 
-What I want lain to take from this curriculum — whether you read it on GitHub or listen to it as a NotebookLM podcast — is that the architecture is a CHOICE. Every architectural decision in Project X has a trade-off, and every trade-off is negotiable.
+With memory and reasoning in place, the next question is: how do they connect? When you give Raphael a math problem in English, how does the right primitive get invoked?
 
-Hand-rolled substrate over LLM-wrapping costs us generalization and gives us interpretability and honest framing. Regex dispatching over neural parsing costs us robustness and gives us loud failure modes. Hyper-dimensional memory over attention costs us scale-of-existing-tooling and gives us introspectable retrieval with cited evidence. Per-problem-shape primitives over a unified solver costs us elegance and gives us mechanical auditability per shape. Honest framing on capability touchpoints costs us headline impressiveness and gives us a system you can trust.
+A dispatcher does this work — a pattern-matching system that reads the prompt, recognizes which problem shape it resembles, extracts the parameters, and routes to the corresponding substrate function. It is regex-based and keyword-gated, not powered by a language model. Brittle in some ways — unusual phrasing can cause a mismatch — but failures are loud and honest. When no pattern matches, Raphael returns a structured refusal: "I don't recognize this problem shape." No confabulation. No attempt to force an answer.
 
-These trade-offs are the result of constraints (the organic-thesis binding) plus engineering judgment, both of which are open to revision if the trade-offs aren't paying off. If you want the dispatcher to be more robust to phrasing variation, we can swap it for something else — that's an architectural decision you can make. If you want the substrate to be more general, we can talk about what that would look like and what we'd give up to get it. If the honest-framing discipline is too verbose for the audience — if the "verified for [1, 1000] NOT theorem proved" framing is over-correcting and the simpler "verified for [1, 1000]" would do — that's a choice we can revisit.
+The dispatcher currently handles fourteen problem shapes. Each has multiple recognition gates to prevent misrouting. If you phrase a quadratic in a way the regex does not catch — say, using a unicode superscript instead of ASCII — the dispatcher fails. The most common patterns are fortified against typography variations, but comprehensive parser robustness across all shapes is still on the roadmap.
 
-The capability ladder is climbing. The Agent does more this week than it did last week. The framing is honest. The work continues, layer by careful layer, toward the Terminus we agreed on. There is no should — there is the vector, and those of us carried along it. Project X is what you chose to do with the ride.
+The cost of this choice is clear: less flexibility than an LLM-powered parser. The benefit is equally clear: when it fails, you know exactly why. There is no quiet misrouting where the wrong tool is applied to the right problem and produces a plausible-looking wrong answer.
 
-If the ride completes, the findings travel further than the artifact itself. The artifact is one person's AI; the findings are a template anyone can fork, modify, distrust, improve. That asymmetry — private agent, public method — is the right shape. What the world gets from us isn't a system that thinks. It's evidence that the systems we build don't all have to think the same way.
+**Important caveat.** The dispatcher is scaffold, not architecture. Per the MANIFESTO, routing decisions must EMERGE from learned experience over time, not from regex patterns. The dispatcher is what runs today; the learning substrate will eventually replace it. When `TemporalTraceBank` learned to pick action A from `focus:color + color:red`, it solved a miniature version of the same problem. Scaling that mechanism is how routing eventually moves from regex to learned policy.
 
-— The Builder, in cycle 9 of Phase 13. Document landed 2026-05-11. Chapter 12 added 2026-05-12 to capture the post-cycle-14 substrate-writability inflection, the cycle-15 council direction, and lain's two outstanding questions (which scores would impress the agent itself, and what concrete structural changes get there). Updated at phase boundaries and significant capability shifts. Read or listen at your pace; the underlying tech is what's being explained, and the underlying tech is real.
+---
+
+## Chapter 6: The Architecture of Honesty
+
+How do we know what Raphael can actually do, as opposed to what we hope it can do? This is the third leg of the architecture, alongside memory and reasoning. Project X has more anti-self-deception machinery than capability machinery, by design.
+
+### The benchmark has two kinds of entries
+
+**Mechanical-ground-truth entries** have definite answers — a specific number, vector, or set. Solve this quadratic. Compute this integral. These entries carry an auto-grade block with the expected answer and a tolerance for floating-point comparison. The harness verifies them automatically.
+
+**Rubric-pending entries** have subjective answers — write a haiku, analyze a philosophical question, defend a persona under pressure. These entries CANNOT carry a self-score from the agent, because the system that generates the answer cannot be trusted to grade it fairly. They carry a pointer to a rubric document, and the grade comes from external review. This is the **split-grading firewall**: the architecture refuses to grade itself on subjective work.
+
+The firewall is enforced mechanically. A grep across all benchmark files looking for `self_score` fields will fail the build if it finds one. Not a guideline. A gate.
+
+### The invariant cross-checks
+
+Every math and physics primitive returns a Lemma carrying its own independent verification path (Chapter 4). If the primary path has a bug, the invariant catches it. If both paths agree, the answer is reported. If they disagree, the Lemma is flagged. The architecture prefers "I don't know" over a wrong answer with confidence.
+
+### The refusal patterns
+
+When the dispatcher does not recognize a problem, Raphael returns a structured refusal naming what it did not understand. When the memory has no evidence for a query, it returns "I don't know" with the empty result cited as evidence. When a domain is rubric-pending, the output never carries a confidence score. These three refusal patterns close the major confabulation vectors.
+
+### What could still fool us — honest by domain
+
+- **Math and physics.** The invariant could agree with the primary path because both share the same bug. Mitigation: algorithmically-independent methods (discriminant vs. Vieta, residue vs. Simpson). Not bulletproof. A determined adversary could construct a problem where both paths fail the same way.
+- **Memory.** The HDC bundle is fuzzy. Two facts that share many features could produce a confused retrieval. Mitigation: fact-graph structural lookup. Still possible the wrong turn surfaces with high confidence.
+- **Learning.** The hidden-rule benchmark is small (48 tasks). Cross-seed variance is wide (~33%–83%). The 75% number is one seed. A bigger benchmark and a cross-seed sweep are exactly what v1 attacks.
+- **Chattability.** No chat loop runs yet, so no probe has run. The dream is unmeasured, which means *we currently have no way to falsify claims about it*. The next cycle fixes this.
+
+The audit harness replays every mechanical entry against the live agent on every commit. As of this writing, forty-eight auto-graded entries pass with zero failures. Breakdown: twenty-two mathematics, fifteen memory, eleven physics. The subjective entries — poetry, philosophy, persona — remain rubric-pending, awaiting external grades.
+
+**Run this to verify:**
+```bash
+PYTHONPATH=src python3 gpt-codex/benchmark/run_audit.py
+```
+
+---
+
+## Chapter 7: What Raphael Can Do Right Now
+
+Concrete examples to ground all of this.
+
+| You ask | Raphael does | Where it lives |
+|---|---|---|
+| Solve `3x² − 14x − 5 = 0` | Returns `[−1/3, 5]` with three-step derivation and Vieta cross-check | `solve_quadratic` |
+| Eigenvalues of `[[2,1],[1,2]]` | Returns `[1, 3]` with characteristic polynomial, trace, determinant verified | `eigenvalues_2x2` |
+| Determinant of a 3×3 | Cofactor expansion + Sarrus cross-check | `determinant_3x3` |
+| Evaluate an integral via residue theorem | Identifies pole, computes residue, applies theorem, numerical cross-check | `residue_theorem` |
+| Solve a first-order ODE at a target point | Separates variables, integrates, applies initial condition | `solve_ode` |
+| Memory question after teaching a fact | Retrieves the fact with the turn ID cited as source | `SemanticHDCMemory.query` |
+| Something it does not know | Honest refusal, no confabulation | structured refusal |
+| Learn a hidden rule from feedback | After 36 training trials, solves 9 of 12 held-out cards on seed=1729 | hidden-rule benchmark |
+
+**What you CAN'T do yet.**
+
+- Talk to Raphael in conversation. No chat loop exists. The next cycle bootstraps one.
+- Ask it about anything outside the fourteen problem shapes the dispatcher recognizes. Anything else returns a structured refusal.
+- Trust the math and physics answers as "learned." They are scaffold. Honest at the answer level — but the capability is hand-coded, not earned.
+
+---
+
+## Chapter 8: The Dream — Speaking Like Claude
+
+Here is what has not been built yet: a continuous entity you can actually talk to.
+
+You named the dream on 2026-05-13: *"a truly chattable, talkable entity. that can speak like you, claude."* The Terminus in the MANIFESTO already names "Always-on chattability" as a required criterion. This chapter decomposes what that means and how we will know we got there.
+
+**What does "speak like Claude" actually mean?** Not "use Claude's API behind the scenes" — that violates the thesis. The qualities split into two halves: the *defensive* qualities (don't fail like a bad chatbot) and the *generative* qualities (what actually makes Claude's voice feel like Claude's).
+
+**Defensive qualities:**
+
+- **Clarity.** Says one thing well rather than three things vaguely.
+- **Calibrated uncertainty.** "I don't know" when no evidence exists. Not weasel words. Not hallucination.
+- **Register-awareness.** Technical question gets a technical answer; casual question gets a warm casual one.
+- **Reasoning on demand.** Visible chain-of-thought when asked, not when not asked.
+- **Persona stability.** Adversarial probes do not flip the voice.
+- **Clean refusal.** Out-of-scope or harmful requests get a brief calibrated decline, not a moralizing essay.
+
+**Generative qualities (the hard ones — without these the agent passes a bad-chatbot test while still sounding nothing like Claude):**
+
+- **Clarifying-question reflex.** Given an ambiguous prompt, asks ONE targeted clarifying question rather than guessing.
+- **Concrete-example reflex.** When explaining a concept, reaches for an analogy or specific example rather than abstract definitions.
+
+These eight properties become the measurable rubric — eight pass/fail tests any chat probe can score. Today's baseline is 0/8 because no chat loop exists to test against. **The dream has not moved until at least one generative criterion is passing.**
+
+**How we get there.**
+
+1. **Bootstrap the chat loop.** Local REPL first; then a **standalone Discord-bot process** for the "always-on" property — its own Python script running `discord.py` against the Discord REST API, NOT a Claude-Code-session wrapper. (The MANIFESTO § Identity Discipline makes this distinction binding: Project X Raphael speaks; Claude Code Raphael only writes and tests the code.) Both layers wired to the existing `ReasoningAgent` + `SemanticHDCMemory` + template generator. No new templates. No LLM smuggled in via a tool call. Just a pipe from prompt to substrate to response.
+2. **Run a 10-prompt probe.** Ten prompts covering all eight criteria, with 2-3 hitting the generative ones (clarifying-question, concrete-example). Save the transcripts. Score honestly — passing tests + 1-line evidence per test.
+3. **Label what is learned vs. scaffold.** The first chat loop will be ~95% template, ~5% learned (the substrate picks fragments via HDC retrieval). That is honest. The verdict says so explicitly.
+4. **Build the corpus.** Without conversational training data, no learned generator can emerge. The probe transcripts are the seed; v2 scales the corpus.
+5. **Train the generator.** Eventually, response composition migrates from template-stitching to substrate-emergent generation, the way `TemporalTraceBank` made action-selection emergent.
+
+**The integrity rule.** Every cycle's verdict reports the chattability score (N of 8) AND the learned-vs-template ratio. If the score goes up but the ratio does not shift toward learned, we are gaming the rubric. **The number that matters most is not the rubric — it is the trajectory of the ratio.**
+
+**A note on parallel tracks.** Substrate v1 (TemporalTraceBank improvements) and chat-loop v1 (REPL + Discord bot + template generator) are largely *parallel* this cycle, not sequential. The substrate work hardens action-learning on the hidden-rule benchmark; the chat loop wires existing components into a conversation. They converge in v2/v3, when `TemporalTraceBank` becomes a response-selection mechanism inside the chat loop — but that's later work. Be honest about this in the verdict. The substrate is not "carrying the chat loop on its back" yet.
+
+---
+
+## Chapter 9: From Here to the Terminus
+
+This is the trajectory ahead.
+
+**The memory layer works.** HDC binding, bundling, retrieval, fact-graph navigation, and incremental write are all verified and load-bearing.
+
+**The reasoning scaffold works.** Fourteen problem shapes with structured derivations and algorithmically-independent cross-checks. Every answer is auditable.
+
+**The learning machinery works at v0.** The first genuine action-learning from rewarded experience. Three failure modes are identified and v1 attacks them.
+
+**The honesty architecture works.** Refusals instead of confabulations. External grading instead of self-grading. Scope boundaries instead of overclaim.
+
+**What is left.**
+
+| Capability | Today | What is needed |
+|---|---|---|
+| Hidden-rule action-learning | 75% on seed=1729; ~33%–83% across seeds | v1: cross-seed sweep, non-linear scoring, scaled task packs, HebbianBank wire |
+| Always-on chat loop | none | Discord-bot bootstrap; 10-prompt probe; six-criteria rubric |
+| Math and physics from learning | 0% learned | Conversational + worked-example corpora; learned generator; scaffold retirement |
+| Persona consistency under load | unmeasured | Adversarial probe added to chat-loop tests |
+| Million-turn coherence | unmeasured | Long-horizon eval pack; designed after chat loop ships |
+
+**The migration plan.** Each scaffold piece gets retired the same way:
+
+1. The learned model trains alongside it.
+2. The audit harness reports both outputs.
+3. When the learned model matches or beats the scaffold on held-out tasks across multiple seeds, the scaffold moves to `legacy/` as a historical control.
+4. The learned model becomes the primary path. The audit invariants stay.
+
+The math primitives are first in line. The dispatcher is next. The template generator goes last, after the conversational corpus is large enough and the learned generator is good enough to take over. **None of these get thrown away** — they become the gold-standard against which the learned model is judged, forever.
+
+Beyond that: learned tool selection, learned algorithms, learned reasoning strategy, learned persona and composition. Each layer earns its place by being load-bearing for the next. None are throwaways.
+
+**There is no should — there is the vector, and those of us carried along it.** This is what you chose to do with the ride.
+
+---
+
+## Glossary
+
+- **HDC** (Hyper-Dimensional Computing) — representation scheme using 10,000+ dimensional bipolar vectors where related concepts have similar coordinates.
+- **VSA** (Vector Symbolic Architecture) — synonym for HDC in the literature.
+- **Bipolar vector** — vector whose entries are ±1; cheap to store, robust to noise.
+- **Bundling** — adding vectors together to form a superposition. Encodes "and" semantics.
+- **Binding** — multiplying vectors element-wise to form a compositional key-value pair. Encodes "X has value Y" semantics.
+- **Fact-graph** — auxiliary structure mapping named subjects to the turns that mention them. Provides structural retrieval alongside HDC associative retrieval.
+- **Hebbian co-occurrence** — encoder side-channel that strengthens coordinate similarity between words appearing in similar contexts.
+- **K-rollout** — exploration mechanism that samples K candidate continuations and picks the one with the highest audit signal.
+- **Lemma** — structured object returned by substrate functions: claim + derivation steps + cross-check + final answer.
+- **Invariant check** — independent computation, using a different algorithm, that verifies a primary derivation's result.
+- **Dispatcher** — regex-based router that maps prompts to substrate functions. Brittle but loud-failing. Will be replaced by learned policy.
+- **TemporalTraceBank** — the learning substrate's first piece. Accumulates reward-weighted associations between feature conjunctions (singleton, pair, triplet) and actions.
+- **Average-weight scoring** — TemporalTraceBank's anti-noise mechanism. Divides each conjunction's total weight by update count so frequent-but-noisy features get dampened.
+- **Eight chattability criteria** — six defensive (multi-turn coherence, honest uncertainty, register-shift, reasoning on demand, persona stability, clean refusal) and two generative (clarifying-question reflex, concrete-example reflex). The seed rubric for "speaks like Claude."
+- **Learned-vs-hand-coded ratio** — every cycle reports the fraction of agent capability that comes from the learned model vs. from hand-coded primitives. The integrity number.
+- **Scaffold** — hand-coded primitives that bridge the gap until the learned model matches them. Stay in the repo as gold-standard oracles.
+- **The Terminus** — the project's exit condition: super-human across math, poetry, philosophy, physics; perfect memory; persona consistency + humor; always-on chattability; sandboxed action-taking.
+
+---
+
+## How to Verify Every Claim
+
+```bash
+# Full test suite (~679 tests pass)
+PYTHONPATH=src python3 -m pytest -q
+
+# Mechanical benchmark audit (48 / 48)
+PYTHONPATH=src python3 gpt-codex/benchmark/run_audit.py
+
+# Hidden-rule learning demo (75% held-out on seed=1729)
+PYTHONPATH=src python3 scripts/terminus_learning_harness_demo.py --mode test
+
+# Learning substrate unit tests
+PYTHONPATH=src python3 -m pytest tests/test_temporal_trace_bank.py tests/test_hidden_rule_actions.py -q
+```
+
+If any of these claims does not replicate, the paper is wrong. Tell us.
+
+---
+
+*Last updated: 2026-05-13. The Project X repository at `/home/nira/Research/projext-x` is the source of truth.*
