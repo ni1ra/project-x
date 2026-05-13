@@ -185,6 +185,16 @@ std::string q(const std::string& text) {
   return "\"" + json_escape(text) + "\"";
 }
 
+std::string shell_quote(const std::string& text) {
+  std::string out = "'";
+  for (char c : text) {
+    if (c == '\'') out += "'\\''";
+    else out.push_back(c);
+  }
+  out.push_back('\'');
+  return out;
+}
+
 std::string char_label(unsigned char c) {
   if (c == kEnd) return "<END>";
   if (c == kStart) return "<START>";
@@ -354,7 +364,8 @@ double hex_to_double(const std::string& hex) {
   return v;
 }
 
-// Split on a single delimiter char. No quoting; benchmark strings are pipe-free by audit.
+// Split on a single delimiter char. PXSTATE write-time validation below keeps these rows
+// delimiter-clean, so load failures happen at save time instead of after restart.
 std::vector<std::string> split_delim(const std::string& s, char delim) {
   std::vector<std::string> out;
   std::string current;
@@ -364,6 +375,56 @@ std::vector<std::string> split_delim(const std::string& s, char delim) {
   }
   out.push_back(current);
   return out;
+}
+
+void require_pxstate_scalar(const std::string& field, const std::string& value) {
+  if (value.find('|') != std::string::npos) {
+    throw std::runtime_error("pxstate serialize: " + field + " contains reserved delimiter '|'");
+  }
+  if (value.find('\n') != std::string::npos || value.find('\r') != std::string::npos) {
+    throw std::runtime_error("pxstate serialize: " + field + " contains newline");
+  }
+}
+
+void require_pxstate_observation(const std::string& field, const std::string& value) {
+  require_pxstate_scalar(field, value);
+  if (value.find(',') != std::string::npos) {
+    throw std::runtime_error("pxstate serialize: " + field + " contains reserved delimiter ','");
+  }
+}
+
+uint64_t next_event_log_ordinal(const std::string& log_path) {
+  std::ifstream in(log_path);
+  if (!in) return 1;
+  uint64_t count = 0;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (!line.empty()) ++count;
+  }
+  return count + 1;
+}
+
+std::string event_log_id(uint64_t ordinal) {
+  std::ostringstream out;
+  out << "evtlog_" << std::setw(6) << std::setfill('0') << ordinal;
+  return out.str();
+}
+
+bool valid_event_log_phase(const std::string& phase) {
+  return phase == "perceive" || phase == "predict" || phase == "generate" ||
+         phase == "reward" || phase == "learn" || phase == "mutate" ||
+         phase == "serialize" || phase == "reflect";
+}
+
+void write_reward_object(std::ostream& out, const std::map<std::string, double>& reward) {
+  out << "{";
+  bool first = true;
+  for (const auto& item : reward) {
+    if (!first) out << ",";
+    out << q(item.first) << ":" << item.second;
+    first = false;
+  }
+  out << "}";
 }
 
 // Forward decl — append_event_log_line is defined late (near orchestration phases) but called by
@@ -650,6 +711,7 @@ class OrganicBrain {
   // Line-oriented state snapshot. Ugly but loadable + hash-checked, per brief.
   // Bit-exact doubles via hex64-of-IEEE-bits so state_hash matches across save/load.
   void serialize_state(std::ostream& out, const std::string& organism_id) const {
+    require_pxstate_scalar("organism_id", organism_id);
     out << "PXSTATE_V0\n";
     out << "SCHEMA project_x.state_snapshot.v0\n";
     out << "ORGANISM_ID " << organism_id << "\n";
@@ -670,9 +732,16 @@ class OrganicBrain {
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
     for (const auto& tr : traces_) {
-      // Observations joined with ','; benchmark observations contain no commas (audit).
+      require_pxstate_scalar("trace.event_id", tr.event_id);
+      require_pxstate_scalar("trace.episode_id", tr.episode_id);
+      require_pxstate_scalar("trace.split", tr.split);
+      require_pxstate_scalar("trace.domain", tr.domain);
+      require_pxstate_scalar("trace.input", tr.input);
+      require_pxstate_scalar("trace.target_output", tr.target_output);
+      // Observations are comma-joined in v0, so commas fail fast at write time.
       std::string obs_csv;
       for (size_t i = 0; i < tr.observations.size(); ++i) {
+        require_pxstate_observation("trace.observations[" + std::to_string(i) + "]", tr.observations[i]);
         if (i) obs_csv.push_back(',');
         obs_csv += tr.observations[i];
       }
@@ -1181,7 +1250,7 @@ void write_persistence_contract(std::ostream& out, const PersistenceContext& ctx
   out << "{";
   out << "\"status\": \"" << json_escape(ctx.load_status) << "\", ";
   out << "\"event_log_schema_path\": \"docs/artifacts/PERSISTENCE_SCHEMA.md#event-log-jsonl-v0\", ";
-  out << "\"state_snapshot_schema_path\": \"docs/artifacts/PERSISTENCE_SCHEMA.md#state-snapshot-binary-v0\", ";
+  out << "\"state_snapshot_schema_path\": \"docs/artifacts/PERSISTENCE_SCHEMA.md#state-snapshot-pxstate-line-v0\", ";
   out << "\"organism_id\": \"" << json_escape(ctx.organism_id) << "\", ";
   out << "\"loaded_state_path\": " << path_or_null(ctx.loaded_state_path) << ", ";
   out << "\"saved_state_path\": " << path_or_null(ctx.saved_state_path) << ", ";
@@ -1548,11 +1617,13 @@ void append_event_log_line(const std::string& log_path, const std::string& organ
                            uint64_t state_before_hash, uint64_t state_after_hash,
                            const std::string& source_kind, const std::string& source_path) {
   if (log_path.empty()) return;
+  if (!valid_event_log_phase(phase)) throw std::runtime_error("event log phase outside schema: " + phase);
   ensure_parent_dir(log_path);
+  std::string log_event_id = event_log_id(next_event_log_ordinal(log_path));
   std::ofstream log(log_path, std::ios::app);
   if (!log) throw std::runtime_error("cannot open event log: " + log_path);
   log << "{\"schema\":\"project_x.event_log.v0\","
-      << "\"event_id\":\"" << json_escape(event.event_id) << "\","
+      << "\"event_id\":\"" << json_escape(log_event_id) << "\","
       << "\"organism_id\":\"" << json_escape(organism_id) << "\","
       << "\"timestamp_utc\":\"" << timestamp_utc() << "\","
       << "\"source\":{\"kind\":\"" << json_escape(source_kind)
@@ -1567,8 +1638,14 @@ void append_event_log_line(const std::string& log_path, const std::string& organ
   log << "]},\"output\":{\"raw_generated_output\":" << q(raw_output)
       << ",\"expected_output\":" << q(expected)
       << ",\"oracle_used_in_generation\":false},"
+      << "\"reward\":";
+  write_reward_object(log, event.reward);
+  log << ","
       << "\"state_before_hash\":\"" << hex64(state_before_hash) << "\","
-      << "\"state_after_hash\":\"" << hex64(state_after_hash) << "\"}\n";
+      << "\"state_after_hash\":\"" << hex64(state_after_hash) << "\","
+      << "\"trace_refs\":[],"
+      << "\"mutation_refs\":[],"
+      << "\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}\n";
 }
 
 // Orchestrate the persistence round-trip: train → save → spawn child → load+generate → verify.
@@ -1627,12 +1704,12 @@ void persistence_self_test(const Args& args) {
   std::string child_out = args.out + ".child.json";
   std::ostringstream cmd;
   cmd << "./build/organic_v0 --phase persistence-load-verify"
-      << " --load-state " << args.save_state
-      << " --data " << args.data
-      << " --verify-event " << verify_id
-      << " --out " << child_out
-      << " --organism-id " << args.organism_id;
-  if (!args.event_log.empty()) cmd << " --event-log " << args.event_log;
+      << " --load-state " << shell_quote(args.save_state)
+      << " --data " << shell_quote(args.data)
+      << " --verify-event " << shell_quote(verify_id)
+      << " --out " << shell_quote(child_out)
+      << " --organism-id " << shell_quote(args.organism_id);
+  if (!args.event_log.empty()) cmd << " --event-log " << shell_quote(args.event_log);
   if (args.ablate_trace_id) cmd << " --ablate-trace-id";
   int rc = std::system(cmd.str().c_str());
   if (rc != 0) throw std::runtime_error("child persistence-load-verify failed with rc=" + std::to_string(rc));
@@ -1641,6 +1718,7 @@ void persistence_self_test(const Args& args) {
   // The .child.json is a temp file; the parent verdict written below contains all the same fields
   // plus the parent-side ones, so the child file is redundant and deleted after read.
   std::ifstream child(child_out);
+  if (!child) throw std::runtime_error("cannot open child verdict: " + child_out);
   std::string verdict((std::istreambuf_iterator<char>(child)), std::istreambuf_iterator<char>());
   child.close();
   std::string child_hash = get_string(verdict, "loaded_state_hash");
@@ -1663,7 +1741,8 @@ void persistence_self_test(const Args& args) {
   out << "  \"organism_id\": " << q(args.organism_id) << ",\n";
   out << "  \"saved_state_path\": " << q(args.save_state) << ",\n";
   out << "  \"appended_event_log_path\": " << (args.event_log.empty() ? "null" : q(args.event_log)) << ",\n";
-  out << "  \"child_verdict_path\": " << q(child_out) << ",\n";
+  out << "  \"child_verdict_path\": null,\n";
+  out << "  \"child_verdict_embedded\": true,\n";
   out << "  \"verify_event_id\": " << q(verify_id) << ",\n";
   out << "  \"parent_state_hash\": " << q(parent_hash) << ",\n";
   out << "  \"parent_raw_output\": " << q(pre_gen.output) << ",\n";
@@ -1705,7 +1784,7 @@ void persistence_load_verify(const Args& args) {
 
   auto gen = brain.generate(ev->input, ev->observations);
   if (!args.event_log.empty()) {
-    append_event_log_line(args.event_log, args.organism_id, "child_generate", *ev, gen.output,
+    append_event_log_line(args.event_log, args.organism_id, "generate", *ev, gen.output,
                           ev->target_output, recomputed, recomputed, "loaded_state", args.load_state);
   }
   ensure_parent_dir(args.out);

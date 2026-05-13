@@ -8,7 +8,7 @@
   "model_config_hash": "a94747d83fbf1fc5",
   "model_state_hash": "3536309de837d3e2",
   "benchmark_path": "benchmarks/v2_ladder/organic_v0.jsonl",
-  "persistence": {"status": "schema_only_not_runtime_persistence", "event_log_schema_path": "docs/PERSISTENCE_SCHEMA.md#event-log-jsonl-v0", "state_snapshot_schema_path": "docs/PERSISTENCE_SCHEMA.md#state-snapshot-binary-v0", "loaded_state_path": null, "appended_event_log_path": null, "note": "organic-v0 still rebuilds state from the JSONL benchmark for this run; this is not durable organism persistence."},
+  "persistence": {"status": "schema_only_not_runtime_persistence", "event_log_schema_path": "docs/artifacts/PERSISTENCE_SCHEMA.md#event-log-jsonl-v0", "state_snapshot_schema_path": "docs/artifacts/PERSISTENCE_SCHEMA.md#state-snapshot-pxstate-line-v0", "loaded_state_path": null, "appended_event_log_path": null, "note": "organic-v0 still rebuilds state from the JSONL benchmark for this run; this is not durable organism persistence."},
   "train_dev_test_split": {
     "event_count": 45,
     "splits": {"dev": 5, "test": 20, "train": 20},

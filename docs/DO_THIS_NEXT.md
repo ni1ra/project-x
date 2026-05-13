@@ -89,10 +89,9 @@ Reject any implementation that:
 ## Suggested Command Sequence (current state)
 
 ```bash
-make                                    # build/organic_v0
-scripts/test_organic_v0.sh              # substrate guard + persistence round-trip
+make test                               # substrate guard + persistence round-trip
 scripts/eval_organic_v0.sh --mode test --out /tmp/eval_current.json
-# OR — load this cycle's saved state and eval without re-training:
+# OR - load this cycle's saved state and eval without re-training:
 build/organic_v0 --phase eval --mode test \
   --load-state run/state/organic-v0/snapshots/raphael-local-0001/cycle_persistence_pass0.pxstate \
   --out /tmp/eval_from_disk.json
@@ -102,8 +101,9 @@ git status --short
 
 ## Follow-up Notes (advisor, not blocking)
 
-- `PXSTATE_V0` line format uses `|` as the field delimiter and trusts benchmark strings are pipe-free. The failure mode if a future benchmark item contains `|` in input/target/observation is `load_serialized_state` throwing on field-count mismatch — detected, not silent. A one-line `assert` in `serialize_state` on encountering `|` would lift this from "throws on next load" to "fails fast at write." Acceptable as-shipped; queue for next cycle if structural work overlaps the serializer.
-- Branch `feat/organic-v0-trace-id-ablation` now carries two distinct cycles' commits (cycle 1: trace-id ablation in `dab6e41`; cycle 2: benchmark + persistence in `a1168ec` + `787fe9b`). Branch name is stale relative to its contents. If lain plans to merge as one PR — fine. If as two — branch-split needed; do not act unprompted.
+- Audit follow-up closed: `PXSTATE_V0` now fails fast at write time for reserved `|` / newline delimiters in scalar fields and `,` in observation fields.
+- Audit follow-up closed: `make test` now runs the same substrate guard + persistence round-trip as `scripts/test_organic_v0.sh`.
+- Remaining: branch `feat/organic-v0-trace-id-ablation` now carries two distinct cycles' commits (cycle 1: trace-id ablation in `dab6e41`; cycle 2: benchmark + persistence in `a1168ec` + `787fe9b`). Branch name is stale relative to its contents. If lain plans to merge as one PR, fine. If as two, branch-split needed; do not act unprompted.
 
 ## Close Criteria For The Next Pass
 

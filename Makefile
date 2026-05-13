@@ -11,7 +11,7 @@ build/organic_v0: native/organic_v0.cpp
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 test: build/organic_v0
-	./build/organic_v0 --phase self-test
+	./scripts/test_organic_v0.sh
 
 clean:
 	rm -rf build
