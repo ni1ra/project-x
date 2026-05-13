@@ -27,14 +27,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | Path | Justification |
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
-| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` |
+| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` / `--ablate-numeric-derived` / `--ablate-relation-projection` |
 | `scripts/test_organic_v0.sh` | runs both phases: `--phase self-test` (substrate guard — cold brain emits nothing, learns one event, emits "zx") then `--phase persistence-self-test` (full round-trip — train → save → fresh child process load → generate → hash + output match). Either failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
 
 | Path | Justification |
 |---|---|
-| `benchmarks/v2_ladder/organic_v0.jsonl` | honest compositional baseline for organic-v0. 45 events: 20 train + 25 held-out across 5 domains. Held-out shape after this cycle: hidden_rule strips the parity-label cheat and adds 2 distractor probes where the trained signal-association contradicts the rule; abstention mixes 2 evidence-present + 2 evidence-absence items with identical wording; memory/causal/language each carry length variance (4-, 5-, 6+, 7-char fillers); one non-greeting `intent_transfer` probe exposes language compositionality |
+| `benchmarks/v2_ladder/organic_v0.jsonl` | honest compositional baseline for organic-v0. 47 events: 22 train + 25 held-out across 5 domains. Cycle 5 adds two `intent:farewell -> bye <name>` train events to repair the previously unlearnable held-out farewell probe; hidden_rule keeps 2 distractor probes where trained signal-association contradicts parity; abstention keeps 2 evidence-present + 2 evidence-absence items with identical wording; memory/causal/language carry filler-length variance |
 
 ### run/ — artifact output (machine-readable claims, tracked) — `run/state/` is gitignored (runtime substrate)
 
@@ -54,6 +54,12 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/eval_compositional_v2c4.json` | cycle-4 headline: trace-span-position literal memory lifts overall exact_rate to `0.760` and direct_replay to 5/5 while holding unseen_filler 8/8, unseen_filler_long 2/2, unseen_filler_short 1/1, and evidence_absence 2/2. State hash `23d5362d7c8b8ea7`, model_config_hash `490e66afe575275c` |
 | `run/artifacts/organic-v0/eval_compositional_v2c4_from_disk.json` | cycle-4 verification: fresh-process eval loaded from `run/state/organic-v0/snapshots/raphael-local-0001/v2c4.pxstate`; summary_metrics + model_state_hash diff-clean against the from-training eval, proving trace-span-position CONNS and CONFIG fields persist cleanly |
 | `run/artifacts/organic-v0/persist_self_test_v2c4.json` | cycle-4 persistence-round-trip verdict: parent state_hash + raw_output `"mila quartz pier6"` matches child bit-exactly under hash `23d5362d7c8b8ea7`; `load_status: save_and_load_verified` |
+| `run/artifacts/organic-v0/eval_compositional_v2c5.json` | cycle-5 headline on the repaired benchmark: numeric-derived trace activation + relation projection + two-example farewell curriculum repair reach overall exact_rate `1.000` (25/25), hidden_rule 5/5, evidence_present 2/2, intent_transfer 1/1. State hash `ccd7a48ec4614703`, model_config_hash `de2ad1690588249d` |
+| `run/artifacts/organic-v0/eval_compositional_v2c5_from_disk.json` | cycle-5 verification: fresh-process eval loaded from `run/state/organic-v0/snapshots/raphael-local-0001/v2c5.pxstate`; summary_metrics + model_state_hash diff-clean against the from-training eval |
+| `run/artifacts/organic-v0/persist_self_test_v2c5.json` | cycle-5 persistence-round-trip verdict: parent_state_hash + child_state_hash `ccd7a48ec4614703`, parent_raw_output + child_raw_output `"mila quartz pier6"`, `hash_match: true`, `output_match: true`, `load_status: save_and_load_verified` |
+| `run/artifacts/organic-v0/eval_cycle5_substrate_only_old_fixture.json` | cycle-5 falsification baseline: final binary on the un-repaired benchmark (no `bye sora`/`bye toma` train events). Substrate channels alone reach exact_rate `0.960` (24/25); only `evt_lang_test_004` (`bye elena`) fails — the by-design unlearnable farewell. State hash `b968647c92f30c57`. Splits the substrate claim from the curriculum-repair claim |
+| `run/artifacts/organic-v0/eval_cycle5_ablate_numeric.json` | cycle-5 falsification: `--ablate-numeric-derived` on the repaired benchmark drops exact_rate to `0.880` (22/25); failures isolate to the hidden-rule family (`evt_rule_test_001`, `evt_rule_test_003`, `evt_rule_test_004`). State hash `6ccada17751408d0`. Proves the numeric-derived trace activation channel is what carries hidden-rule transfer |
+| `run/artifacts/organic-v0/eval_cycle5_ablate_relation.json` | cycle-5 falsification: `--ablate-relation-projection` on the repaired benchmark drops exact_rate to `0.920` (23/25); failures isolate to evidence-present (`evt_abs_test_001`, `evt_abs_test_003`). State hash `75c0bb8012ffb437`. Proves the relation projection channel is what carries topic→object recall |
 
 ## Not tracked, on disk
 

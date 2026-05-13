@@ -89,6 +89,20 @@ struct Config {
   // transfer when the role is present.
   double trace_span_position_gain = 0.5;
   bool use_trace_span_position_features = true;
+  // Cycle-5 derived-belief channel.
+  // WHAT: pure numeric observation fillers (for example mark:7) activate deterministic
+  // role-relative facts such as parity=odd. Those facts are only feature addresses; the
+  // learned CONNS substrate still decides which output chars/actions they support.
+  // NEGATIVE-SPACE: this never maps odd->stay or even->go. It is an encoder-side belief
+  // primitive, not an answer route.
+  bool use_numeric_derived_features = true;
+  // Cycle-5 relation projection channel.
+  // WHAT: rewarded traces self-supervise role-to-role projection weights (for example
+  // person:arin -> object:copper). At generation, a topic cue can activate the learned
+  // relation address even when the target filler is absent from current observations.
+  // NEGATIVE-SPACE: no authored entity->answer table; projected chars are emitted from
+  // learned CONNS rows exactly like normal literals.
+  bool use_relation_projection = true;
 };
 
 struct Event {
@@ -419,6 +433,24 @@ std::vector<ObservationSlot> parse_slots(const std::vector<std::string>& observa
   return slots;
 }
 
+std::optional<int> parse_pure_int(const std::string& value) {
+  if (value.empty()) return std::nullopt;
+  size_t pos = 0;
+  bool negative = false;
+  if (value[pos] == '-') {
+    negative = true;
+    ++pos;
+  }
+  if (pos >= value.size()) return std::nullopt;
+  int out = 0;
+  for (; pos < value.size(); ++pos) {
+    unsigned char c = static_cast<unsigned char>(value[pos]);
+    if (!std::isdigit(c)) return std::nullopt;
+    out = out * 10 + static_cast<int>(c - '0');
+  }
+  return negative ? -out : out;
+}
+
 // Persistence helpers — bit-exact double <-> hex64 so state_hash matches across save/load.
 std::string double_to_hex(double v) {
   uint64_t bits;
@@ -603,6 +635,21 @@ struct Hdc {
     add_bound(vector, "role:input", encode_text(input));
     for (size_t i = 0; i < observations.size(); ++i) {
       add_bound(vector, "role:observation:" + std::to_string(i % 8), encode_text(observations[i]));
+    }
+    if (config.use_numeric_derived_features) {
+      for (const auto& slot : parse_slots(observations)) {
+        auto numeric = parse_pure_int(slot.value);
+        if (!numeric.has_value()) continue;
+        int abs_value = std::abs(*numeric);
+        std::string parity = (abs_value % 2 == 0) ? "even" : "odd";
+        // HDC receives the same latent facts as the symbolic feature substrate. This lets
+        // retrieval prefer traces that share computed evidence (for example odd marks)
+        // without hardcoding any output relation for that evidence.
+        add_atom(vector, "num-role:" + slot.type);
+        add_atom(vector, "num-role-parity:" + slot.type + ":" + parity);
+        add_atom(vector, "num-any-parity:" + parity);
+        add_atom(vector, "num-role-lastdigit:" + slot.type + ":" + std::to_string(abs_value % 10), 0.5);
+      }
     }
     return vector;
   }
@@ -804,6 +851,9 @@ class OrganicBrain {
         previous = c;
       }
     }
+    if (config_.use_relation_projection) {
+      deltas += learn_relation_projection(parse_slots(event.observations), trace.reward_scalar);
+    }
     mutation_connection_deltas_.push_back(deltas);
   }
 
@@ -813,6 +863,14 @@ class OrganicBrain {
     gen.activations = retrieve(query);
     auto features = context_features(input, observations);
     auto slots = parse_slots(observations);
+    if (config_.use_relation_projection) {
+      auto projected = relation_projection_features_for_query(input, observations);
+      features.insert(features.end(), projected.begin(), projected.end());
+    }
+    if (config_.use_numeric_derived_features && config_.use_trace_id_feature) {
+      auto numeric_traces = numeric_derived_trace_features_for_query(observations);
+      features.insert(features.end(), numeric_traces.begin(), numeric_traces.end());
+    }
     if (config_.use_trace_id_feature) {
       for (const auto& activation : gen.activations) {
         if (activation.similarity > 0.0) {
@@ -1109,6 +1167,8 @@ class OrganicBrain {
         << " use_slot_pass_through=" << (config_.use_slot_pass_through ? 1 : 0)
         << " use_segment_mode=" << (config_.use_segment_mode ? 1 : 0)
         << " use_trace_span_position_features=" << (config_.use_trace_span_position_features ? 1 : 0)
+        << " use_numeric_derived_features=" << (config_.use_numeric_derived_features ? 1 : 0)
+        << " use_relation_projection=" << (config_.use_relation_projection ? 1 : 0)
         << " max_roles=" << config_.max_roles
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
@@ -1251,6 +1311,8 @@ class OrganicBrain {
     config_.segment_mode_gain = 0.3;
     config_.trace_span_position_gain = 0.0;
     config_.use_trace_span_position_features = false;
+    config_.use_numeric_derived_features = false;
+    config_.use_relation_projection = false;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
     std::istringstream cfg_stream(cfg_line.substr(7));
@@ -1277,6 +1339,8 @@ class OrganicBrain {
       else if (k == "use_slot_pass_through") config_.use_slot_pass_through = (v != "0");
       else if (k == "use_segment_mode") config_.use_segment_mode = (v != "0");
       else if (k == "use_trace_span_position_features") config_.use_trace_span_position_features = (v != "0");
+      else if (k == "use_numeric_derived_features") config_.use_numeric_derived_features = (v != "0");
+      else if (k == "use_relation_projection") config_.use_relation_projection = (v != "0");
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
     // Legacy-default seeding (above) is what makes cycle-2 snapshots reload safely.
@@ -1555,6 +1619,162 @@ class OrganicBrain {
     }
   }
 
+  std::vector<Feature> numeric_derived_features(const std::vector<ObservationSlot>& slots) const {
+    std::vector<Feature> features;
+    if (!config_.use_numeric_derived_features) return features;
+    for (const auto& slot : slots) {
+      auto numeric = parse_pure_int(slot.value);
+      if (!numeric.has_value()) continue;
+      int abs_value = std::abs(*numeric);
+      std::string parity = (abs_value % 2 == 0) ? "even" : "odd";
+      // A numeric observation has more structure than its surface token. These features
+      // expose that structure as addresses for learning; they deliberately stop before the
+      // answer relation. The rule "odd means stay" still has to be learned from CONNS.
+      features.push_back({hash_pair("num-role", slot.type), config_.context_gain});
+      features.push_back({hash_pair("num-role-parity", slot.type + ":" + parity), config_.context_gain});
+      features.push_back({hash_pair("num-any-parity", parity), config_.context_gain});
+      features.push_back({hash_pair("num-role-lastdigit", slot.type + ":" + std::to_string(abs_value % 10)),
+                          config_.context_gain * 0.5});
+    }
+    return features;
+  }
+
+  std::vector<Feature> numeric_derived_trace_features_for_query(
+      const std::vector<std::string>& observations) const {
+    std::vector<Feature> features;
+    if (!config_.use_numeric_derived_features || !config_.use_trace_id_feature) return features;
+    auto query_slots = parse_slots(observations);
+    for (const auto& query_slot : query_slots) {
+      auto query_num = parse_pure_int(query_slot.value);
+      if (!query_num.has_value()) continue;
+      int query_parity = std::abs(*query_num) % 2;
+      for (const auto& trace : traces_) {
+        for (const auto& trace_slot : parse_slots(trace.observations)) {
+          if (trace_slot.type != query_slot.type) continue;
+          auto trace_num = parse_pure_int(trace_slot.value);
+          if (!trace_num.has_value()) continue;
+          if ((std::abs(*trace_num) % 2) != query_parity) continue;
+          // Derived-trace activation is the cycle-5 rule-transfer bridge. Normal HDC
+          // retrieval can over-favor a surface cue (red) over the computed fact (even).
+          // This channel says: traces sharing the computed numeric relation are relevant
+          // even when their literal fillers differ. It reuses trace-id literal weights
+          // learned from those traces; it does not map parity to an answer directly.
+          features.push_back({hash_pair("trace", trace.event_id), config_.context_gain});
+          break;
+        }
+      }
+    }
+    return features;
+  }
+
+  std::vector<Feature> relation_projection_bases(const std::string& cue_role,
+                                                 const std::string& cue_value,
+                                                 const std::string& target_role,
+                                                 double scale) const {
+    std::vector<Feature> features;
+    if (cue_value.empty() || target_role.empty() || scale == 0.0) return features;
+    // Exact role/value address plus role-free alias address. The alias is what lets a
+    // query typed as topic:arin reactivate a relation learned from person:arin without
+    // teaching a hand-authored "topic means person" rule.
+    features.push_back({
+        fnv1a("relation-exact|" + cue_role + "|" + cue_value + "|" + target_role),
+        scale,
+    });
+    features.push_back({
+        fnv1a("relation-value|" + cue_value + "|" + target_role),
+        scale,
+    });
+    return features;
+  }
+
+  size_t learn_relation_projection(const std::vector<ObservationSlot>& slots, double reward_scalar) {
+    if (!config_.use_relation_projection || reward_scalar <= 0.0) return 0;
+    size_t deltas = 0;
+    for (size_t cue_i = 0; cue_i < slots.size(); ++cue_i) {
+      const auto& cue = slots[cue_i];
+      if (cue.value.empty()) continue;
+      for (size_t target_i = 0; target_i < slots.size(); ++target_i) {
+        if (cue_i == target_i) continue;
+        const auto& target = slots[target_i];
+        if (target.value.empty()) continue;
+        auto bases = relation_projection_bases(cue.type, cue.value, target.type, 1.0);
+        unsigned char previous = kStart;
+        std::string sequence = target.value;
+        sequence.push_back(static_cast<char>(kEnd));
+        for (size_t pos = 0; pos < sequence.size(); ++pos) {
+          unsigned char c = static_cast<unsigned char>(sequence[pos]);
+          if (c >= kAscii) continue;
+          auto sf = state_features(bases, previous, static_cast<int>(pos));
+          // Skip the global prev/pos/bucket prefix. Relation projection must not write
+          // object names into globally shared character transitions; it lives only under
+          // the relation addresses above, otherwise it would recreate the cycle-3.5
+          // shared-feature contamination failure in a new costume.
+          for (size_t i = 3; i < sf.size(); ++i) {
+            connections_[sf[i].id].value[c] += reward_scalar * sf[i].scale * config_.learning_rate;
+            ++deltas;
+          }
+          if (c != kEnd) learned_chars_.insert(c);
+          previous = c;
+        }
+      }
+    }
+    return deltas;
+  }
+
+  std::vector<std::string> relation_target_roles_for_query(const std::string& input) const {
+    std::set<std::string> roles;
+    auto tokens = tokenize(input);
+    for (const auto& token : tokens) {
+      if (token == "hold" || token == "holds" || token == "held" ||
+          token == "item" || token == "object" || token == "thing") {
+        roles.insert("object");
+      }
+      if (token == "where" || token == "place" || token == "location" || token == "located") {
+        roles.insert("place");
+      }
+      if (token == "after" || token == "effect" || token == "result" ||
+          token == "outcome" || token == "predict") {
+        roles.insert("effect");
+      }
+    }
+    return {roles.begin(), roles.end()};
+  }
+
+  std::vector<Feature> relation_projection_features_for_query(
+      const std::string& input, const std::vector<std::string>& observations) const {
+    std::vector<Feature> features;
+    if (!config_.use_relation_projection) return features;
+    auto target_roles = relation_target_roles_for_query(input);
+    if (target_roles.empty()) return features;
+    auto query_slots = parse_slots(observations);
+    for (const auto& query_slot : query_slots) {
+      // Cycle-5 scope: topic is the role-relative cue used by evidence-present probes. By
+      // limiting projection activation to topic cues, direct replay and filler-copy events
+      // keep using the cycle-3/4 paths instead of receiving speculative relation answers.
+      if (query_slot.type != "topic" || query_slot.value.empty()) continue;
+      for (const auto& trace : traces_) {
+        auto trace_slots = parse_slots(trace.observations);
+        for (const auto& cue_slot : trace_slots) {
+          if (cue_slot.value != query_slot.value) continue;
+          for (const auto& target_role : target_roles) {
+            bool trace_has_target = false;
+            for (const auto& target_slot : trace_slots) {
+              if (target_slot.type == target_role && !target_slot.value.empty()) {
+                trace_has_target = true;
+                break;
+              }
+            }
+            if (!trace_has_target) continue;
+            auto bases = relation_projection_bases(
+                cue_slot.type, cue_slot.value, target_role, config_.trace_gain);
+            features.insert(features.end(), bases.begin(), bases.end());
+          }
+        }
+      }
+    }
+    return features;
+  }
+
   std::vector<Feature> context_features(const std::string& input, const std::vector<std::string>& observations) const {
     std::vector<Feature> features;
     features.push_back({fnv1a("bias"), 0.15});
@@ -1570,6 +1790,9 @@ class OrganicBrain {
         features.push_back({hash_pair("obs", token), config_.context_gain});
       }
     }
+    auto slots = parse_slots(observations);
+    auto derived = numeric_derived_features(slots);
+    features.insert(features.end(), derived.begin(), derived.end());
     return features;
   }
 
@@ -1580,15 +1803,20 @@ class OrganicBrain {
     features.push_back({combine(fnv1a("global-pos"), static_cast<uint64_t>(position)), config_.position_gain});
     features.push_back({combine(fnv1a("global-bucket"), static_cast<uint64_t>(position / 4)), config_.position_gain * 0.5});
     for (const auto& feature : base) {
-      uint64_t pos_id = combine(feature.id, combine(fnv1a("pos"), static_cast<uint64_t>(position)));
-      uint64_t prev_id = combine(feature.id, combine(fnv1a("prev"), previous));
-      uint64_t bucket_id = combine(feature.id, combine(fnv1a("bucket"), static_cast<uint64_t>(position / 4)));
-      features.push_back({pos_id, feature.scale});
-      features.push_back({prev_id, feature.scale * 0.8});
-      features.push_back({bucket_id, feature.scale * 0.35});
-      features.push_back({combine(pos_id, prev_id), feature.scale * config_.state_binding_gain});
+      append_bound_state_features(features, feature, previous, position);
     }
     return features;
+  }
+
+  void append_bound_state_features(std::vector<Feature>& features, const Feature& feature,
+                                   unsigned char previous, int position) const {
+    uint64_t pos_id = combine(feature.id, combine(fnv1a("pos"), static_cast<uint64_t>(position)));
+    uint64_t prev_id = combine(feature.id, combine(fnv1a("prev"), previous));
+    uint64_t bucket_id = combine(feature.id, combine(fnv1a("bucket"), static_cast<uint64_t>(position / 4)));
+    features.push_back({pos_id, feature.scale});
+    features.push_back({prev_id, feature.scale * 0.8});
+    features.push_back({bucket_id, feature.scale * 0.35});
+    features.push_back({combine(pos_id, prev_id), feature.scale * config_.state_binding_gain});
   }
 
   std::vector<Activation> retrieve(const std::array<double, kDim>& query) const {
@@ -1909,6 +2137,8 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"use_segment_mode\": " << (config.use_segment_mode ? "true" : "false")
       << ", \"use_trace_span_position_features\": "
       << (config.use_trace_span_position_features ? "true" : "false")
+      << ", \"use_numeric_derived_features\": " << (config.use_numeric_derived_features ? "true" : "false")
+      << ", \"use_relation_projection\": " << (config.use_relation_projection ? "true" : "false")
       << ", \"max_roles\": " << config.max_roles << "}";
 }
 
@@ -2289,6 +2519,8 @@ struct Args {
   std::string verify_event_id;
   std::string organism_id = "raphael-local-0001";
   bool ablate_trace_id = false;
+  bool ablate_numeric_derived = false;
+  bool ablate_relation_projection = false;
 };
 
 Args parse_args(int argc, char** argv) {
@@ -2309,10 +2541,18 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--verify-event") args.verify_event_id = need_value(key);
     else if (key == "--organism-id") args.organism_id = need_value(key);
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
+    else if (key == "--ablate-numeric-derived") args.ablate_numeric_derived = true;
+    else if (key == "--ablate-relation-projection") args.ablate_relation_projection = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
   return args;
+}
+
+void apply_ablations(Config& config, const Args& args) {
+  if (args.ablate_trace_id) config.use_trace_id_feature = false;
+  if (args.ablate_numeric_derived) config.use_numeric_derived_features = false;
+  if (args.ablate_relation_projection) config.use_relation_projection = false;
 }
 
 // Append one JSONL event-log line per the docs/artifacts/PERSISTENCE_SCHEMA.md v0 schema.
@@ -2361,7 +2601,7 @@ void persistence_self_test(const Args& args) {
   if (args.out.empty()) throw std::runtime_error("persistence-self-test requires --out");
 
   Config config;
-  if (args.ablate_trace_id) config.use_trace_id_feature = false;
+  apply_ablations(config, args);
   auto events = load_events(args.data);
   std::string verify_id = args.verify_event_id.empty() ? "evt_mem_test_001" : args.verify_event_id;
   const Event* verify_event = nullptr;
@@ -2417,6 +2657,8 @@ void persistence_self_test(const Args& args) {
       << " --organism-id " << shell_quote(args.organism_id);
   if (!args.event_log.empty()) cmd << " --event-log " << shell_quote(args.event_log);
   if (args.ablate_trace_id) cmd << " --ablate-trace-id";
+  if (args.ablate_numeric_derived) cmd << " --ablate-numeric-derived";
+  if (args.ablate_relation_projection) cmd << " --ablate-relation-projection";
   int rc = std::system(cmd.str().c_str());
   if (rc != 0) throw std::runtime_error("child persistence-load-verify failed with rc=" + std::to_string(rc));
 
@@ -2474,7 +2716,7 @@ void persistence_load_verify(const Args& args) {
   if (args.out.empty()) throw std::runtime_error("persistence-load-verify requires --out");
 
   Config config;
-  if (args.ablate_trace_id) config.use_trace_id_feature = false;
+  apply_ablations(config, args);
   OrganicBrain brain(config);
   std::ifstream state_in(args.load_state);
   if (!state_in) throw std::runtime_error("cannot open state file: " + args.load_state);
@@ -2534,7 +2776,7 @@ int main(int argc, char** argv) {
     // train / eval — normal artifact-writer pipeline. Persistence side-effects honored if paths provided.
     if (args.out.empty()) throw std::runtime_error("--out is required for train/eval");
     px::Config config;
-    if (args.ablate_trace_id) config.use_trace_id_feature = false;
+    px::apply_ablations(config, args);
     auto events = px::load_events(args.data);
     std::string command = px::command_string(argc, argv);
 

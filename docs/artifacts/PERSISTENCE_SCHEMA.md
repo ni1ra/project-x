@@ -85,7 +85,7 @@ PXSTATE_V0
 SCHEMA project_x.state_snapshot.v0
 ORGANISM_ID raphael-local-0001
 CREATED_UTC 2026-05-13T00:00:00Z
-CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 max_roles=16
+CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 use_numeric_derived_features=1 use_relation_projection=1 max_roles=16
 TRACES <n>
 T <event_id>|<episode_id>|<split>|<domain>|<level>|<input>|<observation_csv>|<target_output>|<reward_scalar_hex64>|<hdc_vector_hex64_space_list>
 CONNS <n>
@@ -129,6 +129,20 @@ Two CONFIG fields document and gate the answer-path behavior:
 - `use_trace_span_position_features=1|0`: enables the cycle-4 feature class. Loader defaults this to `0` when absent so cycle-2 and cycle-3.x snapshots keep their original answer-path semantics.
 
 Because the learned weights live in `CONNS`, existing `state_hash()` coverage over literal connection weights already covers the new state. No extra hash walk is needed. Legacy cycle-2 reproducibility still relies on `use_segment_mode=0` defaults plus absence of cycle-4 weights.
+
+### Cycle-5 extension: numeric-derived facts + relation projection CONFIG fields
+
+Cycle 5 (v2-c5) adds no new PXSTATE section. Both new mechanisms write ordinary literal weights into `CONNS`:
+
+- numeric-derived facts add deterministic encoder features for pure numeric observation fillers, including role-relative parity addresses. These addresses let training learn odd/even output associations without an authored odd-to-output branch.
+- relation projection writes role-to-role character weights under deterministic relation feature IDs, e.g. a rewarded trace can write `person:arin -> object:copper` as learned characters under a relation address. Generation can reactivate that address from `topic:arin` when the input asks for the object role.
+
+Two CONFIG booleans document and gate the answer-path behavior:
+
+- `use_numeric_derived_features=1|0`
+- `use_relation_projection=1|0`
+
+Older snapshots default both to `0` on load so cycle-2 through cycle-4 saved states keep their historical semantics. New v2-c5 snapshots write both as `1`. State-hash coverage needs no new walker because the new learned values are ordinary `CONNS` rows and stored traces already persist the typed observations needed to reactivate relation projection after load.
 
 ### State hash gating
 
