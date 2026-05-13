@@ -7,7 +7,7 @@ Generated: 2026-05-13 (post persistence-pass-0 ship)
 1. `docs/MANIFESTO.md`
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
-4. `docs/PERSISTENCE_SCHEMA.md`
+4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
 5. `docs/past_work/` only when historical context is needed
 
 ## What Just Happened

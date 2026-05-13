@@ -1180,8 +1180,8 @@ void write_persistence_contract(std::ostream& out, const PersistenceContext& ctx
   };
   out << "{";
   out << "\"status\": \"" << json_escape(ctx.load_status) << "\", ";
-  out << "\"event_log_schema_path\": \"docs/PERSISTENCE_SCHEMA.md#event-log-jsonl-v0\", ";
-  out << "\"state_snapshot_schema_path\": \"docs/PERSISTENCE_SCHEMA.md#state-snapshot-binary-v0\", ";
+  out << "\"event_log_schema_path\": \"docs/artifacts/PERSISTENCE_SCHEMA.md#event-log-jsonl-v0\", ";
+  out << "\"state_snapshot_schema_path\": \"docs/artifacts/PERSISTENCE_SCHEMA.md#state-snapshot-binary-v0\", ";
   out << "\"organism_id\": \"" << json_escape(ctx.organism_id) << "\", ";
   out << "\"loaded_state_path\": " << path_or_null(ctx.loaded_state_path) << ", ";
   out << "\"saved_state_path\": " << path_or_null(ctx.saved_state_path) << ", ";
@@ -1540,7 +1540,7 @@ Args parse_args(int argc, char** argv) {
   return args;
 }
 
-// Append one JSONL event-log line per the docs/PERSISTENCE_SCHEMA.md v0 schema.
+// Append one JSONL event-log line per the docs/artifacts/PERSISTENCE_SCHEMA.md v0 schema.
 // Open in append mode; flush after each line so a crash mid-run preserves history.
 void append_event_log_line(const std::string& log_path, const std::string& organism_id,
                            const std::string& phase, const Event& event,

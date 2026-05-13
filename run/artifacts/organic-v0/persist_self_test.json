@@ -1,6 +1,6 @@
 {
-  "run_id": "organic-v0-persist-dfee96adb956",
-  "timestamp": "2026-05-13T18:59:52Z",
+  "run_id": "organic-v0-persist-7c129b83440e",
+  "timestamp": "2026-05-13T19:10:35Z",
   "phase": "persistence-self-test",
   "organism_id": "raphael-local-0001",
   "saved_state_path": "run/state/organic-v0/snapshots/raphael-local-0001/cycle_persistence_pass0.pxstate",
