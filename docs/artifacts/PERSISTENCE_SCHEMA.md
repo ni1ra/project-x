@@ -85,7 +85,7 @@ PXSTATE_V0
 SCHEMA project_x.state_snapshot.v0
 ORGANISM_ID raphael-local-0001
 CREATED_UTC 2026-05-13T00:00:00Z
-CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1
+CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 max_roles=16
 TRACES <n>
 T <event_id>|<episode_id>|<split>|<domain>|<level>|<input>|<observation_csv>|<target_output>|<reward_scalar_hex64>|<hdc_vector_hex64_space_list>
 CONNS <n>
@@ -93,9 +93,42 @@ C <feature_id_hex64>|<ascii_code>:<weight_hex64>,...
 SLOTS <n>
 S <slot_key_hex64> <weight_hex64>
 LEARNED <ascii_code> ...
+ROLES <n>
+R <role_id_hex64> <role_string>
+SEGMENT_CONNS <n>
+SC <feature_id_hex64>|<role_id_hex64>:<weight_hex64>,...
 STATE_HASH <hex64>
 PXSTATE_END
 ```
+
+### Cycle-3 extension: ROLES + SEGMENT_CONNS
+
+Two new sections added in cycle 3 (v2-c3) for the learned segment-generation mechanism. See `docs/artifacts/CYCLE3_MECHANISM.md` for the mechanism design and advisor verdict (405/420).
+
+**ROLES section** — catalog of role-token strings encountered during training:
+
+- `<role_id_hex64>`: `fnv1a(role_string)` as 16-char lowercase hex. Stable across processes.
+- `<role_string>`: the role-type string itself (e.g., `name`, `object`, `place`, `signal`, `topic`, `intent`). Subject to `require_pxstate_scalar` delimiter rules (no `|`, `\n`, `\r`).
+- Section may be absent or `ROLES 0` when `use_segment_mode=0` (legacy emission). Loader tolerates absence.
+- `kMaxRoles=16` compile-time cap; 17th unique role at training time throws `std::runtime_error("role table exhausted at kMaxRoles=16")`. Serialized state is forward-compatible across recompiled binaries because role_id is a stable hash, not an index.
+
+**SEGMENT_CONNS section** — per-feature mode-switch weights, sparse format mirroring CONNS:
+
+- `<feature_id_hex64>`: same feature_id space as CONNS.
+- `<role_id_hex64>:<weight_hex64>,...`: comma-joined list of `(role_id, weight)` pairs for this feature; only non-zero weights serialized.
+- Loaded into a `std::map<uint64_t feature_id, std::map<uint64_t role_id, double>> segment_connections_`.
+- Section may be absent or `SEGMENT_CONNS 0` when `use_segment_mode=0`.
+
+### State hash gating
+
+Cycle-2 hash `3536309de837d3e2` is preserved bit-exactly when `use_segment_mode=0`. The new `state_hash` walks of `role_token_table_` and `segment_connections_` are GATED behind `if (config_.use_segment_mode)` — `combine(h, 0)` is NOT a no-op (see `combine` in `native/organic_v0.cpp:139`), so unconditional walks of empty containers would alter the hash even with `use_segment_mode=0`. With the gate active, cycle-2 saved state loads as `use_segment_mode=0` automatically via the CONFIG section and the hash stays compatible.
+
+### Delimiter rules (extended)
+
+All existing delimiter rules (no `|`/`\n`/`\r` in scalars, no `,` in observation fields) apply. New cycle-3 additions:
+
+- Role strings cannot contain `|`, `\n`, `\r`. Validated via `require_pxstate_scalar("role.string", ...)` at write time, fail-fast.
+- Mode-switch weights in SEGMENT_CONNS rows use hex64-of-IEEE-bits encoding identical to CONNS weight encoding; bit-exact round-trip preserved.
 
 Minimum contents for organic-v0:
 

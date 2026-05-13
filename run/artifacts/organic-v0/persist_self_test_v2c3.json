@@ -1,0 +1,19 @@
+{
+  "run_id": "organic-v0-persist-3017400acff5",
+  "timestamp": "2026-05-13T19:59:43Z",
+  "phase": "persistence-self-test",
+  "organism_id": "raphael-local-0001",
+  "saved_state_path": "/tmp/v2c3_psl.pxstate",
+  "appended_event_log_path": "/tmp/v2c3_evt.jsonl",
+  "child_verdict_path": null,
+  "child_verdict_embedded": true,
+  "verify_event_id": "evt_mem_test_001",
+  "parent_state_hash": "4962e498de53e6c4",
+  "parent_raw_output": "mila quartz pier6",
+  "child_state_hash": "4962e498de53e6c4",
+  "child_raw_output": "mila quartz pier6",
+  "hash_match": true,
+  "output_match": true,
+  "load_status": "save_and_load_verified",
+  "honest_interpretation": "Round-trip persistence: parent trained from JSONL, saved state, child process loaded state, generated same held-out event. Hash + output match proves the load contract."
+}

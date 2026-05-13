@@ -1,6 +1,6 @@
 # Do This Next - Project X v2
 
-Generated: 2026-05-13 (post persistence-pass-0 ship)
+Generated: 2026-05-13 (post cycle-3 ship — learned segment generation lifted composition 0.36 → 0.68)
 
 ## Read First
 
@@ -8,72 +8,74 @@ Generated: 2026-05-13 (post persistence-pass-0 ship)
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
-5. `docs/past_work/` only when historical context is needed
+5. `docs/artifacts/CYCLE3_MECHANISM.md` — the cycle-3 architecture lock, advisor verdict, and Builder-Law boundary call
+6. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-3.md` — what shipped, what regressed, what's queued for cycle 4
+7. `docs/past_work/` only when historical context is needed
 
 ## What Just Happened
 
-This cycle shipped two manifesto-load-bearing deltas in order: (1) benchmark tightening to expose a known parity-label cheat; (2) persistence pass-0 — line-oriented save/load + append-only event log + fresh-process round-trip self-test.
+Cycle 3 produced the first cycle where the organism's *cognitive layer* exhibited measured generalization beyond memorization. The learned segment generation mechanism (picked over HDC unbind+cleanup via /pick-one 405/420 after explicit advisor boundary-call) extended the brain's action space from literal-char emission to literal-char-OR-start-copy-from-typed-observation-role. Mode-switch decisions live in the same learned softmax substrate as literal emission — no parser-dispatcher, no authored role-routing. The substring-match in `learn()` is training-time supervision routing, not authored capability at inference (advisor cleared this explicitly).
 
-### Benchmark tightening (#00a)
+### Headline result (`run/artifacts/organic-v0/eval_compositional_v2c3.json`)
 
-`benchmarks/v2_ladder/organic_v0.jsonl` held-out items rewritten:
+| metric | cycle 2 baseline | cycle 3 | delta |
+|---|---|---|---|
+| overall exact_rate | 0.360 | **0.680** | **+0.32 (+89%)** |
+| `unseen_filler` | 0/8 = 0% | **8/8 = 100%** | **+100%** |
+| `unseen_filler_long` | 0/2 = 0% | **2/2 = 100%** | **+100%** |
+| `unseen_filler_short` | 1/1 = 100% | 1/1 = 100% | held |
+| `direct_replay` | 5/5 = 100% | 3/5 = 60% | **-40% (REGRESSION)** |
+| `evidence_absence` | 2/2 = 100% | 2/2 = 100% | held |
+| `unseen_rule_transfer` | 1/2 = 50% | 1/2 = 50% | held |
+| `intent_transfer` | 0/1 = 0% (seq_ratio 0.706) | 0/1 = 0% (seq_ratio 0.706) | held |
+| `evidence_present` | 0/2 = 0% | 0/2 = 0% | held |
+| `distractor_rule_transfer` | 0/2 = 0% | 0/2 = 0% | held |
 
-- **hidden_rule:** `parity:even`/`parity:odd` removed from held-out observations (training kept them as learning material). 2 of 4 test items are now `distractor_rule_transfer` — the trained signal-association (`signal:blue → go`, `signal:red → stay`) directly contradicts the parity rule on those items.
-- **abstention:** 2 of 4 held-out items are now `evidence_present` (`topic:arin → "copper"`, `topic:bea → "glass"`) with identical wording shape to the 2 `evidence_absence` items. The "?" target is no longer a domain shortcut.
-- **memory:** mem_test_004 → 6-char object + 8-char place (`tavi marble lantern6`).
-- **causal_chain:** test_004 effect → 4 chars (`horn`); variance now 4/5/5/6 across test items.
-- **language_expression:** test_003 → 7-char name (`quintus`); test_004 → non-greeting (`intent:farewell name:elena → "bye elena"`) — first held-out probe that requires composing an unseen intent with a slot.
+State hash: `4962e498de53e6c4` (cycle 2's `3536309de837d3e2` preserved bit-exactly when `use_segment_mode=0`).
 
-### Cheat-collapse quantified (#00b)
+### Persistence (cycle-3 #00e gate)
 
-| metric | prior cycle (`eval_compositional_slot_pass.json`) | this cycle (`eval_compositional_tightened_persisted.json`) |
-|---|---|---|
-| overall exact_rate | `0.520000` | `0.360000` |
-| hidden_rule | 4/4 = 100% | 2/5 = 40% (cheat exposed) |
-| abstention | 5/5 = 100% | 3/5 = 60% (domain-shortcut exposed) |
-| by_composition.evidence_present | n/a | 0/2 — model cannot recall arin/bea via abstention wording |
-| by_composition.distractor_rule_transfer | n/a | 0/2 — model picks trained signal-association over parity rule |
-| by_composition.intent_transfer | n/a | 0/1 — "hi elena" instead of "bye elena" (no path for non-greeting) |
+- `run/artifacts/organic-v0/persist_self_test_v2c3.json`: `hash_match: true`, `output_match: true`, `load_status: save_and_load_verified`. Bit-exact parent/child hash + bit-exact parent/child raw_output `"mila quartz pier6"` (an unseen_filler test event the brain now solves cleanly).
+- `run/artifacts/organic-v0/eval_compositional_v2c3_from_disk.json`: fresh-process eval loaded from disk, `diff` against eval-from-JSONL on `summary_metrics + model_state_hash` is empty. Proves ROLES + SEGMENT_CONNS sections serialize and load cleanly.
 
-Same brain weights, same state_hash (`3536309de837d3e2`). The benchmark got more honest; the score dropped accordingly. That drop IS the proof.
+### Honest regression preserved
 
-### Persistence pass-0 (#00c / #00d)
+The `direct_replay` regression 5/5 → 3/5 is the cycle-3 cost. Two failures, two distinct mechanisms:
 
-`native/organic_v0.cpp` extended with line-oriented `PXSTATE_V0` format (config + traces + connections + slots + learned-chars + state_hash), bit-exact via hex64-of-IEEE-bits so the state_hash matches across save/load. Three new flags: `--save-state`, `--load-state`, `--event-log`. Three new phases: `persistence-self-test` (parent: train → save → spawn child → verify), `persistence-load-verify` (child: load → generate → emit verdict JSON), and integration into `eval` for load-then-generate-without-training.
+1. `evt_mem_dev_000`: expected `"arin copper tray4"`, got `"arin copper copper copper copper copper copper c"`. Role-ordering failure at the third segment. Bucket-feature transfer doesn't discriminate role:object from role:place strongly enough at deep segment indices.
+2. `evt_causal_dev_000`: expected `"bell"`, got `"go"`. Cross-domain literal contamination — segment-mode did NOT fire here; a hidden_rule literal won in the causal_chain domain.
 
-**Round-trip evidence** (`run/artifacts/organic-v0/persist_self_test.json`):
-- `parent_state_hash: 3536309de837d3e2`, `child_state_hash: 3536309de837d3e2` — bit-exact match
-- `parent_raw_output: "milaquart arch6"`, `child_raw_output: "milaquart arch6"` — bit-exact match
-- `load_status: save_and_load_verified`
-- `scripts/test_organic_v0.sh` now runs BOTH the substrate self-test AND the persistence round-trip; either failure is `set -e` fatal
+These are NOT substring-match false-positives (the architecture's pre-mortem watchlist mitigation doesn't apply). They are different failure-mode families. Cycle 4 scope.
 
-**Fresh-process eval evidence** (`run/artifacts/organic-v0/eval_compositional_tightened_persisted.json`):
-- `persistence.status: loaded_from_disk`
-- `persistence.loaded_state_path: run/state/organic-v0/snapshots/raphael-local-0001/cycle_persistence_pass0.pxstate`
-- `summary_metrics` IDENTICAL to a from-JSONL training run — proven by `diff` on `summary_metrics + by_composition + model_state_hash`
+## Next Cycle Contract — cycle 4
 
-The organism survives a restart. MANIFESTO §"Persistence Is Pass-0, Not Future Work" is no longer a gap; pass-0 ships.
+The structural mechanism cycle is done; cycle 4 closes the residual failure_cases that cycle 3 did not solve. Three candidates compete via `/pick-one` at cycle open (ground in the SAME tightened-benchmark `failure_cases`, not theory):
 
-## Next Cycle Contract
+### Candidate A — Role-ordering discrimination at deep segment indices
 
-The structural work the brief deferred is now unblocked. The honest baseline is in place and persistence substrate exists, so any new mechanism can be measured against the tightened benchmark AND saved-loaded for inspection without re-running training.
+**Targets:** `evt_mem_dev_000` direct_replay regression. Affects: 1 of 16 prior failures (the new regression).
 
-### Candidate structural mechanism — dynamic slot/segment generation
+**Mechanism sketch:** Add a per-segment-index feature to the state-features that the mode-switch substrate consumes. Currently `state_features(features, previous, position)` builds (pos, prev, bucket, ctx) features. Add a fifth derived feature: `segment_index_so_far` — the count of mode-switches that have fired in this generation. Train events with 3 segments learn mode-switch=role:place specifically at segment_index_so_far=2; test direct_replay events at the same segment index transfer the discrimination.
 
-The slot pass-through (prior cycle) is structurally inadequate: it copies typed observation characters at ABSOLUTE output positions learned from training. This fails the moment filler length or separator structure varies — exactly the failure modes the tightened benchmark now exposes (`unseen_filler_long`, `intent_transfer`).
+**Risk:** the segment_index_so_far feature is only known at GENERATE time (it depends on how many mode-switches fired so far in this generation). Training-time learning needs to compute the SAME segment-index at the supervision-routing step — straightforward (the substring-match walks fillers in order).
 
-Direction: replace absolute-position slot copying with **learned segment generation**:
+### Candidate B — Domain-gating for literal answers
 
-- learn segment STARTS (when does a copied slot span begin?)
-- learn segment SEPARATORS (what literal characters connect segments?)
-- learn segment STOP conditions (when does a span end and the next literal/copy begin?)
-- the generator emits a sequence of segment-typed steps; each step is either a literal-learned-char OR a copied slot span; segment-type selection is learned from state, not hardcoded by domain
+**Targets:** `evt_causal_dev_000` direct_replay regression. Affects: 1 of 16 prior failures.
 
-Sister candidate: **HDC unbinding + cleanup memory** — `unbind(query, role:observation:name) → cleanup → name_atom`, then a per-character emit conditioned on the unbound filler. Honest HDC.
+**Mechanism sketch:** Amplify the domain-feature's contribution to literal-char emission weights. Currently `context_features` adds an "obs" feature for each observation token, with weight `context_gain`. Add a domain-discriminator feature with higher weight when the input's domain markers (e.g., `seed:` for memory, `signal:` for hidden_rule, `sound:` for causal_chain) are present in the observation tokens.
 
-Pick the mechanism via `/pick-one` after re-reading the artifacts.
+**Risk:** domain-discriminator is close to a parser-dispatcher if implemented carelessly. The honest version: increase context_gain for observation tokens that match a small set of domain-marker prefixes (still learned weights, just with higher scale).
 
-### Hard gates (unchanged)
+### Candidate C — Intent → literal-prefix learning
+
+**Targets:** `evt_lang_test_004` intent_transfer ("hi elena" vs "bye elena"). Affects: 1 of 16 prior failures.
+
+**Mechanism sketch:** Boost intent atoms' feature contribution specifically for early-position literal emission so `intent:farewell` → "bye" wins over the stronger `name:elena` association → "hi" bigram. Specifically: the prev-and-pos-bound feature for prev=kStart should weight intent observation tokens more heavily than other context tokens.
+
+**Risk:** if intent atom's weight is bumped globally, may regress other domains. Need scoped boost (only at pos=0 / pos<3).
+
+### Hard gates (unchanged from cycle 3)
 
 Reject any implementation that:
 
@@ -86,29 +88,38 @@ Reject any implementation that:
 - adds CUDA kernels before the workload justifies parallelism
 - ships a structural change without re-running on the tightened benchmark AND verifying the persistence self-test still passes
 
+### Close criteria for cycle 4
+
+- Material improvement on at least ONE of: `direct_replay` (back to ≥ 4/5), `intent_transfer` (1/1), `evidence_present` (1/2). "Material" = the lift is honest (no benchmark-tightening regression covering it).
+- No regression on cycle-3 gains: `unseen_filler` 8/8 must hold; `unseen_filler_long` 2/2 must hold.
+- Persistence round-trip still survives (diff-clean eval-from-disk vs eval-from-JSONL).
+- REPO_CONTROL rows co-land for any new artifacts.
+
 ## Suggested Command Sequence (current state)
 
 ```bash
-make test                               # substrate guard + persistence round-trip
+make test                               # substrate guard + persistence round-trip (segment-mode on)
 scripts/eval_organic_v0.sh --mode test --out /tmp/eval_current.json
-# OR - load this cycle's saved state and eval without re-training:
+# OR — load this cycle's saved state and eval without re-training:
 build/organic_v0 --phase eval --mode test \
-  --load-state run/state/organic-v0/snapshots/raphael-local-0001/cycle_persistence_pass0.pxstate \
+  --load-state run/state/organic-v0/snapshots/raphael-local-0001/v2c3.pxstate \
   --out /tmp/eval_from_disk.json
-jq '{run_id, model_state_hash, persistence, summary: .summary_metrics.overall, by_composition: .summary_metrics.by_composition, failures: [.failure_cases[] | {event_id, domain, composition, raw: .raw_generated_output, expected: .expected_output}]}' /tmp/eval_current.json
+jq '{exact: .summary_metrics.overall.exact_rate, by_composition: .summary_metrics.by_composition, segment_mode_switches: [.events[]|.generation.segment_mode_switch_count]|add}' /tmp/eval_current.json
+jq '.failure_cases' run/artifacts/organic-v0/eval_compositional_v2c3.json
 git status --short
 ```
 
 ## Follow-up Notes (advisor, not blocking)
 
-- Audit follow-up closed: `PXSTATE_V0` now fails fast at write time for reserved `|` / newline delimiters in scalar fields and `,` in observation fields.
-- Audit follow-up closed: `make test` now runs the same substrate guard + persistence round-trip as `scripts/test_organic_v0.sh`.
-- Remaining: branch `feat/organic-v0-trace-id-ablation` now carries two distinct cycles' commits (cycle 1: trace-id ablation in `dab6e41`; cycle 2: benchmark + persistence in `a1168ec` + `787fe9b`). Branch name is stale relative to its contents. If lain plans to merge as one PR, fine. If as two, branch-split needed; do not act unprompted.
+- **kMaxRoles overflow** is fail-fast (throws); current benchmark uses ~6 roles, headroom is 10. If benchmark v3 adds new role types beyond 16, bump the compile-time constant. Serialized state forward-compatible (role_id is a stable hash, not an index).
+- **segment_mode_gain calibration** ended at 0.3 (started at 5.0; 1.5 didn't help; 0.3 produced correct spaced output). The right value is "high enough to make mode-switches competitive at segment-starts via bucket transfer, low enough that fully-feature-matched literal chars win at post-filler positions." Worth re-measuring if cycle 4 changes the feature topology.
+- **Branch name** `feat/organic-v0-trace-id-ablation` now carries cycle 1 + 2 + audit + cycle 3 — increasingly stale. If a PR rollup is planned, branch-split decision needs lain input; do not act unprompted.
+- **GenerationStep evidence:** new `is_mode_switch`, `is_copy_emit`, `copy_role` fields preserved in eval artifacts but not yet exported into the JSON output structure for inspection. Cycle 4 may want to surface these in `failure_cases` for deeper diagnostics.
 
 ## Close Criteria For The Next Pass
 
-- A structural mechanism (segment generator OR HDC unbinding) that materially improves `unseen_filler` / `unseen_filler_long` / `intent_transfer` scores on the tightened benchmark.
-- The mechanism MUST survive the persistence round-trip: trained brain saves, fresh process loads, generates the same outputs bit-exactly.
-- No regression on `direct_replay` / `evidence_absence` / `unseen_rule_transfer` (the things the model currently gets right honestly).
-- Empty placeholder dirs (`src/project_x_v2/`, `tests/`) either removed or filled with content owning a `REPO_CONTROL.md` row.
+- A targeted mechanism (one of the three candidates above) that materially improves at least one of the residual failure modes.
+- The mechanism MUST survive the persistence round-trip on the new state (any added connection-features, atoms, or per-segment counters).
+- No regression on `unseen_filler` 8/8, `unseen_filler_long` 2/2, `unseen_filler_short` 1/1, `evidence_absence` 2/2.
+- Empty placeholder dirs (`src/project_x_v2/`, `tests/`) either removed or filled with content owning a `REPO_CONTROL.md` row (carried from cycle 2, still open).
 - No GPU/CUDA work, no Python answer-path migration, no template wrapper.

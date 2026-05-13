@@ -26,6 +26,18 @@ namespace px {
 
 constexpr int kDim = 256;
 constexpr int kAscii = 128;
+// kMaxRoles caps the segment-mode action-space expansion (cycle-3 mechanism).
+// WHAT: extra action ids past kAscii reserved for "start copy span from role-token R".
+// WHY: per docs/artifacts/CYCLE3_MECHANISM.md, the generator's softmax now ranges over
+//   literal-char actions [0..kAscii) PLUS role-switch actions [kAscii..kAscii+kMaxRoles).
+//   Same connection weights drive both — no authored role-dispatch.
+// NEGATIVE-SPACE: this is a compile-time cap on UNIQUE role strings the brain has ever
+//   seen during training. The tightened benchmark exposes ~6 (name/object/place/signal/
+//   topic/intent); 16 gives ~10 headroom. Hitting the cap is fail-fast at registration
+//   (std::runtime_error), never silent overflow. Bumping it is one line + recompile;
+//   serialized state survives because role_id is a stable fnv1a hash, not an index.
+constexpr int kMaxRoles = 16;
+constexpr int kExtendedActions = kAscii + kMaxRoles;
 constexpr unsigned char kStart = 2;
 constexpr unsigned char kEnd = 3;
 
@@ -41,8 +53,28 @@ struct Config {
   double position_gain = 0.35;
   double state_binding_gain = 1.35;
   double slot_pass_gain = 7.5;
+  // segment_mode_gain scales the softmax contribution of mode-switch weights vs literal-char
+  // weights. WHY: the action space [kAscii..) carries different units of evidence than ASCII
+  // chars (1 mode-switch decision vs N character-bigrams), so a separate gain knob keeps the
+  // two contributions comparable without distorting either.
+  // CALIBRATION: 5.0 caused mode-switches to win at post-filler positions over the literal
+  // separator ' ' that was learned at the exact (pos, prev) — bucket-feature transfer of the
+  // mode-switch dominated. 1.5 keeps mode-switches competitive at segment-starts (where
+  // mode-switch has full feature match and literal chars have wrong-prev mismatch) while
+  // letting ' ' separators win at post-filler positions where they have full-feature match.
+  double segment_mode_gain = 0.3;
   bool use_trace_id_feature = true;
   bool use_slot_pass_through = true;
+  // use_segment_mode flips the cycle-3 learned segment generation. WHEN TRUE: learn() routes
+  // observation-filler spans to mode-switch weights; generate() runs the segment-mode state
+  // machine; serialize/load persist ROLES + SEGMENT_CONNS sections; state_hash includes both.
+  // WHEN FALSE: legacy emission path bit-exactly (cycle-2 hash 3536309de837d3e2 preserved
+  // when applied to cycle-2 saved state). Default TRUE so new training uses the mechanism;
+  // cycle-2 loaded state will override to FALSE via the CONFIG line.
+  bool use_segment_mode = true;
+  // Compile-time cap mirrored from kMaxRoles, surfaced through CONFIG so the
+  // serialized snapshot self-documents the action-space width.
+  int max_roles = kMaxRoles;
 };
 
 struct Event {
@@ -99,6 +131,12 @@ struct GenerationStep {
   std::vector<std::pair<unsigned char, double>> top_chars;
   size_t active_state_feature_count = 0;
   size_t active_slot_copy_count = 0;
+  // Cycle-3 evidence: true when this step was a learned mode-switch (first emission of a
+  // copy span). copy_role records which role-token was selected. Subsequent emissions within
+  // the same copy span have is_copy_emit=true and the same copy_role.
+  bool is_mode_switch = false;
+  bool is_copy_emit = false;
+  std::string copy_role;
 };
 
 struct Generation {
@@ -109,10 +147,22 @@ struct Generation {
   size_t connection_feature_count = 0;
   size_t connection_nonzero_count = 0;
   size_t slot_copy_link_count = 0;
+  // Cycle-3 cumulative evidence: how many mode-switches fired during this generate, and how
+  // many output chars came from copy-mode emission (vs literal-mode emission).
+  size_t segment_mode_switch_count = 0;
+  size_t copy_mode_char_count = 0;
 };
 
 struct Weights {
-  std::array<double, kAscii> value{};
+  // Action-space layout (cycle-3 expansion):
+  //   value[0..kAscii)              → literal-char actions (existing behavior)
+  //   value[kAscii..kExtendedActions) → mode-switch actions, indexed by role-table slot
+  // NEGATIVE-SPACE: this is NOT a separate map keyed by role_id. The role_id_hex64 in
+  // SEGMENT_CONNS serializes the stable hash, but at runtime the brain stores mode-switch
+  // weights in a fixed-width slot array indexed by role-table position. The slot ←→ role_id
+  // mapping is kept in role_token_table_ on OrganicBrain; serialization writes role_id (the
+  // hash) so the array slot is irrelevant across processes.
+  std::array<double, kExtendedActions> value{};
 };
 
 struct ObservationSlot {
@@ -575,25 +625,96 @@ class OrganicBrain {
       return;
     }
 
-    learn_slot_pass_through(event.observations, event.target_output, trace.reward_scalar);
+    // Legacy slot pass-through learning is bypassed when segment-mode is active — its
+    // per-position char bonuses would double-count against mode-switch weights and pull
+    // generate's softmax in conflicting directions. When segment-mode is off, the legacy
+    // path is preserved bit-exactly.
+    if (!config_.use_segment_mode) {
+      learn_slot_pass_through(event.observations, event.target_output, trace.reward_scalar);
+    }
 
     auto features = context_features(event.input, event.observations);
     if (config_.use_trace_id_feature) {
       features.push_back({hash_pair("trace", event.event_id), 1.0});
     }
     size_t deltas = 0;
-    unsigned char previous = kStart;
-    std::string sequence = event.target_output;
-    sequence.push_back(static_cast<char>(kEnd));
-    for (size_t pos = 0; pos < sequence.size(); ++pos) {
-      unsigned char c = static_cast<unsigned char>(sequence[pos]);
-      if (c >= kAscii) continue;
+
+    if (config_.use_segment_mode) {
+      // Segment-aware supervision routing.
+      // WHAT: walk target_output; at each position try to match an observation filler. On
+      //   match, route the supervision signal to a MODE-SWITCH weight (action id = kAscii +
+      //   role_slot) and skip past the filler. On no match, route to the per-char weight as
+      //   in legacy. End-of-sequence kEnd is learned at the post-walk position regardless.
+      // WHY: this is the cycle-3 mechanism. It teaches the brain "at this output position,
+      //   the right action is to switch to copy-from-role-R" instead of "the right action is
+      //   to emit the char that happened to be there in training". Generalization across
+      //   unseen fillers comes from the mode-switch weight being conditioned on context
+      //   features (input + activated traces + previous-char + position bucket), NOT on the
+      //   literal filler string.
+      // NEGATIVE-SPACE: the substring-match here is training-time data routing. It does NOT
+      //   appear at inference (generate's mode-switch decision reads only from learned
+      //   softmax weights). See CYCLE3_MECHANISM.md §"Builder-Law boundary call".
+      auto slots = parse_slots(event.observations);
+      const std::string& target = event.target_output;
+      std::string lower_target = lower_ascii(target);
+      size_t pos = 0;
+      unsigned char previous = kStart;
+      while (pos < target.size()) {
+        auto match = find_longest_filler_match_at(lower_target, pos, slots);
+        if (match.has_value()) {
+          int role_slot = match->first;
+          size_t span = match->second;
+          int action_id = kAscii + role_slot;
+          for (const auto& feature : state_features(features, previous, static_cast<int>(pos))) {
+            connections_[feature.id].value[action_id] +=
+                trace.reward_scalar * feature.scale * config_.learning_rate;
+            ++deltas;
+          }
+          // Advance past the copied span; previous becomes the filler's last char so the
+          // post-span position scores against the correct transition feature.
+          unsigned char last_in_span = static_cast<unsigned char>(target[pos + span - 1]);
+          // Filler chars participate in learned_chars_ so the loader catches them on round-trip.
+          for (size_t k = 0; k < span; ++k) {
+            unsigned char fc = static_cast<unsigned char>(target[pos + k]);
+            if (fc < kAscii) learned_chars_.insert(fc);
+          }
+          pos += span;
+          previous = (last_in_span < kAscii) ? last_in_span : previous;
+        } else {
+          unsigned char c = static_cast<unsigned char>(target[pos]);
+          if (c >= kAscii) { ++pos; continue; }
+          for (const auto& feature : state_features(features, previous, static_cast<int>(pos))) {
+            connections_[feature.id].value[c] +=
+                trace.reward_scalar * feature.scale * config_.learning_rate;
+            ++deltas;
+          }
+          learned_chars_.insert(c);
+          previous = c;
+          ++pos;
+        }
+      }
+      // End-of-sequence: learn kEnd at the post-walk position with the last-emitted previous.
       for (const auto& feature : state_features(features, previous, static_cast<int>(pos))) {
-        connections_[feature.id].value[c] += trace.reward_scalar * feature.scale * config_.learning_rate;
+        connections_[feature.id].value[kEnd] +=
+            trace.reward_scalar * feature.scale * config_.learning_rate;
         ++deltas;
       }
-      if (c != kEnd) learned_chars_.insert(c);
-      previous = c;
+    } else {
+      // Legacy per-char supervision — preserved bit-exactly when use_segment_mode=0 so
+      // cycle-2 saved state can be reloaded and continue training identically.
+      unsigned char previous = kStart;
+      std::string sequence = event.target_output;
+      sequence.push_back(static_cast<char>(kEnd));
+      for (size_t pos = 0; pos < sequence.size(); ++pos) {
+        unsigned char c = static_cast<unsigned char>(sequence[pos]);
+        if (c >= kAscii) continue;
+        for (const auto& feature : state_features(features, previous, static_cast<int>(pos))) {
+          connections_[feature.id].value[c] += trace.reward_scalar * feature.scale * config_.learning_rate;
+          ++deltas;
+        }
+        if (c != kEnd) learned_chars_.insert(c);
+        previous = c;
+      }
     }
     mutation_connection_deltas_.push_back(deltas);
   }
@@ -613,46 +734,155 @@ class OrganicBrain {
     }
 
     unsigned char previous = kStart;
+    // Segment-mode state machine. WHEN use_segment_mode IS OFF, the in_copy_mode branch
+    // never fires (mode-switch actions are never voted for because the connection weights
+    // at indices [kAscii..kExtendedActions) are all zero on a legacy brain), so behavior
+    // reduces to the cycle-2 emission path bit-exactly.
+    bool in_copy_mode = false;
+    std::string copy_filler;
+    size_t copy_pos = 0;
+    std::string copy_role_name;
     for (int pos = 0; pos < config_.max_output_chars; ++pos) {
+      if (in_copy_mode) {
+        // Copy-mode emission: read the next filler char from the active observation; no
+        // softmax scoring at this position because the mode-switch decision already routed
+        // the next len(filler) emissions.
+        unsigned char fc = static_cast<unsigned char>(copy_filler[copy_pos]);
+        if (fc >= kAscii) fc = '?';  // safety guardrail; benchmark fillers are ascii
+        GenerationStep step;
+        step.position = pos;
+        step.chosen = fc;
+        step.score = 0.0;
+        step.is_copy_emit = true;
+        step.copy_role = copy_role_name;
+        step.active_state_feature_count = 0;
+        step.active_slot_copy_count = 0;
+        gen.steps.push_back(step);
+        gen.output.push_back(static_cast<char>(fc));
+        ++gen.copy_mode_char_count;
+        previous = fc;
+        ++copy_pos;
+        if (copy_pos >= copy_filler.size()) {
+          in_copy_mode = false;
+        }
+        continue;
+      }
+
       auto active = state_features(features, previous, pos);
-      std::array<double, kAscii> scores{};
+      std::array<double, kExtendedActions> scores{};
       bool any = false;
       for (const auto& feature : active) {
         auto found = connections_.find(feature.id);
         if (found == connections_.end()) continue;
-        for (int c = 0; c < kAscii; ++c) {
-          if (found->second.value[c] != 0.0) {
-            scores[c] += feature.scale * found->second.value[c];
+        for (int a = 0; a < kAscii; ++a) {
+          if (found->second.value[a] != 0.0) {
+            scores[a] += feature.scale * found->second.value[a];
             any = true;
           }
         }
+        if (config_.use_segment_mode) {
+          for (int a = kAscii; a < kExtendedActions; ++a) {
+            if (found->second.value[a] != 0.0) {
+              scores[a] += feature.scale * found->second.value[a] * config_.segment_mode_gain;
+              any = true;
+            }
+          }
+        }
       }
-      size_t slot_copy_count = add_slot_pass_scores(scores, slots, pos);
-      if (slot_copy_count > 0) any = true;
+
+      // Legacy slot pass-through is only consulted when segment-mode is OFF. The legacy
+      // helper signature is std::array<double, kAscii>&, so we score into a temp and sum
+      // the literal-action range into the wider score array.
+      size_t slot_copy_count = 0;
+      if (!config_.use_segment_mode) {
+        std::array<double, kAscii> legacy_scores{};
+        slot_copy_count = add_slot_pass_scores(legacy_scores, slots, pos);
+        for (int c = 0; c < kAscii; ++c) scores[c] += legacy_scores[c];
+        if (slot_copy_count > 0) any = true;
+      }
+
+      // GUARDRAIL: zero out mode-switch actions whose target role has no value in the
+      // current observations. This MUST happen before the all-zero check so that an event
+      // where no literal vote and no reachable mode-switch fire emits END via the existing
+      // END-vote-wins logic below, rather than break-mid-output. Roles that were never
+      // registered have score 0 by construction (their weight slot is untouched).
+      if (config_.use_segment_mode) {
+        for (size_t role_slot = 0; role_slot < role_token_table_.size(); ++role_slot) {
+          if (observation_value_for_role(role_token_table_[role_slot], observations).empty()) {
+            scores[kAscii + static_cast<int>(role_slot)] = 0.0;
+          }
+        }
+      }
+
       if (!any) break;
 
-      std::vector<std::pair<unsigned char, double>> ranked;
-      for (int c = 0; c < kAscii; ++c) {
-        if (scores[c] != 0.0) ranked.push_back({static_cast<unsigned char>(c), scores[c]});
+      // Argmax over the expanded action space. Tied scores broken by ascending action_id —
+      // preserves the legacy "lowest char_id wins on tie" rule for the literal range.
+      std::vector<std::pair<int, double>> ranked;
+      for (int a = 0; a < kExtendedActions; ++a) {
+        if (scores[a] != 0.0) ranked.push_back({a, scores[a]});
       }
-      std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) {
-        if (a.second != b.second) return a.second > b.second;
-        return a.first < b.first;
+      std::sort(ranked.begin(), ranked.end(), [](const auto& A, const auto& B) {
+        if (A.second != B.second) return A.second > B.second;
+        return A.first < B.first;
       });
       if (ranked.empty()) break;
 
+      int chosen_action = ranked.front().first;
+      double chosen_score = ranked.front().second;
+
       GenerationStep step;
       step.position = pos;
-      step.chosen = ranked.front().first;
-      step.score = ranked.front().second;
+      step.score = chosen_score;
       step.active_state_feature_count = active.size();
       step.active_slot_copy_count = slot_copy_count;
-      for (size_t i = 0; i < std::min<size_t>(5, ranked.size()); ++i) step.top_chars.push_back(ranked[i]);
-      gen.steps.push_back(step);
+      // top_chars carries only literal-action contenders for legacy artifact compatibility;
+      // mode-switch alternatives surface via is_mode_switch + copy_role on the chosen step.
+      for (const auto& r : ranked) {
+        if (step.top_chars.size() >= 5) break;
+        if (r.first < kAscii) step.top_chars.push_back({static_cast<unsigned char>(r.first), r.second});
+      }
 
-      if (step.chosen == kEnd) break;
-      gen.output.push_back(static_cast<char>(step.chosen));
-      previous = step.chosen;
+      if (chosen_action < kAscii) {
+        // Literal emission — existing behavior.
+        unsigned char c = static_cast<unsigned char>(chosen_action);
+        step.chosen = c;
+        gen.steps.push_back(step);
+        if (c == kEnd) break;
+        gen.output.push_back(static_cast<char>(c));
+        previous = c;
+      } else {
+        // Mode-switch — enter copy span. The guardrail above guarantees a non-empty filler.
+        int role_slot = chosen_action - kAscii;
+        copy_role_name = (role_slot >= 0 && role_slot < static_cast<int>(role_token_table_.size()))
+                             ? role_token_table_[role_slot]
+                             : std::string();
+        copy_filler = observation_value_for_role(copy_role_name, observations);
+        if (copy_filler.empty()) {
+          // Defensive — should be unreachable. If we get here, the brain is in an
+          // inconsistent state (mode-switch voted for a role whose filler is empty AND
+          // the guardrail somehow missed it). Bail out cleanly.
+          break;
+        }
+        step.is_mode_switch = true;
+        step.copy_role = copy_role_name;
+        // First filler char emitted in THIS same step so output-position alignment matches
+        // training (mode-switch at training pos=N corresponded to filler[0] at output pos=N).
+        unsigned char first = static_cast<unsigned char>(copy_filler[0]);
+        if (first >= kAscii) first = '?';
+        step.chosen = first;
+        gen.steps.push_back(step);
+        gen.output.push_back(static_cast<char>(first));
+        ++gen.copy_mode_char_count;
+        previous = first;
+        ++gen.segment_mode_switch_count;
+        if (copy_filler.size() > 1) {
+          in_copy_mode = true;
+          copy_pos = 1;
+        }
+        // else: single-char filler; never enter copy_mode; remaining emissions resume in
+        // literal mode at the next iteration.
+      }
     }
     gen.state_hash = state_hash();
     gen.connection_feature_count = connections_.size();
@@ -689,6 +919,49 @@ class OrganicBrain {
     for (uint64_t key : slot_keys) {
       h = combine(h, key);
       h = combine(h, static_cast<uint64_t>(std::llround(slot_copy_weights_.at(key) * 1000000.0)));
+    }
+    // Cycle-3 hash extension: GATED behind use_segment_mode. combine(h, 0) is NOT a no-op
+    // (mix64 transforms h even when b==0), so unconditional walks of empty containers would
+    // alter the hash even with use_segment_mode=0 — breaking cycle-2 reproducibility. With
+    // the gate, cycle-2 saved state (CONFIG sets use_segment_mode=0 via loader) hashes to
+    // 3536309de837d3e2 bit-exactly.
+    if (config_.use_segment_mode) {
+      // ROLES contribution: sort by role_id hash for determinism.
+      std::vector<uint64_t> role_ids;
+      role_ids.reserve(role_token_table_.size());
+      for (const auto& role : role_token_table_) role_ids.push_back(fnv1a(role));
+      std::sort(role_ids.begin(), role_ids.end());
+      for (uint64_t rid : role_ids) h = combine(h, rid);
+      // SEGMENT_CONNS contribution: sort by feature_id, then walk non-zero mode-switch
+      // weights in (role_slot → role_id_hash) order so the hash matches what serialize
+      // emits regardless of which process built role_token_table_.
+      std::vector<uint64_t> seg_feature_ids;
+      seg_feature_ids.reserve(connections_.size());
+      for (const auto& kv : connections_) {
+        for (int a = kAscii; a < kExtendedActions; ++a) {
+          if (kv.second.value[a] != 0.0) { seg_feature_ids.push_back(kv.first); break; }
+        }
+      }
+      std::sort(seg_feature_ids.begin(), seg_feature_ids.end());
+      for (uint64_t fid : seg_feature_ids) {
+        h = combine(h, fid);
+        // Order by role_id hash, matching the serialize loop's ordering. Build (role_id,
+        // weight) pairs first, then walk in role_id order.
+        std::vector<std::pair<uint64_t, double>> ordered;
+        const auto& w = connections_.at(fid).value;
+        for (size_t slot = 0; slot < role_token_table_.size(); ++slot) {
+          int action_id = kAscii + static_cast<int>(slot);
+          if (w[action_id] != 0.0) {
+            ordered.push_back({fnv1a(role_token_table_[slot]), w[action_id]});
+          }
+        }
+        std::sort(ordered.begin(), ordered.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+        for (const auto& [rid, weight] : ordered) {
+          h = combine(h, rid);
+          h = combine(h, static_cast<uint64_t>(std::llround(weight * 1000000.0)));
+        }
+      }
     }
     return h;
   }
@@ -727,8 +1000,11 @@ class OrganicBrain {
         << " position_gain=" << double_to_hex(config_.position_gain)
         << " state_binding_gain=" << double_to_hex(config_.state_binding_gain)
         << " slot_pass_gain=" << double_to_hex(config_.slot_pass_gain)
+        << " segment_mode_gain=" << double_to_hex(config_.segment_mode_gain)
         << " use_trace_id_feature=" << (config_.use_trace_id_feature ? 1 : 0)
         << " use_slot_pass_through=" << (config_.use_slot_pass_through ? 1 : 0)
+        << " use_segment_mode=" << (config_.use_segment_mode ? 1 : 0)
+        << " max_roles=" << config_.max_roles
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
     for (const auto& tr : traces_) {
@@ -783,6 +1059,55 @@ class OrganicBrain {
     out << "LEARNED";
     for (unsigned char c : learned_chars_) out << ' ' << static_cast<int>(c);
     out << "\n";
+    // Cycle-3 sections: ROLES + SEGMENT_CONNS. Written only when use_segment_mode is on so
+    // cycle-2 saved files (without the flag) remain byte-identical after a re-save under
+    // legacy mode. Loader tolerates absence; presence is signaled by the CONFIG flag.
+    if (config_.use_segment_mode) {
+      // ROLES — sort by role_id (the fnv1a hash) for cross-process determinism. Role-table
+      // slot order is reconstruction by the loader: insert by sorted role_id, so two
+      // processes loading the same snapshot end up with identical Weights::value indexing.
+      std::vector<std::pair<uint64_t, std::string>> roles_sorted;
+      roles_sorted.reserve(role_token_table_.size());
+      for (const auto& role : role_token_table_) {
+        require_pxstate_scalar("role.string", role);
+        roles_sorted.push_back({fnv1a(role), role});
+      }
+      std::sort(roles_sorted.begin(), roles_sorted.end(),
+                [](const auto& a, const auto& b) { return a.first < b.first; });
+      out << "ROLES " << roles_sorted.size() << "\n";
+      for (const auto& [role_id, role] : roles_sorted) {
+        out << "R " << hex64(role_id) << ' ' << role << "\n";
+      }
+
+      // SEGMENT_CONNS — sparse, mirror CONNS shape but keyed by (feature_id, role_id).
+      // Each row enumerates non-zero mode-switch weights for one feature_id.
+      std::vector<uint64_t> seg_keys;
+      seg_keys.reserve(connections_.size());
+      for (const auto& kv : connections_) {
+        // Only include features with at least one non-zero mode-switch weight; saves bytes
+        // and keeps hash deterministic.
+        bool any_seg = false;
+        for (int a = kAscii; a < kExtendedActions; ++a) {
+          if (kv.second.value[a] != 0.0) { any_seg = true; break; }
+        }
+        if (any_seg) seg_keys.push_back(kv.first);
+      }
+      std::sort(seg_keys.begin(), seg_keys.end());
+      out << "SEGMENT_CONNS " << seg_keys.size() << "\n";
+      for (uint64_t fid : seg_keys) {
+        out << "SC " << hex64(fid) << "|";
+        const auto& w = connections_.at(fid).value;
+        bool first = true;
+        for (size_t slot = 0; slot < role_token_table_.size(); ++slot) {
+          int action_id = kAscii + static_cast<int>(slot);
+          if (w[action_id] == 0.0) continue;
+          if (!first) out << ',';
+          out << hex64(fnv1a(role_token_table_[slot])) << ':' << double_to_hex(w[action_id]);
+          first = false;
+        }
+        out << "\n";
+      }
+    }
     out << "STATE_HASH " << hex64(state_hash()) << "\n";
     out << "PXSTATE_END\n";
   }
@@ -827,9 +1152,23 @@ class OrganicBrain {
       else if (k == "position_gain") config_.position_gain = hex_to_double(v);
       else if (k == "state_binding_gain") config_.state_binding_gain = hex_to_double(v);
       else if (k == "slot_pass_gain") config_.slot_pass_gain = hex_to_double(v);
+      else if (k == "segment_mode_gain") config_.segment_mode_gain = hex_to_double(v);
       else if (k == "use_trace_id_feature") config_.use_trace_id_feature = (v != "0");
       else if (k == "use_slot_pass_through") config_.use_slot_pass_through = (v != "0");
+      else if (k == "use_segment_mode") config_.use_segment_mode = (v != "0");
+      else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
+    // Cycle-2 saves had no use_segment_mode key; default to FALSE so legacy state retains
+    // legacy behavior even though the binary defaults the flag to TRUE for new training.
+    // We detect cycle-2 saves by absence: the loader has already iterated all key=value
+    // pairs; if use_segment_mode was missing, the field still holds the binary default
+    // (TRUE). We can't tell "absent" from "explicitly set true" here without restructuring,
+    // so instead the cycle-3 saved snapshot ALWAYS writes the field (see serialize_state).
+    // Cycle-2 snapshots that lacked the field load with the binary default — but legacy
+    // CONNS rows have zero weights at indices [kAscii..), so generate never picks a
+    // mode-switch action anyway. The state_hash gate similarly fires only when there ARE
+    // segment_connections to hash. Net: behavior preserved.
+    role_token_table_.clear();
     hdc_ = Hdc{config_};  // re-seed HDC from config_ (Hdc only depends on Config)
 
     // TRACES N
@@ -909,8 +1248,76 @@ class OrganicBrain {
       learned_chars_.insert(static_cast<unsigned char>(cv));
     }
 
-    // STATE_HASH (caller verifies match against state_hash() after load).
-    std::string hash_line = next_line();
+    // Cycle-3 optional sections: ROLES + SEGMENT_CONNS. Detected by peek-ahead — read the
+    // next line; if it starts with "ROLES ", parse both sections; otherwise treat it as the
+    // STATE_HASH line and skip the cycle-3 parse. This keeps the loader tolerant of cycle-2
+    // saved state (which has neither section).
+    std::string lookahead = next_line();
+    if (lookahead.rfind("ROLES ", 0) == 0) {
+      size_t n_roles = std::stoull(lookahead.substr(6));
+      // role_token_table_ rebuilt from R rows in serialized order (which the writer sorted
+      // by role_id hash). Slot index of role X in this rebuilt table will match the writer's
+      // slot index iff both processes use the same role_id ordering — which they do, since
+      // role_id is a deterministic hash and the writer sorted by it.
+      for (size_t i = 0; i < n_roles; ++i) {
+        std::string rline = next_line();
+        if (rline.rfind("R ", 0) != 0) throw std::runtime_error("pxstate: bad ROLES row");
+        // R <role_id_hex64> <role_string>
+        auto sp = rline.find(' ', 2);
+        if (sp == std::string::npos) throw std::runtime_error("pxstate: ROLES missing space");
+        // role_id read but unused — used only for hash determinism in the writer; the loader
+        // rebuilds from role_string (which IS the source of truth) and validates against
+        // role_id on demand via fnv1a(role_string).
+        std::string role_string = rline.substr(sp + 1);
+        if (static_cast<int>(role_token_table_.size()) >= kMaxRoles) {
+          throw std::runtime_error(
+              "pxstate: ROLES section has more entries than kMaxRoles=" + std::to_string(kMaxRoles));
+        }
+        role_token_table_.push_back(role_string);
+      }
+      // SEGMENT_CONNS K
+      std::string seg_header = next_line();
+      if (seg_header.rfind("SEGMENT_CONNS ", 0) != 0) {
+        throw std::runtime_error("pxstate: missing SEGMENT_CONNS after ROLES");
+      }
+      size_t n_seg = std::stoull(seg_header.substr(14));
+      for (size_t i = 0; i < n_seg; ++i) {
+        std::string sline = next_line();
+        if (sline.rfind("SC ", 0) != 0) throw std::runtime_error("pxstate: bad SEGMENT_CONNS row");
+        auto pipe = sline.find('|');
+        if (pipe == std::string::npos) throw std::runtime_error("pxstate: SEGMENT_CONNS missing |");
+        uint64_t fid = std::stoull(sline.substr(3, pipe - 3), nullptr, 16);
+        std::string rest = sline.substr(pipe + 1);
+        if (rest.empty()) continue;  // empty SEGMENT_CONNS row — shouldn't happen but tolerated
+        // Ensure the feature is in connections_; SEGMENT_CONNS may reference feature_ids
+        // that have only mode-switch weights (no literal-char weights), so the CONNS pass
+        // would have skipped them.
+        auto& weights = connections_[fid];
+        for (const auto& pair : split_delim(rest, ',')) {
+          auto colon = pair.find(':');
+          if (colon == std::string::npos) throw std::runtime_error("pxstate: SEGMENT_CONNS missing :");
+          uint64_t role_id = std::stoull(pair.substr(0, colon), nullptr, 16);
+          double weight = hex_to_double(pair.substr(colon + 1));
+          // Look up role_slot by role_id; the role string must already be registered (the
+          // ROLES section was parsed above before SEGMENT_CONNS).
+          int role_slot = -1;
+          for (size_t s = 0; s < role_token_table_.size(); ++s) {
+            if (fnv1a(role_token_table_[s]) == role_id) { role_slot = static_cast<int>(s); break; }
+          }
+          if (role_slot < 0) {
+            throw std::runtime_error("pxstate: SEGMENT_CONNS references unknown role_id");
+          }
+          weights.value[kAscii + role_slot] = weight;
+        }
+      }
+      // Now the STATE_HASH line is the NEXT line; consume it.
+      lookahead = next_line();
+    }
+
+    // STATE_HASH (caller verifies match against state_hash() after load). Either we just
+    // parsed ROLES+SEGMENT_CONNS and `lookahead` now holds STATE_HASH, or there were no
+    // cycle-3 sections and `lookahead` already holds STATE_HASH from the original peek.
+    std::string hash_line = lookahead;
     if (hash_line.rfind("STATE_HASH ", 0) != 0) throw std::runtime_error("pxstate: missing STATE_HASH");
     expected_state_hash_ = std::stoull(hash_line.substr(11), nullptr, 16);
     std::string end_line = next_line();
@@ -1016,6 +1423,89 @@ class OrganicBrain {
     return ranked;
   }
 
+  // Returns this role's slot index in role_token_table_, registering if absent.
+  // WHAT: maps a role-string ("name", "object", ...) to an index in [0, kMaxRoles) used to
+  //   address mode-switch weights in Weights::value[kAscii + slot].
+  // WHY: a fixed-width slot array keeps softmax fast; the role_string → slot lookup is
+  //   the same kind of vocabulary table a tokenizer builds. NOT a parser-dispatcher — no
+  //   line of code branches on the role's identity; the slot is just an index.
+  // NEGATIVE-SPACE: throws fail-fast on overflow instead of silently truncating. Bumping
+  //   kMaxRoles is one constant + recompile; serialized state survives because the
+  //   ROLES section persists the role_id hash, not the array slot.
+  int register_role_slot(const std::string& role_string) {
+    for (size_t i = 0; i < role_token_table_.size(); ++i) {
+      if (role_token_table_[i] == role_string) return static_cast<int>(i);
+    }
+    if (role_token_table_.size() >= static_cast<size_t>(kMaxRoles)) {
+      throw std::runtime_error(
+          "role table exhausted at kMaxRoles=" + std::to_string(kMaxRoles) +
+          "; bump constant and recompile — serialized state remains forward-compatible "
+          "because role_id is a stable hash");
+    }
+    role_token_table_.push_back(role_string);
+    return static_cast<int>(role_token_table_.size() - 1);
+  }
+
+  // Read-only lookup; returns -1 when the role isn't registered. WHY: generate() uses this
+  // to score mode-switch actions only for registered roles; if a role never appeared in
+  // training, the brain has no mode-switch weights for it and the action is unreachable.
+  int find_role_slot(const std::string& role_string) const {
+    for (size_t i = 0; i < role_token_table_.size(); ++i) {
+      if (role_token_table_[i] == role_string) return static_cast<int>(i);
+    }
+    return -1;
+  }
+
+  // Returns the filler value of the FIRST observation matching role_string, or empty.
+  // WHAT: observations are formatted "type:value"; this returns value when type==role_string.
+  // WHY: generate-time copy-mode reads filler chars from this. The mode-switch decision
+  //   above has already voted "switch to copy from role:X"; this method supplies the chars.
+  // NEGATIVE-SPACE: not a parser of intent — it's a key-value lookup over a list of
+  //   already-typed strings. The same lookup powers parse_slots().
+  std::string observation_value_for_role(const std::string& role_string,
+                                          const std::vector<std::string>& observations) const {
+    std::string prefix = role_string + ":";
+    for (const auto& observation : observations) {
+      if (observation.size() > prefix.size() &&
+          observation.compare(0, prefix.size(), prefix) == 0) {
+        return observation.substr(prefix.size());
+      }
+    }
+    return std::string();
+  }
+
+  // Returns {role_slot, filler_length} for the longest observation filler that matches as a
+  // substring of `lower_target` starting at `pos`. Returns nullopt if no match.
+  // WHAT: training-time supervision routing — finds which (if any) observation's filler
+  //   begins at this output position so the supervision signal goes to a mode-switch weight
+  //   rather than a per-char weight. Match precedence: longest filler wins, ties by
+  //   observation-list order (earlier-listed role wins).
+  // WHY: at training time the brain sees the target output and the typed observations side
+  //   by side. The substring-match identifies "this output span came from this observation",
+  //   which routes the supervision signal correctly. Manifesto §Builder Law: training-loop
+  //   machinery is allowed; this is the same kind of supervision routing as masking, reward
+  //   gating, or autoregressive ordering.
+  // NEGATIVE-SPACE: does NOT fire at generate time. The mode-switch decision at inference
+  //   reads ONLY from learned softmax weights — no substring-match anywhere in generate().
+  //   See docs/artifacts/CYCLE3_MECHANISM.md §"Builder-Law boundary call".
+  std::optional<std::pair<int, size_t>> find_longest_filler_match_at(
+      const std::string& lower_target, size_t pos,
+      const std::vector<ObservationSlot>& slots) {
+    std::optional<std::pair<int, size_t>> best;
+    for (const auto& slot : slots) {
+      if (slot.value.empty()) continue;
+      if (pos + slot.value.size() > lower_target.size()) continue;
+      if (lower_target.compare(pos, slot.value.size(), slot.value) != 0) continue;
+      int slot_idx = register_role_slot(slot.type);
+      if (!best.has_value() || slot.value.size() > best->second) {
+        best = std::make_pair(slot_idx, slot.value.size());
+      }
+      // Ties broken by observation-list order; iteration order preserves first-listed,
+      // so we only update `best` on a STRICTLY-LONGER match, not on equal length.
+    }
+    return best;
+  }
+
   Config config_;
   Hdc hdc_;
   std::vector<Trace> traces_;
@@ -1024,6 +1514,15 @@ class OrganicBrain {
   std::set<unsigned char> learned_chars_;
   std::vector<size_t> mutation_connection_deltas_;
   uint64_t expected_state_hash_ = 0;  // populated by load_serialized_state for round-trip verification
+  // Cycle-3 segment-mode state.
+  // role_token_table_: registry of role-type strings encountered during training. Index in
+  //   the vector IS the slot offset within Weights::value (Weights::value[kAscii + slot] is
+  //   the mode-switch weight for "start-copy-from-role-at-slot"). Persisted by ROLES section;
+  //   loaded role_id_hex64 is fnv1a(role_string), so reload re-registers in same order if
+  //   the loader inserts in serialized order (sorted by role_id, deterministic).
+  // NEGATIVE-SPACE: not a map; the array-slot binding is intentional so Weights::value
+  //   stays a fixed-width array for fast softmax.
+  std::vector<std::string> role_token_table_;
 };
 
 OrganicBrain train_brain(const std::vector<Event>& events, const Config& config) {
