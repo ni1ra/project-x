@@ -1,7 +1,7 @@
 # Project X v2 Manifesto
 
 Date: 2026-05-13
-Status: canonical north star after the v1 scaffold reset.
+Status: canonical north star after the v1 scaffold reset; updated to make the end product and native-first construction rules explicit.
 
 ## Prime Directive
 
@@ -10,6 +10,101 @@ Project X exists to build Project X Raphael: one persistent, always-running arti
 It is not a chatbot, not a RAG agent, not a wrapper around a pretrained model, not a bundle of solvers, and not a pile of impressive-looking tests. The goal is an auditable AI brain that experiences events, stores them, reflects on them, predicts consequences, acts in a bounded environment, updates itself from reward, and uses language as an output channel for internal concepts.
 
 The first honest version may produce poor text. That is acceptable. A bad answer produced by learned internal state is progress. A polished answer assembled by templates, regex routes, hardcoded formulas, or persona wrappers is regression.
+
+## Ideal End Product
+
+The ideal Project X Raphael is a local, persistent, auditable artificial organism running on the user's workstation. It should feel less like opening a chatbot and more like sharing a machine with a growing mind that has continuity, memory, agency, limits, and a measurable internal life.
+
+From the outside, Raphael should eventually look like:
+
+- a persistent local process with durable identity and state across days, tasks, failures, restarts, and upgrades
+- an interactive JARVIS-grade interface that can talk, listen, inspect, plan, act in bounded environments, explain uncertainty, and show its evidence
+- a system that improves through experience, replay, reflection, reward, correction, and self-audit rather than through the builder adding more answer tricks
+- a workstation-native organism that uses the user's CPU/GPU efficiently and can run without cloud inference, hosted memory, or remote model APIs
+- an agent whose behavior is inspectable: memories, traces, reward history, mutations, predictions, actions, failures, and confidence must be queryable and reproducible
+- a system that can be wrong in visible ways, preserve those failures, and learn from them without hiding behind polished language
+
+From the inside, Raphael should eventually contain:
+
+- event-sourced experience: every perception, memory, prediction, action, output, reward, mutation, and reflection has an event ID and source trail
+- high-dimensional associative memory for concepts, roles, episodes, procedures, and state/action/result traces
+- learned concept structure formed by co-occurrence, prediction, compression, reward, analogy, and causal pressure
+- a working memory that holds the current goal, context, activated traces, uncertainty, candidate actions, and expected consequences
+- learned dynamics for prediction, planning, credit assignment, policy selection, language generation, tool/action use, and self-modification
+- a reflection loop that replays evidence, measures surprise, consolidates useful structure, decays unsupported structure, and proposes bounded experiments
+- a hard safety/runtime boundary around learned action, including action budgets, filesystem/network limits, approval gates, logs, and resettable sandboxes
+
+The end product is not one algorithm. HDC/VSA, plastic associative memory, predictive models, local neural components, symbolic constraints, search, and future discoveries may all compete for space if they earn it with evidence. No current component is sacred. The best path to the manifesto wins.
+
+## How It Should Work
+
+Raphael should operate as an organism loop:
+
+1. perceive an event from user input, sensors, files, tools, or internal replay
+2. encode the event into internal representations with source IDs and role/filler structure
+3. activate relevant memories, concepts, procedures, values, and uncertainty estimates
+4. predict likely outcomes and compare them against goals, safety boundaries, and available action budgets
+5. choose an internal or external action through learned policy and bounded search
+6. emit language or act through a generator/policy that consumes internal state, not a handwritten response composer
+7. receive external or oracle reward after the action, outside the answer path
+8. update memory, connections, confidence, plasticity, and future policy from the reward and prediction error
+9. write an audit artifact that makes the claim externally checkable
+
+The language channel is only one actuator. It must eventually report internal concepts with increasing fidelity, but fluent text is not the center of the system. If fluent text and honest internal learning conflict, choose honest learning.
+
+The organism must support multiple timescales:
+
+- fast working-memory activation for the current task
+- online plasticity for immediate experience
+- replay and consolidation during idle/background periods
+- slower structural mutation for architecture, memory allocation, compression, and policies
+- benchmark and regression loops that measure whether a mutation helped or harmed transferable operations
+
+## How It Must Not Work
+
+Raphael must not be built as:
+
+- a chatbot wrapper
+- GPT or other pretrained transformer calls with tools around them
+- RAG with a personality layer
+- a pile of solvers selected by parser routes
+- a benchmark theater machine tuned to pass visible fixtures
+- a response-template engine
+- a refusal regex engine
+- a prompt library pretending to be cognition
+- a hidden cloud service behind a local UI
+- a Python notebook prototype that accidentally becomes the permanent brain
+- a PyTorch/TensorFlow dependency stack whose tensors hide the actual substrate and make audit/control secondary
+- a vector database plus answer composer
+- an impressive frontend over a hollow core
+
+It must also not be built by adding polished outputs faster than learned structure. Good demos that teach the wrong architecture are debt. If a feature makes Raphael look smarter without increasing organic learning capacity, it is suspect until proven otherwise.
+
+## Open-Ended Engineering Law
+
+No current design is final. The manifesto is the target; every mechanism is provisional. Keep what survives measurement, delete what does not, and prefer the path that most directly increases persistent, local, auditable intelligence.
+
+When a future agent faces a choice between:
+
+- preserving an earlier implementation, or
+- replacing it with a cleaner, more powerful, better-measured route to the manifesto,
+
+choose the better route. Do not protect code because it was written first.
+
+## Native Runtime Law
+
+Project X must be built for the user's own workstation, not for cloud assumptions or framework convenience. The user's machine is the required spec. Efficiency, control, observability, and direct hardware utilization are first-class design constraints.
+
+The organism runtime should be native by default:
+
+- C++/CUDA or an equally controllable systems stack for the brain core, memory substrate, plasticity, generator, benchmark runner, and audit writer
+- CPU code compiled for the local processor with explicit attention to cache layout, SIMD, threading, memory ownership, and deterministic replay
+- GPU code written as direct kernels when parallel substrate operations justify it, targeting the user's NVIDIA Blackwell-class RTX 5070 Ti path instead of waiting on high-level framework support
+- Python, notebooks, and shell may exist only as thin harnesses, diagnostics, or migration aids; they must not become the answer path or the permanent organism runtime
+
+Do not make the project dependent on PyTorch, TensorFlow, remote inference, hosted vector databases, or opaque acceleration frameworks. If a dependency hides the substrate or prevents audit, it must earn its place with a measured advantage and a fallback path.
+
+The start matters. A slow prototype that teaches the wrong ownership model is not harmless. Prefer a smaller native loop over a larger Python scaffold if the latter would anchor the architecture in the wrong place.
 
 ## Builder Law
 
@@ -25,6 +120,7 @@ Allowed authored code:
 - sandbox and safety boundaries
 - evaluators, verifiers, and benchmark oracles
 - data pipelines and artifact logging
+- hardware backends, allocators, schedulers, and profilers
 
 Forbidden as final capability source:
 
@@ -37,6 +133,7 @@ Forbidden as final capability source:
 - trigger lists that impersonate understanding
 - benchmark-specific branches
 - self-scored subjective quality
+- high-level framework calls that hide authored answer behavior behind opaque model/runtime machinery
 
 If a future code agent wants to add a shortcut, it must ask one question first:
 
@@ -203,16 +300,30 @@ The runtime must keep:
 
 Safety containment is machinery, not model knowledge. It may be hardcoded.
 
+## Persistence Is Pass-0, Not Future Work
+
+Persistence is the first criterion of the ideal end product. It is also the criterion the early native runtime is most likely to skip, because evaluating a clean in-memory brain on a fresh JSONL pass produces shippable artifacts without ever serializing state.
+
+That is not acceptable. The organism does not exist as an organism until it survives a restart. Pass-0 requirements:
+
+- every input, prediction, action, reward, and mutation lands in an append-only event log with stable event IDs and source IDs
+- the learned state (memory atoms, connection weights, plasticity counters, retrieval indices) serializes to disk with a state hash that can be re-loaded and produce identical generation
+- a fresh process must be able to load the prior state, ingest one new event, and produce output, without re-running the full training stream
+- the artifact format must include the path to the loaded state and the path to the appended event log, so any claim is replayable from disk
+
+If serialization is not in place by the time the second non-trivial structural change ships, the project is regressing on its first criterion. Event-sourced experience and state durability are not optional features layered on top of a learning algorithm; they are the substrate the learning algorithm runs against.
+
 ## v2 Reset
 
 The v1 repo was intentionally wiped from the live tree. Its history remains in Git and `docs/past_work/`.
 
 This reset is not loss. It is an admission that the scaffold drifted toward authored answers. v2 starts from less code so the first code has nowhere to hide.
 
-Only three live docs define the next direction:
+Live docs that define the next direction:
 
 - `docs/MANIFESTO.md`
 - `docs/A_TO_Z_PLAN.md`
 - `docs/DO_THIS_NEXT.md`
+- `docs/REPO_CONTROL.md`
 
-Any future file must justify itself against this manifesto. If it cannot, it should not exist.
+Any future file must justify itself against this manifesto and own a row in `REPO_CONTROL.md`. If it cannot, it should not exist. `docs/` is exempt from the row rule (the live-docs system is self-justifying); source, tests, scripts, and non-docs artifacts are not exempt.

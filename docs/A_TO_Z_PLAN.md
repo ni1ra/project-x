@@ -20,6 +20,10 @@ This is intentional. The next implementation must not patch the v1 scaffold.
 
 Build one persistent Project X Raphael instance: an artificial organism with memory, plasticity, curiosity, reflection, reward, action, and language as an output channel.
 
+The organism must run on the user's workstation. The local machine is the required target spec, not a convenience environment. Design from day 0 for native execution, deterministic replay, direct CPU/GPU control, and measurable efficiency.
+
+No implementation is final. The best measured path to the manifesto wins, even if it replaces organic-v0. Preserve the artifact contract and the honesty constraints; do not preserve code shape for its own sake.
+
 The first iteration must already produce output, but the output may be poor. It must be honest:
 
 - no templates
@@ -28,10 +32,29 @@ The first iteration must already produce output, but the output may be poor. It 
 - no persona wrapper
 - no fake "all tests pass" theater
 - no pretrained transformer model
+- no high-level ML framework in the answer path
 
 The first iteration should prove only this:
 
 Given experience and reward, the brain forms internal connections and emits from those connections.
+
+## 1.1 Runtime Target
+
+Primary runtime direction:
+
+- native C++20 core for organic-v0
+- CUDA C++ backend once the substrate has enough parallel work to justify GPU kernels
+- build flags that exploit the local CPU where valid, while preserving deterministic artifact output
+- JSONL event streams and JSON artifacts kept stable across CPU/GPU backends
+
+Current environment facts from the first native pass:
+
+- GCC 13.3 is available
+- Rust 1.93 is available, but Rust is not the chosen first brain runtime because CUDA C++ gives the most direct path to Blackwell kernels
+- CUDA Toolkit 12.6 is available
+- `nvidia-smi` is blocked by the operating system in this environment, so GPU execution must be probed separately before any GPU-speed claim
+
+Python may be used for one-off analysis, but it is not the organism runtime and should not own generation, learning, evaluation, or artifacts.
 
 ## 2. Architecture Target
 
@@ -98,18 +121,16 @@ Minimum behavior:
 
 Suggested first files for the next coding pass:
 
-- `src/project_x_v2/events.py`
-- `src/project_x_v2/hdc.py`
-- `src/project_x_v2/brain.py`
-- `src/project_x_v2/plasticity.py`
-- `src/project_x_v2/generator.py`
-- `src/project_x_v2/train.py`
-- `src/project_x_v2/eval.py`
+- `native/organic_v0.cpp`
+- `Makefile`
 - `benchmarks/v2_ladder/`
-- `scripts/train_organic_v0.py`
-- `scripts/eval_organic_v0.py`
+- `scripts/train_organic_v0.sh`
+- `scripts/eval_organic_v0.sh`
+- `scripts/test_organic_v0.sh`
 
 These are suggestions, not permission to add bloat. If fewer files can express the system cleanly, use fewer.
+
+The first native version should keep data structures close to future GPU form: compact numeric feature IDs, contiguous vectors where practical, no Python object graph as brain state, no dynamic framework tensors hiding behavior.
 
 ## 5. Training Data Shape
 
@@ -185,6 +206,7 @@ Required result fields:
 - machine-readable scores
 - failure cases
 - interpretation
+- hardware/backend facts
 
 ## 7. Success Criteria For The First Real Run
 
@@ -204,6 +226,8 @@ It fails if:
 - a solver generates the agent answer
 - tests pass because the benchmark was made too easy
 - subjective quality is self-scored as proof
+- Python or a high-level ML framework becomes the organism runtime by inertia
+- GPU/CPU performance is claimed without measured local artifacts
 
 ## 8. Development Philosophy
 
