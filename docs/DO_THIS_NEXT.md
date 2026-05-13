@@ -1,99 +1,100 @@
-# Do This Next — Project X — Terminus Learning Harness v1 + Chat-loop Bootstrap SHIPPED
+# Do This Next - Project X v2
 
-Generated: 2026-05-13 by GOJO SATORU v2
+Generated: 2026-05-13
 
 ## Read First
 
 1. `docs/MANIFESTO.md`
 2. `docs/A_TO_Z_PLAN.md`
-3. `docs/REPO_CONTROL.md`
-4. `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md`
-5. `docs/artifacts/chat-probe-2026-05-13.md`
+3. `docs/past_work/` only when historical context is needed
 
-## Current State
+## Current Repo State
 
-**Terminus Learning Harness v1 + Chat-loop Bootstrap is SHIPPED.**
+The repo has been intentionally reset.
 
-- Substrate v1: cross-seed sweep (11 seeds), non-linear scoring (4 modes), scaled repeats (3/5/7), HebbianBank integration
-- Chat-loop: Local REPL (`chat_loop.py`), Discord bot (`discord_chat_bot.py`), 10-prompt probe
-- Honest probe score: **3/6 chattability criteria passing**
-- Full suite: **679 tests passing** in 139s. Benchmark audit: **48 PASS / 0 FAIL**
-- Commit: `96f2381` on `main`
+Expected live files:
 
-## What Just Shipped (v1)
+- `docs/MANIFESTO.md`
+- `docs/A_TO_Z_PLAN.md`
+- `docs/DO_THIS_NEXT.md`
+- `docs/past_work/**`
 
-### Substrate v1 (#00a)
-- `scripts/terminus_cross_seed_sweep.py` — 11-seed sweep, all 4 scoring modes
-- `TemporalTraceBank` gains `scoring_mode` (linear/max/softmax/competitive) + `apply_rating_to_action()`
-- `make_hidden_rule_tasks(repeats=N)` parameterization
-- `AuditLog.apply_rating()` wires `trace_bank` for strategy bias updates
+Expected absent:
 
-### Chat-loop bootstrap (#00b)
-- `src/project_x/experiments/chat_loop.py` — REPL with `--smoke` test
-- `src/project_x/experiments/discord_chat_bot.py` — REST-polling Discord listener
-- `scripts/chat_probe_2026_05_13.py` — 10-prompt probe generator
-- `docs/artifacts/chat-probe-2026-05-13.md` — transcripts + honest scoring
+- `src/`
+- `tests/`
+- `scripts/`
+- `gpt-codex/`
+- `data/`
+- `sandbox/`
+- `docs/artifacts/`
+- old README/pyproject/test scaffolds
 
-### Docs + verdict (#00c + #00d)
-- `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` — full substrate artifact
-- REPO_CONTROL.md updated with all new non-doc files
-- Verdict: chat generation ~5% learned / 95% scaffold; substrate action-selection ~75% learned / 25% scaffold; math/physics ~0% learned; chattability 3/6
+Environment-owned empty busy directories such as `.agents/` or `.codex/` may remain on disk but are not project content.
 
-## Meta-Blocker Named (v2 scope)
+## Immediate Instruction For The Next Coding Pass
 
-**No conversational corpus exists.** The 22k Tier-2 corpus is math/physics/poetry/philosophy — NOT chat. The 10-prompt probe transcripts are the FIRST conversational datapoints. v2 must:
-1. Curate or collect conversational text (public-domain dialogues, transcripts, Socratic exchanges)
-2. Ingest via existing Tier-2 pipeline
-3. Formalize six chattability criteria into manual-grade harness
-4. Begin training a learned response generator on corpus + audit signal
+Do not restore v1.
 
-**No conversation grading harness exists.** The six criteria are the seed rubric; v2 needs to operationalize them into the grade_pipeline.
+Build the smallest possible `organic-v0` that emits from learned internal state:
 
-## Build This Next (v2 provisional)
+1. event log
+2. tiny HDC/VSA memory spine
+3. plasticity rule
+4. learned connection state
+5. generator that emits a full string from that state
+6. tiny benchmark ladder with granular held-out tasks
+7. result artifact with bad outputs included
 
-### A. Conversational corpus
-- [ ] Identify public-domain conversational sources (Plato dialogues, Shakespeare plays, essay collections with dialogue form)
-- [ ] Curate 1k–5k conversational fragments
-- [ ] Ingest via `src/project_x/corpus/ingestion.py`
-- [ ] Verify no GPT-generated text (organic thesis)
+No templates. No hardcoded answer routes. No solver in the answer path. No pretrained transformer.
 
-### B. Learned generator seed
-- [ ] Design minimal learned response generator architecture (HDC-based sequence model or n-gram policy)
-- [ ] Train on conversational corpus + probe transcripts
-- [ ] Integrate into `ChatSession.respond()` as replacement for template fallback
-- [ ] Label as scaffold during v2; measure learned ratio in #00d
+## First Benchmark Requirement
 
-### C. Chat-loop hardening
-- [ ] Fix natural-mode over-aggressive fallback on out-of-scope queries (3 probe failures)
-- [ ] Add explicit absent-answer gating before natural-mode dispatch
-- [ ] Improve multi-turn coherence by retrieving prior conversation turns
+The benchmark suite starts immediately, but it must measure organic learning, not polish.
 
-### D. Docs + measurement
-- [ ] `docs/artifacts/terminus-learning-harness-v2-2026-05-XX.md`
-- [ ] Re-run 10-prompt probe after generator integration; target ≥4/6
-- [ ] Update A_TO_Z_PLAN.md v2→v3 stub
+Initial benchmark domains:
 
-## Do Not Touch
+- learned memory recall
+- hidden-rule learning
+- causal-chain prediction
+- minimal language expression
+- abstention when unsupported
 
-- Do not add new hand-coded math or physics solvers
-- Do not tune dispatcher constants to make benchmarks look better
-- Do not modify `docs/MANIFESTO.md` unless you find a direct contradiction
-- Do not grade subjective domains with self-scores
-- Do NOT claim chattability improvement without probe evidence
+Each domain should have levels 0-3 at first:
 
-## Verification
+- level 0: emits from learned state
+- level 1: learns a toy rule
+- level 2: handles held-out variants
+- level 3: handles noise/adversarial wording
+
+Later extend to math, physics, coding, games, philosophy, poetry, science, and beyond-human verified candidate discoveries.
+
+## Hard Gates
+
+Reject any implementation that:
+
+- adds parser-dispatcher logic for benchmark answers
+- adds fixed response text as the agent output
+- scores itself on subjective quality
+- hides bad outputs
+- creates many files before one honest organism loop exists
+- optimizes for "all tests pass" over organic learning
+
+## Suggested First Command Sequence After Implementing v0
 
 ```bash
-PYTHONPATH=src python3 -m pytest tests/test_temporal_trace_bank.py tests/test_hidden_rule_actions.py -q
-PYTHONPATH=src python3 gpt-codex/benchmark/run_audit.py
-PYTHONPATH=src python3 src/project_x/experiments/chat_loop.py --smoke
-git diff --check
+PYTHONPATH=src python3 scripts/train_organic_v0.py --mode test --out run/artifacts/organic-v0/train.json
+PYTHONPATH=src python3 scripts/eval_organic_v0.py --mode test --out run/artifacts/organic-v0/eval.json
 git status --short
 ```
 
-## Next Cycle Handoff (v3 provisional)
+If these files do not exist yet, that is expected. The next pass creates them.
 
-- Full learned generator replaces template composer
-- Conversational corpus scales to 10k+ fragments
-- Target: ≥4/6 chattability criteria passing
-- Substrate action-selection target: ≥85% mean pass rate across seeds
+## Close Criteria For The Next Pass
+
+- Code exists only where needed for the minimal loop.
+- Test/eval mode finishes in under 180 seconds.
+- The first model emits output from learned state.
+- At least one benchmark result is machine-readable.
+- Failure cases are written down honestly.
+- The final report explains what structural change would improve intelligence next.

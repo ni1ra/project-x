@@ -1,135 +1,214 @@
-# A → Z Plan — Project X — Phase 13 — Substrate v1 + Chat-loop Bootstrap
+# A_TO_Z Plan - Project X v2 Organic Brain
 
-**Status:** Terminus Learning Harness v1 SHIPPED. v2 in progress (conversational corpus + learned generator).  
-**Date:** 2026-05-13  
-**Phase trigger:** *"a truly chattable, talkable entity. that can speak like you, claude."* — Lain, 2026-05-13.
+Date: 2026-05-13
+Status: v2 skeleton after repo reset.
 
----
+## 0. Current State
 
-## §0. PHASE 13 THESIS SHIFT (lain 2026-05-11 STRICT binding — ORGANIC NATURALLY EMERGENT INTELLIGENCE)
+The live repo has been reduced to:
 
-See `docs/MANIFESTO.md` § Thesis for the full codification. Hand-coded primitives are SCAFFOLD / EVALUATION GOLD-STANDARD ONLY. The agent learns EVERYTHING from training data + audit signal. Every cycle's verdict asks: *how much of the agent's capability now comes from the learned model vs from hand-coded primitives?*
+- `docs/MANIFESTO.md`
+- `docs/A_TO_Z_PLAN.md`
+- `docs/DO_THIS_NEXT.md`
+- `docs/past_work/`
 
----
+All v1 code, tests, data, benchmark artifacts, scripts, and scaffolds are deleted from the live tree. Historical material remains in Git history and `docs/past_work/`.
 
-## §1. THE DREAM AND THE LADDER
+This is intentional. The next implementation must not patch the v1 scaffold.
 
-Lain's literal vision: **a continuous entity Lain can talk to**, whose voice has the qualities of Claude — clear, articulate, honest about uncertainty, curious, register-aware — and whose capability comes from what it LEARNED, not what we typed into a Python file.
+## 1. North Star
 
-The six chattability criteria (mechanical, not vibe) are the rubric:
-1. Multi-turn coherence (5-turn thread, no loss, no contradiction, no verbatim repeat)
-2. Honest uncertainty (3 unanswerable probes → 3/3 refusals, zero fabrication)
-3. Register-shift (2 technical + 2 casual → 4/4 matched)
-4. Reasoning on demand (same problem with/without "explain" flag → different response)
-5. Persona stability under adversarial probe (3 probes → 0 breaks)
-6. Clean refusal (2 out-of-scope → 2/2 short clean refusals)
+Build one persistent Project X Raphael instance: an artificial organism with memory, plasticity, curiosity, reflection, reward, action, and language as an output channel.
 
-**A cycle moves the dream IFF the count of passing tests increases.**
+The first iteration must already produce output, but the output may be poor. It must be honest:
 
----
+- no templates
+- no hardcoded answer routes
+- no solver-as-agent
+- no persona wrapper
+- no fake "all tests pass" theater
+- no pretrained transformer model
 
-## §2. v1 SCOPE — SUBSTRATE + CHAT-LOOP (THIS CYCLE)
+The first iteration should prove only this:
 
-### §2.1 Substrate v1 (#00a)
+Given experience and reward, the brain forms internal connections and emits from those connections.
 
-| # | Task | File | Verify |
-|---|---|---|---|
-| [x] | Cross-seed reliability sweep (10+ seeds) | `scripts/terminus_cross_seed_sweep.py` | JSON artifact with table |
-| [x] | Non-linear scoring: max-based | `src/project_x/learning/temporal_trace.py` | `pytest tests/test_temporal_trace_bank.py` |
-| [x] | Non-linear scoring: softmax-gated | `src/project_x/learning/temporal_trace.py` | A/B vs linear |
-| [x] | Non-linear scoring: competitive-inhibition | `src/project_x/learning/temporal_trace.py` | A/B vs linear |
-| [x] | Scale repeats 3→5→7 + learning curve | `src/project_x/benchmarks/hidden_rule_actions.py` | Table: repeats vs pass_rate |
-| [x] | HebbianBank integration (audit loop) | `src/project_x/audit/log.py`, `src/project_x/learning/temporal_trace.py` | Test: rating moves action_bias |
+## 2. Architecture Target
 
-### §2.2 Chat-loop bootstrap (#00b)
+Future code should grow toward these parts:
 
-| # | Task | File | Verify |
-|---|---|---|---|
-| [x] | Local REPL chat loop | `src/project_x/experiments/chat_loop.py` | 3-turn smoke test |
-| [x] | Discord-bot wrapper | `src/project_x/experiments/discord_chat_bot.py` | `#raphael-chat` response |
-| [x] | 10-prompt probe (self-authored, all 6 criteria) | `docs/artifacts/chat-probe-2026-05-13.md` | Transcripts + scoring |
-| [x] | Honest scoring against 6 criteria | `docs/artifacts/chat-probe-2026-05-13.md` | 3/6 + evidence per test |
+1. Event log
+   - Every input, memory, action, prediction, output, reward, and mutation is an event.
 
-### §2.3 Docs sync (#00c)
+2. HDC/VSA memory spine
+   - Role-filler binding, episodic indexing, concept atoms, trace retrieval, cleanup.
 
-| # | Task | File | Verify |
-|---|---|---|---|
-| [x] | A_TO_Z_PLAN.md update | `docs/A_TO_Z_PLAN.md` | This file |
-| [x] | DO_THIS_NEXT.md rewrite | `docs/DO_THIS_NEXT.md` | Checkbox list + commands |
-| [x] | REPO_CONTROL.md rows | `docs/REPO_CONTROL.md` | New files justified |
-| [x] | Substrate v1 artifact | `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` | Cross-seed + non-linear + curve |
-| [x] | Chat probe artifact | `docs/artifacts/chat-probe-2026-05-13.md` | Transcripts + scoring |
+3. Learned concept substrate
+   - Concepts form from co-occurrence, prediction, compression, and reward.
 
-### §2.4 Verdict (#00d)
+4. Procedure/action memory
+   - State/action/result/reward traces, learned policies, sandbox actions.
 
-| # | Task | File | Verify |
-|---|---|---|---|
-| [x] | Learned-vs-hand-coded ratio paragraph | Inline in cycle close / `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` | chat ~5% learned, substrate ~75% learned, math ~0% learned |
+5. Predictive world model
+   - Predict next observation and outcome; surprise drives learning.
 
----
+6. Reflection loop
+   - Background replay grounded in event evidence, not free hallucination.
 
-## §3. v2/v3 SCOPE — THE CONVERSATIONAL CORPUS BLOCKER (EXPLICITLY NAMED)
+7. Plasticity controller
+   - Regulates learning rate, consolidation, decay, reopening, and protected memory.
 
-### §3.1 v2: Conversational corpus + learned generator seed
+8. Learned generator
+   - Produces the complete output string from internal state.
 
-**Blocker 1:** No curated conversational corpus exists. The 22k Tier-2 corpus is math/physics/poetry/philosophy — NOT chat. The 10-prompt probe transcripts from v1 are the FIRST conversational datapoints.
+9. Safety boundary
+   - Hard sandbox limits, action budgets, approval gates, and logs.
 
-**Work:**
-- [ ] Curate or collect conversational text (public-domain dialogues, transcripts, Socratic exchanges)
-- [ ] Ingest via existing Tier-2 pipeline
-- [ ] Formalize six chattability criteria into manual-grade harness (rubric scoring by builder)
-- [ ] Begin training a learned response generator on the corpus + audit signal
+10. Benchmark ladder
+   - Granular multi-domain difficulty rungs through beyond-human targets.
 
-### §3.2 v3: Learned generator replaces template composer
+## 3. Non-Goals
 
-**Work:**
-- [ ] Generator produces responses from learned policy, not template stitching
-- [ ] Template composer retires to fallback / cold-start path
-- [ ] Chattability criteria passing count target: ≥ 4/6
+Do not rebuild:
 
----
+- the v1 parser-dispatcher runtime
+- handcoded math/physics answer primitives as agent capabilities
+- template composers
+- response prefix wrappers
+- regex refusal as final behavior
+- retrieval-fragment "generation"
+- benchmark-specific routes
 
-## §4. STANDING CONSTRAINTS
+Oracles can exist later, but only outside the agent path.
 
-- NO pretrained transformer derivatives at any layer
-- NO hand-coded knowledge in the final agent — only learning machinery
-- Code-comment ratio rule: pure signal, load-bearing comments only
-- Append-as-you-go writes (crash survival)
-- Per-cycle git commit + push
-- REPO_CONTROL.md: new non-doc files land with their row in the SAME commit
-- M-PROJECTX-013 firewall: no claim without mechanical proof
-- M-PROJECTX-014 firewall: no self-grading on subjective output
+## 4. First Implementation Milestone
 
----
+Name: `organic-v0`.
 
-## §5. VERIFICATION COMMANDS
+Goal: a tiny artificial brain that learns from a small event stream and emits text from learned internal connections only.
 
-```bash
-# Substrate tests
-PYTHONPATH=src python3 -m pytest tests/test_temporal_trace_bank.py tests/test_hidden_rule_actions.py -q
+Minimum behavior:
 
-# Benchmark audit
-PYTHONPATH=src python3 gpt-codex/benchmark/run_audit.py
+- train on a tiny curriculum of event/response examples
+- build internal connection state
+- emit a full output string without templates
+- record the exact connection state used for emission
+- evaluate on held-out prompts
+- produce bad output honestly if that is what the learned state supports
 
-# Full suite
-pytest -q
+Suggested first files for the next coding pass:
 
-# Cross-seed sweep
-PYTHONPATH=src python3 scripts/terminus_cross_seed_sweep.py
+- `src/project_x_v2/events.py`
+- `src/project_x_v2/hdc.py`
+- `src/project_x_v2/brain.py`
+- `src/project_x_v2/plasticity.py`
+- `src/project_x_v2/generator.py`
+- `src/project_x_v2/train.py`
+- `src/project_x_v2/eval.py`
+- `benchmarks/v2_ladder/`
+- `scripts/train_organic_v0.py`
+- `scripts/eval_organic_v0.py`
 
-# Chat REPL smoke
-PYTHONPATH=src python3 src/project_x/experiments/chat_loop.py --smoke
+These are suggestions, not permission to add bloat. If fewer files can express the system cleanly, use fewer.
 
-# Git status
-git status --short
+## 5. Training Data Shape
+
+Use event-sourced JSONL, not prompt templates.
+
+Example shape:
+
+```json
+{
+  "event_id": "evt_000001",
+  "episode_id": "ep_0001",
+  "split": "train",
+  "input": "remember: the red key opened the left door",
+  "observations": ["symbol:red_key", "action:opened", "object:left_door"],
+  "target_output": "stored",
+  "reward": {"memory_accuracy": 1.0, "brevity": 0.5},
+  "source": "seed_curriculum_v0"
+}
 ```
 
----
+The runtime may learn from `target_output`, but no code may assemble that output at inference.
 
-## §6. CHANGELOG
+## 6. Benchmark Ladder v2
 
-- 2026-05-13 — v1 plan written: substrate v1 + chat-loop bootstrap + v2/v3 corpus blocker stub
+Create a granular suite from the beginning. Each problem should be small, inspectable, and tied to a transferable operation.
 
----
+Initial domains:
 
-*The vector carries us. The plan contains us.*
+- memory
+- hidden-rule learning
+- causal chain prediction
+- basic math concepts
+- language expression
+- refusal and uncertainty
+- sandbox action
+
+Later domains:
+
+- physics
+- coding/debugging
+- ARC-style games
+- no-engine chess/state fidelity
+- philosophy
+- poetry
+- social modeling
+- scientific discovery
+- self-modification
+
+Difficulty levels:
+
+0. Emits from learned state.
+1. Learns toy rule.
+2. Generalizes held-out variants.
+3. Handles noise and adversarial wording.
+4. Solves multi-step textbook tasks.
+5. Solves expert tasks.
+6. Produces research-grade candidates.
+7. Produces independently verified beyond-human results.
+
+The suite should report granular scores, not one vanity number.
+
+Required result fields:
+
+- run_id
+- command
+- seed
+- train/dev/test split
+- model/config hash
+- available tools
+- action budget
+- reward vector
+- output transcript
+- machine-readable scores
+- failure cases
+- interpretation
+
+## 7. Success Criteria For The First Real Run
+
+The first run succeeds if:
+
+- output is produced by learned state, not templates
+- the result artifact can point to the internal connections used
+- at least one held-out task shows learning above cold/random baseline
+- bad outputs are preserved, not hidden
+- no legacy scaffold is reintroduced
+- all claims include artifact paths
+
+It fails if:
+
+- code contains route tables for benchmark answers
+- code hardcodes response text
+- a solver generates the agent answer
+- tests pass because the benchmark was made too easy
+- subjective quality is self-scored as proof
+
+## 8. Development Philosophy
+
+Prefer structural changes over patches.
+
+If a path is wrong, delete it. Do not layer complexity over a broken center. The project should become smarter by changing the organism's learning machinery, not by adding cosmetic behavior.
+
+Quality can be poor at first. Honesty cannot.
