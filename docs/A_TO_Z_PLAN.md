@@ -1,6 +1,6 @@
 # A → Z Plan — Project X — Phase 13 — Substrate v1 + Chat-loop Bootstrap
 
-**Status:** Terminus Learning Harness v0 SHIPPED. v1 in progress (substrate + chat-loop).  
+**Status:** Terminus Learning Harness v1 SHIPPED. v2 in progress (conversational corpus + learned generator).  
 **Date:** 2026-05-13  
 **Phase trigger:** *"a truly chattable, talkable entity. that can speak like you, claude."* — Lain, 2026-05-13.
 
@@ -34,37 +34,37 @@ The six chattability criteria (mechanical, not vibe) are the rubric:
 
 | # | Task | File | Verify |
 |---|---|---|---|
-| [ ] | Cross-seed reliability sweep (10+ seeds) | `scripts/terminus_cross_seed_sweep.py` | JSON artifact with table |
-| [ ] | Non-linear scoring: max-based | `src/project_x/learning/temporal_trace.py` | `pytest tests/test_temporal_trace_bank.py` |
-| [ ] | Non-linear scoring: softmax-gated | `src/project_x/learning/temporal_trace.py` | A/B vs linear |
-| [ ] | Non-linear scoring: competitive-inhibition | `src/project_x/learning/temporal_trace.py` | A/B vs linear |
-| [ ] | Scale repeats 3→5→7 + learning curve | `src/project_x/benchmarks/hidden_rule_actions.py` | Table: repeats vs pass_rate |
-| [ ] | HebbianBank integration (audit loop) | `src/project_x/audit/log.py`, `src/project_x/learning/temporal_trace.py` | Test: rating moves action_bias |
+| [x] | Cross-seed reliability sweep (10+ seeds) | `scripts/terminus_cross_seed_sweep.py` | JSON artifact with table |
+| [x] | Non-linear scoring: max-based | `src/project_x/learning/temporal_trace.py` | `pytest tests/test_temporal_trace_bank.py` |
+| [x] | Non-linear scoring: softmax-gated | `src/project_x/learning/temporal_trace.py` | A/B vs linear |
+| [x] | Non-linear scoring: competitive-inhibition | `src/project_x/learning/temporal_trace.py` | A/B vs linear |
+| [x] | Scale repeats 3→5→7 + learning curve | `src/project_x/benchmarks/hidden_rule_actions.py` | Table: repeats vs pass_rate |
+| [x] | HebbianBank integration (audit loop) | `src/project_x/audit/log.py`, `src/project_x/learning/temporal_trace.py` | Test: rating moves action_bias |
 
 ### §2.2 Chat-loop bootstrap (#00b)
 
 | # | Task | File | Verify |
 |---|---|---|---|
-| [ ] | Local REPL chat loop | `src/project_x/experiments/chat_loop.py` | 3-turn smoke test |
-| [ ] | Discord-bot wrapper | `src/project_x/experiments/discord_chat_bot.py` | `#raphael-chat` response |
-| [ ] | 10-prompt probe (self-authored, all 6 criteria) | `docs/artifacts/chat-probe-2026-05-13.md` | Transcripts + scoring |
-| [ ] | Honest scoring against 6 criteria | `docs/artifacts/chat-probe-2026-05-13.md` | N/6 + evidence per test |
+| [x] | Local REPL chat loop | `src/project_x/experiments/chat_loop.py` | 3-turn smoke test |
+| [x] | Discord-bot wrapper | `src/project_x/experiments/discord_chat_bot.py` | `#raphael-chat` response |
+| [x] | 10-prompt probe (self-authored, all 6 criteria) | `docs/artifacts/chat-probe-2026-05-13.md` | Transcripts + scoring |
+| [x] | Honest scoring against 6 criteria | `docs/artifacts/chat-probe-2026-05-13.md` | 3/6 + evidence per test |
 
 ### §2.3 Docs sync (#00c)
 
 | # | Task | File | Verify |
 |---|---|---|---|
-| [ ] | A_TO_Z_PLAN.md update | `docs/A_TO_Z_PLAN.md` | This file |
-| [ ] | DO_THIS_NEXT.md rewrite | `docs/DO_THIS_NEXT.md` | Checkbox list + commands |
-| [ ] | REPO_CONTROL.md rows | `docs/REPO_CONTROL.md` | New files justified |
-| [ ] | Substrate v1 artifact | `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` | Cross-seed + non-linear + curve |
-| [ ] | Chat probe artifact | `docs/artifacts/chat-probe-2026-05-13.md` | Transcripts + scoring |
+| [x] | A_TO_Z_PLAN.md update | `docs/A_TO_Z_PLAN.md` | This file |
+| [x] | DO_THIS_NEXT.md rewrite | `docs/DO_THIS_NEXT.md` | Checkbox list + commands |
+| [x] | REPO_CONTROL.md rows | `docs/REPO_CONTROL.md` | New files justified |
+| [x] | Substrate v1 artifact | `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` | Cross-seed + non-linear + curve |
+| [x] | Chat probe artifact | `docs/artifacts/chat-probe-2026-05-13.md` | Transcripts + scoring |
 
 ### §2.4 Verdict (#00d)
 
 | # | Task | File | Verify |
 |---|---|---|---|
-| [ ] | Learned-vs-hand-coded ratio paragraph | Inline in cycle close / `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` | Numeric estimate per axis |
+| [x] | Learned-vs-hand-coded ratio paragraph | Inline in cycle close / `docs/artifacts/terminus-learning-harness-v1-2026-05-13.md` | chat ~5% learned, substrate ~75% learned, math ~0% learned |
 
 ---
 
