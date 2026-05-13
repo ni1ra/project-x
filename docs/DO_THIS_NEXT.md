@@ -9,7 +9,7 @@ Generated: 2026-05-13 (post cycle-3.5 ship — GPT audit follow-up; dual-learnin
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
 5. `docs/artifacts/CYCLE3_MECHANISM.md` — the cycle-3 architecture lock; cycle-3.5 extends rather than replaces it
-6. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-3-5.md` — what the GPT audit found, how it landed, residual failures
+6. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-3-5-5c69d51.md` — what the GPT audit found, how it landed, residual failures
 7. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-3-4a0260f.md` — preserved cycle-3 narrative (the regression that cycle-3.5 closed)
 8. `docs/past_work/` only when older context is needed
 
