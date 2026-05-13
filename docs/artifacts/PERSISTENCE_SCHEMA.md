@@ -85,7 +85,7 @@ PXSTATE_V0
 SCHEMA project_x.state_snapshot.v0
 ORGANISM_ID raphael-local-0001
 CREATED_UTC 2026-05-13T00:00:00Z
-CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 max_roles=16
+CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 max_roles=16
 TRACES <n>
 T <event_id>|<episode_id>|<split>|<domain>|<level>|<input>|<observation_csv>|<target_output>|<reward_scalar_hex64>|<hdc_vector_hex64_space_list>
 CONNS <n>
@@ -118,6 +118,17 @@ Two new sections added in cycle 3 (v2-c3) for the learned segment-generation mec
 - `<role_id_hex64>:<weight_hex64>,...`: comma-joined list of `(role_id, weight)` pairs for this feature; only non-zero weights serialized.
 - Loaded into a `std::map<uint64_t feature_id, std::map<uint64_t role_id, double>> segment_connections_`.
 - Section may be absent or `SEGMENT_CONNS 0` when `use_segment_mode=0`.
+
+### Cycle-4 extension: trace-span-position CONFIG fields
+
+Cycle 4 (v2-c4) adds no new PXSTATE section. The trace-span-position literal-memory feature writes ordinary literal weights into `CONNS` under new deterministic feature IDs derived from `(trace-id, role, offset-inside-copied-span)`.
+
+Two CONFIG fields document and gate the answer-path behavior:
+
+- `trace_span_position_gain=<hex64>`: eval-time scale applied when an activated trace's own target segmentation says the current output position is inside a remembered copied span.
+- `use_trace_span_position_features=1|0`: enables the cycle-4 feature class. Loader defaults this to `0` when absent so cycle-2 and cycle-3.x snapshots keep their original answer-path semantics.
+
+Because the learned weights live in `CONNS`, existing `state_hash()` coverage over literal connection weights already covers the new state. No extra hash walk is needed. Legacy cycle-2 reproducibility still relies on `use_segment_mode=0` defaults plus absence of cycle-4 weights.
 
 ### State hash gating
 

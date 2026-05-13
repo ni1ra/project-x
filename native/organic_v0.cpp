@@ -75,6 +75,20 @@ struct Config {
   // Compile-time cap mirrored from kMaxRoles, surfaced through CONFIG so the
   // serialized snapshot self-documents the action-space width.
   int max_roles = kMaxRoles;
+  // Cycle-4 trace-span-position literal feature.
+  // WHAT: when a stored trace says "this target span came from observation role R", the
+  // literal fallback also learns a trace-local feature keyed by (trace-id, role, offset
+  // inside that copied span). Generate reactivates that feature only when an activated
+  // trace's own target segmentation says the current output position is inside such a span.
+  // WHY: cycle-3.5's trace-id literal walk still lost one deep-span char because its
+  // evidence was split across pos/prev/bucket bindings while a global-prev transition
+  // carried the inter-word space. This feature adds the missing variable: "where am I
+  // inside the remembered copy span for this trace?"
+  // NEGATIVE-SPACE: no current-observation parser decides the answer. The feature only
+  // contributes weights learned during training, and copy-mode still owns normal role
+  // transfer when the role is present.
+  double trace_span_position_gain = 0.5;
+  bool use_trace_span_position_features = true;
 };
 
 struct Event {
@@ -168,6 +182,11 @@ struct Weights {
 struct ObservationSlot {
   std::string type;
   std::string value;
+};
+
+struct TraceSpanPosition {
+  std::string role;
+  size_t offset = 0;
 };
 
 uint64_t fnv1a(std::string_view text, uint64_t seed = 1469598103934665603ull) {
@@ -709,6 +728,10 @@ class OrganicBrain {
             ++deltas;
           }
           unsigned char local_prev = previous;
+          const std::string matched_role =
+              (role_slot >= 0 && role_slot < static_cast<int>(role_token_table_.size()))
+                  ? role_token_table_[static_cast<size_t>(role_slot)]
+                  : std::string();
           for (size_t k = 0; k < span; ++k) {
             unsigned char c = static_cast<unsigned char>(target[pos + k]);
             if (c >= kAscii) { local_prev = c; continue; }
@@ -724,6 +747,18 @@ class OrganicBrain {
                     trace.reward_scalar * sf[i].scale * config_.learning_rate;
                 ++deltas;
               }
+            }
+            if (config_.use_trace_span_position_features && !matched_role.empty()) {
+              // Cycle-4 A2: one extra trace-local literal feature keyed by where this
+              // character sits inside the remembered copy span. The existing trace-id
+              // literal walk already captures absolute position and previous char; this
+              // feature captures span progress, which is exactly what the residual
+              // `tray4` failure lacked at the deep "tr|a" transition. It is trace-local
+              // and role-scoped, so it cannot accumulate across unrelated memories the
+              // way the forbidden same-strength base-context literal path did in cycle 3.5.
+              uint64_t span_feature = trace_span_position_feature_id(event.event_id, matched_role, k);
+              connections_[span_feature].value[c] += trace.reward_scalar * config_.learning_rate;
+              ++deltas;
             }
             learned_chars_.insert(c);
             local_prev = c;
@@ -822,6 +857,7 @@ class OrganicBrain {
       }
 
       auto active = state_features(features, previous, pos);
+      add_trace_span_position_features(active, gen.activations, pos);
       std::array<double, kExtendedActions> scores{};
       bool any = false;
       for (const auto& feature : active) {
@@ -1068,9 +1104,11 @@ class OrganicBrain {
         << " state_binding_gain=" << double_to_hex(config_.state_binding_gain)
         << " slot_pass_gain=" << double_to_hex(config_.slot_pass_gain)
         << " segment_mode_gain=" << double_to_hex(config_.segment_mode_gain)
+        << " trace_span_position_gain=" << double_to_hex(config_.trace_span_position_gain)
         << " use_trace_id_feature=" << (config_.use_trace_id_feature ? 1 : 0)
         << " use_slot_pass_through=" << (config_.use_slot_pass_through ? 1 : 0)
         << " use_segment_mode=" << (config_.use_segment_mode ? 1 : 0)
+        << " use_trace_span_position_features=" << (config_.use_trace_span_position_features ? 1 : 0)
         << " max_roles=" << config_.max_roles
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
@@ -1204,11 +1242,15 @@ class OrganicBrain {
     // an explicit reset here, those fields keep the binary defaults (use_segment_mode=true,
     // segment_mode_gain=0.3) when loading a legacy snapshot, which silently changes the
     // answer-path semantics of an old hash. The fix is to seed legacy defaults BEFORE
-    // parsing so present tokens override and absent tokens stay legacy. Cycle-3 snapshots
-    // always write all three keys (see serialize_state), so they round-trip identically.
+    // parsing so present tokens override and absent tokens stay legacy. Cycle-3+ snapshots
+    // write the keys they know (see serialize_state), so they round-trip identically; cycle-4
+    // trace-span-position fields default off for older snapshots because they change the
+    // answer path when new weights exist.
     config_.use_segment_mode = false;
     config_.max_roles = kMaxRoles;
     config_.segment_mode_gain = 0.3;
+    config_.trace_span_position_gain = 0.0;
+    config_.use_trace_span_position_features = false;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
     std::istringstream cfg_stream(cfg_line.substr(7));
@@ -1230,9 +1272,11 @@ class OrganicBrain {
       else if (k == "state_binding_gain") config_.state_binding_gain = hex_to_double(v);
       else if (k == "slot_pass_gain") config_.slot_pass_gain = hex_to_double(v);
       else if (k == "segment_mode_gain") config_.segment_mode_gain = hex_to_double(v);
+      else if (k == "trace_span_position_gain") config_.trace_span_position_gain = hex_to_double(v);
       else if (k == "use_trace_id_feature") config_.use_trace_id_feature = (v != "0");
       else if (k == "use_slot_pass_through") config_.use_slot_pass_through = (v != "0");
       else if (k == "use_segment_mode") config_.use_segment_mode = (v != "0");
+      else if (k == "use_trace_span_position_features") config_.use_trace_span_position_features = (v != "0");
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
     // Legacy-default seeding (above) is what makes cycle-2 snapshots reload safely.
@@ -1436,6 +1480,79 @@ class OrganicBrain {
       }
     }
     return active;
+  }
+
+  uint64_t trace_span_position_feature_id(const std::string& event_id, const std::string& role,
+                                          size_t span_offset) const {
+    uint64_t trace_id = hash_pair("trace", event_id);
+    uint64_t role_id = hash_pair("span-role", role);
+    uint64_t offset_id = combine(fnv1a("span-pos"), static_cast<uint64_t>(span_offset));
+    return combine(trace_id, combine(role_id, offset_id));
+  }
+
+  const Trace* trace_by_event_id(const std::string& event_id) const {
+    for (const auto& trace : traces_) {
+      if (trace.event_id == event_id) return &trace;
+    }
+    return nullptr;
+  }
+
+  std::optional<std::pair<std::string, size_t>> find_longest_filler_match_at_readonly(
+      const std::string& lower_target, size_t pos,
+      const std::vector<ObservationSlot>& slots) const {
+    std::optional<std::pair<std::string, size_t>> best;
+    for (const auto& slot : slots) {
+      if (slot.value.empty()) continue;
+      if (pos + slot.value.size() > lower_target.size()) continue;
+      if (lower_target.compare(pos, slot.value.size(), slot.value) != 0) continue;
+      if (!best.has_value() || slot.value.size() > best->second) {
+        best = std::make_pair(slot.type, slot.value.size());
+      }
+      // Equal-length ties intentionally keep the first observation, matching the training
+      // matcher's longest-then-observation-order rule.
+    }
+    return best;
+  }
+
+  std::optional<TraceSpanPosition> trace_span_position_at(const Trace& trace, int output_position) const {
+    if (output_position < 0) return std::nullopt;
+    std::string lower_target = lower_ascii(trace.target_output);
+    auto slots = parse_slots(trace.observations);
+    size_t wanted = static_cast<size_t>(output_position);
+    size_t pos = 0;
+    while (pos < lower_target.size()) {
+      auto match = find_longest_filler_match_at_readonly(lower_target, pos, slots);
+      if (match.has_value()) {
+        size_t span = match->second;
+        if (wanted >= pos && wanted < pos + span) {
+          return TraceSpanPosition{match->first, wanted - pos};
+        }
+        pos += span;
+      } else {
+        ++pos;
+      }
+    }
+    return std::nullopt;
+  }
+
+  void add_trace_span_position_features(std::vector<Feature>& active,
+                                        const std::vector<Activation>& activations,
+                                        int output_position) const {
+    if (!config_.use_segment_mode || !config_.use_trace_id_feature ||
+        !config_.use_trace_span_position_features || config_.trace_span_position_gain == 0.0) {
+      return;
+    }
+    for (const auto& activation : activations) {
+      if (activation.similarity <= 0.0) continue;
+      const Trace* trace = trace_by_event_id(activation.event_id);
+      if (!trace) continue;
+      auto span_position = trace_span_position_at(*trace, output_position);
+      if (!span_position.has_value()) continue;
+      active.push_back({
+          trace_span_position_feature_id(trace->event_id, span_position->role, span_position->offset),
+          activation.similarity * config_.trace_gain * config_.trace_span_position_gain,
+      });
+    }
   }
 
   std::vector<Feature> context_features(const std::string& input, const std::vector<std::string>& observations) const {
@@ -1786,9 +1903,12 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"state_binding_gain\": " << config.state_binding_gain
       << ", \"slot_pass_gain\": " << config.slot_pass_gain
       << ", \"segment_mode_gain\": " << config.segment_mode_gain
+      << ", \"trace_span_position_gain\": " << config.trace_span_position_gain
       << ", \"use_trace_id_feature\": " << (config.use_trace_id_feature ? "true" : "false")
       << ", \"use_slot_pass_through\": " << (config.use_slot_pass_through ? "true" : "false")
       << ", \"use_segment_mode\": " << (config.use_segment_mode ? "true" : "false")
+      << ", \"use_trace_span_position_features\": "
+      << (config.use_trace_span_position_features ? "true" : "false")
       << ", \"max_roles\": " << config.max_roles << "}";
 }
 
@@ -1986,6 +2106,10 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
       }
     }
   }
+  // Cycle-4 honesty nit: artifacts should describe the config the brain actually uses.
+  // A --load-state run may replace binary defaults with the snapshot CONFIG line; reporting
+  // the outer main() config would make legacy-load artifacts lie about answer-path behavior.
+  const Config& active_config = brain.config();
   auto alphabet = collect_alphabet(events);
 
   struct Result {
@@ -2013,7 +2137,7 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
     Result result;
     result.event = &event;
     result.gen = brain.generate(event.input, event.observations);
-    result.random = random_baseline(event, alphabet, config.seed);
+    result.random = random_baseline(event, alphabet, active_config.seed);
     result.exact = result.gen.output == event.target_output;
     result.ratio = lcs_ratio(result.gen.output, event.target_output);
     overall.count += 1;
@@ -2043,16 +2167,16 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
   out << "  \"timestamp\": " << q(ts) << ",\n";
   out << "  \"command\": " << q(command) << ",\n";
   out << "  \"mode\": " << q(mode) << ",\n";
-  out << "  \"seed\": " << config.seed << ",\n";
-  out << "  \"config\": "; write_config(out, config); out << ",\n";
-  out << "  \"model_config_hash\": " << q(hex64(config_hash(config))) << ",\n";
+  out << "  \"seed\": " << active_config.seed << ",\n";
+  out << "  \"config\": "; write_config(out, active_config); out << ",\n";
+  out << "  \"model_config_hash\": " << q(hex64(config_hash(active_config))) << ",\n";
   out << "  \"model_state_hash\": " << q(hex64(state)) << ",\n";
   out << "  \"benchmark_path\": " << q(data_path) << ",\n";
   out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
   out << "  \"train_dev_test_split\": "; write_split_audit(out, events, audit, 2); out << ",\n";
   out << "  \"available_tools\": [\"native_cpp20_stdlib\"],\n";
   out << "  \"backend_facts\": "; write_backend_facts(out); out << ",\n";
-  out << "  \"action_budget\": {\"max_output_chars\": " << config.max_output_chars << "},\n";
+  out << "  \"action_budget\": {\"max_output_chars\": " << active_config.max_output_chars << "},\n";
   out << "  \"oracle_access\": {\"generation\": false, \"evaluation\": true},\n";
   out << "  \"reward_vector\": [";
   auto keys = reward_keys(events);
