@@ -20,14 +20,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe phases with learning-disabled ablation, artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe/replay phases with learning-disabled, replay-disabled, and replay-audit ablations, artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
 | Path | Justification |
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
-| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, and text-experience learning |
+| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, text-experience learning, and text replay |
 | `scripts/test_organic_v0.sh` | runs both phases: `--phase self-test` (substrate guard — cold brain emits nothing, learns one event, emits "zx") then `--phase persistence-self-test` (full round-trip — train → save → fresh child process load → generate → hash + output match). Either failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
@@ -117,6 +117,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/text_experience_cycle7e_ablate_learning.json` | cycle-7E learning-disabled ablation artifact: `--ablate-text-experience-learning` leaves state growth at zero, keeps hash `29958f0880e662dc`, and drops held-out text probes to 0/4 |
 | `run/artifacts/organic-v0/text_experience_cycle7e_ablate_transcript.md` | cycle-7E ablation transcript preserving raw outputs when correction learning is disabled; documents that before/after outputs do not improve without state mutation |
 | `run/artifacts/organic-v0/text_experience_cycle7e_summary.json` | cycle-7E aggregate scorecard: all-on probe 4/4, from-disk probe 4/4 with matching hash, learning-disabled ablation 0/4, plus explicit counter-claim that this is not fluent chat or broad reasoning |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f.json` | cycle-7F native text replay all-on artifact: first-pass ingest selects two stale misses, candidate-audits replay, accepts one non-degrading replay, rejects damaging candidates, and preserves post-replay probes at 4/4 under hash `89fc3a01a35451e9` |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_transcript.md` | cycle-7F readable replay transcript showing first-pass outputs, replay candidates, acceptance/rejection decisions, and post-replay train/probe outputs |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_from_disk_probe.json` | cycle-7F fresh loaded-child probe artifact: loaded `cycle7f-text-replay.pxstate` and reproduced post-replay text probes at 4/4 with matching hash `89fc3a01a35451e9` |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_replay_disabled.json` | cycle-7F replay-disabled control: selection still logs, replay state growth stays zero, and hash remains the Cycle 7E child `be0fc781039a2038` |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_replay_disabled_transcript.md` | cycle-7F replay-disabled transcript preserving selected records and unchanged before/after behavior when replay mutation is disabled |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation.json` | cycle-7F acceptance-audit ablation: disabling the replay self-audit allows blind replay to damage post-replay probes from 4/4 to 1/4 under hash `f6dfaabe5eda3d11` |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation_transcript.md` | cycle-7F audit-ablation transcript showing blind replay candidates accepted without the self-audit and the resulting degraded outputs |
+| `run/artifacts/organic-v0/text_experience_replay_cycle7f_summary.json` | cycle-7F aggregate scorecard: all-on post-replay probe 4/4, from-disk 4/4, replay-disabled zero growth, and audit-ablation degradation to 1/4 |
 
 ## Not tracked, on disk
 

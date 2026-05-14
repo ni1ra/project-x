@@ -106,6 +106,19 @@ Rules:
 - `--ablate-text-experience-learning` must skip the train mutation path and leave state growth at zero.
 - Fresh loaded-child probes must load the saved PXSTATE and generate without replaying the experience database train records.
 
+### Cycle-7F replay/consolidation extension
+
+Cycle 7F adds no new persisted file section. Replay candidates are ordinary text experience `train` records learned into a candidate brain and accepted or rejected by audit.
+
+Artifact/event-log rules:
+
+- replay selection must be recorded by `experience_id` and reason
+- accepted replay writes ordinary `learn` event-log rows
+- rejected replay candidates must remain visible in the artifact but must not mutate the saved child state
+- `--ablate-text-experience-replay` skips replay mutation and should leave replay state growth at zero
+- `--ablate-text-replay-audit` disables the acceptance guard and exists to prove blind replay can damage held-out behavior
+- post-replay child probes must load the saved PXSTATE and generate without replaying the text experience stream
+
 ## State Snapshot PXSTATE Line v0
 
 Path shape:

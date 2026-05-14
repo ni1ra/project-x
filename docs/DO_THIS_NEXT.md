@@ -266,3 +266,55 @@ Candidate close criteria:
 - write and sha7-rename the cycle reflection
 
 The target is not to claim fluency. The target is to make durable language experience accumulate, replay, and consolidate through learned state.
+
+## Cycle 7F Closed - Self-Audited Text Experience Replay
+
+Cycle 7F shipped a replay/consolidation path with candidate acceptance auditing.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/text_experience_replay_cycle7f_summary.json`: all-on post-replay probe 4/4 (`1.000000`), from-disk post-replay probe 4/4 (`1.000000`), acceptance-audit ablation post-replay probe 1/4 (`0.250000`).
+- `run/artifacts/organic-v0/text_experience_replay_cycle7f.json`: selected 2 stale first-pass misses, accepted 1 replay candidate, rejected damaging candidates, saved child hash `89fc3a01a35451e9`.
+- `run/artifacts/organic-v0/text_experience_replay_cycle7f_from_disk_probe.json`: fresh loaded child matches post-replay probe metrics and model hash `89fc3a01a35451e9`.
+- `run/artifacts/organic-v0/text_experience_replay_cycle7f_replay_disabled.json`: replay-disabled control leaves replay state growth at zero and hash `be0fc781039a2038`.
+- `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation.json`: disabling the acceptance audit lets blind replay damage held-out probe behavior, dropping to 1/4.
+- `run/artifacts/organic-v0/text_experience_replay_cycle7f_transcript.md`: readable replay transcript with accepted/rejected candidates.
+- `docs/artifacts/CYCLE7F_TEXT_EXPERIENCE_REPLAY.md`: closed interpretation and negative-space audit.
+
+Plain English:
+
+- Blind replay is not safe.
+- The new replay path is self-critical: it tests candidate mutations and keeps only non-degrading ones.
+- This is still not fluent chat. It is a tiny replay/consolidation mechanism over a tiny text database.
+
+Regression gates after Cycle 7F:
+
+- `make test`: PASS
+- cycle-6 regression: 30/30, hash `29958f0880e662dc`
+- clean chat rail: 1/5, hash `888b7664126b7f5f`
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
+- Cycle 7E text rail: all-on 4/4, from-disk 4/4, learning-disabled ablation 0/4
+- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
+- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact and 8/8 post-episode probe exact
+- Cycle 7D grid interactive regression: seeds 7201/7202 remain 8/8 held-out exact and 8/8 post-episode probe exact
+
+## Cycle 7G Contract
+
+Default direction: **raw-text sensing for the text experience rail**.
+
+The current text experience database still depends on builder-provided typed observations such as `person:navi` and `object:basalt prism`. That is acceptable as an audit scaffold, but it cannot be the long-term language path. The next cycle should add a small native raw-text sensing/chunking mechanism that derives some observations from `input_text` itself while keeping the typed fields visible for comparison.
+
+Candidate close criteria:
+
+- write the learnability/design audit before code or data edits
+- add a native raw-text sensing/chunk feature path, not templates or answer routes
+- include an ablation for the new raw-text sensing path
+- compare typed-observation-only, raw-sense-only, and combined runs where feasible
+- preserve 7F replay, 7E text rail, 7D, 7C, 7B, cycle-6, clean-chat, and legacy rails
+- include transcripts that show raw outputs and failures
+- keep clean chat visible at 1/5 unless it organically improves
+- do not add response templates, intent trigger lists, answer dispatchers, or a polished voice layer
+- update docs and `REPO_CONTROL.md`
+- write and sha7-rename the cycle reflection
+
+The target is to reduce dependence on builder-authored observations while keeping every sense and failure auditable.

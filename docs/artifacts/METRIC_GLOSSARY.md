@@ -89,6 +89,30 @@ The same text rail is run with correction learning disabled. This answers:
 
 > Was the result carried by state mutation from experience, or by an unchanged parent/model shortcut?
 
+`replay-before`
+
+The selected record's raw output immediately before a replay candidate is tested. This answers:
+
+> What would the current consolidated brain say before another pass over this stored correction?
+
+`replay-after`
+
+The selected record's output from the replay candidate. If the candidate is rejected, this output is preserved as the rejected candidate behavior rather than the live child behavior. This answers:
+
+> What would replay have changed?
+
+`post-replay probe`
+
+Held-out text records scored after accepted replay candidates. This answers:
+
+> Did replay preserve or damage transfer?
+
+`acceptance-audit ablation`
+
+Run replay while disabling the candidate-acceptance guard. This answers:
+
+> Is the replay self-audit actually protecting generalization, or is blind replay harmless?
+
 ## Regression Rails
 
 `cycle-6 regression`

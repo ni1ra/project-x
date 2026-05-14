@@ -3118,7 +3118,9 @@ struct Args {
   std::string transcript_out;
   uint64_t scenario_seed = 7001;
   int action_budget = 64;
+  int replay_passes = 2;
   double feedback_strength = 2.0;
+  double replay_min_sequence_ratio = 1.0;
   bool ablate_trace_id = false;
   bool ablate_numeric_derived = false;
   bool ablate_threshold_derived = false;
@@ -3127,6 +3129,8 @@ struct Args {
   bool ablate_symbolic_relations = false;
   bool ablate_grid_spatial = false;
   bool ablate_text_experience_learning = false;
+  bool ablate_text_experience_replay = false;
+  bool ablate_text_replay_audit = false;
 };
 
 Args parse_args(int argc, char** argv) {
@@ -3151,7 +3155,9 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--transcript-out") args.transcript_out = need_value(key);
     else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
     else if (key == "--action-budget") args.action_budget = std::stoi(need_value(key));
+    else if (key == "--replay-passes") args.replay_passes = std::stoi(need_value(key));
     else if (key == "--feedback-strength") args.feedback_strength = std::stod(need_value(key));
+    else if (key == "--replay-threshold") args.replay_min_sequence_ratio = std::stod(need_value(key));
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
     else if (key == "--ablate-numeric-derived") args.ablate_numeric_derived = true;
     else if (key == "--ablate-threshold-derived") args.ablate_threshold_derived = true;
@@ -3162,6 +3168,8 @@ Args parse_args(int argc, char** argv) {
     }
     else if (key == "--ablate-grid-spatial") args.ablate_grid_spatial = true;
     else if (key == "--ablate-text-experience-learning") args.ablate_text_experience_learning = true;
+    else if (key == "--ablate-text-experience-replay") args.ablate_text_experience_replay = true;
+    else if (key == "--ablate-text-replay-audit") args.ablate_text_replay_audit = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
@@ -3775,6 +3783,19 @@ void write_string_array_json(std::ostream& out, const std::vector<std::string>& 
   out << "]";
 }
 
+TextExperienceScore score_text_experience_records(
+    const OrganicBrain& brain, const std::vector<TextExperienceRecord>& records,
+    const std::string& split) {
+  TextExperienceScore score;
+  for (const auto& record : records) {
+    if (record.split != split) continue;
+    Event event = event_from_text_experience(record);
+    auto gen = brain.generate(event.input, event.observations);
+    add_text_experience_score(score, gen.output, event.target_output);
+  }
+  return score;
+}
+
 struct TextExperienceTrainHistory {
   TextExperienceRecord record;
   Generation before_learning;
@@ -3791,6 +3812,24 @@ struct TextExperienceProbeHistory {
   Generation generation;
   bool exact = false;
   uint64_t state_hash = 0;
+};
+
+struct TextExperienceReplayHistory {
+  TextExperienceRecord record;
+  int replay_pass = 0;
+  std::string reason;
+  Generation before_replay;
+  Generation after_replay;
+  bool exact_before = false;
+  bool exact_after = false;
+  double ratio_before = 0.0;
+  double ratio_after = 0.0;
+  uint64_t state_before = 0;
+  uint64_t state_after = 0;
+  uint64_t candidate_state_hash = 0;
+  bool replay_applied = false;
+  bool accepted = false;
+  std::string acceptance_reason;
 };
 
 void write_text_experience_transcript(const std::string& transcript_path,
@@ -4098,6 +4137,415 @@ void text_experience_probe_phase(const Args& args, const std::string& command) {
   }
   out << "],\n";
   out << "  \"honest_interpretation\": \"Fresh loaded-child text probe: generated from disk without replaying the text experience stream.\"\n";
+  out << "}\n";
+}
+
+void write_text_experience_replay_transcript(
+    const std::string& transcript_path,
+    const std::vector<TextExperienceTrainHistory>& first_pass_history,
+    const std::vector<TextExperienceReplayHistory>& replay_history,
+    const std::vector<TextExperienceProbeHistory>& post_replay_train_history,
+    const std::vector<TextExperienceProbeHistory>& post_replay_probe_history,
+    bool replay_disabled) {
+  ensure_parent_dir(transcript_path);
+  std::ofstream out(transcript_path);
+  out << "# Cycle 7F Text Experience Replay Transcript\n\n";
+  out << "Generated: " << timestamp_utc() << "\n\n";
+  out << "This transcript shows first-pass text learning, replay selection, replay before/after "
+      << "outputs, and post-replay probes. Replay uses stored correction records; it is not a "
+      << "generation-time template.\n\n";
+  out << "Replay disabled by ablation: " << (replay_disabled ? "true" : "false") << "\n\n";
+  out << "## First Pass Training\n\n";
+  for (size_t i = 0; i < first_pass_history.size(); ++i) {
+    const auto& item = first_pass_history[i];
+    out << "### " << item.record.experience_id << "\n\n";
+    out << "- input: `" << item.record.input_text << "`\n";
+    out << "- before correction: `" << display_output(item.before_learning.output) << "`\n";
+    out << "- after correction: `" << display_output(item.after_learning.output) << "`\n";
+    out << "- expected: `" << item.record.correction_output << "`\n";
+    out << "- exact after: " << (item.exact_after ? "true" : "false");
+    if (i + 1 < first_pass_history.size()) out << "\n\n";
+  }
+  out << "\n\n## Replay Events\n\n";
+  if (replay_history.empty()) {
+    out << "No records selected for replay.\n";
+  }
+  for (size_t i = 0; i < replay_history.size(); ++i) {
+    const auto& item = replay_history[i];
+    out << "### " << item.record.experience_id << " / pass " << item.replay_pass << "\n\n";
+    out << "- reason: `" << item.reason << "`\n";
+    out << "- before replay: `" << display_output(item.before_replay.output) << "`\n";
+    out << "- after replay: `" << display_output(item.after_replay.output) << "`\n";
+    out << "- expected: `" << item.record.correction_output << "`\n";
+    out << "- exact before/after: " << (item.exact_before ? "true" : "false")
+        << " / " << (item.exact_after ? "true" : "false") << "\n";
+    out << "- replay mutation applied: " << (item.replay_applied ? "true" : "false") << "\n";
+    out << "- accepted: " << (item.accepted ? "true" : "false") << "\n";
+    out << "- acceptance reason: `" << item.acceptance_reason << "`";
+    if (i + 1 < replay_history.size()) out << "\n\n";
+  }
+  out << "\n\n## Post-Replay Training Check\n\n";
+  for (size_t i = 0; i < post_replay_train_history.size(); ++i) {
+    const auto& item = post_replay_train_history[i];
+    out << "### " << item.record.experience_id << "\n\n";
+    out << "- raw output: `" << display_output(item.generation.output) << "`\n";
+    out << "- expected: `" << item.record.correction_output << "`\n";
+    out << "- exact: " << (item.exact ? "true" : "false");
+    if (i + 1 < post_replay_train_history.size()) out << "\n\n";
+  }
+  out << "\n\n## Post-Replay Probe Check\n\n";
+  for (size_t i = 0; i < post_replay_probe_history.size(); ++i) {
+    const auto& item = post_replay_probe_history[i];
+    out << "### " << item.record.experience_id << "\n\n";
+    out << "- raw output: `" << display_output(item.generation.output) << "`\n";
+    out << "- expected: `" << item.record.correction_output << "`\n";
+    out << "- exact: " << (item.exact ? "true" : "false");
+    if (i + 1 < post_replay_probe_history.size()) out << "\n\n";
+  }
+  out << "\n";
+}
+
+void text_experience_replay_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("text-experience-replay requires --out");
+  if (args.experience_db.empty()) throw std::runtime_error("text-experience-replay requires --experience-db");
+  if (args.replay_passes < 0) throw std::runtime_error("text-experience-replay requires --replay-passes >= 0");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  PersistenceContext persistence;
+  persistence.organism_id = args.organism_id;
+  persistence.loaded_state_path = args.load_state;
+  persistence.saved_state_path = args.save_state;
+  persistence.event_log_path = args.event_log;
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    persistence.load_status = "loaded_from_disk";
+  }
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+
+  auto records = load_text_experience_records(args.experience_db);
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  TextExperienceScore first_train_before_score;
+  TextExperienceScore first_train_after_score;
+  TextExperienceScore pre_replay_probe_score;
+  std::vector<TextExperienceTrainHistory> first_pass_history;
+  std::vector<TextExperienceProbeHistory> pre_replay_probe_history;
+
+  for (const auto& record : records) {
+    if (record.split != "train") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t before_hash = brain.state_hash();
+    auto before_gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, before_gen.output,
+                          event.target_output, before_hash, before_hash,
+                          "text_experience_replay_first_pass_before", args.experience_db);
+    brain.learn(event);
+    uint64_t after_hash = brain.state_hash();
+    append_event_log_line(args.event_log, args.organism_id, "learn", event, event.target_output,
+                          event.target_output, before_hash, after_hash,
+                          "text_experience_replay_first_pass_correction", args.experience_db);
+    auto after_gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, after_gen.output,
+                          event.target_output, after_hash, after_hash,
+                          "text_experience_replay_first_pass_after", args.experience_db);
+    add_text_experience_score(first_train_before_score, before_gen.output, event.target_output);
+    add_text_experience_score(first_train_after_score, after_gen.output, event.target_output);
+    first_pass_history.push_back({record, std::move(before_gen), std::move(after_gen),
+                                  false, false, before_hash, after_hash, true});
+    auto& stored = first_pass_history.back();
+    stored.exact_before = stored.before_learning.output == event.target_output;
+    stored.exact_after = stored.after_learning.output == event.target_output;
+  }
+
+  for (const auto& record : records) {
+    if (record.split != "probe") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t state_hash = brain.state_hash();
+    auto gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
+                          event.target_output, state_hash, state_hash,
+                          "text_experience_replay_pre_probe", args.experience_db);
+    add_text_experience_score(pre_replay_probe_score, gen.output, event.target_output);
+    pre_replay_probe_history.push_back({record, std::move(gen), false, state_hash});
+    auto& stored = pre_replay_probe_history.back();
+    stored.exact = stored.generation.output == event.target_output;
+  }
+
+  BrainStateStats first_pass_stats = capture_state_stats(brain);
+  std::vector<std::pair<TextExperienceRecord, std::string>> selected_records;
+  for (const auto& item : first_pass_history) {
+    double ratio = lcs_ratio(item.after_learning.output, item.record.correction_output);
+    if (!item.exact_after) {
+      selected_records.push_back({item.record, "not_exact_after_first_pass"});
+    } else if (ratio < args.replay_min_sequence_ratio) {
+      selected_records.push_back({item.record, "below_replay_sequence_threshold"});
+    }
+  }
+
+  TextExperienceScore replay_before_score;
+  TextExperienceScore replay_after_score;
+  std::vector<TextExperienceReplayHistory> replay_history;
+  TextExperienceScore accepted_train_score = score_text_experience_records(brain, records, "train");
+  TextExperienceScore accepted_probe_score = score_text_experience_records(brain, records, "probe");
+  for (int pass = 1; pass <= args.replay_passes; ++pass) {
+    for (const auto& selected : selected_records) {
+      const auto& record = selected.first;
+      Event event = event_from_text_experience(record);
+      uint64_t before_hash = brain.state_hash();
+      auto before_gen = brain.generate(event.input, event.observations);
+      append_event_log_line(args.event_log, args.organism_id, "generate", event, before_gen.output,
+                            event.target_output, before_hash, before_hash,
+                            "text_experience_replay_before", args.experience_db);
+      bool replay_applied = false;
+      bool accepted = false;
+      uint64_t after_hash = before_hash;
+      uint64_t candidate_hash = before_hash;
+      std::string acceptance_reason = args.ablate_text_experience_replay
+                                          ? "replay_disabled"
+                                          : "candidate_not_evaluated";
+      Generation after_gen;
+      if (!args.ablate_text_experience_replay) {
+        OrganicBrain candidate = brain;
+        candidate.learn(event);
+        candidate_hash = candidate.state_hash();
+        after_gen = candidate.generate(event.input, event.observations);
+        TextExperienceScore candidate_train_score =
+            score_text_experience_records(candidate, records, "train");
+        TextExperienceScore candidate_probe_score =
+            score_text_experience_records(candidate, records, "probe");
+        double before_ratio = lcs_ratio(before_gen.output, event.target_output);
+        double after_ratio = lcs_ratio(after_gen.output, event.target_output);
+        bool local_not_worse = after_ratio >= before_ratio;
+        bool train_not_worse = candidate_train_score.exact >= accepted_train_score.exact;
+        bool probe_not_worse = candidate_probe_score.exact >= accepted_probe_score.exact;
+        accepted = args.ablate_text_replay_audit ||
+                   (local_not_worse && train_not_worse && probe_not_worse);
+        if (accepted) {
+          brain = std::move(candidate);
+          accepted_train_score = candidate_train_score;
+          accepted_probe_score = candidate_probe_score;
+          replay_applied = true;
+          after_hash = brain.state_hash();
+          acceptance_reason = args.ablate_text_replay_audit
+                                  ? "accepted_audit_ablation_disabled_guard"
+                                  : "accepted_local_train_probe_not_worse";
+          append_event_log_line(args.event_log, args.organism_id, "learn", event, event.target_output,
+                                event.target_output, before_hash, after_hash,
+                                "text_experience_replay_correction", args.experience_db);
+          append_event_log_line(args.event_log, args.organism_id, "generate", event, after_gen.output,
+                                event.target_output, after_hash, after_hash,
+                                "text_experience_replay_after", args.experience_db);
+        } else {
+          after_hash = before_hash;
+          acceptance_reason = "rejected_candidate_would_degrade_local_train_or_probe";
+        }
+      } else {
+        after_gen = brain.generate(event.input, event.observations);
+      }
+      add_text_experience_score(replay_before_score, before_gen.output, event.target_output);
+      add_text_experience_score(replay_after_score, after_gen.output, event.target_output);
+      TextExperienceReplayHistory item;
+      item.record = record;
+      item.replay_pass = pass;
+      item.reason = selected.second;
+      item.before_replay = std::move(before_gen);
+      item.after_replay = std::move(after_gen);
+      item.exact_before = item.before_replay.output == event.target_output;
+      item.exact_after = item.after_replay.output == event.target_output;
+      item.ratio_before = lcs_ratio(item.before_replay.output, event.target_output);
+      item.ratio_after = lcs_ratio(item.after_replay.output, event.target_output);
+      item.state_before = before_hash;
+      item.state_after = after_hash;
+      item.candidate_state_hash = candidate_hash;
+      item.replay_applied = replay_applied;
+      item.accepted = accepted;
+      item.acceptance_reason = acceptance_reason;
+      replay_history.push_back(std::move(item));
+    }
+  }
+
+  TextExperienceScore post_replay_train_score;
+  TextExperienceScore post_replay_probe_score;
+  std::vector<TextExperienceProbeHistory> post_replay_train_history;
+  std::vector<TextExperienceProbeHistory> post_replay_probe_history;
+  for (const auto& record : records) {
+    if (record.split != "train") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t state_hash = brain.state_hash();
+    auto gen = brain.generate(event.input, event.observations);
+    add_text_experience_score(post_replay_train_score, gen.output, event.target_output);
+    post_replay_train_history.push_back({record, std::move(gen), false, state_hash});
+    auto& stored = post_replay_train_history.back();
+    stored.exact = stored.generation.output == event.target_output;
+  }
+  for (const auto& record : records) {
+    if (record.split != "probe") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t state_hash = brain.state_hash();
+    auto gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
+                          event.target_output, state_hash, state_hash,
+                          "text_experience_replay_post_probe", args.experience_db);
+    add_text_experience_score(post_replay_probe_score, gen.output, event.target_output);
+    post_replay_probe_history.push_back({record, std::move(gen), false, state_hash});
+    auto& stored = post_replay_probe_history.back();
+    stored.exact = stored.generation.output == event.target_output;
+  }
+
+  BrainStateStats child_stats = capture_state_stats(brain);
+  if (!args.save_state.empty()) {
+    ensure_parent_dir(args.save_state);
+    std::ofstream state_out(args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+    persistence.load_status = args.load_state.empty()
+                                  ? "text_experience_replayed_and_saved"
+                                  : "loaded_then_text_experience_replayed_and_saved";
+  } else if (args.load_state.empty()) {
+    persistence.load_status = "text_experience_replayed_no_state_save";
+  } else {
+    persistence.load_status = "loaded_then_text_experience_replayed_no_state_save";
+  }
+
+  std::string transcript_path = args.transcript_out.empty()
+                                    ? args.out + ".transcript.md"
+                                    : args.transcript_out;
+  write_text_experience_replay_transcript(transcript_path, first_pass_history, replay_history,
+                                          post_replay_train_history, post_replay_probe_history,
+                                          args.ablate_text_experience_replay);
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-text-replay-" + hex64(fnv1a(ts + hex64(child_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"text-experience-replay\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"experience_db_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
+  out << "  \"replay_policy\": {\"selector\": \"not_exact_after_first_pass_or_below_sequence_threshold\", \"replay_passes\": "
+      << args.replay_passes << ", \"min_sequence_ratio\": " << args.replay_min_sequence_ratio
+      << ", \"selected_count\": " << selected_records.size() << "},\n";
+  out << "  \"ablation\": {\"text_experience_replay_disabled\": "
+      << (args.ablate_text_experience_replay ? "true" : "false")
+      << ", \"text_replay_acceptance_audit_disabled\": "
+      << (args.ablate_text_replay_audit ? "true" : "false") << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": true, \"probe_evaluation\": true},\n";
+  out << "  \"parent_model_state_hash\": " << q(hex64(parent_stats.state_hash)) << ",\n";
+  out << "  \"first_pass_model_state_hash\": " << q(hex64(first_pass_stats.state_hash)) << ",\n";
+  out << "  \"model_state_hash\": " << q(hex64(child_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"first_pass_model_state\": "; write_state_stats(out, first_pass_stats); out << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, child_stats); out << ",\n";
+  out << "  \"first_pass_state_growth\": "; write_state_growth(out, parent_stats, first_pass_stats); out << ",\n";
+  out << "  \"replay_state_growth\": "; write_state_growth(out, first_pass_stats, child_stats); out << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
+  out << "  \"summary_metrics\": {\"first_pass_train_before\": ";
+  write_text_experience_score(out, first_train_before_score);
+  out << ", \"first_pass_train_after\": "; write_text_experience_score(out, first_train_after_score);
+  out << ", \"pre_replay_probe\": "; write_text_experience_score(out, pre_replay_probe_score);
+  out << ", \"replay_before\": "; write_text_experience_score(out, replay_before_score);
+  out << ", \"replay_after\": "; write_text_experience_score(out, replay_after_score);
+  out << ", \"post_replay_train\": "; write_text_experience_score(out, post_replay_train_score);
+  out << ", \"post_replay_probe\": "; write_text_experience_score(out, post_replay_probe_score);
+  out << "},\n";
+  out << "  \"replay_selection\": [";
+  for (size_t i = 0; i < selected_records.size(); ++i) {
+    if (i) out << ", ";
+    out << "{\"experience_id\": " << q(selected_records[i].first.experience_id)
+        << ", \"reason\": " << q(selected_records[i].second) << "}";
+  }
+  out << "],\n";
+  out << "  \"first_pass_training_history\": [";
+  for (size_t i = 0; i < first_pass_history.size(); ++i) {
+    if (i) out << ", ";
+    const auto& item = first_pass_history[i];
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"raw_before_learning\": " << q(item.before_learning.output)
+        << ", \"raw_after_learning\": " << q(item.after_learning.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"exact_after_learning\": " << (item.exact_after ? "true" : "false") << "}";
+  }
+  out << "],\n";
+  out << "  \"pre_replay_probe_history\": [";
+  for (size_t i = 0; i < pre_replay_probe_history.size(); ++i) {
+    if (i) out << ", ";
+    const auto& item = pre_replay_probe_history[i];
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"raw_generated_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"exact\": " << (item.exact ? "true" : "false") << "}";
+  }
+  out << "],\n";
+  out << "  \"replay_history\": [\n";
+  for (size_t i = 0; i < replay_history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& item = replay_history[i];
+    out << "    {\"experience_id\": " << q(item.record.experience_id)
+        << ", \"replay_pass\": " << item.replay_pass
+        << ", \"reason\": " << q(item.reason)
+        << ", \"raw_before_replay\": " << q(item.before_replay.output)
+        << ", \"raw_after_replay\": " << q(item.after_replay.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"exact_before_replay\": " << (item.exact_before ? "true" : "false")
+        << ", \"exact_after_replay\": " << (item.exact_after ? "true" : "false")
+        << ", \"ratio_before_replay\": " << std::fixed << std::setprecision(6) << item.ratio_before
+        << ", \"ratio_after_replay\": " << item.ratio_after << std::defaultfloat
+        << ", \"replay_applied\": " << (item.replay_applied ? "true" : "false")
+        << ", \"accepted\": " << (item.accepted ? "true" : "false")
+        << ", \"acceptance_reason\": " << q(item.acceptance_reason)
+        << ", \"state_before_hash\": " << q(hex64(item.state_before))
+        << ", \"candidate_state_hash\": " << q(hex64(item.candidate_state_hash))
+        << ", \"state_after_hash\": " << q(hex64(item.state_after)) << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"post_replay_training_history\": [";
+  for (size_t i = 0; i < post_replay_train_history.size(); ++i) {
+    if (i) out << ", ";
+    const auto& item = post_replay_train_history[i];
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"raw_generated_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"exact\": " << (item.exact ? "true" : "false") << "}";
+  }
+  out << "],\n";
+  out << "  \"post_replay_probe_history\": [";
+  for (size_t i = 0; i < post_replay_probe_history.size(); ++i) {
+    if (i) out << ", ";
+    const auto& item = post_replay_probe_history[i];
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"raw_generated_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"exact\": " << (item.exact ? "true" : "false") << "}";
+  }
+  out << "],\n";
+  out << "  \"failure_traces\": [";
+  bool first_failure = true;
+  for (const auto& item : post_replay_train_history) {
+    if (item.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"stage\": \"post_replay_train\""
+        << ", \"raw_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output) << "}";
+    first_failure = false;
+  }
+  for (const auto& item : post_replay_probe_history) {
+    if (item.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"stage\": \"post_replay_probe\""
+        << ", \"raw_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output) << "}";
+    first_failure = false;
+  }
+  out << "],\n";
+  out << "  \"honest_interpretation\": \"Cycle 7F text-experience replay: failed/weak training records are selected after raw first-pass generation and replayed through the same learned state mutation path. This is consolidation evidence, not fluent chat.\"\n";
   out << "}\n";
 }
 
@@ -4972,6 +5420,10 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "text-experience-probe") {
       px::text_experience_probe_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "text-experience-replay") {
+      px::text_experience_replay_phase(args, command);
       return 0;
     }
 
