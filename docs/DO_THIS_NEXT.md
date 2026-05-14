@@ -1,6 +1,6 @@
 # Do This Next - Project X
 
-Generated: 2026-05-15, after Cycle 9 post-audit follow-up.
+Generated: 2026-05-15, after Cycle 10 wrapper-lite close.
 
 This file is the immediate queue cut from the phase plan. It is not a cycle archive. Closed cycle evidence belongs in `docs/A_TO_Z_PLAN.md` and `docs/past_work/cycles/`; machine-readable runtime artifacts belong under `run/artifacts/`.
 
@@ -10,25 +10,15 @@ This file is the immediate queue cut from the phase plan. It is not a cycle arch
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
-5. `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-9-b8f3cff.md`
+5. `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-10-9aca8ed.md`
 
 ## Current State
 
-Cycle 8 converted organic-v0 from per-phase invocation toward a native organism loop:
-
-- WAKE: perceive -> predict -> generate -> optional correction/reward -> learn/update predictor -> log/checkpoint
-- SLEEP: replay event evidence -> predict -> candidate learn/update -> audit -> accept/reject -> log/checkpoint
-- DAEMON-LITE: a bounded long-lived process with periodic checkpoints and event-log emission
-
-The A0 event-outcome predictor is intentionally narrow: a small linear predictor over auditable feature IDs. It predicts reward/exactness/error for replay priority and confidence only. It does not generate text, choose output characters, dispatch answers, parse semantics, call pretrained models, or implement a next-token path.
-
-Cycle 8 should be treated as infrastructure-only until stronger replay evidence says otherwise. Prediction-priority did not beat the fixed-seed random null on the tiny Cycle 8 comparison. The comparison is underpowered; A0 remains unproven. The time series suggests priority converged/exploited too quickly and needs an exploration term or denser replay workload before another comparison.
-
-Post-audit cleanup added `--daemon-tick-sleep-ms` for daemon-lite throughput tests. Default behavior is preserved: daemon mode sleeps 100ms per tick, and test mode sleeps 1ms per tick. Set the knob lower, including `0`, only when the local run intentionally spends more CPU for faster evidence.
+Cycle 8 converted organic-v0 from per-phase invocation toward a native organism loop: wake, sleep, checkpoint, replay, and daemon-lite. A0 remains an infrastructure-only event-outcome predictor for replay priority and confidence. It is not a generator, not a semantic parser, and not proven useful versus the tiny random null yet.
 
 Cycle 9 opened phase v3 and added in-process runtime policy gates for the current sleep/wake and daemon-lite surfaces:
 
-- policy ON by default, with explicit unsafe disable flag `--unsafe-disable-policy`
+- policy ON by default, with explicit unsafe disable flag
 - count budgets for wake commands, sleep ticks, replay candidates, mutation attempts, checkpoints, and file writes
 - filesystem allowlist for project run/artifact/state/experience roots plus explicit per-run tmp roots
 - runtime command/action-kind allowlist
@@ -37,45 +27,55 @@ Cycle 9 opened phase v3 and added in-process runtime policy gates for the curren
 - rollback proof for rejected sleep mutations including predictor hash equality
 - resettable rerun proof over a wiped per-run root
 
+Cycle 10 added wrapper-lite external anchoring for current short runtime surfaces. The wrapper is a receipt writer, not a sandbox:
+
+- always emits `project_x.run_manifest.v0` to a default manifest path
+- binds each run to binary sha256, command, event-log row count, and last `event_content_hash`
+- optionally compares against a prior manifest and rejects truncate-and-restart mismatches
+- rejects an out-of-allowlist `--manifest-out` before launching the binary, while still writing the default manifest
+- preserves Cycle 9 policy regression and carry-forward rails
+- adds `text_generation_highlights_v0.json` so real generated text across cycles is auditable without invented quotes
+
 Evidence:
 
-- implementation commit `b8f3cff`
-- denial/reset artifact `run/artifacts/organic-v0/policy_self_test_cycle9.json`
-- post-audit carry-forward artifact `run/artifacts/organic-v0/cycle9_carry_forward_verification.json`
-- reflection `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-9-b8f3cff.md`
+- implementation commit `9aca8ed`
+- evidence commit `98de138`
+- schema commit `4ce26f7`
+- clean wrapper manifest: `run/artifacts/organic-v0/cycle10_wrapper_manifest_clean_run.json`
+- truncate test: `run/artifacts/organic-v0/cycle10_wrapper_truncate_test.json`
+- path-denial manifest: `run/artifacts/organic-v0/cycle10_wrapper_manifest_path_denial.json`
+- policy regression: `run/artifacts/organic-v0/policy_self_test_cycle10_regression.json`
+- carry-forward rerun: `run/artifacts/organic-v0/cycle10_carry_forward_verification.json`
+- text bridge: `run/artifacts/organic-v0/text_generation_highlights_v0.json`
+- reflection: `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-10-9aca8ed.md`
 
-Honest boundary: In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.
+Honest boundary: Cycle 10 anchors event-log row count and tail hash for wrapper-invoked short runtime surfaces. It does not make the runtime sandboxed, secure, resource-limited, escape-resistant, supply-chain safe, alignment solved, AGI safety solved, or tool-use safety solved.
 
-Post-audit follow-up closed the carry-forward-rails gap: `timeout 180s scripts/verify_cycle9_carry_forward.sh` freshly reran the cycle-6, clean-chat, legacy cycle-2, Cycle 7B/C/D, and Cycle 7E/F/G rails with all required checks passing. It also names the v2 event-log limit: the internal hash chain has no external head/length anchor yet, so truncate-and-restart resistance remains wrapper-cycle work.
+## Immediate Next: Cycle 11 Voice Pressure
 
-## Immediate Next: Cycle 10 Wrapper Boundary
+Default direction: pressure the learned generator to produce longer, more reflective organic text from learned internal state, without templates or pretrained models.
 
-Default direction: add a wrapper-level runtime boundary around `organic_v0` rather than increasing daemon capability.
+Cycle 11 should add:
 
-Cycle 10 should add:
+- a longer output budget rail by raising the generator char/token cap and documenting the new max
+- a tiny philosophy/reflective prompt database at `experience/organic-v0/philosophy_prompts_v0.jsonl` with roughly 10-20 raw text prompts and no labels
+- a quote-per-state artifact at `run/artifacts/organic-v0/quote_per_state_cycle11.json` linking `state_hash` to raw generated output for each loaded child
+- a raw generation transcript markdown alongside the JSON
+- explicit evidence that the output came from loaded learned state, not templates or source-code response polish
 
-- a thin launcher/harness that runs `organic_v0` inside an OS-level constrained environment available on this machine
-- per-run filesystem namespace setup that makes allowed roots physical, not only in-process policy decisions
-- process-level timeout, CPU/memory/file-descriptor limits where available
-- stdout/stderr/event-log capture with immutable run manifest
-- external event-log head/length anchoring, such as a wrapper-held run manifest with final head hash, row count, and monotonic run sequence
-- a wrapper/in-process ablation pair: the same denial cases should be blocked by both layers where meaningful
-- a replay-source-log tamper test where the wrapper preserves evidence after native refusal
-- documentation that native policy is defense-in-depth, not the sandbox
+Acceptance criterion: interesting organic text exists. Bad output is fine if it came from learned internal state. The target is not fluency, coherence, philosophy, or normal chat yet.
 
-Do not rerun the one-hour daemon proof unless a default runtime behavior changes. Use short full-codepath tests first.
+## Forbidden In Cycle 11
 
-## Secondary Queue: Concept-Emergence Pressure
-
-After the wrapper boundary exists, the next capability pressure should be concept-emergence over the Cycle 8/9 substrate:
-
-- feed replay with more varied event evidence instead of hand-built answer routes
-- measure whether prediction error discovers reusable latent clusters across text, symbolic, grid, and numeric traces
-- keep generation firewalled from predictor output
-- keep random replay as the named null baseline
-- require state divergence across at least two life streams
-
-This remains secondary because a more capable daemon without formal budgets is the wrong direction for the manifesto safety boundary.
+- no templates
+- no pretrained models
+- no semantic parsers
+- no response polish
+- no route tables for philosophical answers
+- no JARVIS UI
+- no SNN layer
+- no self-graded subjective benchmark claims
+- no safety-boundary victory language
 
 ## Carry-Forward Rails
 
@@ -93,13 +93,4 @@ Every implementation cycle must preserve these rails unless the artifact explici
 - Cycle 7F replay: all-on/from-disk exact, audit-ablation degraded, replay-disabled control preserved
 - Cycle 7G raw spans: all-on/from-disk exact, raw-span ablation degraded
 
-## Non-Goals For The Next Cycle
-
-- no JARVIS UI
-- no SNN layer
-- no pretrained model dependency
-- no next-token predictor
-- no semantic parser or route table
-- no response templates or chat polish
-- no self-graded subjective benchmark claims
-- no safety-boundary victory language
+Do not rerun the one-hour daemon proof unless a default runtime behavior changes. Use short full-codepath tests first.
