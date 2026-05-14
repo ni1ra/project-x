@@ -63,6 +63,8 @@ Daemon command:
 timeout 3900s build/organic_v0 --phase daemon-lite --mode daemon --run-id cycle8-daemon-1h --daemon-run-seconds 3600 --checkpoint-interval-seconds 60 --checkpoint-interval-ticks 100 --out run/artifacts/organic-v0/daemon_lite_cycle8_1h.json --event-log run/state/organic-v0/events/raphael-local-0001-cycle8-daemon-1h.jsonl
 ```
 
+Post-audit cleanup note: daemon-lite now accepts `--daemon-tick-sleep-ms` for local throughput evidence runs. Default behavior is unchanged: daemon mode sleeps 100ms per tick and test mode sleeps 1ms per tick unless the flag is set.
+
 ## Predictor Boundary
 
 A0 predicts reward/exactness/error before reward or correction is known. It updates by bounded deterministic delta/SGD over feature IDs and serializes doubles bit-exactly through the existing hex helpers.

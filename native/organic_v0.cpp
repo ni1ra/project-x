@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <optional>
@@ -3367,6 +3368,7 @@ struct Args {
   int replay_passes = 2;
   int sleep_ticks = 100;
   int daemon_run_seconds = 0;
+  int daemon_tick_sleep_ms = -1;
   int checkpoint_interval_seconds = 60;
   int checkpoint_interval_ticks = 100;
   int internal_timeout_seconds = 180;
@@ -3385,6 +3387,20 @@ struct Args {
   bool derive_raw_text_spans = false;
   bool ablate_raw_text_spans = false;
 };
+
+int parse_nonnegative_int_flag(const std::string& flag, const std::string& value) {
+  if (value.empty() ||
+      !std::all_of(value.begin(), value.end(), [](unsigned char c) {
+        return c >= '0' && c <= '9';
+      })) {
+    throw std::runtime_error(flag + " must be a nonnegative integer");
+  }
+  long long parsed = std::stoll(value);
+  if (parsed > std::numeric_limits<int>::max()) {
+    throw std::runtime_error(flag + " is too large");
+  }
+  return static_cast<int>(parsed);
+}
 
 Args parse_args(int argc, char** argv) {
   Args args;
@@ -3415,6 +3431,9 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--replay-passes") args.replay_passes = std::stoi(need_value(key));
     else if (key == "--sleep-ticks") args.sleep_ticks = std::stoi(need_value(key));
     else if (key == "--daemon-run-seconds") args.daemon_run_seconds = std::stoi(need_value(key));
+    else if (key == "--daemon-tick-sleep-ms") {
+      args.daemon_tick_sleep_ms = parse_nonnegative_int_flag(key, need_value(key));
+    }
     else if (key == "--checkpoint-interval-seconds") args.checkpoint_interval_seconds = std::stoi(need_value(key));
     else if (key == "--checkpoint-interval-ticks") args.checkpoint_interval_ticks = std::stoi(need_value(key));
     else if (key == "--internal-timeout-seconds") args.internal_timeout_seconds = std::stoi(need_value(key));
@@ -4125,12 +4144,14 @@ void sleep_wake_runtime_phase(const Args& args, const std::string& command) {
 
   if (args.phase == "daemon-lite" && !shutdown) {
     int seconds = args.daemon_run_seconds > 0 ? args.daemon_run_seconds : 3600;
+    int tick_sleep_ms =
+        args.daemon_tick_sleep_ms >= 0 ? args.daemon_tick_sleep_ms : (args.mode == "test" ? 1 : 100);
     while (true) {
       auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::steady_clock::now() - started).count();
       if (elapsed >= seconds) break;
       do_sleep_tick();
-      std::this_thread::sleep_for(std::chrono::milliseconds(args.mode == "test" ? 1 : 100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(tick_sleep_ms));
     }
   }
   write_cycle8_checkpoint(args, run_id, brain, metrics);

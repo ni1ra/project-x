@@ -24,6 +24,8 @@ The A0 event-outcome predictor is intentionally narrow: a small linear predictor
 
 Cycle 8 should be treated as infrastructure-only until stronger replay evidence says otherwise. Prediction-priority did not beat the fixed-seed random null on the tiny Cycle 8 comparison. The comparison is underpowered; A0 remains unproven. The time series suggests priority converged/exploited too quickly and needs an exploration term or denser replay workload before another comparison.
 
+Post-audit cleanup added `--daemon-tick-sleep-ms` for daemon-lite throughput tests. Default behavior is preserved: daemon mode sleeps 100ms per tick, and test mode sleeps 1ms per tick. Set the knob lower, including `0`, only when the local run intentionally spends more CPU for faster evidence.
+
 ## Immediate Next: Cycle 9 Safety Boundary
 
 Phase boundary: v2 Cycle 8 closes the organic-substrate runtime-shape phase. Cycle 9 opens a safety-boundary/runtime-governance phase, not another v2 capability cycle, unless the user explicitly reopens v2.
@@ -41,8 +43,7 @@ Cycle 9 should add:
 - checkpoint rollback semantics for rejected or unsafe mutations
 - audit artifacts proving denied actions are denied by code, not by absent test data
 - a 180s test-mode gate using the same codepaths as full mode
-- a >=1 hour daemon-lite rerun under the new policy once the safety boundary exists
-- a measured daemon throughput knob such as `--daemon-tick-sleep-ms`, defaulting conservatively but allowing faster local evidence runs when system resources are available
+- a >=1 hour daemon-lite rerun under the new policy once the safety boundary exists, using `--daemon-tick-sleep-ms` only when a measured faster local run is intentional
 
 Close Cycle 9 only if the boundary is enforced by tests and artifacts. Do not claim this solves alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.
 
