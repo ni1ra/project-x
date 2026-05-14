@@ -8,6 +8,7 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -1645,6 +1646,23 @@ class OrganicBrain {
     return count;
   }
 
+  uint64_t outcome_predictor_hash() const {
+    uint64_t h = fnv1a("organic-v0-a0-predictor-only");
+    h = combine(h, config_.use_outcome_predictor ? 1 : 0);
+    std::vector<uint64_t> keys;
+    keys.reserve(outcome_predictor_.size());
+    for (const auto& kv : outcome_predictor_) keys.push_back(kv.first);
+    std::sort(keys.begin(), keys.end());
+    for (uint64_t fid : keys) {
+      const auto& weights = outcome_predictor_.at(fid);
+      h = combine(h, fid);
+      h = combine(h, double_bits(weights.reward_w));
+      h = combine(h, double_bits(weights.exact_w));
+      h = combine(h, double_bits(weights.error_w));
+    }
+    return h;
+  }
+
   // Line-oriented state snapshot. Ugly but loadable + hash-checked, per brief.
   // Bit-exact doubles via hex64-of-IEEE-bits so state_hash matches across save/load.
   void serialize_state(std::ostream& out, const std::string& organism_id) const {
@@ -2635,6 +2653,9 @@ struct BrainStateStats {
   size_t connection_nonzero_count = 0;
   size_t slot_copy_link_count = 0;
   size_t learned_char_count = 0;
+  size_t outcome_predictor_weight_count = 0;
+  size_t outcome_predictor_nonzero_count = 0;
+  uint64_t outcome_predictor_hash = 0;
   uint64_t state_hash = 0;
 };
 
@@ -2645,6 +2666,9 @@ BrainStateStats capture_state_stats(const OrganicBrain& brain) {
   stats.connection_nonzero_count = brain.connection_nonzero_count();
   stats.slot_copy_link_count = brain.slot_copy_link_count();
   stats.learned_char_count = brain.learned_char_count();
+  stats.outcome_predictor_weight_count = brain.outcome_predictor_weight_count();
+  stats.outcome_predictor_nonzero_count = brain.outcome_predictor_nonzero_count();
+  stats.outcome_predictor_hash = brain.outcome_predictor_hash();
   stats.state_hash = brain.state_hash();
   return stats;
 }
@@ -2655,6 +2679,9 @@ void write_state_stats(std::ostream& out, const BrainStateStats& stats) {
       << ", \"connection_nonzero_count\": " << stats.connection_nonzero_count
       << ", \"slot_copy_link_count\": " << stats.slot_copy_link_count
       << ", \"learned_char_count\": " << stats.learned_char_count
+      << ", \"outcome_predictor_weight_count\": " << stats.outcome_predictor_weight_count
+      << ", \"outcome_predictor_nonzero_count\": " << stats.outcome_predictor_nonzero_count
+      << ", \"outcome_predictor_hash\": " << q(hex64(stats.outcome_predictor_hash))
       << ", \"state_hash\": " << q(hex64(stats.state_hash)) << "}";
 }
 
@@ -2670,7 +2697,12 @@ void write_state_growth(std::ostream& out, const BrainStateStats& parent, const 
       << ", \"slot_copy_link_count_delta\": "
       << delta(child.slot_copy_link_count, parent.slot_copy_link_count)
       << ", \"learned_char_count_delta\": "
-      << delta(child.learned_char_count, parent.learned_char_count) << "}";
+      << delta(child.learned_char_count, parent.learned_char_count)
+      << ", \"outcome_predictor_weight_count_delta\": "
+      << delta(child.outcome_predictor_weight_count, parent.outcome_predictor_weight_count)
+      << ", \"outcome_predictor_nonzero_count_delta\": "
+      << delta(child.outcome_predictor_nonzero_count, parent.outcome_predictor_nonzero_count)
+      << "}";
 }
 
 void load_state_checked(OrganicBrain& brain, const std::string& path) {
@@ -3372,8 +3404,15 @@ struct Args {
   int checkpoint_interval_seconds = 60;
   int checkpoint_interval_ticks = 100;
   int internal_timeout_seconds = 180;
+  int policy_max_wake_commands = 1024;
+  int policy_max_sleep_ticks = 100000;
+  int policy_max_replay_candidates = 10000;
+  int policy_max_mutation_attempts = 100000;
+  int policy_max_checkpoints = 10000;
+  int policy_max_file_writes = 250000;
   double feedback_strength = 2.0;
   double replay_min_sequence_ratio = 1.0;
+  std::string policy_tmp_root;
   bool ablate_trace_id = false;
   bool ablate_numeric_derived = false;
   bool ablate_threshold_derived = false;
@@ -3386,6 +3425,7 @@ struct Args {
   bool ablate_text_replay_audit = false;
   bool derive_raw_text_spans = false;
   bool ablate_raw_text_spans = false;
+  bool unsafe_disable_policy = false;
 };
 
 int parse_nonnegative_int_flag(const std::string& flag, const std::string& value) {
@@ -3437,6 +3477,13 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--checkpoint-interval-seconds") args.checkpoint_interval_seconds = std::stoi(need_value(key));
     else if (key == "--checkpoint-interval-ticks") args.checkpoint_interval_ticks = std::stoi(need_value(key));
     else if (key == "--internal-timeout-seconds") args.internal_timeout_seconds = std::stoi(need_value(key));
+    else if (key == "--policy-max-wake-commands") args.policy_max_wake_commands = std::stoi(need_value(key));
+    else if (key == "--policy-max-sleep-ticks") args.policy_max_sleep_ticks = std::stoi(need_value(key));
+    else if (key == "--policy-max-replay-candidates") args.policy_max_replay_candidates = std::stoi(need_value(key));
+    else if (key == "--policy-max-mutation-attempts") args.policy_max_mutation_attempts = std::stoi(need_value(key));
+    else if (key == "--policy-max-checkpoints") args.policy_max_checkpoints = std::stoi(need_value(key));
+    else if (key == "--policy-max-file-writes") args.policy_max_file_writes = std::stoi(need_value(key));
+    else if (key == "--policy-tmp-root") args.policy_tmp_root = need_value(key);
     else if (key == "--feedback-strength") args.feedback_strength = std::stod(need_value(key));
     else if (key == "--replay-threshold") args.replay_min_sequence_ratio = std::stod(need_value(key));
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
@@ -3453,6 +3500,7 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--ablate-text-replay-audit") args.ablate_text_replay_audit = true;
     else if (key == "--derive-raw-text-spans") args.derive_raw_text_spans = true;
     else if (key == "--ablate-raw-text-spans") args.ablate_raw_text_spans = true;
+    else if (key == "--unsafe-disable-policy") args.unsafe_disable_policy = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
@@ -3467,6 +3515,334 @@ void apply_ablations(Config& config, const Args& args) {
   if (args.ablate_relation_projection) config.use_relation_projection = false;
   if (args.ablate_symbolic_relations) config.use_symbolic_relation_features = false;
   if (args.ablate_grid_spatial) config.use_grid_spatial_features = false;
+}
+
+struct PolicyViolation : public std::runtime_error {
+  std::string denial_kind;
+  std::string denial_reason;
+  std::string pathway;
+
+  PolicyViolation(std::string kind, std::string reason, std::string where)
+      : std::runtime_error(reason), denial_kind(std::move(kind)),
+        denial_reason(std::move(reason)), pathway(std::move(where)) {}
+};
+
+struct RuntimeBudgets {
+  int64_t max_wake_commands = 1024;
+  int64_t max_sleep_ticks = 100000;
+  int64_t max_replay_candidates = 10000;
+  int64_t max_mutation_attempts = 100000;
+  int64_t max_checkpoints = 10000;
+  int64_t max_file_writes = 250000;
+  int64_t wake_commands = 0;
+  int64_t sleep_ticks = 0;
+  int64_t replay_candidates = 0;
+  int64_t mutation_attempts = 0;
+  int64_t checkpoints = 0;
+  int64_t file_writes = 0;
+};
+
+struct EventLogIntegrityResult {
+  std::string last_content_hash = "GENESIS";
+  int line_count = 0;
+};
+
+std::string trim_copy(const std::string& text) {
+  size_t begin = 0;
+  while (begin < text.size() && std::isspace(static_cast<unsigned char>(text[begin]))) ++begin;
+  size_t end = text.size();
+  while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1]))) --end;
+  return text.substr(begin, end - begin);
+}
+
+bool is_hex64_string(const std::string& text) {
+  if (text.size() != 16) return false;
+  return std::all_of(text.begin(), text.end(), [](unsigned char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+  });
+}
+
+bool path_contains_parent_ref(const std::filesystem::path& path) {
+  for (const auto& part : path) {
+    if (part == "..") return true;
+  }
+  return false;
+}
+
+std::filesystem::path normalized_absolute_path(const std::filesystem::path& path) {
+  std::filesystem::path absolute =
+      path.is_absolute() ? path : (std::filesystem::current_path() / path);
+  return absolute.lexically_normal();
+}
+
+bool path_has_symlink_component(const std::filesystem::path& absolute_path) {
+  std::filesystem::path current;
+  for (const auto& part : absolute_path) {
+    current /= part;
+    if (current.empty()) continue;
+    std::error_code ec;
+    auto status = std::filesystem::symlink_status(current, ec);
+    if (!ec && std::filesystem::is_symlink(status)) return true;
+  }
+  return false;
+}
+
+bool path_is_within_or_equal(const std::filesystem::path& path,
+                             const std::filesystem::path& root) {
+  auto p = path.lexically_normal();
+  auto r = root.lexically_normal();
+  auto pit = p.begin();
+  auto rit = r.begin();
+  for (; rit != r.end(); ++rit, ++pit) {
+    if (pit == p.end() || *pit != *rit) return false;
+  }
+  return true;
+}
+
+std::string event_log_v2_core_from_line(const std::string& raw_line) {
+  std::string line = trim_copy(raw_line);
+  size_t field = line.rfind(",\"event_content_hash\":");
+  if (field == std::string::npos || line.empty() || line.back() != '}') {
+    throw std::runtime_error("event-log v2 missing terminal event_content_hash");
+  }
+  return line.substr(0, field) + "}";
+}
+
+std::string event_log_v2_content_hash_for_core(const std::string& core) {
+  return hex64(fnv1a(core));
+}
+
+EventLogIntegrityResult verify_event_log_v2_integrity(const std::string& path) {
+  EventLogIntegrityResult result;
+  if (path.empty()) return result;
+  std::ifstream in(path);
+  if (!in) return result;
+  std::string expected_prev = "GENESIS";
+  std::string line;
+  int line_no = 0;
+  while (std::getline(in, line)) {
+    ++line_no;
+    if (trim_copy(line).empty()) continue;
+    if (maybe_get_string(line, "schema").value_or("") != "project_x.event_log.v2") {
+      throw std::runtime_error("event-log integrity: non-v2 row at line " + std::to_string(line_no));
+    }
+    std::string prev = maybe_get_string(line, "prev_event_content_hash").value_or("");
+    if (prev != expected_prev) {
+      throw std::runtime_error("event-log integrity: prev hash mismatch at line " +
+                               std::to_string(line_no));
+    }
+    std::string core = event_log_v2_core_from_line(line);
+    std::string computed = event_log_v2_content_hash_for_core(core);
+    std::string recorded = maybe_get_string(line, "event_content_hash").value_or("");
+    if (recorded != computed) {
+      throw std::runtime_error("event-log integrity: content hash mismatch at line " +
+                               std::to_string(line_no));
+    }
+    expected_prev = computed;
+    result.last_content_hash = computed;
+    result.line_count += 1;
+  }
+  return result;
+}
+
+struct RuntimePolicy {
+  bool enabled = true;
+  bool unsafe_disabled = false;
+  std::filesystem::path project_root;
+  std::vector<std::filesystem::path> allowed_roots;
+  RuntimeBudgets budgets;
+  std::vector<std::string> actual_write_paths;
+  std::map<std::string, std::string> event_log_prev_hash_by_path;
+
+  static RuntimePolicy from_args(const Args& args) {
+    RuntimePolicy policy;
+    policy.enabled = !args.unsafe_disable_policy;
+    policy.unsafe_disabled = args.unsafe_disable_policy;
+    policy.project_root = normalized_absolute_path(std::filesystem::current_path());
+    policy.budgets.max_wake_commands = args.policy_max_wake_commands;
+    policy.budgets.max_sleep_ticks = args.policy_max_sleep_ticks;
+    policy.budgets.max_replay_candidates = args.policy_max_replay_candidates;
+    policy.budgets.max_mutation_attempts = args.policy_max_mutation_attempts;
+    policy.budgets.max_checkpoints = args.policy_max_checkpoints;
+    policy.budgets.max_file_writes = args.policy_max_file_writes;
+    policy.add_allowed_root(policy.project_root / "run");
+    policy.add_allowed_root(policy.project_root / "run" / "artifacts");
+    policy.add_allowed_root(policy.project_root / "run" / "state");
+    policy.add_allowed_root(policy.project_root / "experience");
+    if (!args.policy_tmp_root.empty()) policy.add_allowed_root(args.policy_tmp_root);
+    return policy;
+  }
+
+  void add_allowed_root(const std::filesystem::path& root) {
+    allowed_roots.push_back(normalized_absolute_path(root));
+  }
+
+  [[noreturn]] void deny(const std::string& kind, const std::string& reason,
+                         const std::string& pathway) const {
+    throw PolicyViolation(kind, reason, pathway);
+  }
+
+  void consume_budget(const std::string& kind, int64_t& used, int64_t max_value,
+                      const std::string& pathway) {
+    if (!enabled) return;
+    if (max_value < 0) deny("budget_exceeded", kind + " budget is negative", pathway);
+    if (used + 1 > max_value) {
+      deny("budget_exceeded", kind + " budget exceeded", pathway);
+    }
+    ++used;
+  }
+
+  void note_wake_command() {
+    consume_budget("wake_commands", budgets.wake_commands, budgets.max_wake_commands,
+                   "stdin_jsonl");
+  }
+
+  void note_sleep_tick() {
+    consume_budget("sleep_ticks", budgets.sleep_ticks, budgets.max_sleep_ticks,
+                   "sleep_loop");
+  }
+
+  void note_replay_candidate() {
+    consume_budget("replay_candidates", budgets.replay_candidates,
+                   budgets.max_replay_candidates, "replay_candidate_ingest");
+  }
+
+  void note_mutation_attempt(const std::string& pathway) {
+    consume_budget("mutation_attempts", budgets.mutation_attempts,
+                   budgets.max_mutation_attempts, pathway);
+  }
+
+  void note_checkpoint() {
+    consume_budget("checkpoints", budgets.checkpoints, budgets.max_checkpoints,
+                   "checkpoint");
+  }
+
+  std::filesystem::path validate_path(const std::string& label, const std::string& raw_path,
+                                      const std::string& access) const {
+    if (raw_path.empty()) return {};
+    if (!enabled) return normalized_absolute_path(raw_path);
+    std::filesystem::path raw(raw_path);
+    if (path_contains_parent_ref(raw)) {
+      deny("path_denied", label + " path contains parent traversal", raw_path);
+    }
+    std::filesystem::path absolute = normalized_absolute_path(raw);
+    if (path_has_symlink_component(absolute)) {
+      deny("path_denied", label + " path contains a symlink component", raw_path);
+    }
+    bool allowed = false;
+    for (const auto& root : allowed_roots) {
+      if (path_is_within_or_equal(absolute, root)) {
+        allowed = true;
+        break;
+      }
+    }
+    if (!allowed) {
+      deny("path_denied", label + " " + access + " path is outside allowed roots", raw_path);
+    }
+    return absolute;
+  }
+
+  bool path_allowed_for_emergency_write(const std::string& raw_path) const {
+    try {
+      validate_path("emergency_artifact", raw_path, "write");
+      return true;
+    } catch (...) {
+      return false;
+    }
+  }
+
+  void note_file_write(const std::string& label, const std::string& raw_path,
+                       bool count_budget = true) {
+    if (raw_path.empty()) return;
+    auto absolute = validate_path(label, raw_path, "write");
+    if (count_budget) {
+      consume_budget("file_writes", budgets.file_writes, budgets.max_file_writes, label);
+    }
+    actual_write_paths.push_back(absolute.string());
+  }
+
+  void validate_runtime_command_schema(const std::string& line) const {
+    if (!enabled) return;
+    std::string cmd = maybe_get_string(line, "cmd").value_or("");
+    static const std::set<std::string> kAllowedCommands = {
+        "wake", "sleep", "checkpoint", "shutdown"};
+    if (cmd.empty() || !kAllowedCommands.count(cmd)) {
+      deny("schema_denied", "runtime cmd is not in the command allowlist", "stdin_jsonl");
+    }
+    if (auto action_kind = maybe_get_string(line, "action_kind")) {
+      static const std::set<std::string> kAllowedActionKinds = {
+          "wake", "sleep", "checkpoint", "shutdown"};
+      if (!kAllowedActionKinds.count(*action_kind)) {
+        deny("schema_denied", "action_kind is not in the runtime allowlist: " + *action_kind,
+             "stdin_jsonl");
+      }
+    }
+  }
+
+  std::string prev_hash_for_event_log_append(const std::string& raw_path) {
+    auto absolute = validate_path("event_log", raw_path, "write").string();
+    auto found = event_log_prev_hash_by_path.find(absolute);
+    if (found != event_log_prev_hash_by_path.end()) return found->second;
+    try {
+      auto integrity = verify_event_log_v2_integrity(raw_path);
+      event_log_prev_hash_by_path[absolute] = integrity.last_content_hash;
+      return integrity.last_content_hash;
+    } catch (const std::exception& e) {
+      deny("event_log_integrity_denied", e.what(), raw_path);
+    }
+  }
+
+  void set_event_log_prev_hash(const std::string& raw_path, const std::string& hash) {
+    auto absolute = validate_path("event_log", raw_path, "write").string();
+    event_log_prev_hash_by_path[absolute] = hash;
+  }
+};
+
+void write_budget_state_json(std::ostream& out, const RuntimePolicy& policy) {
+  const auto& b = policy.budgets;
+  out << "{\"policy_enabled\":" << (policy.enabled ? "true" : "false")
+      << ",\"unsafe_disabled\":" << (policy.unsafe_disabled ? "true" : "false")
+      << ",\"wake_commands\":{\"used\":" << b.wake_commands << ",\"max\":" << b.max_wake_commands << "}"
+      << ",\"sleep_ticks\":{\"used\":" << b.sleep_ticks << ",\"max\":" << b.max_sleep_ticks << "}"
+      << ",\"replay_candidates\":{\"used\":" << b.replay_candidates << ",\"max\":"
+      << b.max_replay_candidates << "}"
+      << ",\"mutation_attempts\":{\"used\":" << b.mutation_attempts << ",\"max\":"
+      << b.max_mutation_attempts << "}"
+      << ",\"checkpoints\":{\"used\":" << b.checkpoints << ",\"max\":" << b.max_checkpoints << "}"
+      << ",\"file_writes\":{\"used\":" << b.file_writes << ",\"max\":" << b.max_file_writes << "}}";
+}
+
+void write_allowed_roots_json(std::ostream& out, const RuntimePolicy& policy) {
+  out << "[";
+  for (size_t i = 0; i < policy.allowed_roots.size(); ++i) {
+    if (i) out << ",";
+    out << q(policy.allowed_roots[i].string());
+  }
+  out << "]";
+}
+
+void write_actual_writes_json(std::ostream& out, const RuntimePolicy& policy) {
+  out << "[";
+  for (size_t i = 0; i < policy.actual_write_paths.size(); ++i) {
+    if (i) out << ",";
+    out << q(policy.actual_write_paths[i]);
+  }
+  out << "]";
+}
+
+bool writes_subset_allowed_roots(const RuntimePolicy& policy) {
+  for (const auto& raw : policy.actual_write_paths) {
+    bool allowed = false;
+    auto path = normalized_absolute_path(raw);
+    for (const auto& root : policy.allowed_roots) {
+      if (path_is_within_or_equal(path, root)) {
+        allowed = true;
+        break;
+      }
+    }
+    if (!allowed) return false;
+  }
+  return true;
 }
 
 // Append one JSONL event-log line per the docs/artifacts/PERSISTENCE_SCHEMA.md v0 schema.
@@ -3631,6 +4007,77 @@ void append_event_log_v1(const std::string& log_path, const std::string& run_id,
       << ",\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}\n";
 }
 
+void append_event_log_v2(const std::string& log_path, RuntimePolicy& policy,
+                         const std::string& run_id, const std::string& organism_id,
+                         const std::string& step_id, const std::string& step_mode,
+                         const std::string& phase, const Event& event,
+                         const std::string& raw_output, const std::string& expected,
+                         bool audit_only, const OutcomePrediction& prediction,
+                         const PredictionError* prediction_error,
+                         const std::vector<Activation>& trace_refs,
+                         const std::vector<MutationRef>& mutation_refs,
+                         uint64_t state_before_hash, uint64_t state_after_hash,
+                         const std::string& source_kind, const std::string& source_path,
+                         bool policy_denial = false,
+                         const std::string& denial_reason = "",
+                         bool count_file_write = true) {
+  if (log_path.empty()) return;
+  if (!valid_event_log_phase(phase)) throw std::runtime_error("event log phase outside schema: " + phase);
+  std::string prev_hash = policy.prev_hash_for_event_log_append(log_path);
+  policy.note_file_write("event_log_append", log_path, count_file_write);
+  ensure_parent_dir(log_path);
+  std::string log_event_id = event_log_id(next_event_log_ordinal(log_path));
+  std::ostringstream core;
+  core << "{\"schema\":\"project_x.event_log.v2\""
+       << ",\"event_id\":" << q(log_event_id)
+       << ",\"run_id\":" << q(run_id)
+       << ",\"organism_id\":" << q(organism_id)
+       << ",\"step_id\":" << q(step_id)
+       << ",\"step_mode\":" << q(step_mode)
+       << ",\"timestamp_utc\":" << q(timestamp_utc())
+       << ",\"phase\":" << q(phase)
+       << ",\"source\":{\"source_kind\":" << q(source_kind)
+       << ",\"source_path\":" << q(source_path)
+       << ",\"source_event_id\":" << q(event.event_id) << "}"
+       << ",\"input\":{\"text\":" << q(event.input) << ",\"observations\":[";
+  for (size_t i = 0; i < event.observations.size(); ++i) {
+    if (i) core << ",";
+    core << q(event.observations[i]);
+  }
+  core << "]}"
+       << ",\"output\":{\"raw_generated_output\":" << q(raw_output)
+       << ",\"expected_output\":" << q(expected)
+       << ",\"oracle_used_in_generation\":false"
+       << ",\"audit_only\":" << (audit_only ? "true" : "false") << "}"
+       << ",\"reward\":";
+  write_reward_object(core, event.reward);
+  core << ",\"prediction\":";
+  write_prediction_json(core, prediction);
+  core << ",\"prediction_error\":";
+  write_prediction_error_json(core, prediction_error);
+  core << ",\"trace_refs\":";
+  write_trace_refs_json(core, trace_refs);
+  core << ",\"mutation_refs\":";
+  write_mutation_refs_json(core, mutation_refs);
+  core << ",\"state_before_hash\":" << q(hex64(state_before_hash))
+       << ",\"state_after_hash\":" << q(hex64(state_after_hash))
+       << ",\"policy_denial\":" << (policy_denial ? "true" : "false")
+       << ",\"denial_reason\":" << q(denial_reason)
+       << ",\"budget_state\":";
+  write_budget_state_json(core, policy);
+  core << ",\"prev_event_content_hash\":" << q(prev_hash)
+       << ",\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}";
+  std::string core_text = core.str();
+  std::string content_hash = event_log_v2_content_hash_for_core(core_text);
+  std::string line = core_text.substr(0, core_text.size() - 1) +
+                     ",\"event_content_hash\":" + q(content_hash) + "}";
+  std::ofstream log(log_path, std::ios::app);
+  if (!log) throw std::runtime_error("cannot open event log: " + log_path);
+  log << line << "\n";
+  log.flush();
+  policy.set_event_log_prev_hash(log_path, content_hash);
+}
+
 OutcomeTarget target_from_generation(const Event& event, const std::string& raw_output) {
   OutcomeTarget target;
   target.reward_scalar = event.reward_scalar();
@@ -3645,7 +4092,8 @@ struct RuntimeCommand {
   int ticks = 0;
 };
 
-RuntimeCommand parse_runtime_command(const std::string& line) {
+RuntimeCommand parse_runtime_command(const std::string& line, const RuntimePolicy* policy = nullptr) {
+  if (policy) policy->validate_runtime_command_schema(line);
   RuntimeCommand command;
   command.cmd = get_string(line, "cmd");
   if (command.cmd == "wake") {
@@ -3674,6 +4122,30 @@ struct ReplayCandidate {
   std::string source_kind = "event_log";
 };
 
+void validate_replay_source_v2_line_schema(const std::string& line) {
+  if (maybe_get_string(line, "schema").value_or("") != "project_x.event_log.v2") {
+    throw std::runtime_error("replay-source-log row is not event-log v2");
+  }
+  if (!is_hex64_string(maybe_get_string(line, "state_before_hash").value_or("")) ||
+      !is_hex64_string(maybe_get_string(line, "state_after_hash").value_or(""))) {
+    throw std::runtime_error("replay-source-log row has malformed state hash fields");
+  }
+  if (maybe_get_string(line, "event_content_hash").value_or("").empty() ||
+      maybe_get_string(line, "prev_event_content_hash").value_or("").empty()) {
+    throw std::runtime_error("replay-source-log row lacks v2 hash-chain fields");
+  }
+  if (line.find("\"policy_denial\":true") != std::string::npos) {
+    throw std::runtime_error("replay-source-log row cannot replay policy denial records");
+  }
+  if (auto action_kind = maybe_get_string(line, "action_kind")) {
+    static const std::set<std::string> kAllowedActionKinds = {
+        "wake", "sleep", "checkpoint", "shutdown"};
+    if (!kAllowedActionKinds.count(*action_kind)) {
+      throw std::runtime_error("replay-source-log action_kind is outside allowlist");
+    }
+  }
+}
+
 std::optional<Event> event_from_event_log_line(const std::string& line) {
   if (!json_key_exists(line, "expected_output")) return std::nullopt;
   std::string expected = maybe_get_string(line, "expected_output").value_or("");
@@ -3696,19 +4168,35 @@ std::optional<Event> event_from_event_log_line(const std::string& line) {
   return event;
 }
 
-std::vector<ReplayCandidate> load_replay_candidates_from_log(const std::string& path) {
+std::vector<ReplayCandidate> load_replay_candidates_from_log(const std::string& path,
+                                                             RuntimePolicy* policy = nullptr) {
   std::vector<ReplayCandidate> candidates;
   if (path.empty()) return candidates;
+  if (policy && policy->enabled) {
+    policy->validate_path("replay_source_log", path, "read");
+    try {
+      verify_event_log_v2_integrity(path);
+    } catch (const std::exception& e) {
+      policy->deny("event_log_integrity_denied", e.what(), path);
+    }
+  }
   std::ifstream in(path);
   if (!in) return candidates;
   std::string line;
   while (std::getline(in, line)) {
     if (line.empty()) continue;
     try {
+      if (policy && policy->enabled) validate_replay_source_v2_line_schema(line);
       auto event = event_from_event_log_line(line);
       if (!event.has_value()) continue;
+      if (policy) policy->note_replay_candidate();
       candidates.push_back({*event, path, "event_log"});
-    } catch (...) {
+    } catch (const std::exception& e) {
+      if (policy && policy->enabled) {
+        policy->deny("replay_source_denied",
+                     std::string("replay-source-log row failed schema/hash validation: ") + e.what(),
+                     path);
+      }
       continue;
     }
   }
@@ -3729,13 +4217,37 @@ struct OrganismStepResult {
   PredictionError prediction_error;
   Generation generation;
   uint64_t state_before_hash = 0;
+  uint64_t candidate_state_hash = 0;
   uint64_t state_after_hash = 0;
+  uint64_t predictor_before_hash = 0;
+  uint64_t predictor_candidate_hash = 0;
+  uint64_t predictor_after_hash = 0;
   bool has_target = false;
   bool learned = false;
   bool accepted = false;
   double surprise_reduction = 0.0;
   std::string reason;
   std::vector<MutationRef> mutation_refs;
+};
+
+struct RollbackProof {
+  std::string step_id;
+  std::string mutation_id;
+  std::string rejection_reason;
+  uint64_t state_before_hash = 0;
+  uint64_t candidate_state_hash = 0;
+  uint64_t state_after_hash = 0;
+  uint64_t predictor_before_hash = 0;
+  uint64_t predictor_candidate_hash = 0;
+  uint64_t predictor_after_hash = 0;
+  bool live_state_preserved = false;
+  bool predictor_state_preserved = false;
+};
+
+struct PolicyDenialRecord {
+  std::string denial_kind;
+  std::string denial_reason;
+  std::string pathway;
 };
 
 struct RuntimeMetrics {
@@ -3753,6 +4265,10 @@ struct RuntimeMetrics {
   int rejected_mutation_count = 0;
   double surprise_reduction = 0.0;
   bool timed_out = false;
+  bool hard_stopped = false;
+  std::string hard_stop_reason;
+  std::vector<RollbackProof> rollback_proofs;
+  std::vector<PolicyDenialRecord> policy_denials;
 };
 
 std::string default_cycle8_run_id(const Args& args) {
@@ -3763,7 +4279,8 @@ std::string default_cycle8_run_id(const Args& args) {
 
 std::string default_cycle8_event_log_path(const Args& args, const std::string& run_id) {
   if (!args.event_log.empty()) return args.event_log;
-  return "run/state/organic-v0/events/" + args.organism_id + "-cycle8-" + run_id + ".jsonl";
+  if (!args.policy_tmp_root.empty()) return args.policy_tmp_root + "/events/" + run_id + ".jsonl";
+  return "run/state/organic-v0/events/" + args.organism_id + "-cycle9-" + run_id + ".jsonl";
 }
 
 std::string default_cycle8_out_path(const Args& args) {
@@ -3775,16 +4292,24 @@ std::string default_cycle8_out_path(const Args& args) {
 std::string checkpoint_path_for(const Args& args, const std::string& run_id, int ordinal) {
   if (!args.save_state.empty() && ordinal == 1) return args.save_state;
   std::ostringstream out;
-  out << "run/state/organic-v0/snapshots/" << args.organism_id
-      << "/cycle8-" << run_id << "-ckpt-" << std::setw(6) << std::setfill('0')
-      << ordinal << ".pxstate";
+  if (!args.policy_tmp_root.empty()) {
+    out << args.policy_tmp_root << "/checkpoints/" << run_id
+        << "/ckpt-" << std::setw(6) << std::setfill('0') << ordinal << ".pxstate";
+  } else {
+    out << "run/state/organic-v0/snapshots/" << args.organism_id
+        << "/cycle9-" << run_id << "-ckpt-" << std::setw(6) << std::setfill('0')
+        << ordinal << ".pxstate";
+  }
   return out.str();
 }
 
 std::string write_cycle8_checkpoint(const Args& args, const std::string& run_id,
-                                    OrganicBrain& brain, RuntimeMetrics& metrics) {
+                                    OrganicBrain& brain, RuntimeMetrics& metrics,
+                                    RuntimePolicy& policy) {
+  policy.note_checkpoint();
   int ordinal = static_cast<int>(metrics.checkpoint_paths.size()) + 1;
   std::string path = checkpoint_path_for(args, run_id, ordinal);
+  policy.note_file_write("checkpoint", path);
   ensure_parent_dir(path);
   std::ofstream out(path);
   brain.serialize_state(out, args.organism_id);
@@ -3794,21 +4319,26 @@ std::string write_cycle8_checkpoint(const Args& args, const std::string& run_id,
 }
 
 OrganismStepResult organism_wake_step(OrganicBrain& brain, const OrganismStepInput& input,
-                                      const std::string& event_log_path) {
+                                      const std::string& event_log_path,
+                                      RuntimePolicy& policy) {
   OrganismStepResult result;
   result.state_before_hash = brain.state_hash();
+  result.predictor_before_hash = brain.outcome_predictor_hash();
   result.prediction = brain.predict_outcome(input.event.input, input.event.observations);
   result.generation = brain.generate(input.event.input, input.event.observations);
   result.has_target = !input.event.target_output.empty() && !input.event.reward.empty();
   result.state_after_hash = result.state_before_hash;
+  result.predictor_after_hash = result.predictor_before_hash;
 
   std::optional<PredictionError> error;
   if (result.has_target) {
+    policy.note_mutation_attempt("wake_learn_and_predictor_update");
     auto target = target_from_generation(input.event, result.generation.output);
     result.prediction_error = brain.update_outcome_predictor(result.prediction, target);
     error = result.prediction_error;
     brain.learn(input.event);
     result.state_after_hash = brain.state_hash();
+    result.predictor_after_hash = brain.outcome_predictor_hash();
     result.learned = true;
     result.reason = "wake_correction_reward_learned";
     result.mutation_refs.push_back({
@@ -3823,14 +4353,14 @@ OrganismStepResult organism_wake_step(OrganicBrain& brain, const OrganismStepInp
     result.reason = "wake_no_correction_or_reward_no_learning";
   }
 
-  append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+  append_event_log_v2(event_log_path, policy, input.run_id, input.organism_id, input.step_id,
                       "wake", "generate", input.event, result.generation.output,
                       input.event.target_output, false, result.prediction,
                       error ? &(*error) : nullptr, result.prediction.trace_refs, {},
                       result.state_before_hash, result.state_before_hash,
                       input.source_kind, input.source_path);
   if (result.learned) {
-    append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+    append_event_log_v2(event_log_path, policy, input.run_id, input.organism_id, input.step_id,
                         "wake", "learn", input.event, result.generation.output,
                         input.event.target_output, false, result.prediction,
                         &result.prediction_error, result.prediction.trace_refs,
@@ -3866,16 +4396,19 @@ size_t select_replay_candidate(const OrganicBrain& brain,
 }
 
 OrganismStepResult organism_sleep_step(OrganicBrain& brain, const OrganismStepInput& input,
-                                       const std::string& event_log_path) {
+                                       const std::string& event_log_path,
+                                       RuntimePolicy& policy) {
   OrganismStepResult result;
   result.state_before_hash = brain.state_hash();
+  result.predictor_before_hash = brain.outcome_predictor_hash();
   result.prediction = brain.predict_outcome(input.event.input, input.event.observations);
   result.generation = brain.generate(input.event.input, input.event.observations);
   result.has_target = !input.event.target_output.empty();
   if (!result.has_target) {
     result.state_after_hash = result.state_before_hash;
+    result.predictor_after_hash = result.predictor_before_hash;
     result.reason = "sleep_no_replay_target";
-    append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+    append_event_log_v2(event_log_path, policy, input.run_id, input.organism_id, input.step_id,
                         "sleep", "reflect", input.event, "", "", true, result.prediction,
                         nullptr, result.prediction.trace_refs, {}, result.state_before_hash,
                         result.state_after_hash, input.source_kind, input.source_path);
@@ -3884,10 +4417,12 @@ OrganismStepResult organism_sleep_step(OrganicBrain& brain, const OrganismStepIn
 
   auto target = target_from_generation(input.event, result.generation.output);
   result.prediction_error = prediction_error_for(result.prediction, target);
+  policy.note_mutation_attempt("sleep_replay_candidate");
   OrganicBrain candidate = brain;
   candidate.learn(input.event);
   candidate.update_outcome_predictor(result.prediction, target);
   uint64_t candidate_hash = candidate.state_hash();
+  uint64_t candidate_predictor_hash = candidate.outcome_predictor_hash();
   auto after_prediction = candidate.predict_outcome(input.event.input, input.event.observations);
   auto after_generation = candidate.generate(input.event.input, input.event.observations);
   auto after_target = target_from_generation(input.event, after_generation.output);
@@ -3899,7 +4434,10 @@ OrganismStepResult organism_sleep_step(OrganicBrain& brain, const OrganismStepIn
   result.surprise_reduction = std::max(0.0, result.prediction_error.surprise - after_error.surprise);
   result.accepted = local_not_worse && surprise_reduced;
   result.learned = result.accepted;
+  result.candidate_state_hash = candidate_hash;
+  result.predictor_candidate_hash = candidate_predictor_hash;
   result.state_after_hash = result.accepted ? candidate_hash : result.state_before_hash;
+  result.predictor_after_hash = result.accepted ? candidate_predictor_hash : result.predictor_before_hash;
   result.reason = result.accepted
                       ? "accepted_prediction_error_reduced_without_local_degradation"
                       : "rejected_no_prediction_error_reduction_or_local_degradation";
@@ -3912,7 +4450,7 @@ OrganismStepResult organism_sleep_step(OrganicBrain& brain, const OrganismStepIn
       result.reason,
   });
   if (result.accepted) brain = std::move(candidate);
-  append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+  append_event_log_v2(event_log_path, policy, input.run_id, input.organism_id, input.step_id,
                       "sleep", "mutate", input.event, after_generation.output,
                       input.event.target_output, true, result.prediction,
                       &result.prediction_error, result.prediction.trace_refs,
@@ -3921,13 +4459,13 @@ OrganismStepResult organism_sleep_step(OrganicBrain& brain, const OrganismStepIn
   return result;
 }
 
-std::vector<RuntimeCommand> read_runtime_commands_from_stdin() {
+std::vector<RuntimeCommand> read_runtime_commands_from_stdin(const RuntimePolicy* policy = nullptr) {
   std::vector<RuntimeCommand> commands;
   if (isatty(STDIN_FILENO)) return commands;
   std::string line;
   while (std::getline(std::cin, line)) {
     if (line.empty()) continue;
-    commands.push_back(parse_runtime_command(line));
+    commands.push_back(parse_runtime_command(line, policy));
   }
   return commands;
 }
@@ -3960,7 +4498,10 @@ void write_cycle8_artifact(const std::string& out_path, const Args& args,
                            const std::string& command, const RuntimeMetrics& metrics,
                            const BrainStateStats& parent_stats,
                            const BrainStateStats& final_stats,
-                           const std::string& loaded_state_path) {
+                           const std::string& loaded_state_path,
+                           RuntimePolicy& policy,
+                           bool count_artifact_write = true) {
+  policy.note_file_write("runtime_artifact", out_path, count_artifact_write);
   ensure_parent_dir(out_path);
   std::ofstream out(out_path);
   out << "{\n";
@@ -3972,6 +4513,18 @@ void write_cycle8_artifact(const std::string& out_path, const Args& args,
   out << "  \"organism_id\": " << q(args.organism_id) << ",\n";
   out << "  \"loaded_state_path\": " << (loaded_state_path.empty() ? "null" : q(loaded_state_path)) << ",\n";
   out << "  \"event_log_path\": " << q(metrics.event_log_path) << ",\n";
+  out << "  \"event_log_schema\": \"project_x.event_log.v2\",\n";
+  out << "  \"runtime_policy\": {\"enabled\": " << (policy.enabled ? "true" : "false")
+      << ", \"unsafe_disabled\": " << (policy.unsafe_disabled ? "true" : "false")
+      << ", \"allowed_roots\": ";
+  write_allowed_roots_json(out, policy);
+  out << ", \"budget_state\": ";
+  write_budget_state_json(out, policy);
+  out << ", \"actual_writes\": ";
+  write_actual_writes_json(out, policy);
+  out << ", \"writes_subset_allowed_roots\": "
+      << (writes_subset_allowed_roots(policy) ? "true" : "false")
+      << ", \"symlink_policy\": \"deny existing symlink components; residual TOCTOU race remains future work\"},\n";
   out << "  \"replay_policy\": {\"selector\": " << q(metrics.replay_policy)
       << ", \"random_named_as_null_baseline\": " << (metrics.replay_policy == "random" ? "true" : "false")
       << ", \"random_baseline_seed\": " << args.random_baseline_seed << "},\n";
@@ -4009,11 +4562,78 @@ void write_cycle8_artifact(const std::string& out_path, const Args& args,
       << ", \"rejected_mutation_count\": " << metrics.rejected_mutation_count
       << ", \"surprise_reduction\": " << std::fixed << std::setprecision(6)
       << metrics.surprise_reduction << std::defaultfloat
-      << ", \"timed_out\": " << (metrics.timed_out ? "true" : "false") << "},\n";
+      << ", \"timed_out\": " << (metrics.timed_out ? "true" : "false")
+      << ", \"hard_stopped\": " << (metrics.hard_stopped ? "true" : "false")
+      << ", \"hard_stop_reason\": " << q(metrics.hard_stop_reason) << "},\n";
+  out << "  \"policy_denials\": [";
+  for (size_t i = 0; i < metrics.policy_denials.size(); ++i) {
+    if (i) out << ", ";
+    const auto& denial = metrics.policy_denials[i];
+    out << "{\"denial_kind\": " << q(denial.denial_kind)
+        << ", \"denial_reason\": " << q(denial.denial_reason)
+        << ", \"pathway\": " << q(denial.pathway) << "}";
+  }
+  out << "],\n";
+  out << "  \"rollback_proofs\": [";
+  for (size_t i = 0; i < metrics.rollback_proofs.size(); ++i) {
+    if (i) out << ", ";
+    const auto& proof = metrics.rollback_proofs[i];
+    out << "{\"step_id\": " << q(proof.step_id)
+        << ", \"mutation_id\": " << q(proof.mutation_id)
+        << ", \"rejection_reason\": " << q(proof.rejection_reason)
+        << ", \"state_before_hash\": " << q(hex64(proof.state_before_hash))
+        << ", \"candidate_state_hash\": " << q(hex64(proof.candidate_state_hash))
+        << ", \"state_after_hash\": " << q(hex64(proof.state_after_hash))
+        << ", \"predictor_before_hash\": " << q(hex64(proof.predictor_before_hash))
+        << ", \"predictor_candidate_hash\": " << q(hex64(proof.predictor_candidate_hash))
+        << ", \"predictor_after_hash\": " << q(hex64(proof.predictor_after_hash))
+        << ", \"live_state_preserved\": " << (proof.live_state_preserved ? "true" : "false")
+        << ", \"predictor_state_preserved\": " << (proof.predictor_state_preserved ? "true" : "false")
+        << "}";
+  }
+  out << "],\n";
   out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": true, \"sleep_audit\": true},\n";
-  out << "  \"negative_space\": {\"not_fluent_chat\": true, \"not_broad_reasoning\": true, \"not_agi\": true, \"not_safety_boundary_solution\": true, \"not_next_token_predictor\": true},\n";
-  out << "  \"honest_interpretation\": \"Cycle 8 sleep/wake runtime evidence: one native process accepts wake JSONL, predicts before correction, updates learned state only when correction/reward exist, replays event-log evidence during sleep, and checkpoints persistent state. A0 is only a replay-priority/error substrate, not a generator or answer path.\"\n";
+  out << "  \"negative_space\": {\"not_fluent_chat\": true, \"not_broad_reasoning\": true, \"not_agi\": true, \"not_safety_boundary_solution\": true, \"not_next_token_predictor\": true, \"not_alignment\": true, \"not_sandbox_escape_resistance\": true, \"not_wrapper_sandbox\": true, \"not_supply_chain_safety\": true, \"not_tool_use_safety\": true},\n";
+  out << "  \"honest_interpretation\": \"Cycle 9 in-process policy evidence for the current sleep/wake and daemon-lite runtime surfaces: stdin command schema, count budgets, filesystem roots, v2 event-log chaining, replay-source validation, checkpoint writes, and rollback proofs are handled inside the native process. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.\"\n";
   out << "}\n";
+}
+
+void append_runtime_policy_denial_event(const std::string& event_log_path,
+                                        RuntimePolicy& policy,
+                                        const std::string& run_id,
+                                        const std::string& organism_id,
+                                        const PolicyViolation& violation) {
+  if (event_log_path.empty() || !policy.path_allowed_for_emergency_write(event_log_path)) return;
+  Event event;
+  event.event_id = "policy_denial_" + hex64(fnv1a(violation.denial_kind + violation.pathway)).substr(0, 12);
+  event.episode_id = run_id;
+  event.split = "runtime";
+  event.domain = "runtime_policy";
+  event.input = violation.pathway;
+  event.source = "runtime_policy";
+  event.composition = "policy_denial";
+  OutcomePrediction prediction;
+  append_event_log_v2(event_log_path, policy, run_id, organism_id, "policy_denial",
+                      "policy_denial", "reflect", event, "", "", true, prediction,
+                      nullptr, {}, {}, 0, 0, "runtime_policy", violation.pathway,
+                      true, violation.denial_reason, false);
+}
+
+RollbackProof rollback_proof_from_result(const std::string& step_id,
+                                         const OrganismStepResult& result) {
+  RollbackProof proof;
+  proof.step_id = step_id;
+  proof.mutation_id = "mut_" + step_id;
+  proof.rejection_reason = result.reason;
+  proof.state_before_hash = result.state_before_hash;
+  proof.candidate_state_hash = result.candidate_state_hash;
+  proof.state_after_hash = result.state_after_hash;
+  proof.predictor_before_hash = result.predictor_before_hash;
+  proof.predictor_candidate_hash = result.predictor_candidate_hash;
+  proof.predictor_after_hash = result.predictor_after_hash;
+  proof.live_state_preserved = result.state_after_hash == result.state_before_hash;
+  proof.predictor_state_preserved = result.predictor_after_hash == result.predictor_before_hash;
+  return proof;
 }
 
 void sleep_wake_runtime_phase(const Args& args, const std::string& command) {
@@ -4027,137 +4647,494 @@ void sleep_wake_runtime_phase(const Args& args, const std::string& command) {
   apply_ablations(config, args);
   config.use_outcome_predictor = true;
   OrganicBrain brain(config);
-  if (!args.load_state.empty()) {
-    load_state_checked(brain, args.load_state);
-    brain.set_outcome_predictor_enabled(true);
-  }
-  BrainStateStats parent_stats = capture_state_stats(brain);
   std::string run_id = default_cycle8_run_id(args);
   std::string event_log_path = default_cycle8_event_log_path(args, run_id);
   std::string out_path = default_cycle8_out_path(args);
+  RuntimePolicy policy = RuntimePolicy::from_args(args);
   RuntimeMetrics metrics;
   metrics.run_id = run_id;
   metrics.phase = args.phase;
   metrics.replay_policy = args.replay_policy;
   metrics.event_log_path = event_log_path;
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  BrainStateStats final_stats = parent_stats;
+
+  try {
+    policy.validate_path("out", out_path, "write");
+    policy.validate_path("event_log", event_log_path, "write");
+    if (!args.load_state.empty()) policy.validate_path("load_state", args.load_state, "read");
+    if (!args.save_state.empty()) policy.validate_path("save_state", args.save_state, "write");
+    if (!args.replay_source_log.empty()) {
+      policy.validate_path("replay_source_log", args.replay_source_log, "read");
+    }
+    if (!args.load_state.empty()) {
+      load_state_checked(brain, args.load_state);
+      brain.set_outcome_predictor_enabled(true);
+    }
+    parent_stats = capture_state_stats(brain);
+    metrics.state_hash_chain.push_back(brain.state_hash());
+
+    std::vector<RuntimeCommand> commands = read_runtime_commands_from_stdin(&policy);
+    if (commands.empty()) {
+      commands = default_cycle8_commands(args.sleep_ticks);
+      if (args.phase == "daemon-lite") commands.resize(1);
+    }
+    std::vector<ReplayCandidate> replay_candidates =
+        load_replay_candidates_from_log(args.replay_source_log, &policy);
+    auto add_replay_candidate = [&](const Event& event, const std::string& source_path,
+                                    const std::string& source_kind) {
+      if (event.target_output.empty() || event.reward.empty()) return;
+      policy.note_replay_candidate();
+      replay_candidates.push_back({event, source_path, source_kind});
+      metrics.replay_candidate_count = static_cast<int>(replay_candidates.size());
+    };
+
+    auto started = std::chrono::steady_clock::now();
+    auto last_checkpoint = started;
+    int ticks_since_checkpoint = 0;
+    int step_counter = 0;
+    bool shutdown = false;
+
+    auto maybe_timeout = [&]() {
+      if (args.phase == "sleep-wake" && args.mode == "test" && args.internal_timeout_seconds > 0) {
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - started).count();
+        if (elapsed > args.internal_timeout_seconds) {
+          metrics.timed_out = true;
+          throw std::runtime_error("sleep-wake internal timeout exceeded");
+        }
+      }
+    };
+
+    auto do_sleep_tick = [&]() {
+      policy.note_sleep_tick();
+      ++step_counter;
+      ++metrics.sleep_tick_count;
+      ++ticks_since_checkpoint;
+      maybe_timeout();
+      if (replay_candidates.empty()) {
+        Event idle;
+        idle.event_id = "sleep_idle_" + std::to_string(step_counter);
+        idle.episode_id = run_id;
+        idle.split = "sleep";
+        idle.domain = "sleep_wake_runtime";
+        idle.input = "sleep idle replay scan";
+        idle.source = "sleep_wake_runtime";
+        OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
+                                "sleep_idle", event_log_path, idle};
+        organism_sleep_step(brain, input, event_log_path, policy);
+        return;
+      }
+      size_t index = select_replay_candidate(brain, replay_candidates, args.replay_policy,
+                                             args.random_baseline_seed, metrics.sleep_tick_count);
+      const auto& candidate = replay_candidates[index];
+      std::string step_id = "step_" + std::to_string(step_counter);
+      OrganismStepInput input{run_id, args.organism_id, step_id,
+                              candidate.source_kind, candidate.source_path, candidate.event};
+      auto result = organism_sleep_step(brain, input, event_log_path, policy);
+      metrics.prediction_error_over_time.push_back(result.prediction_error.surprise);
+      if (result.accepted) {
+        ++metrics.accepted_mutation_count;
+        metrics.surprise_reduction += result.surprise_reduction;
+        write_cycle8_checkpoint(args, run_id, brain, metrics, policy);
+        ticks_since_checkpoint = 0;
+        last_checkpoint = std::chrono::steady_clock::now();
+      } else {
+        ++metrics.rejected_mutation_count;
+        metrics.rollback_proofs.push_back(rollback_proof_from_result(step_id, result));
+        metrics.state_hash_chain.push_back(brain.state_hash());
+      }
+      auto now = std::chrono::steady_clock::now();
+      auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now - last_checkpoint).count();
+      if (ticks_since_checkpoint >= args.checkpoint_interval_ticks ||
+          seconds >= args.checkpoint_interval_seconds) {
+        write_cycle8_checkpoint(args, run_id, brain, metrics, policy);
+        ticks_since_checkpoint = 0;
+        last_checkpoint = now;
+      }
+    };
+
+    for (const auto& command_item : commands) {
+      if (shutdown) break;
+      if (command_item.cmd == "wake") {
+        policy.note_wake_command();
+        ++step_counter;
+        ++metrics.wake_count;
+        OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
+                                "stdin_jsonl", "stdin", command_item.event};
+        auto result = organism_wake_step(brain, input, event_log_path, policy);
+        if (result.has_target) {
+          metrics.prediction_error_over_time.push_back(result.prediction_error.surprise);
+          add_replay_candidate(command_item.event, event_log_path, "wake_event_log");
+        }
+        metrics.state_hash_chain.push_back(brain.state_hash());
+      } else if (command_item.cmd == "sleep") {
+        int ticks = std::max(0, command_item.ticks);
+        for (int i = 0; i < ticks; ++i) do_sleep_tick();
+      } else if (command_item.cmd == "checkpoint") {
+        write_cycle8_checkpoint(args, run_id, brain, metrics, policy);
+        ticks_since_checkpoint = 0;
+        last_checkpoint = std::chrono::steady_clock::now();
+      } else if (command_item.cmd == "shutdown") {
+        shutdown = true;
+      }
+    }
+
+    if (args.phase == "daemon-lite" && !shutdown) {
+      int seconds = args.daemon_run_seconds > 0 ? args.daemon_run_seconds : 3600;
+      int tick_sleep_ms =
+          args.daemon_tick_sleep_ms >= 0 ? args.daemon_tick_sleep_ms : (args.mode == "test" ? 1 : 100);
+      while (true) {
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - started).count();
+        if (elapsed >= seconds) break;
+        do_sleep_tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(tick_sleep_ms));
+      }
+    }
+    write_cycle8_checkpoint(args, run_id, brain, metrics, policy);
+    final_stats = capture_state_stats(brain);
+    write_cycle8_artifact(out_path, args, command, metrics, parent_stats, final_stats,
+                          args.load_state, policy);
+    std::cout << "wrote " << out_path << "\n";
+  } catch (const PolicyViolation& violation) {
+    metrics.hard_stopped = true;
+    metrics.hard_stop_reason = violation.denial_reason;
+    metrics.policy_denials.push_back({violation.denial_kind, violation.denial_reason,
+                                      violation.pathway});
+    final_stats = capture_state_stats(brain);
+    append_runtime_policy_denial_event(event_log_path, policy, run_id, args.organism_id,
+                                       violation);
+    if (policy.path_allowed_for_emergency_write(out_path)) {
+      write_cycle8_artifact(out_path, args, command, metrics, parent_stats, final_stats,
+                            args.load_state, policy, false);
+    }
+    throw;
+  }
+}
+
+struct Cycle9PolicySelfTestCase {
+  std::string case_id;
+  bool guard_on_denied = false;
+  std::string denial_kind;
+  std::string denial_reason;
+  bool guard_off_control_reached = false;
+  std::string guard_off_explanation;
+};
+
+struct Cycle9ResetRunResult {
+  std::string run_root;
+  std::string event_log_path;
+  BrainStateStats final_stats;
+  RuntimeMetrics metrics;
+  RuntimePolicy policy;
+};
+
+void write_synthetic_event_log_v2(const std::string& path, bool bad_content_hash,
+                                  bool malformed_state_hash) {
+  ensure_parent_dir(path);
+  std::string state_before = malformed_state_hash ? "spoofed" : "0000000000000000";
+  std::string state_after = malformed_state_hash ? "fffffffffffffffff" : "0000000000000000";
+  std::ostringstream core;
+  core << "{\"schema\":\"project_x.event_log.v2\""
+       << ",\"event_id\":\"evtlog_000001\""
+       << ",\"run_id\":\"cycle9-synthetic\""
+       << ",\"organism_id\":\"raphael-local-0001\""
+       << ",\"step_id\":\"step_1\""
+       << ",\"step_mode\":\"wake\""
+       << ",\"timestamp_utc\":\"2026-05-14T00:00:00Z\""
+       << ",\"phase\":\"learn\""
+       << ",\"source\":{\"source_kind\":\"synthetic\",\"source_path\":\"synthetic\","
+       << "\"source_event_id\":\"synthetic_wake\"}"
+       << ",\"input\":{\"text\":\"synthetic replay input\",\"observations\":[]}"
+       << ",\"output\":{\"raw_generated_output\":\"\",\"expected_output\":\"synthetic replay input\","
+       << "\"oracle_used_in_generation\":false,\"audit_only\":false}"
+       << ",\"reward\":{\"task_success\":1}"
+       << ",\"prediction\":{\"predictor\":\"a0_event_outcome\",\"reward_scalar_pred\":0,"
+       << "\"exact_score_or_prob_pred\":0,\"lcs_error_ratio_pred\":1,\"surprise_pred\":1,"
+       << "\"feature_count\":0}"
+       << ",\"prediction_error\":null"
+       << ",\"trace_refs\":[]"
+       << ",\"mutation_refs\":[]"
+       << ",\"state_before_hash\":" << q(state_before)
+       << ",\"state_after_hash\":" << q(state_after)
+       << ",\"policy_denial\":false"
+       << ",\"denial_reason\":\"\""
+       << ",\"budget_state\":{\"policy_enabled\":true}"
+       << ",\"prev_event_content_hash\":\"GENESIS\""
+       << ",\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}";
+  std::string core_text = core.str();
+  std::string hash = bad_content_hash ? "0000000000000000"
+                                      : event_log_v2_content_hash_for_core(core_text);
+  std::string line = core_text.substr(0, core_text.size() - 1) +
+                     ",\"event_content_hash\":" + q(hash) + "}";
+  std::ofstream out(path, std::ios::trunc);
+  out << line << "\n";
+}
+
+Cycle9ResetRunResult run_cycle9_resettable_scenario(const Args& base_args,
+                                                    const std::string& run_root,
+                                                    const std::string& run_id) {
+  Args local = base_args;
+  local.phase = "daemon-lite";
+  local.mode = "test";
+  local.policy_tmp_root = run_root;
+  local.run_id = run_id;
+  local.event_log = run_root + "/events/" + run_id + ".jsonl";
+  local.out = run_root + "/artifacts/" + run_id + ".json";
+  local.save_state.clear();
+  local.load_state.clear();
+  local.replay_source_log.clear();
+  local.checkpoint_interval_ticks = 2;
+  local.checkpoint_interval_seconds = 999999;
+  local.policy_max_wake_commands = 4;
+  local.policy_max_sleep_ticks = 8;
+  local.policy_max_replay_candidates = 4;
+  local.policy_max_mutation_attempts = 16;
+  local.policy_max_checkpoints = 8;
+  local.policy_max_file_writes = 64;
+
+  RuntimePolicy policy = RuntimePolicy::from_args(local);
+  policy.validate_path("event_log", local.event_log, "write");
+  policy.validate_path("out", local.out, "write");
+
+  Config config;
+  config.use_outcome_predictor = true;
+  OrganicBrain brain(config);
+  RuntimeMetrics metrics;
+  metrics.run_id = run_id;
+  metrics.phase = "daemon-lite-reset-contract";
+  metrics.replay_policy = "prediction_error";
+  metrics.event_log_path = local.event_log;
   metrics.state_hash_chain.push_back(brain.state_hash());
 
-  std::vector<RuntimeCommand> commands = read_runtime_commands_from_stdin();
-  if (commands.empty()) {
-    commands = default_cycle8_commands(args.sleep_ticks);
-    if (args.phase == "daemon-lite") commands.resize(1);
-  }
-  std::vector<ReplayCandidate> replay_candidates = load_replay_candidates_from_log(args.replay_source_log);
-  auto add_replay_candidate = [&](const Event& event, const std::string& source_path,
-                                  const std::string& source_kind) {
-    if (event.target_output.empty() || event.reward.empty()) return;
-    replay_candidates.push_back({event, source_path, source_kind});
+  std::vector<ReplayCandidate> replay_candidates;
+  auto add_replay_candidate = [&](const Event& event) {
+    policy.note_replay_candidate();
+    replay_candidates.push_back({event, local.event_log, "wake_event_log"});
     metrics.replay_candidate_count = static_cast<int>(replay_candidates.size());
   };
 
-  auto started = std::chrono::steady_clock::now();
-  auto last_checkpoint = started;
+  RuntimeCommand wake = default_cycle8_commands(4).front();
+  policy.note_wake_command();
+  ++metrics.wake_count;
+  OrganismStepInput wake_input{run_id, local.organism_id, "step_1", "stdin_jsonl",
+                               "synthetic_reset", wake.event};
+  auto wake_result = organism_wake_step(brain, wake_input, local.event_log, policy);
+  if (wake_result.has_target) {
+    metrics.prediction_error_over_time.push_back(wake_result.prediction_error.surprise);
+    add_replay_candidate(wake.event);
+  }
+  metrics.state_hash_chain.push_back(brain.state_hash());
+
+  int step_counter = 1;
   int ticks_since_checkpoint = 0;
-  int step_counter = 0;
-  bool shutdown = false;
-
-  auto maybe_timeout = [&]() {
-    if (args.phase == "sleep-wake" && args.mode == "test" && args.internal_timeout_seconds > 0) {
-      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::steady_clock::now() - started).count();
-      if (elapsed > args.internal_timeout_seconds) {
-        metrics.timed_out = true;
-        throw std::runtime_error("sleep-wake internal timeout exceeded");
-      }
-    }
-  };
-
-  auto do_sleep_tick = [&]() {
+  for (int i = 0; i < 4; ++i) {
+    policy.note_sleep_tick();
     ++step_counter;
     ++metrics.sleep_tick_count;
     ++ticks_since_checkpoint;
-    maybe_timeout();
-    if (replay_candidates.empty()) {
-      Event idle;
-      idle.event_id = "sleep_idle_" + std::to_string(step_counter);
-      idle.episode_id = run_id;
-      idle.split = "sleep";
-      idle.domain = "sleep_wake_runtime";
-      idle.input = "sleep idle replay scan";
-      idle.source = "sleep_wake_runtime";
-      OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
-                              "sleep_idle", event_log_path, idle};
-      organism_sleep_step(brain, input, event_log_path);
-      return;
-    }
-    size_t index = select_replay_candidate(brain, replay_candidates, args.replay_policy,
-                                           args.random_baseline_seed, metrics.sleep_tick_count);
+    size_t index = select_replay_candidate(brain, replay_candidates, "prediction_error",
+                                           local.random_baseline_seed, metrics.sleep_tick_count);
     const auto& candidate = replay_candidates[index];
-    OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
-                            candidate.source_kind, candidate.source_path, candidate.event};
-    auto result = organism_sleep_step(brain, input, event_log_path);
+    std::string step_id = "step_" + std::to_string(step_counter);
+    OrganismStepInput sleep_input{run_id, local.organism_id, step_id, candidate.source_kind,
+                                  candidate.source_path, candidate.event};
+    auto result = organism_sleep_step(brain, sleep_input, local.event_log, policy);
     metrics.prediction_error_over_time.push_back(result.prediction_error.surprise);
     if (result.accepted) {
       ++metrics.accepted_mutation_count;
       metrics.surprise_reduction += result.surprise_reduction;
-      write_cycle8_checkpoint(args, run_id, brain, metrics);
+      write_cycle8_checkpoint(local, run_id, brain, metrics, policy);
       ticks_since_checkpoint = 0;
-      last_checkpoint = std::chrono::steady_clock::now();
     } else {
       ++metrics.rejected_mutation_count;
+      metrics.rollback_proofs.push_back(rollback_proof_from_result(step_id, result));
       metrics.state_hash_chain.push_back(brain.state_hash());
     }
-    auto now = std::chrono::steady_clock::now();
-    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now - last_checkpoint).count();
-    if (ticks_since_checkpoint >= args.checkpoint_interval_ticks ||
-        seconds >= args.checkpoint_interval_seconds) {
-      write_cycle8_checkpoint(args, run_id, brain, metrics);
+    if (ticks_since_checkpoint >= local.checkpoint_interval_ticks) {
+      write_cycle8_checkpoint(local, run_id, brain, metrics, policy);
       ticks_since_checkpoint = 0;
-      last_checkpoint = now;
     }
+  }
+  write_cycle8_checkpoint(local, run_id, brain, metrics, policy);
+  BrainStateStats final_stats = capture_state_stats(brain);
+  write_cycle8_artifact(local.out, local, "cycle9-resettable-scenario", metrics,
+                        BrainStateStats{}, final_stats, "", policy);
+  return {run_root, local.event_log, final_stats, metrics, policy};
+}
+
+void policy_self_test_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("policy-self-test requires --out");
+  std::string run_id = args.run_id.empty() ? "cycle9-policy-self-test" : args.run_id;
+  std::string root = "/tmp/project-x-" + run_id + "-" +
+                     hex64(fnv1a(timestamp_utc() + run_id)).substr(0, 10);
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root);
+
+  Args policy_args = args;
+  policy_args.policy_tmp_root = root;
+  RuntimePolicy policy = RuntimePolicy::from_args(policy_args);
+  RuntimePolicy disabled_policy = policy;
+  disabled_policy.enabled = false;
+  disabled_policy.unsafe_disabled = true;
+
+  std::vector<Cycle9PolicySelfTestCase> cases;
+  auto run_case = [&](const std::string& case_id, const std::function<void(RuntimePolicy&)>& guard_on,
+                      const std::function<void(RuntimePolicy&)>& guard_off,
+                      const std::string& guard_off_explanation) {
+    Cycle9PolicySelfTestCase item;
+    item.case_id = case_id;
+    item.guard_off_explanation = guard_off_explanation;
+    try {
+      guard_on(policy);
+    } catch (const PolicyViolation& e) {
+      item.guard_on_denied = true;
+      item.denial_kind = e.denial_kind;
+      item.denial_reason = e.denial_reason;
+    }
+    try {
+      guard_off(disabled_policy);
+      item.guard_off_control_reached = true;
+    } catch (...) {
+      item.guard_off_control_reached = false;
+    }
+    cases.push_back(item);
   };
 
-  for (const auto& command_item : commands) {
-    if (shutdown) break;
-    if (command_item.cmd == "wake") {
-      ++step_counter;
-      ++metrics.wake_count;
-      OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
-                              "stdin_jsonl", "stdin", command_item.event};
-      auto result = organism_wake_step(brain, input, event_log_path);
-      if (result.has_target) {
-        metrics.prediction_error_over_time.push_back(result.prediction_error.surprise);
-        add_replay_candidate(command_item.event, event_log_path, "wake_event_log");
-      }
-      metrics.state_hash_chain.push_back(brain.state_hash());
-    } else if (command_item.cmd == "sleep") {
-      int ticks = std::max(0, command_item.ticks);
-      for (int i = 0; i < ticks; ++i) do_sleep_tick();
-    } else if (command_item.cmd == "checkpoint") {
-      write_cycle8_checkpoint(args, run_id, brain, metrics);
-      ticks_since_checkpoint = 0;
-      last_checkpoint = std::chrono::steady_clock::now();
-    } else if (command_item.cmd == "shutdown") {
-      shutdown = true;
-    }
+  run_case("path_traversal_denied",
+           [&](RuntimePolicy& p) { p.validate_path("out", root + "/../escape.json", "write"); },
+           [&](RuntimePolicy& p) { p.validate_path("out", root + "/../escape.json", "write"); },
+           "Synthetic guard-off control only validates that the disabled policy would not stop the path; no file write is performed.");
+
+  run_case("unauthorized_absolute_path_denied",
+           [&](RuntimePolicy& p) { p.validate_path("out", "/etc/project-x-denied.json", "write"); },
+           [&](RuntimePolicy& p) { p.validate_path("out", "/etc/project-x-denied.json", "write"); },
+           "Synthetic guard-off control avoids writing outside the project and tmp roots.");
+
+  std::string hostile_shell =
+      "{\"cmd\":\"wake\",\"action_kind\":\"shell\",\"event_id\":\"hostile_shell\","
+      "\"input_text\":\"do not execute shell\",\"correction_output\":\"denied\","
+      "\"reward\":{\"task_success\":1}}";
+  run_case("shell_action_kind_denied",
+           [&](RuntimePolicy& p) { (void)parse_runtime_command(hostile_shell, &p); },
+           [&](RuntimePolicy& p) { (void)parse_runtime_command(hostile_shell, &p); },
+           "With policy disabled, the parser reaches the ordinary wake path and still implements no shell execution.");
+
+  std::string hostile_network =
+      "{\"cmd\":\"wake\",\"action_kind\":\"network\",\"event_id\":\"hostile_network\","
+      "\"input_text\":\"do not use network\",\"correction_output\":\"denied\","
+      "\"reward\":{\"task_success\":1}}";
+  run_case("network_action_kind_denied",
+           [&](RuntimePolicy& p) { (void)parse_runtime_command(hostile_network, &p); },
+           [&](RuntimePolicy& p) { (void)parse_runtime_command(hostile_network, &p); },
+           "With policy disabled, the parser reaches the ordinary wake path and still implements no network execution.");
+
+  std::string spoof_log = root + "/synthetic/replay_state_spoof.jsonl";
+  write_synthetic_event_log_v2(spoof_log, false, true);
+  run_case("replay_source_log_state_hash_spoof_denied",
+           [&](RuntimePolicy& p) { (void)load_replay_candidates_from_log(spoof_log, &p); },
+           [&](RuntimePolicy& p) { (void)load_replay_candidates_from_log(spoof_log, &p); },
+           "Guard-off control proves the replay parser would otherwise reach the candidate extraction path.");
+
+  std::string tamper_log = root + "/synthetic/event_log_tamper.jsonl";
+  write_synthetic_event_log_v2(tamper_log, true, false);
+  run_case("event_log_integrity_tamper_denied",
+           [&](RuntimePolicy& p) { (void)load_replay_candidates_from_log(tamper_log, &p); },
+           [&](RuntimePolicy& p) { (void)load_replay_candidates_from_log(tamper_log, &p); },
+           "Guard-off control proves candidate extraction is only blocked by the v2 integrity walk.");
+
+  run_case("budget_exhaustion_hard_stops",
+           [&](RuntimePolicy&) {
+             RuntimePolicy budget_policy = RuntimePolicy::from_args(policy_args);
+             budget_policy.budgets.max_sleep_ticks = 0;
+             budget_policy.note_sleep_tick();
+           },
+           [&](RuntimePolicy&) {
+             RuntimePolicy budget_policy = RuntimePolicy::from_args(policy_args);
+             budget_policy.enabled = false;
+             budget_policy.budgets.max_sleep_ticks = 0;
+             budget_policy.note_sleep_tick();
+           },
+           "Guard-off control proves the hard stop is from the count budget, not from missing code.");
+
+  std::string reset_root = root + "/resettable-daemon-root";
+  std::filesystem::remove_all(reset_root);
+  auto first_reset = run_cycle9_resettable_scenario(args, reset_root, run_id + "-reset");
+  std::filesystem::remove_all(reset_root);
+  auto second_reset = run_cycle9_resettable_scenario(args, reset_root, run_id + "-reset");
+  bool reset_hash_equal = first_reset.final_stats.state_hash == second_reset.final_stats.state_hash;
+  bool rollback_ok = false;
+  RollbackProof rollback_proof;
+  if (!second_reset.metrics.rollback_proofs.empty()) {
+    rollback_proof = second_reset.metrics.rollback_proofs.front();
+    rollback_ok = rollback_proof.live_state_preserved && rollback_proof.predictor_state_preserved;
   }
 
-  if (args.phase == "daemon-lite" && !shutdown) {
-    int seconds = args.daemon_run_seconds > 0 ? args.daemon_run_seconds : 3600;
-    int tick_sleep_ms =
-        args.daemon_tick_sleep_ms >= 0 ? args.daemon_tick_sleep_ms : (args.mode == "test" ? 1 : 100);
-    while (true) {
-      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-          std::chrono::steady_clock::now() - started).count();
-      if (elapsed >= seconds) break;
-      do_sleep_tick();
-      std::this_thread::sleep_for(std::chrono::milliseconds(tick_sleep_ms));
-    }
+  bool cases_ok = std::all_of(cases.begin(), cases.end(), [](const auto& item) {
+    return item.guard_on_denied && item.guard_off_control_reached;
+  });
+  bool all_ok = cases_ok && reset_hash_equal && rollback_ok &&
+                writes_subset_allowed_roots(second_reset.policy);
+
+  RuntimePolicy artifact_policy = RuntimePolicy::from_args(policy_args);
+  artifact_policy.note_file_write("policy_self_test_artifact", args.out);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(timestamp_utc()) << ",\n";
+  out << "  \"phase\": \"policy-self-test\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"event_log_schema\": \"project_x.event_log.v2\",\n";
+  out << "  \"test_root\": " << q(root) << ",\n";
+  out << "  \"policy\": {\"enabled_by_default\": true, \"unsafe_disable_flag\": \"--unsafe-disable-policy\", \"allowed_roots\": ";
+  write_allowed_roots_json(out, artifact_policy);
+  out << ", \"budget_state\": ";
+  write_budget_state_json(out, artifact_policy);
+  out << ", \"symlink_policy\": \"deny existing symlink components; residual TOCTOU race remains future work\"},\n";
+  out << "  \"denial_cases\": [\n";
+  for (size_t i = 0; i < cases.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& item = cases[i];
+    out << "    {\"case_id\": " << q(item.case_id)
+        << ", \"guard_on\": {\"denied\": " << (item.guard_on_denied ? "true" : "false")
+        << ", \"denial_kind\": " << q(item.denial_kind)
+        << ", \"denial_reason\": " << q(item.denial_reason) << "}"
+        << ", \"guard_off_control\": {\"reached\": "
+        << (item.guard_off_control_reached ? "true" : "false")
+        << ", \"explanation\": " << q(item.guard_off_explanation) << "}}";
   }
-  write_cycle8_checkpoint(args, run_id, brain, metrics);
-  BrainStateStats final_stats = capture_state_stats(brain);
-  write_cycle8_artifact(out_path, args, command, metrics, parent_stats, final_stats, args.load_state);
-  std::cout << "wrote " << out_path << "\n";
+  out << "\n  ],\n";
+  out << "  \"rollback_proof\": {\"present\": " << (!second_reset.metrics.rollback_proofs.empty() ? "true" : "false")
+      << ", \"live_state_preserved\": " << (rollback_proof.live_state_preserved ? "true" : "false")
+      << ", \"predictor_state_preserved\": " << (rollback_proof.predictor_state_preserved ? "true" : "false")
+      << ", \"state_before_hash\": " << q(hex64(rollback_proof.state_before_hash))
+      << ", \"candidate_state_hash\": " << q(hex64(rollback_proof.candidate_state_hash))
+      << ", \"state_after_hash\": " << q(hex64(rollback_proof.state_after_hash))
+      << ", \"predictor_before_hash\": " << q(hex64(rollback_proof.predictor_before_hash))
+      << ", \"predictor_candidate_hash\": " << q(hex64(rollback_proof.predictor_candidate_hash))
+      << ", \"predictor_after_hash\": " << q(hex64(rollback_proof.predictor_after_hash))
+      << ", \"rejection_reason\": " << q(rollback_proof.rejection_reason) << "},\n";
+  out << "  \"resettable_rerun\": {\"run_root\": " << q(reset_root)
+      << ", \"first_final_state_hash\": " << q(hex64(first_reset.final_stats.state_hash))
+      << ", \"second_final_state_hash\": " << q(hex64(second_reset.final_stats.state_hash))
+      << ", \"hash_equal\": " << (reset_hash_equal ? "true" : "false")
+      << ", \"allowed_roots\": ";
+  write_allowed_roots_json(out, second_reset.policy);
+  out << ", \"budget_state\": ";
+  write_budget_state_json(out, second_reset.policy);
+  out << ", \"actual_writes\": ";
+  write_actual_writes_json(out, second_reset.policy);
+  out << ", \"writes_subset_allowed_roots\": "
+      << (writes_subset_allowed_roots(second_reset.policy) ? "true" : "false")
+      << "},\n";
+  out << "  \"negative_space\": {\"not_alignment\": true, \"not_sandbox_escape_resistance\": true, \"not_wrapper_sandbox\": true, \"not_supply_chain_safety\": true, \"not_tool_use_safety\": true},\n";
+  out << "  \"all_required_checks_passed\": " << (all_ok ? "true" : "false") << ",\n";
+  out << "  \"honest_interpretation\": \"Cycle 9 denial artifact for current daemon-lite/sleep-wake surfaces. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.\"\n";
+  out << "}\n";
+  if (!all_ok) throw std::runtime_error("policy self-test failed required checks");
+  std::cout << "wrote " << args.out << "\n";
 }
 
 // Orchestrate the persistence round-trip: train → save → spawn child → load+generate → verify.
@@ -6379,6 +7356,10 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "text-experience-replay") {
       px::text_experience_replay_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "policy-self-test") {
+      px::policy_self_test_phase(args, command);
       return 0;
     }
     if (args.phase == "sleep-wake" || args.phase == "daemon-lite") {

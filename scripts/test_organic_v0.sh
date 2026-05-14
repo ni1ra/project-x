@@ -16,9 +16,10 @@ build/organic_v0 --phase self-test
 STATE_TMP="$(mktemp -u /tmp/organic_v0_state.XXXXXX.pxstate)"
 LOG_TMP="$(mktemp -u /tmp/organic_v0_events.XXXXXX.jsonl)"
 VERDICT_TMP="$(mktemp -u /tmp/organic_v0_persist.XXXXXX.json)"
-SLEEP_WAKE_LOG_TMP="$(mktemp -u /tmp/organic_v0_sleep_wake_events.XXXXXX.jsonl)"
-SLEEP_WAKE_VERDICT_TMP="$(mktemp -u /tmp/organic_v0_sleep_wake.XXXXXX.json)"
-trap 'rm -f "$STATE_TMP" "$LOG_TMP" "$VERDICT_TMP" "$VERDICT_TMP.child.json" "$SLEEP_WAKE_LOG_TMP" "$SLEEP_WAKE_VERDICT_TMP"' EXIT
+SLEEP_WAKE_ROOT="$(mktemp -d /tmp/organic_v0_sleep_wake.XXXXXX)"
+SLEEP_WAKE_LOG_TMP="$SLEEP_WAKE_ROOT/events.jsonl"
+SLEEP_WAKE_VERDICT_TMP="$SLEEP_WAKE_ROOT/sleep_wake.json"
+trap 'rm -f "$STATE_TMP" "$LOG_TMP" "$VERDICT_TMP" "$VERDICT_TMP.child.json"; rm -rf "$SLEEP_WAKE_ROOT"' EXIT
 build/organic_v0 --phase persistence-self-test \
   --save-state "$STATE_TMP" \
   --event-log "$LOG_TMP" \
@@ -34,6 +35,7 @@ SLEEP_WAKE_CMD=(
   --sleep-ticks 5
   --checkpoint-interval-ticks 5
   --internal-timeout-seconds 180
+  --policy-tmp-root "$SLEEP_WAKE_ROOT"
   --event-log "$SLEEP_WAKE_LOG_TMP"
   --out "$SLEEP_WAKE_VERDICT_TMP"
 )
