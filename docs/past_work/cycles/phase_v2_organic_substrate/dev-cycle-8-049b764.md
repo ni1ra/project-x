@@ -105,7 +105,7 @@ Fixed-seed random null baseline:
 - surprise reduction: `1.374792`
 - final hash: `0656559906783375`
 
-Result: prediction-priority did not beat random. The measured delta was `-0.008455` surprise reduction in favor of random. A0 is therefore infrastructure-only and unproven as load-bearing.
+Result: prediction-priority did not beat the fixed-seed random null on this tiny Cycle 8 comparison. The measured delta was `-0.008455` surprise reduction. The comparison is underpowered; A0 remains infrastructure-only and unproven as load-bearing. The time series suggests priority converged/exploited too quickly and needs an exploration term or denser replay workload before another comparison.
 
 The two life streams diverged in final state hash (`b487a1ee0d17a742` vs `0656559906783375`).
 

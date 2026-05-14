@@ -308,7 +308,7 @@
     "random_surprise_reduction": 1.374792,
     "priority_minus_random": -0.008455000000000101,
     "priority_beats_random": false,
-    "interpretation": "prediction-priority did not beat the fixed-seed random null on surprise_reduction; A0 is infrastructure only and unproven as load-bearing"
+    "interpretation": "prediction-priority did not beat the fixed-seed random null on the tiny Cycle 8 surprise_reduction comparison; the comparison is underpowered, A0 remains infrastructure-only and unproven as load-bearing, and the time series suggests priority converged/exploited too quickly and needs an exploration term or denser replay workload before another comparison"
   },
   "state_divergence": {
     "life_stream_count": 2,

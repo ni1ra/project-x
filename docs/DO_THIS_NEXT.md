@@ -22,9 +22,11 @@ Cycle 8 converted organic-v0 from per-phase invocation toward a native organism 
 
 The A0 event-outcome predictor is intentionally narrow: a small linear predictor over auditable feature IDs. It predicts reward/exactness/error for replay priority and confidence only. It does not generate text, choose output characters, dispatch answers, parse semantics, call pretrained models, or implement a next-token path.
 
-Cycle 8 should be treated as infrastructure-only until stronger replay evidence says otherwise. The fixed-seed random null baseline beat prediction-priority on the predeclared `surprise_reduction` metric in the short comparison run, so A0 is not load-bearing yet.
+Cycle 8 should be treated as infrastructure-only until stronger replay evidence says otherwise. Prediction-priority did not beat the fixed-seed random null on the tiny Cycle 8 comparison. The comparison is underpowered; A0 remains unproven. The time series suggests priority converged/exploited too quickly and needs an exploration term or denser replay workload before another comparison.
 
 ## Immediate Next: Cycle 9 Safety Boundary
+
+Phase boundary: v2 Cycle 8 closes the organic-substrate runtime-shape phase. Cycle 9 opens a safety-boundary/runtime-governance phase, not another v2 capability cycle, unless the user explicitly reopens v2.
 
 Default direction: implement the formal safety boundary that Cycle 8 explicitly did not solve.
 
