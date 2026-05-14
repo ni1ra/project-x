@@ -1,0 +1,23 @@
+{
+  "run_id": "cycle8-test",
+  "timestamp": "2026-05-14T13:47:22Z",
+  "phase": "sleep-wake",
+  "mode": "test",
+  "command": "build/organic_v0 --phase sleep-wake --mode test --run-id cycle8-test --checkpoint-interval-ticks 10 --replay-policy prediction_error --out run/artifacts/organic-v0/sleep_wake_cycle8_test.json --event-log run/state/organic-v0/events/raphael-local-0001-cycle8-test.jsonl",
+  "organism_id": "raphael-local-0001",
+  "loaded_state_path": null,
+  "event_log_path": "run/state/organic-v0/events/raphael-local-0001-cycle8-test.jsonl",
+  "replay_policy": {"selector": "prediction_error", "random_named_as_null_baseline": false, "random_baseline_seed": 8801},
+  "checkpoint_policy": {"interval_seconds": 60, "interval_ticks": 10, "default_policy": "every 60 seconds or every 100 replay ticks, whichever comes first"},
+  "checkpoint_count": 5,
+  "checkpoint_paths": ["run/state/organic-v0/snapshots/raphael-local-0001/cycle8-cycle8-test-ckpt-000001.pxstate", "run/state/organic-v0/snapshots/raphael-local-0001/cycle8-cycle8-test-ckpt-000002.pxstate", "run/state/organic-v0/snapshots/raphael-local-0001/cycle8-cycle8-test-ckpt-000003.pxstate", "run/state/organic-v0/snapshots/raphael-local-0001/cycle8-cycle8-test-ckpt-000004.pxstate", "run/state/organic-v0/snapshots/raphael-local-0001/cycle8-cycle8-test-ckpt-000005.pxstate"],
+  "parent_model_state": {"trace_count": 0, "connection_feature_count": 0, "connection_nonzero_count": 0, "slot_copy_link_count": 0, "learned_char_count": 0, "state_hash": "d9195ea8f6c60b85"},
+  "final_model_state": {"trace_count": 3, "connection_feature_count": 714, "connection_nonzero_count": 1004, "slot_copy_link_count": 0, "learned_char_count": 14, "state_hash": "f9a969b8ab712f35"},
+  "state_growth": {"trace_count_delta": 3, "connection_feature_count_delta": 714, "connection_nonzero_count_delta": 1004, "slot_copy_link_count_delta": 0, "learned_char_count_delta": 14},
+  "state_hash_chain": ["d9195ea8f6c60b85", "090d3facc6677b0f", "a64fc9aa2074ba67", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35", "f9a969b8ab712f35"],
+  "prediction_error_over_time": [0.666667, 0.666667, 0.176893, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633, 0.161633],
+  "summary_metrics": {"wake_count": 1, "sleep_tick_count": 20, "replay_candidate_count": 1, "accepted_mutation_count": 2, "rejected_mutation_count": 18, "surprise_reduction": 0.505034, "timed_out": false},
+  "oracle_access": {"generation": false, "correction_after_generation": true, "sleep_audit": true},
+  "negative_space": {"not_fluent_chat": true, "not_broad_reasoning": true, "not_agi": true, "not_safety_boundary_solution": true, "not_next_token_predictor": true},
+  "honest_interpretation": "Cycle 8 sleep/wake runtime evidence: one native process accepts wake JSONL, predicts before correction, updates learned state only when correction/reward exist, replays event-log evidence during sleep, and checkpoints persistent state. A0 is only a replay-priority/error substrate, not a generator or answer path."
+}

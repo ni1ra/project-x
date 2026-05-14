@@ -1,6 +1,8 @@
 # Do This Next - Project X v2
 
-Generated: 2026-05-14 (post cycle-7D close)
+Generated: 2026-05-14, after Cycle 8 implementation.
+
+This file is the immediate queue cut from the phase plan. It is not a cycle archive. Closed cycle evidence belongs in `docs/A_TO_Z_PLAN.md` and `docs/past_work/cycles/phase_v2_organic_substrate/`; machine-readable runtime artifacts belong under `run/artifacts/`.
 
 ## Read First
 
@@ -8,503 +10,74 @@ Generated: 2026-05-14 (post cycle-7D close)
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
-5. `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
-6. `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_CLAUDE_AUDIT_PACKET.md`
-7. latest cycle-6 reflection in `docs/past_work/cycles/phase_v2_organic_substrate/`
+5. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-8-049b764.md`
 
-## What Just Happened - Cycle 6
+## Current State
 
-Cycle 6 generalized the hidden-rule substrate beyond parity.
+Cycle 8 converted organic-v0 from per-phase invocation toward a native organism loop:
 
-The benchmark now contains 62 events: 32 train and 30 held-out. Hidden-rule coverage now includes three computed numeric relation families:
+- WAKE: perceive -> predict -> generate -> optional correction/reward -> learn/update predictor -> log/checkpoint
+- SLEEP: replay event evidence -> predict -> candidate learn/update -> audit -> accept/reject -> log/checkpoint
+- DAEMON-LITE: a bounded long-lived process with periodic checkpoints and event-log emission
 
-- parity: `mark` odd/even, carried by the existing `--ablate-numeric-derived` channel;
-- threshold: `mark > cutoff`, carried by the new `--ablate-threshold-derived` channel;
-- modular class: `mark mod 3`, carried by the new `--ablate-modular-derived` channel.
+The A0 event-outcome predictor is intentionally narrow: a small linear predictor over auditable feature IDs. It predicts reward/exactness/error for replay priority and confidence only. It does not generate text, choose output characters, dispatch answers, parse semantics, call pretrained models, or implement a next-token path.
 
-The train suite uses at least two distinct mark values per threshold/modular class. The held-out tests use unseen marks and conflicting surface signals, so a replay-shaped or surface-color solution fails.
+Cycle 8 should be treated as infrastructure-only until stronger replay evidence says otherwise. The fixed-seed random null baseline beat prediction-priority on the predeclared `surprise_reduction` metric in the short comparison run, so A0 is not load-bearing yet.
 
-The runtime also received a small efficiency pass: loaded/learned traces cache parsed observation slots plus threshold/modular keys, and trace span-position lookup now uses a transient event-id index. The tiny fixture still runs at roughly 0.12s, so this is an asymptotic cleanup, not a claimed wall-clock win.
+## Immediate Next: Cycle 9 Safety Boundary
 
-### Final Cycle-6 Evidence
+Default direction: implement the formal safety boundary that Cycle 8 explicitly did not solve.
 
-`run/artifacts/organic-v0/eval_cycle6_relations_all_on.json`:
+The reason to prioritize this now is mechanical: organic-v0 can now ingest stdin JSONL and replay event-log records inside a persistent process. Even though Cycle 8 does not execute shell commands, network calls, or arbitrary filesystem actions from data, the runtime still needs explicit budgets and a resettable operating envelope before the daemon becomes more capable.
 
-| metric | cycle 5 repaired | cycle 6 expanded |
-|---|---:|---:|
-| held-out count | 25 | 30 |
-| overall exact_rate | 1.000 | **1.000** |
-| exact events | 25/25 | **30/30** |
-| parity rule transfer | 4/4 | **4/4** |
-| threshold_rule_transfer | n/a | **2/2** |
-| modular_rule_transfer | n/a | **3/3** |
-| evidence_present | 2/2 | **2/2** |
-| existing solved families | held | **held** |
+Cycle 9 should add:
 
-State hash `29958f0880e662dc`. Config hash `99032d46527a795b`.
+- a runtime policy object with explicit action budgets for wake, sleep, replay, mutation, checkpoint, and file I/O
+- a filesystem allowlist rooted in configured state/log/artifact/experience paths
+- hard rejection tests for JSONL/event-log data that attempts shell execution, network access, path traversal, or unauthorized file writes
+- a resettable environment contract for daemon-lite runs
+- checkpoint rollback semantics for rejected or unsafe mutations
+- audit artifacts proving denied actions are denied by code, not by absent test data
+- a 180s test-mode gate using the same codepaths as full mode
+- a >=1 hour daemon-lite rerun under the new policy once the safety boundary exists
+- a measured daemon throughput knob such as `--daemon-tick-sleep-ms`, defaulting conservatively but allowing faster local evidence runs when system resources are available
 
-Persistence:
+Close Cycle 9 only if the boundary is enforced by tests and artifacts. Do not claim this solves alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.
 
-- `run/artifacts/organic-v0/eval_cycle6_relations_from_disk.json` is diff-clean against all-on on `summary_metrics + model_state_hash`.
-- `run/artifacts/organic-v0/persist_self_test_v2c6.json` reports `save_and_load_verified`, hash match, output match.
+## Secondary Queue: Concept-Emergence Pressure
 
-Legacy compatibility:
+If the safety boundary is deliberately deferred by user order, the next capability pressure should be concept-emergence over the Cycle 8 substrate:
 
-- `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_cycle5_fixture.json`: cycle-2 snapshot loaded under the cycle-6 binary on the cycle-5 fixture remains 9/25 (`0.360000`), state hash `3536309de837d3e2`, raw `evt_mem_test_001` output `"milaquart arch6"`.
-- `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_current_fixture.json`: same snapshot on the expanded fixture is 9/30 (`0.300000`), expected denominator expansion only.
+- feed replay with more varied event evidence instead of hand-built answer routes
+- measure whether prediction error discovers reusable latent clusters across text, symbolic, grid, and numeric traces
+- keep generation firewalled from predictor output
+- keep random replay as the named null baseline
+- require state divergence across at least two life streams
 
-### Falsification/Ablation Evidence
+This remains secondary because a more capable daemon without formal budgets is the wrong direction for the manifesto safety boundary.
 
-- `run/artifacts/organic-v0/eval_cycle6_ablate_numeric.json`: `--ablate-numeric-derived` -> **26/30 (0.866667)**; failures = `evt_rule_test_001`, `evt_rule_test_002`, `evt_rule_test_003`, `evt_rule_test_004`. Threshold and modular remain exact.
-- `run/artifacts/organic-v0/eval_cycle6_ablate_threshold.json`: `--ablate-threshold-derived` -> **28/30 (0.933333)**; failures = `evt_rule_thresh_test_001`, `evt_rule_thresh_test_002`. Parity and modular remain exact.
-- `run/artifacts/organic-v0/eval_cycle6_ablate_modular.json`: `--ablate-modular-derived` -> **27/30 (0.900000)**; failures = `evt_rule_mod_test_001`, `evt_rule_mod_test_002`, `evt_rule_mod_test_003`. Parity and threshold remain exact.
-- `run/artifacts/organic-v0/eval_cycle6_ablate_relation.json`: `--ablate-relation-projection` -> **28/30 (0.933333)**; failures remain isolated to evidence-present (`evt_abs_test_001`, `evt_abs_test_003`). Numeric relation families remain exact.
+## Carry-Forward Rails
 
-The key claim is isolation, not the all-on 1.000. Threshold and modular are not piggybacking on parity; turning off one relation channel breaks only that family.
+Every implementation cycle must preserve these rails unless the artifact explicitly diagnoses and justifies a change:
 
-## Cycle 7A Closed - Growing Brain File Contract
-
-Cycle 7A made continuation learning first-class before starting the harder interactive rung.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/fork_divergence_cycle7a.json`: two children load the same v2-c6 parent, learn different streams, reload cleanly, diverge in state hash, and emit different held-out raw outputs.
-- child A: `fab9c2c0367ed2b5`, 1/1 from-training and 1/1 from-disk, raw `"aurora branch"`.
-- child B: `c0f016285e735e14`, 1/1 from-training and 1/1 from-disk, raw `"ember branch"`.
-- `run/artifacts/organic-v0/persist_self_test_cycle7a_child.json`: loaded parent hash `29958f0880e662dc`, child hash `fab9c2c0367ed2b5`, `hash_match=true`, `output_match=true`.
-- `run/artifacts/organic-v0/eval_cycle7a_legacy_cycle2_cycle5_fixture.json`: legacy cycle-2 snapshot remains 9/25 (`0.360000`), state hash `3536309de837d3e2`, raw `"milaquart arch6"`.
-
-This proves restart-surviving fork divergence under different experience. It does not prove fluent chat or interactive rule induction.
-
-## Cycle 7B Closed - Interactive Hidden Rule Micro-Harness
-
-Cycle 7B shipped the first native action/feedback rung.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_summary.json`: aggregate held-out 14/14 (`1.000000`) across seeds 7001 and 7002; total pre-feedback actions 26/42 (`0.619048`); support pre-feedback actions 12/28 (`0.428571`).
-- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback_ablation.json`: feedback strength 2.0 scores 14/14 held-out and 26/42 total; feedback strength 1.0 drops to 13/14 held-out and 15/42 total.
-- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json`: loaded v2-c6 parent, 7/7 held-out, 8 support failure traces, final hash `879b7e4f6295fc12`.
-- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json`: loaded v2-c6 parent, 7/7 held-out, 8 support failure traces, final hash `030516a10354131a`.
-- The oracle is not in the generation path. It grades and supplies correction only after raw action.
-
-This proves a small action/feedback loop with held-out transfer under state mutation. It does not prove ARC-grid competence, open-ended planning, or natural chat.
-
-## Cycle 7C Contract
-
-Pick one:
-
-1. **Promote to a less typed interactive rung.** Extend the native harness to symbolic same/different, role-match, or tiny grid transformation rules where no numeric-derived relation channel can carry the task alone. Close criterion: action history, held-out seeds/rules, failure traces, and a measured ablation showing which substrate carries the win.
-2. **Generalize relation projection beyond topic->object.** Add held-out questions for place/effect and different cue roles while keeping evidence_absence exact. Close criterion: projection works across at least two target roles, with `--ablate-relation-projection` isolating only those families.
-3. **Add replay/consolidation after interaction.** After an interactive episode, replay support failures into a saved child and rerun held-out probes from disk. Close criterion: fresh-child held-out behavior matches same-process behavior, with a replay/correction ablation that degrades predictably.
-
-Default recommendation: option 1. Cycle 7B is still numeric and typed; the next capability proof should make the rule less directly aligned with the existing numeric relation senses.
-
-Hard gates:
-
-- Keep claim splits explicit: substrate-only, repaired/expanded fixture, from-training, and from-disk are separate claims.
-- Every new substrate channel ships with a CLI ablation and measured per-family failure isolation.
-- Do not add benchmark train examples unless a learnability audit names the missing evidence first.
-- Preserve persistence diff-clean and legacy snapshot compatibility.
-- Do not claim broad language understanding from the farewell or numeric-rule items.
-- Keep runtime speed claims tied to measurements or state them as structural/asymptotic only.
-
-## Cycle 7C Closed - Symbolic Interactive Rule Rung
-
-Cycle 7C shipped the default option: a less-typed symbolic interactive rung.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_summary.json`: aggregate held-out 16/16 (`1.000000`) across seeds 7101/7102; total pre-feedback 48/64 (`0.750000`); support pre-feedback 32/48 (`0.666667`); post-episode probes 16/16 (`1.000000`).
-- `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_symbolic_ablation.json`: `--ablate-symbolic-relations` drops held-out to 2/16 (`0.125000`) and total to 4/64 (`0.062500`).
-- `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_probe_seed7101.json` and `_seed7102.json`: fresh loaded child probes match same-process probe summaries and model hashes.
-- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7C_INTERACTIVE_SYMBOLIC_RULE.md`: closed interpretation and negative-space audit.
-
-The mechanism is cue-bound symbolic relation features over non-numeric entity attributes:
-
-- color same/different
-- shape same/different
-- place same/different
-- symbol role-match
-
-The oracle still acts only after generation. The action labels are arbitrary and learned from feedback. This is not chat, poetry, philosophy, math, physics, ARC, or beyond-human ability.
-
-Regression gates after Cycle 7C:
-
-- `make test`: PASS
+- `make test`
 - cycle-6 regression: 30/30, hash `29958f0880e662dc`
 - clean chat rail: 1/5, hash `888b7664126b7f5f`
-- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
-- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
-
-## Cycle 7D Contract
-
-Pick one:
-
-1. **Tiny grid transformation rung.** Add a native interactive grid micro-world where observations encode 3x3 or 4x4 symbolic cells and the hidden action depends on mirror, rotate, row/column movement, or color/marker preservation. Close criterion: action history, held-out seeds/rules, failure traces, from-disk probes, and an ablation showing a grid/spatial substrate is load-bearing.
-2. **Replay/consolidation after symbolic interaction.** After an interactive episode, replay support failures into a saved child and rerun held-out probes from disk. Close criterion: replay improves or preserves held-out/probe behavior with fewer support failures or stronger post-episode transfer, while `--ablate-replay` degrades predictably.
-3. **Delayed feedback symbolic interaction.** Withhold feedback for short bursts, then apply correction/reward. Close criterion: action history preserves pre-feedback mistakes, delayed reward is learned into the same state, and an ablation isolates the delay-handling mechanism.
-
-Default recommendation: option 1. Cycle 7C still used typed attribute slots; a grid rung starts moving toward ARC-like micro-worlds without allowing a direct solver route.
-
-Hard gates:
-
-- Write the learnability/design audit before code or fixture edits.
-- Add a new substrate mechanism in `native/organic_v0.cpp`, not a Python answer path.
-- Ship a CLI ablation for the new grid/spatial or replay/delay channel.
-- Use held-out seeds >= 2.
-- Preserve Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails.
-- Keep action labels arbitrary and oracle access after action.
-- Update docs and `REPO_CONTROL.md`.
-- Write and sha7-rename the cycle reflection.
-
-## Cycle 7D Closed - Tiny Grid Spatial Rule Rung
-
-Cycle 7D shipped the default option: a tiny 3x3 grid/spatial interactive rung.
-
-Plain-English metric definitions are now in `docs/artifacts/METRIC_GLOSSARY.md`.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_summary.json`: aggregate held-out 16/16 (`1.000000`) across seeds 7201/7202; total pre-feedback 48/64 (`0.750000`); support pre-feedback 32/48 (`0.666667`); post-episode probes 16/16 (`1.000000`).
-- `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_grid_ablation.json`: `--ablate-grid-spatial` drops held-out to 3/16 (`0.187500`) and total to 6/64 (`0.093750`).
-- `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_probe_seed7201.json` and `_seed7202.json`: fresh loaded child probes match same-process probe summaries and model hashes.
-- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7D_INTERACTIVE_GRID_RULE.md`: closed interpretation, anti-repetition guard, and negative-space audit.
-
-The mechanism is cue-bound 3x3 cell spatial relation features:
-
-- horizontal mirror
-- vertical mirror
-- diagonal mirror
-- adjacent row shift
-
-The oracle still acts only after generation. The action labels are arbitrary and learned from feedback. This is not ARC, chat, poetry, philosophy, math, physics, or beyond-human ability.
-
-Regression gates after Cycle 7D:
-
-- `make test`: PASS
-- cycle-6 regression: 30/30, hash `29958f0880e662dc`
-- clean chat rail: 1/5, hash `888b7664126b7f5f`
-- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
-- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
-- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact
-
-## Cycle 7E Contract
-
-Default direction: **experience database and organic text rail**.
-
-This is a course correction against repetition hell. Do not keep stacking isolated micro-puzzle channels as the main work. The next major substrate should make Raphael's language path learn from durable experience:
-
-- raw text input
-- generated output
-- correction/feedback
-- event IDs and source trails
-- learned state mutation
-- replayable training records
-- from-disk continuation
-- failure preservation
-
-Candidate close criteria:
-
-- add a native or directly-auditable experience store format for text interactions, separate from benchmark fixtures but compatible with event-log/state loading
-- add a phase that can ingest a small text-interaction experience stream, save a child, reload it, and generate from the child without replaying the stream
-- include a plain chat transcript artifact showing raw model outputs before and after correction
-- include an ablation or replay-off control showing the experience rail is load-bearing
-- keep the clean chat rail visible at 1/5 unless it organically improves
-- do not add response templates, intent trigger lists, answer dispatchers, or a polished voice layer
-- preserve Cycle 7D, Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails
-
-The goal is not to fake fluent text in one pass. The goal is to create the database-backed learning substrate that makes coherent organic text possible later.
-
-## Cycle 7E Closed - Text Experience Rail
-
-Cycle 7E shipped the default direction: a durable text-experience database and native organic text rail.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/text_experience_cycle7e_summary.json`: all-on probe 4/4 (`1.000000`), from-disk probe 4/4 (`1.000000`), learning-disabled ablation probe 0/4 (`0.000000`).
-- `run/artifacts/organic-v0/text_experience_cycle7e.json`: native all-on ingest run; train-before 1/6, train-after 4/6, probe 4/4, child hash `be0fc781039a2038`.
-- `run/artifacts/organic-v0/text_experience_cycle7e_from_disk_probe.json`: fresh loaded child matches same-process probe metrics and model hash `be0fc781039a2038`.
-- `run/artifacts/organic-v0/text_experience_cycle7e_ablate_learning.json`: `--ablate-text-experience-learning` leaves state growth at zero and drops probe to 0/4, hash `29958f0880e662dc`.
-- `run/artifacts/organic-v0/text_experience_cycle7e_transcript.md`: readable transcript preserving raw before/after outputs and failures.
-- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7E_TEXT_EXPERIENCE_RAIL.md`: closed interpretation and negative-space audit.
-
-Plain English:
-
-- This proves the new text experience rail is durable and load-bearing.
-- It does not prove fluent chat. The clean chat rail remains 1/5, and the 7E training transcript still preserves bad outputs.
-- It is a database-backed substrate step toward organic language learning, not a finished language mind.
-
-Regression gates after Cycle 7E:
-
-- `make test`: PASS
-- cycle-6 regression: 30/30, hash `29958f0880e662dc`
-- clean chat rail: 1/5, hash `888b7664126b7f5f`
-- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
-- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
-- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact and 8/8 post-episode probe exact
-- Cycle 7D grid interactive regression: seeds 7201/7202 remain 8/8 held-out exact and 8/8 post-episode probe exact
-
-## Cycle 7F Contract
-
-Default direction: **text-experience replay and consolidation**.
-
-Do not drift back into isolated puzzle patching. The next major step should make the text experience database more organism-like by letting failed or weak records replay into a child state and measuring whether replay improves or stabilizes future text probes.
-
-Candidate close criteria:
-
-- write the learnability/design audit before code or data edits
-- add a native replay/consolidation path for text experience records
-- preserve raw first-pass failures and replay decisions in the artifact
-- add `--ablate-text-experience-replay` or an equivalent replay-disabled control
-- include from-disk child probes before and after replay
-- include a replay transcript that shows which failures were replayed and what changed
-- keep clean chat visible at 1/5 unless it organically improves
-- preserve Cycle 7E, Cycle 7D, Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails
-- do not add response templates, intent trigger lists, answer dispatchers, or a polished voice layer
-- update docs and `REPO_CONTROL.md`
-- write and sha7-rename the cycle reflection
-
-The target is not to claim fluency. The target is to make durable language experience accumulate, replay, and consolidate through learned state.
-
-## Cycle 7F Closed - Self-Audited Text Experience Replay
-
-Cycle 7F shipped a replay/consolidation path with candidate acceptance auditing.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/text_experience_replay_cycle7f_summary.json`: all-on post-replay probe 4/4 (`1.000000`), from-disk post-replay probe 4/4 (`1.000000`), acceptance-audit ablation post-replay probe 1/4 (`0.250000`).
-- `run/artifacts/organic-v0/text_experience_replay_cycle7f.json`: selected 2 stale first-pass misses, accepted 1 replay candidate, rejected damaging candidates, saved child hash `89fc3a01a35451e9`.
-- `run/artifacts/organic-v0/text_experience_replay_cycle7f_from_disk_probe.json`: fresh loaded child matches post-replay probe metrics and model hash `89fc3a01a35451e9`.
-- `run/artifacts/organic-v0/text_experience_replay_cycle7f_replay_disabled.json`: replay-disabled control leaves replay state growth at zero and hash `be0fc781039a2038`.
-- `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation.json`: disabling the acceptance audit lets blind replay damage held-out probe behavior, dropping to 1/4.
-- `run/artifacts/organic-v0/text_experience_replay_cycle7f_transcript.md`: readable replay transcript with accepted/rejected candidates.
-- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7F_TEXT_EXPERIENCE_REPLAY.md`: closed interpretation and negative-space audit.
-
-Plain English:
-
-- Blind replay is not safe.
-- The new replay path is self-critical: it tests candidate mutations and keeps only non-degrading ones.
-- This is still not fluent chat. It is a tiny replay/consolidation mechanism over a tiny text database.
-
-Regression gates after Cycle 7F:
-
-- `make test`: PASS
-- cycle-6 regression: 30/30, hash `29958f0880e662dc`
-- clean chat rail: 1/5, hash `888b7664126b7f5f`
-- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
-- Cycle 7E text rail: all-on 4/4, from-disk 4/4, learning-disabled ablation 0/4
-- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
-- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact and 8/8 post-episode probe exact
-- Cycle 7D grid interactive regression: seeds 7201/7202 remain 8/8 held-out exact and 8/8 post-episode probe exact
-
-## Cycle 7G Contract
-
-Default direction: **raw-text sensing for the text experience rail**.
-
-The current text experience database still depends on builder-provided typed observations such as `person:navi` and `object:basalt prism`. That is acceptable as an audit scaffold, but it cannot be the long-term language path. The next cycle should add a small native raw-text sensing/chunking mechanism that derives some observations from `input_text` itself while keeping the typed fields visible for comparison.
-
-Candidate close criteria:
-
-- write the learnability/design audit before code or data edits
-- add a native raw-text sensing/chunk feature path, not templates or answer routes
-- include an ablation for the new raw-text sensing path
-- compare typed-observation-only, raw-sense-only, and combined runs where feasible
-- preserve 7F replay, 7E text rail, 7D, 7C, 7B, cycle-6, clean-chat, and legacy rails
-- include transcripts that show raw outputs and failures
-- keep clean chat visible at 1/5 unless it organically improves
-- do not add response templates, intent trigger lists, answer dispatchers, or a polished voice layer
-- update docs and `REPO_CONTROL.md`
-- write and sha7-rename the cycle reflection
-
-The target is to reduce dependence on builder-authored observations while keeping every sense and failure auditable.
-
-## Cycle 7G Closed - Raw Text Span Sense
-
-Cycle 7G shipped a generic raw-text span sense for the text experience rail.
-
-Final evidence:
-
-- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_summary.json`: raw-span all-on probe 4/4 (`1.000000`), from-disk probe 4/4 (`1.000000`), raw-span ablation probe 0/4 (`0.000000`).
-- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g.json`: all-on raw-span run; train-after 4/4 and child hash `16c29f604e814f58`.
-- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_from_disk_probe.json`: fresh loaded child matches same-process probe metrics and hash `16c29f604e814f58`.
-- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation.json`: `--ablate-raw-text-spans` drops probe to 0/4.
-- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_transcript.md`: readable raw-span transcript.
-- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7G_RAW_TEXT_SPAN_SENSE.md`: closed interpretation and negative-space audit.
-
-Plain English:
-
-- The raw-span suite omits typed `person`, `object`, and `place` fields.
-- Generic token chunks derived from raw input text now carry the copy substrate.
-- This is not semantic parsing. It is still position-pattern-bound and tiny.
-
-Regression gates after Cycle 7G:
-
-- `make test`: PASS
-- cycle-6 regression: 30/30, hash `29958f0880e662dc`
-- clean chat rail: 1/5, hash `888b7664126b7f5f`
-- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
-- Cycle 7F replay: all-on post-replay 4/4, from-disk 4/4, audit-ablation 1/4
-- Cycle 7E text rail: all-on 4/4, from-disk 4/4, learning-disabled ablation 0/4
-- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
-- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact and 8/8 post-episode probe exact
-- Cycle 7D grid interactive regression: seeds 7201/7202 remain 8/8 held-out exact and 8/8 post-episode probe exact
-
-## Cycle 7H Contract
-
-Default direction: **less position-bound raw-text sensing**.
-
-The raw-span sense works, but it is still tied to fixed token positions. The next cycle should make raw text sensing less brittle without adding semantic trigger routes.
-
-Candidate close criteria:
-
-- write the learnability/design audit before code or data edits
-- add contrastive raw-span distractors or learned chunk salience
-- include an ablation for the new salience/distractor mechanism
-- include held-out probes where useful spans move position or distractor spans are present
-- preserve 7G, 7F, 7E, 7D, 7C, 7B, cycle-6, clean-chat, and legacy rails
-- include transcripts that preserve failures
-- do not add response templates, intent trigger lists, answer dispatchers, or semantic parser branches
-- update docs and `REPO_CONTROL.md`
-- write and sha7-rename the cycle reflection
-
-The target is raw text substrate that becomes less dependent on fixed positions while staying fully auditable.
-
-## Cycle 8 Contract - Sleep/Wake Runtime
-
-Cycle 8 supersedes the 7H default. Less position-bound raw spans are deferred because they are narrower text-rail leverage than giving organic-v0 a persistent process shape, idle replay, prediction error, and a richer event schema. Cycle 8 is a structural cycle, not another encoder-feature patch.
-
-Default direction: **native sleep/wake runtime + reflection at scale + tiny A0 event-outcome predictor**.
-
-The target organism loop is:
-
-- WAKE: perceive -> predict -> generate/act -> receive correction/reward -> learn/update predictor -> log/checkpoint
-- SLEEP: replay from event log -> predict -> candidate-learn/update predictor -> audit -> accept/reject -> log/checkpoint
-
-Sleep is not wake with no input. It is internal replay and consolidation, and it must produce accepted and rejected mutation evidence when candidates exist.
-
-### Required Implementation Scope
-
-- add `--phase sleep-wake` and `--phase daemon-lite`
-- add a coordinated organism-step API around existing native primitives: `OrganismStepInput`, `OrganismStepResult`, `organism_wake_step`, `organism_sleep_step`, `predict_outcome`, `update_outcome_predictor`, and `write_event_log_v1` or clear equivalents
-- keep existing legacy phases delegated through compatibility wrappers or unchanged paths that preserve pinned hashes
-- add stdin JSONL wake/runtime control: `wake`, `sleep`, `checkpoint`, `shutdown`
-- if correction/reward are absent on a wake event, generate and log but do not learn from fabricated reward
-- treat stdin/event-log text as data, not runtime instructions
-- limit daemon-lite file access to configured state/log/artifact/experience paths
-- do not execute shell commands, network calls, or arbitrary filesystem actions from stdin/event-log data
-
-Pinned stdin JSONL example:
-
-```jsonl
-{"cmd":"wake","event_id":"wake_cycle8_0001","session_id":"cycle8_manual","input_text":"navi carries basalt prism","observations":[],"correction_output":"navi carries basalt prism","reward":{"task_success":1.0,"source_fidelity":1.0}}
-{"cmd":"sleep","ticks":100}
-{"cmd":"checkpoint"}
-{"cmd":"shutdown"}
-```
-
-### A0 Predictor
-
-Implement a small learned linear event-outcome predictor over auditable feature IDs. No framework, no neural black box, no next-token output.
-
-Required data shape or equivalent:
-
-- `OutcomePrediction { reward_scalar, exact_prob_or_score, lcs_error_ratio, surprise }`
-- `OutcomeTarget { reward_scalar, exact_binary, lcs_error_ratio }`
-- `PredictorWeights { reward_w, exact_w, error_w }`
-- `outcome_predictor_: unordered_map<uint64_t, PredictorWeights>`
-
-Rules:
-
-- features may reuse existing context/HDC-derived feature IDs, activated trace IDs, and action/output summary features
-- features must not encode a target answer route
-- prediction happens before reward/correction is known
-- update by simple bounded deterministic SGD on prediction error
-- serialize doubles bit-exactly with existing hex helpers
-- write predictor weights to PXSTATE as `PREDICTOR_CONNS` or equivalent
-- loader must tolerate old snapshots with no predictor section
-- old snapshots must still load and hash correctly
-- include predictor weights in `state_hash()` only when present/enabled in the new state
-- legacy phases must not silently update the predictor or change pinned artifacts
-
-### Builder-Law Firewall
-
-- `OrganicBrain::generate` must not read predictor output, predictor weights, prediction error, or replay priority
-- predictor may schedule replay and update confidence only
-- predictor may not choose output characters, mode switches, copied spans, or response text
-- keep `predict_outcome` separate from `generate`
-- add a code comment/invariant near the predictor/generator boundary
-- run a grep audit on the C++ diff for suspicious predictor/generator coupling
-- if a grep hit is legitimate because a step function calls predict then generate, explain it in the close notes
-
-### Event Log v1
-
-Extend `docs/artifacts/PERSISTENCE_SCHEMA.md` for event log v1. Preserve compatibility with v0 where needed.
-
-New v1 records must carry these fields when applicable:
-
-- `schema: project_x.event_log.v1`
-- `run_id`
-- `organism_id`
-- `step_id`
-- `step_mode: wake | sleep`
-- `phase: perceive | predict | generate | reward | learn | mutate | serialize | reflect`
-- source object with `source_event_id`, `source_path`, and `source_kind`
-- input text and observations
-- output object with `raw_generated_output`, `expected_output`, `oracle_used_in_generation`, and `audit_only`
-- reward object
-- prediction object: `predictor`, `reward_scalar_pred`, `exact_score_or_prob_pred`, `lcs_error_ratio_pred`, `surprise_pred`, `feature_count`
-- prediction_error object: `reward_abs_error`, `exact_abs_error`, `lcs_error_abs_error`, `surprise`
-- `trace_refs` non-empty when retrieval was used, with event ID and similarity
-- `mutation_refs` non-empty for learn/mutate/replay accept/reject, with mutation ID, kind, accepted, state_before_hash, state_after_hash
-- backend info
-
-Empty `trace_refs` and `mutation_refs` must no longer be the default for events where traces or mutations actually exist.
-
-### Replay Metric
-
-Implement prediction-error replay priority and a fixed-seed random replay baseline. Produce organic metrics comparing priority replay against random on the same starting state/log where feasible.
-
-Required metrics:
-
-- prediction error over time
-- accepted mutation count
-- rejected mutation count
-- surprise reduction
-- state hash chain
-- checkpoint count
-- replay candidate count
-- replay-priority-vs-random comparison with random named as the null baseline
-- state divergence across at least two life streams
-
-If prediction-priority does not beat random on the predeclared metric, say so. A0 may close as infrastructure only if the artifact labels it unproven.
-
-### Runtime Gates
-
-- test mode must be short full mode: same codepaths, shorter limits
-- hard test timeout is 180 seconds and must fail nonzero, not warn
-- use `timeout 180s build/organic_v0 --phase sleep-wake --mode test ...` or an internal elapsed-time cap if `timeout` is unavailable
-- default checkpoint policy: configurable, default every 60 seconds or every 100 replay ticks, whichever comes first
-- checkpoint on accepted mutation and shutdown
-- Cycle 8 is not fully closed without a >=1 hour `daemon-lite` or `sleep-wake` run
-- use a hard outer timeout slightly above target, for example `timeout 3900s build/organic_v0 --phase daemon-lite --daemon-run-seconds 3600 ...`
-- if the 1-hour run is impossible here, do not claim closure; write the blocker and exact resume command
-
-### Negative Space
-
-Do not implement or claim:
-
-- JARVIS UI
-- SNN layer
-- broad concept-emergence module
-- next-token predictor
-- semantic parser or route table
-- answer dispatcher
-- response templates or chat polish
-- pretrained model dependency
-- self-graded subjective benchmark claims
-- always-running process without a real continuous process run
-- reflection loop without idle/sleep replay running without user input
-- manifesto safety boundary solution
-
-Cycle 9 forward queue: formal action budgets, filesystem sandbox/resettable environment, and approval gates before learned external actions expand.
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` output `"milaquart arch6"`
+- Cycle 7B numeric interactive: seeds 7001/7002 held-out exact
+- Cycle 7C symbolic interactive: seeds 7101/7102 held-out and probe exact
+- Cycle 7D grid interactive: seeds 7201/7202 held-out and probe exact
+- Cycle 7E text rail: all-on/from-disk exact, learning-disabled ablation degraded
+- Cycle 7F replay: all-on/from-disk exact, audit-ablation degraded, replay-disabled control preserved
+- Cycle 7G raw spans: all-on/from-disk exact, raw-span ablation degraded
+
+## Non-Goals For The Next Cycle
+
+- no JARVIS UI
+- no SNN layer
+- no pretrained model dependency
+- no next-token predictor
+- no semantic parser or route table
+- no response templates or chat polish
+- no self-graded subjective benchmark claims
+- no safety-boundary victory language

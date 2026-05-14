@@ -132,6 +132,11 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation.json` | cycle-7G raw-span ablation artifact: `--ablate-raw-text-spans` drops held-out probe transfer from 4/4 to 0/4 |
 | `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation_transcript.md` | cycle-7G raw-span ablation transcript preserving failed raw outputs when derived spans are disabled |
 | `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_summary.json` | cycle-7G aggregate scorecard: all-on 4/4, from-disk 4/4 with matching hash, raw-span ablation 0/4, plus typed-reference comparison to Cycle 7E |
+| `run/artifacts/organic-v0/sleep_wake_cycle8_test.json` | cycle-8 short full-mode sleep/wake rail under the hard 180s wrapper: stdin JSONL wake -> sleep -> checkpoint -> shutdown, v1 event-log records, accepted/rejected replay mutations, and checkpoint evidence |
+| `run/artifacts/organic-v0/sleep_wake_cycle8_priority.json` | cycle-8 prediction-error replay-priority life stream: same starting runtime shape as the random baseline, three wake records, 60 sleep ticks, accepted/rejected replay mutations, checkpoint chain, and final state hash |
+| `run/artifacts/organic-v0/sleep_wake_cycle8_random_baseline.json` | cycle-8 fixed-seed random null baseline for replay selection: same wake stream and tick budget as the priority run, random seed 8801, accepted/rejected replay mutations, checkpoint chain, and divergent final state hash |
+| `run/artifacts/organic-v0/daemon_lite_cycle8_1h.json` | cycle-8 daemon-lite proof artifact: one native process ran for >=1 hour with periodic checkpoints, v1 event-log records, replay mutation evidence, and final state hash |
+| `run/artifacts/organic-v0/cycle8_organic_metrics.json` | cycle-8 metric comparison artifact: prediction-priority versus fixed-seed random null on predeclared `surprise_reduction`, accepted/rejected mutation counts, checkpoint counts, state-hash chains, and honest A0-unproven interpretation |
 
 ## Not tracked, on disk
 
