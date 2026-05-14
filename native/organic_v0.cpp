@@ -360,6 +360,25 @@ std::vector<std::string> tokenize(const std::string& text) {
   return tokens;
 }
 
+std::vector<std::string> raw_text_span_observations(const std::string& input) {
+  std::vector<std::string> observations;
+  auto tokens = tokenize(input);
+  constexpr size_t kMaxRawSpanTokens = 8;
+  constexpr size_t kMaxRawSpanLen = 3;
+  size_t usable = std::min(tokens.size(), kMaxRawSpanTokens);
+  for (size_t start = 0; start < usable; ++start) {
+    std::string span;
+    for (size_t len = 1; len <= kMaxRawSpanLen && start + len <= usable; ++len) {
+      if (len == 1) span = tokens[start];
+      else span += " " + tokens[start + len - 1];
+      size_t end = start + len - 1;
+      observations.push_back("raw_span_" + std::to_string(start) + "_" +
+                             std::to_string(end) + ":" + span);
+    }
+  }
+  return observations;
+}
+
 void skip_ws(const std::string& line, size_t& pos) {
   while (pos < line.size() && std::isspace(static_cast<unsigned char>(line[pos]))) ++pos;
 }
@@ -457,6 +476,9 @@ std::map<std::string, double> get_number_object(const std::string& line, const s
   throw std::runtime_error("unterminated JSON object: " + key);
 }
 
+std::vector<std::string> tokenize(const std::string& text);
+std::vector<std::string> raw_text_span_observations(const std::string& input);
+
 Event parse_event(const std::string& line) {
   Event event;
   event.event_id = get_string(line, "event_id");
@@ -488,7 +510,8 @@ TextExperienceRecord parse_text_experience_record(const std::string& line) {
   return record;
 }
 
-Event event_from_text_experience(const TextExperienceRecord& record) {
+Event event_from_text_experience(const TextExperienceRecord& record,
+                                 bool include_raw_text_spans = false) {
   Event event;
   event.event_id = record.experience_id;
   event.episode_id = record.session_id;
@@ -497,6 +520,10 @@ Event event_from_text_experience(const TextExperienceRecord& record) {
   event.level = record.split == "train" ? 0 : 1;
   event.input = record.input_text;
   event.observations = record.observations;
+  if (include_raw_text_spans) {
+    auto spans = raw_text_span_observations(record.input_text);
+    event.observations.insert(event.observations.end(), spans.begin(), spans.end());
+  }
   event.target_output = record.correction_output;
   event.reward = record.reward;
   event.source = record.source;
@@ -3131,6 +3158,8 @@ struct Args {
   bool ablate_text_experience_learning = false;
   bool ablate_text_experience_replay = false;
   bool ablate_text_replay_audit = false;
+  bool derive_raw_text_spans = false;
+  bool ablate_raw_text_spans = false;
 };
 
 Args parse_args(int argc, char** argv) {
@@ -3170,6 +3199,8 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--ablate-text-experience-learning") args.ablate_text_experience_learning = true;
     else if (key == "--ablate-text-experience-replay") args.ablate_text_experience_replay = true;
     else if (key == "--ablate-text-replay-audit") args.ablate_text_replay_audit = true;
+    else if (key == "--derive-raw-text-spans") args.derive_raw_text_spans = true;
+    else if (key == "--ablate-raw-text-spans") args.ablate_raw_text_spans = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
@@ -3785,11 +3816,11 @@ void write_string_array_json(std::ostream& out, const std::vector<std::string>& 
 
 TextExperienceScore score_text_experience_records(
     const OrganicBrain& brain, const std::vector<TextExperienceRecord>& records,
-    const std::string& split) {
+    const std::string& split, bool include_raw_text_spans = false) {
   TextExperienceScore score;
   for (const auto& record : records) {
     if (record.split != split) continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     auto gen = brain.generate(event.input, event.observations);
     add_text_experience_score(score, gen.output, event.target_output);
   }
@@ -3891,6 +3922,7 @@ void text_experience_phase(const Args& args, const std::string& command) {
   }
 
   auto records = load_text_experience_records(args.experience_db);
+  bool include_raw_text_spans = args.derive_raw_text_spans && !args.ablate_raw_text_spans;
   BrainStateStats parent_stats = capture_state_stats(brain);
   TextExperienceScore train_before_score;
   TextExperienceScore train_after_score;
@@ -3900,7 +3932,7 @@ void text_experience_phase(const Args& args, const std::string& command) {
 
   for (const auto& record : records) {
     if (record.split != "train") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t before_hash = brain.state_hash();
     auto before_gen = brain.generate(event.input, event.observations);
     append_event_log_line(args.event_log, args.organism_id, "generate", event, before_gen.output,
@@ -3949,7 +3981,7 @@ void text_experience_phase(const Args& args, const std::string& command) {
 
   for (const auto& record : records) {
     if (record.split != "probe") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t state_hash = brain.state_hash();
     auto gen = brain.generate(event.input, event.observations);
     append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
@@ -3979,6 +4011,11 @@ void text_experience_phase(const Args& args, const std::string& command) {
   out << "  \"experience_db_path\": " << q(args.experience_db) << ",\n";
   out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
   out << "  \"schema\": \"project_x.text_experience.v0\",\n";
+  out << "  \"raw_text_span_sense\": {\"enabled\": "
+      << (include_raw_text_spans ? "true" : "false")
+      << ", \"derive_flag\": " << (args.derive_raw_text_spans ? "true" : "false")
+      << ", \"ablation_flag\": " << (args.ablate_raw_text_spans ? "true" : "false")
+      << ", \"max_span_tokens\": 8, \"max_span_len\": 3},\n";
   out << "  \"ablation\": {\"text_experience_learning_disabled\": "
       << (args.ablate_text_experience_learning ? "true" : "false") << "},\n";
   out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": true, \"probe_evaluation\": true},\n";
@@ -4073,12 +4110,13 @@ void text_experience_probe_phase(const Args& args, const std::string& command) {
   OrganicBrain brain(config);
   load_state_checked(brain, args.load_state);
   auto records = load_text_experience_records(args.experience_db);
+  bool include_raw_text_spans = args.derive_raw_text_spans && !args.ablate_raw_text_spans;
   BrainStateStats state_stats = capture_state_stats(brain);
   TextExperienceScore probe_score;
   std::vector<TextExperienceProbeHistory> probe_history;
   for (const auto& record : records) {
     if (record.split != "probe") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t state_hash = brain.state_hash();
     auto gen = brain.generate(event.input, event.observations);
     append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
@@ -4101,6 +4139,11 @@ void text_experience_probe_phase(const Args& args, const std::string& command) {
   out << "  \"command\": " << q(command) << ",\n";
   out << "  \"experience_db_path\": " << q(args.experience_db) << ",\n";
   out << "  \"loaded_state_path\": " << q(args.load_state) << ",\n";
+  out << "  \"raw_text_span_sense\": {\"enabled\": "
+      << (include_raw_text_spans ? "true" : "false")
+      << ", \"derive_flag\": " << (args.derive_raw_text_spans ? "true" : "false")
+      << ", \"ablation_flag\": " << (args.ablate_raw_text_spans ? "true" : "false")
+      << ", \"max_span_tokens\": 8, \"max_span_len\": 3},\n";
   out << "  \"model_state_hash\": " << q(hex64(state_stats.state_hash)) << ",\n";
   out << "  \"model_state\": "; write_state_stats(out, state_stats); out << ",\n";
   out << "  \"oracle_access\": {\"generation\": false, \"probe_evaluation\": true},\n";
@@ -4228,6 +4271,7 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
   }
 
   auto records = load_text_experience_records(args.experience_db);
+  bool include_raw_text_spans = args.derive_raw_text_spans && !args.ablate_raw_text_spans;
   BrainStateStats parent_stats = capture_state_stats(brain);
   TextExperienceScore first_train_before_score;
   TextExperienceScore first_train_after_score;
@@ -4237,7 +4281,7 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
 
   for (const auto& record : records) {
     if (record.split != "train") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t before_hash = brain.state_hash();
     auto before_gen = brain.generate(event.input, event.observations);
     append_event_log_line(args.event_log, args.organism_id, "generate", event, before_gen.output,
@@ -4263,7 +4307,7 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
 
   for (const auto& record : records) {
     if (record.split != "probe") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t state_hash = brain.state_hash();
     auto gen = brain.generate(event.input, event.observations);
     append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
@@ -4289,12 +4333,14 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
   TextExperienceScore replay_before_score;
   TextExperienceScore replay_after_score;
   std::vector<TextExperienceReplayHistory> replay_history;
-  TextExperienceScore accepted_train_score = score_text_experience_records(brain, records, "train");
-  TextExperienceScore accepted_probe_score = score_text_experience_records(brain, records, "probe");
+  TextExperienceScore accepted_train_score =
+      score_text_experience_records(brain, records, "train", include_raw_text_spans);
+  TextExperienceScore accepted_probe_score =
+      score_text_experience_records(brain, records, "probe", include_raw_text_spans);
   for (int pass = 1; pass <= args.replay_passes; ++pass) {
     for (const auto& selected : selected_records) {
       const auto& record = selected.first;
-      Event event = event_from_text_experience(record);
+      Event event = event_from_text_experience(record, include_raw_text_spans);
       uint64_t before_hash = brain.state_hash();
       auto before_gen = brain.generate(event.input, event.observations);
       append_event_log_line(args.event_log, args.organism_id, "generate", event, before_gen.output,
@@ -4314,9 +4360,9 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
         candidate_hash = candidate.state_hash();
         after_gen = candidate.generate(event.input, event.observations);
         TextExperienceScore candidate_train_score =
-            score_text_experience_records(candidate, records, "train");
+            score_text_experience_records(candidate, records, "train", include_raw_text_spans);
         TextExperienceScore candidate_probe_score =
-            score_text_experience_records(candidate, records, "probe");
+            score_text_experience_records(candidate, records, "probe", include_raw_text_spans);
         double before_ratio = lcs_ratio(before_gen.output, event.target_output);
         double after_ratio = lcs_ratio(after_gen.output, event.target_output);
         bool local_not_worse = after_ratio >= before_ratio;
@@ -4374,7 +4420,7 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
   std::vector<TextExperienceProbeHistory> post_replay_probe_history;
   for (const auto& record : records) {
     if (record.split != "train") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t state_hash = brain.state_hash();
     auto gen = brain.generate(event.input, event.observations);
     add_text_experience_score(post_replay_train_score, gen.output, event.target_output);
@@ -4384,7 +4430,7 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
   }
   for (const auto& record : records) {
     if (record.split != "probe") continue;
-    Event event = event_from_text_experience(record);
+    Event event = event_from_text_experience(record, include_raw_text_spans);
     uint64_t state_hash = brain.state_hash();
     auto gen = brain.generate(event.input, event.observations);
     append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
@@ -4428,6 +4474,11 @@ void text_experience_replay_phase(const Args& args, const std::string& command) 
   out << "  \"command\": " << q(command) << ",\n";
   out << "  \"experience_db_path\": " << q(args.experience_db) << ",\n";
   out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
+  out << "  \"raw_text_span_sense\": {\"enabled\": "
+      << (include_raw_text_spans ? "true" : "false")
+      << ", \"derive_flag\": " << (args.derive_raw_text_spans ? "true" : "false")
+      << ", \"ablation_flag\": " << (args.ablate_raw_text_spans ? "true" : "false")
+      << ", \"max_span_tokens\": 8, \"max_span_len\": 3},\n";
   out << "  \"replay_policy\": {\"selector\": \"not_exact_after_first_pass_or_below_sequence_threshold\", \"replay_passes\": "
       << args.replay_passes << ", \"min_sequence_ratio\": " << args.replay_min_sequence_ratio
       << ", \"selected_count\": " << selected_records.size() << "},\n";

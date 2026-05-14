@@ -119,6 +119,18 @@ Artifact/event-log rules:
 - `--ablate-text-replay-audit` disables the acceptance guard and exists to prove blind replay can damage held-out behavior
 - post-replay child probes must load the saved PXSTATE and generate without replaying the text experience stream
 
+### Cycle-7G raw-text span extension
+
+Cycle 7G adds no new persisted PXSTATE section. Raw text spans are derived at runtime from `input_text` when `--derive-raw-text-spans` is enabled, then appended as ordinary observations before learning or generation.
+
+Rules:
+
+- derived roles use `raw_span_<start>_<end>`
+- spans are contiguous token chunks, capped at 8 input tokens and span length 3
+- derived spans must not encode semantic roles such as person/object/place
+- `--ablate-raw-text-spans` disables the derived observations
+- saved child probes must be rerun with the same raw-span derivation flag to reproduce behavior from disk
+
 ## State Snapshot PXSTATE Line v0
 
 Path shape:

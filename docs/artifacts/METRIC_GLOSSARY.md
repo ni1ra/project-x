@@ -113,6 +113,26 @@ Run replay while disabling the candidate-acceptance guard. This answers:
 
 > Is the replay self-audit actually protecting generalization, or is blind replay harmless?
 
+## Raw Text Sense Metrics
+
+`raw-span all-on`
+
+Text experience run with `--derive-raw-text-spans`. The raw input is tokenized and contiguous spans are appended as observations. This answers:
+
+> Can the organism use generic chunks from raw input text as learned copyable substrate?
+
+`raw-span ablation`
+
+The same run with `--ablate-raw-text-spans`. This answers:
+
+> Did the result depend on the raw-span sense, or would the remaining raw utterance field carry it alone?
+
+`typed-reference comparison`
+
+Compare raw-span results with the typed Cycle 7E text rail. This answers:
+
+> How close is the raw-span scaffold to the older builder-provided typed scaffold on the same kind of text task?
+
 ## Regression Rails
 
 `cycle-6 regression`

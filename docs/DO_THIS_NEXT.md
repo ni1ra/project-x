@@ -318,3 +318,54 @@ Candidate close criteria:
 - write and sha7-rename the cycle reflection
 
 The target is to reduce dependence on builder-authored observations while keeping every sense and failure auditable.
+
+## Cycle 7G Closed - Raw Text Span Sense
+
+Cycle 7G shipped a generic raw-text span sense for the text experience rail.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_summary.json`: raw-span all-on probe 4/4 (`1.000000`), from-disk probe 4/4 (`1.000000`), raw-span ablation probe 0/4 (`0.000000`).
+- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g.json`: all-on raw-span run; train-after 4/4 and child hash `16c29f604e814f58`.
+- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_from_disk_probe.json`: fresh loaded child matches same-process probe metrics and hash `16c29f604e814f58`.
+- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation.json`: `--ablate-raw-text-spans` drops probe to 0/4.
+- `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_transcript.md`: readable raw-span transcript.
+- `docs/artifacts/CYCLE7G_RAW_TEXT_SPAN_SENSE.md`: closed interpretation and negative-space audit.
+
+Plain English:
+
+- The raw-span suite omits typed `person`, `object`, and `place` fields.
+- Generic token chunks derived from raw input text now carry the copy substrate.
+- This is not semantic parsing. It is still position-pattern-bound and tiny.
+
+Regression gates after Cycle 7G:
+
+- `make test`: PASS
+- cycle-6 regression: 30/30, hash `29958f0880e662dc`
+- clean chat rail: 1/5, hash `888b7664126b7f5f`
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
+- Cycle 7F replay: all-on post-replay 4/4, from-disk 4/4, audit-ablation 1/4
+- Cycle 7E text rail: all-on 4/4, from-disk 4/4, learning-disabled ablation 0/4
+- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
+- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact and 8/8 post-episode probe exact
+- Cycle 7D grid interactive regression: seeds 7201/7202 remain 8/8 held-out exact and 8/8 post-episode probe exact
+
+## Cycle 7H Contract
+
+Default direction: **less position-bound raw-text sensing**.
+
+The raw-span sense works, but it is still tied to fixed token positions. The next cycle should make raw text sensing less brittle without adding semantic trigger routes.
+
+Candidate close criteria:
+
+- write the learnability/design audit before code or data edits
+- add contrastive raw-span distractors or learned chunk salience
+- include an ablation for the new salience/distractor mechanism
+- include held-out probes where useful spans move position or distractor spans are present
+- preserve 7G, 7F, 7E, 7D, 7C, 7B, cycle-6, clean-chat, and legacy rails
+- include transcripts that preserve failures
+- do not add response templates, intent trigger lists, answer dispatchers, or semantic parser branches
+- update docs and `REPO_CONTROL.md`
+- write and sha7-rename the cycle reflection
+
+The target is raw text substrate that becomes less dependent on fixed positions while staying fully auditable.

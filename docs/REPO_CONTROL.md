@@ -20,14 +20,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe/replay phases with learning-disabled, replay-disabled, and replay-audit ablations, artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe/replay phases with learning-disabled, replay-disabled, replay-audit, and raw-text-span ablations, artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
 | Path | Justification |
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
-| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, text-experience learning, and text replay |
+| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, text-experience learning/replay, and raw text spans |
 | `scripts/test_organic_v0.sh` | runs both phases: `--phase self-test` (substrate guard — cold brain emits nothing, learns one event, emits "zx") then `--phase persistence-self-test` (full round-trip — train → save → fresh child process load → generate → hash + output match). Either failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
@@ -44,6 +44,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | Path | Justification |
 |---|---|
 | `experience/organic-v0/text_experience_seed_v0.jsonl` | cycle-7E seed text-interaction experience database: six correction records and four probe records with raw input text, observations, correction output, reward, source, and composition fields. Lives outside `benchmarks/` so language experience can accumulate as replayable substrate instead of a one-off score fixture |
+| `experience/organic-v0/text_experience_raw_spans_v0.jsonl` | cycle-7G raw-span-only text experience database: typed person/object/place fields are omitted, copyable chunks live in raw input text, and the native raw-span sense must derive generic observations for held-out transfer |
 
 ### run/ — artifact output (machine-readable claims, tracked) — `run/state/` is gitignored (runtime substrate)
 
@@ -125,6 +126,12 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation.json` | cycle-7F acceptance-audit ablation: disabling the replay self-audit allows blind replay to damage post-replay probes from 4/4 to 1/4 under hash `f6dfaabe5eda3d11` |
 | `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation_transcript.md` | cycle-7F audit-ablation transcript showing blind replay candidates accepted without the self-audit and the resulting degraded outputs |
 | `run/artifacts/organic-v0/text_experience_replay_cycle7f_summary.json` | cycle-7F aggregate scorecard: all-on post-replay probe 4/4, from-disk 4/4, replay-disabled zero growth, and audit-ablation degradation to 1/4 |
+| `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g.json` | cycle-7G native raw-span text artifact: `--derive-raw-text-spans` on the raw-span-only experience DB reaches train-after 4/4 and held-out probe 4/4 under child hash `16c29f604e814f58` |
+| `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_transcript.md` | cycle-7G readable transcript preserving raw outputs for the raw-span-only text rail |
+| `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_from_disk_probe.json` | cycle-7G fresh loaded-child probe artifact: loaded `cycle7g-raw-spans.pxstate` with raw span derivation enabled and reproduced held-out probes at 4/4 with matching hash `16c29f604e814f58` |
+| `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation.json` | cycle-7G raw-span ablation artifact: `--ablate-raw-text-spans` drops held-out probe transfer from 4/4 to 0/4 |
+| `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation_transcript.md` | cycle-7G raw-span ablation transcript preserving failed raw outputs when derived spans are disabled |
+| `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_summary.json` | cycle-7G aggregate scorecard: all-on 4/4, from-disk 4/4 with matching hash, raw-span ablation 0/4, plus typed-reference comparison to Cycle 7E |
 
 ## Not tracked, on disk
 
