@@ -1,0 +1,95 @@
+{
+  "schema": "project_x.cycle7c.symbolic_relation_ablation.v0",
+  "run_id": "cycle7c-symbolic-relation-ablation-20260514",
+  "timestamp_utc": "2026-05-14T03:15:26Z",
+  "ablation_flag": "--ablate-symbolic-relations",
+  "baseline_artifacts": [
+    "run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_seed7101.json",
+    "run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_seed7102.json"
+  ],
+  "ablation_artifacts": [
+    "run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_ablate_seed7101.json",
+    "run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_ablate_seed7102.json"
+  ],
+  "baseline": {
+    "count": 64,
+    "exact": 48,
+    "held_out_count": 16,
+    "held_out_exact": 16,
+    "support_count": 48,
+    "support_exact": 32,
+    "exact_rate": 0.75,
+    "held_out_exact_rate": 1,
+    "support_exact_rate": 0.6666666666666666
+  },
+  "ablated": {
+    "count": 64,
+    "exact": 4,
+    "held_out_count": 16,
+    "held_out_exact": 2,
+    "support_count": 48,
+    "support_exact": 2,
+    "exact_rate": 0.0625,
+    "held_out_exact_rate": 0.125,
+    "support_exact_rate": 0.041666666666666664
+  },
+  "held_out_delta": -14,
+  "total_delta": -44,
+  "per_seed": [
+    {
+      "seed": 7101,
+      "baseline": {
+        "count": 32,
+        "exact": 24,
+        "exact_rate": 0.750000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 24,
+        "support_exact": 16,
+        "support_exact_rate": 0.666667
+      },
+      "ablated": {
+        "count": 32,
+        "exact": 2,
+        "exact_rate": 0.062500,
+        "held_out_count": 8,
+        "held_out_exact": 1,
+        "held_out_exact_rate": 0.125000,
+        "support_count": 24,
+        "support_exact": 1,
+        "support_exact_rate": 0.041667
+      },
+      "baseline_hash": "0bb1b59f651f32eb",
+      "ablated_hash": "5a748d5b7bd6d577"
+    },
+    {
+      "seed": 7102,
+      "baseline": {
+        "count": 32,
+        "exact": 24,
+        "exact_rate": 0.750000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 24,
+        "support_exact": 16,
+        "support_exact_rate": 0.666667
+      },
+      "ablated": {
+        "count": 32,
+        "exact": 2,
+        "exact_rate": 0.062500,
+        "held_out_count": 8,
+        "held_out_exact": 1,
+        "held_out_exact_rate": 0.125000,
+        "support_count": 24,
+        "support_exact": 1,
+        "support_exact_rate": 0.041667
+      },
+      "baseline_hash": "5bc8e066bf1ba522",
+      "ablated_hash": "9d23025bb212d5d8"
+    }
+  ],
+  "honest_interpretation": "Disabling cue-bound symbolic relation features collapses held-out symbolic transfer from 16/16 to 2/16, isolating the new channel as load-bearing."
+}

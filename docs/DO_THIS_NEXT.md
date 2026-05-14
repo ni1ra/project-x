@@ -1,6 +1,6 @@
 # Do This Next - Project X v2
 
-Generated: 2026-05-14 (post cycle-6 close)
+Generated: 2026-05-14 (post cycle-7C close)
 
 ## Read First
 
@@ -108,3 +108,52 @@ Hard gates:
 - Preserve persistence diff-clean and legacy snapshot compatibility.
 - Do not claim broad language understanding from the farewell or numeric-rule items.
 - Keep runtime speed claims tied to measurements or state them as structural/asymptotic only.
+
+## Cycle 7C Closed - Symbolic Interactive Rule Rung
+
+Cycle 7C shipped the default option: a less-typed symbolic interactive rung.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_summary.json`: aggregate held-out 16/16 (`1.000000`) across seeds 7101/7102; total pre-feedback 48/64 (`0.750000`); support pre-feedback 32/48 (`0.666667`); post-episode probes 16/16 (`1.000000`).
+- `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_symbolic_ablation.json`: `--ablate-symbolic-relations` drops held-out to 2/16 (`0.125000`) and total to 4/64 (`0.062500`).
+- `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_probe_seed7101.json` and `_seed7102.json`: fresh loaded child probes match same-process probe summaries and model hashes.
+- `docs/artifacts/CYCLE7C_INTERACTIVE_SYMBOLIC_RULE.md`: closed interpretation and negative-space audit.
+
+The mechanism is cue-bound symbolic relation features over non-numeric entity attributes:
+
+- color same/different
+- shape same/different
+- place same/different
+- symbol role-match
+
+The oracle still acts only after generation. The action labels are arbitrary and learned from feedback. This is not chat, poetry, philosophy, math, physics, ARC, or beyond-human ability.
+
+Regression gates after Cycle 7C:
+
+- `make test`: PASS
+- cycle-6 regression: 30/30, hash `29958f0880e662dc`
+- clean chat rail: 1/5, hash `888b7664126b7f5f`
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
+- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
+
+## Cycle 7D Contract
+
+Pick one:
+
+1. **Tiny grid transformation rung.** Add a native interactive grid micro-world where observations encode 3x3 or 4x4 symbolic cells and the hidden action depends on mirror, rotate, row/column movement, or color/marker preservation. Close criterion: action history, held-out seeds/rules, failure traces, from-disk probes, and an ablation showing a grid/spatial substrate is load-bearing.
+2. **Replay/consolidation after symbolic interaction.** After an interactive episode, replay support failures into a saved child and rerun held-out probes from disk. Close criterion: replay improves or preserves held-out/probe behavior with fewer support failures or stronger post-episode transfer, while `--ablate-replay` degrades predictably.
+3. **Delayed feedback symbolic interaction.** Withhold feedback for short bursts, then apply correction/reward. Close criterion: action history preserves pre-feedback mistakes, delayed reward is learned into the same state, and an ablation isolates the delay-handling mechanism.
+
+Default recommendation: option 1. Cycle 7C still used typed attribute slots; a grid rung starts moving toward ARC-like micro-worlds without allowing a direct solver route.
+
+Hard gates:
+
+- Write the learnability/design audit before code or fixture edits.
+- Add a new substrate mechanism in `native/organic_v0.cpp`, not a Python answer path.
+- Ship a CLI ablation for the new grid/spatial or replay/delay channel.
+- Use held-out seeds >= 2.
+- Preserve Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails.
+- Keep action labels arbitrary and oracle access after action.
+- Update docs and `REPO_CONTROL.md`.
+- Write and sha7-rename the cycle reflection.

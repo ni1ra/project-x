@@ -20,14 +20,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule action/feedback harness, artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule and symbolic-rule action/feedback harnesses, artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
 | Path | Justification |
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
-| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` / `--ablate-numeric-derived` / `--ablate-threshold-derived` / `--ablate-modular-derived` / `--ablate-relation-projection` |
+| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` / `--ablate-numeric-derived` / `--ablate-threshold-derived` / `--ablate-modular-derived` / `--ablate-relation-projection` / `--ablate-symbolic-relations` |
 | `scripts/test_organic_v0.sh` | runs both phases: `--phase self-test` (substrate guard — cold brain emits nothing, learns one event, emits "zx") then `--phase persistence-self-test` (full round-trip — train → save → fresh child process load → generate → hash + output match). Either failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
@@ -89,6 +89,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback1_seed7001.json` | cycle-7B feedback-strength ablation member: seed 7001 rerun with correction strength 1.0 instead of 2.0; preserves the weaker adaptation trace |
 | `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback1_seed7002.json` | cycle-7B feedback-strength ablation member: seed 7002 rerun with correction strength 1.0 instead of 2.0; exposes the held-out modular miss under weaker correction |
 | `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback_ablation.json` | cycle-7B feedback-strength ablation summary: strength 2.0 reaches 14/14 held-out and 26/42 total; strength 1.0 drops to 13/14 held-out and 15/42 total |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_seed7101.json` | cycle-7C native interactive symbolic-rule artifact for seed 7101: loaded v2-c6 parent, action-before-feedback history over same_color/different_shape/same_place/role_match, 8/8 held-out exact, post-episode probe 8/8, support failure traces preserved |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_seed7102.json` | cycle-7C native interactive symbolic-rule artifact for seed 7102: second held-out seed for the same non-numeric symbolic relation rung, 8/8 held-out exact, post-episode probe 8/8, distinct final state hash |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_probe_seed7101.json` | cycle-7C fresh loaded-child probe artifact for seed 7101: loaded `cycle7c-symbolic-seed7101.pxstate` and reproduced the same 8/8 post-episode probe score with matching model hash |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_probe_seed7102.json` | cycle-7C fresh loaded-child probe artifact for seed 7102: loaded `cycle7c-symbolic-seed7102.pxstate` and reproduced the same 8/8 post-episode probe score with matching model hash |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_summary.json` | cycle-7C aggregate scorecard over seeds 7101/7102: 16/16 held-out exact, 48/64 total pre-feedback exact, 16/16 post-episode probes, and from-disk probe hash/summary matches |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_ablate_seed7101.json` | cycle-7C symbolic-channel ablation member for seed 7101: `--ablate-symbolic-relations` drops held-out transfer from 8/8 to 1/8 and preserves the failure traces |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_ablate_seed7102.json` | cycle-7C symbolic-channel ablation member for seed 7102: `--ablate-symbolic-relations` drops held-out transfer from 8/8 to 1/8 and preserves the failure traces |
+| `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_symbolic_ablation.json` | cycle-7C ablation summary: all-on reaches 16/16 held-out and 48/64 total; disabling cue-bound symbolic relation features drops to 2/16 held-out and 4/64 total |
 
 ## Not tracked, on disk
 

@@ -54,6 +54,12 @@ struct Config {
   // separate persisted gain so computed evidence beats shared surface words without becoming
   // an authored answer route.
   double derived_relation_gain = 5.0;
+  // Cycle-7C symbolic relation channel.
+  // WHAT: non-numeric entity attributes can activate same/different relation addresses
+  // (for example left_color:red + right_color:red -> color:same). These are feature
+  // addresses only; arbitrary action labels still have to be learned from feedback.
+  // NEGATIVE-SPACE: this never maps color:same, shape:different, etc. to an answer.
+  double symbolic_relation_gain = 5.0;
   double transition_gain = 0.65;
   double position_gain = 0.35;
   double state_binding_gain = 1.35;
@@ -118,6 +124,7 @@ struct Config {
   // NEGATIVE-SPACE: no authored entity->answer table; projected chars are emitted from
   // learned CONNS rows exactly like normal literals.
   bool use_relation_projection = true;
+  bool use_symbolic_relation_features = true;
 };
 
 struct Event {
@@ -160,6 +167,7 @@ struct Trace {
   bool has_numeric_relation_control = false;
   std::vector<std::string> threshold_keys;
   std::vector<std::string> modular_keys;
+  std::vector<std::string> symbolic_relation_keys;
   std::string target_output;
   double reward_scalar = 0.0;
   std::array<double, kDim> vector{};
@@ -532,11 +540,52 @@ std::vector<std::string> modular_relation_keys(const std::vector<ObservationSlot
   return keys;
 }
 
+std::optional<std::pair<std::string, std::string>> split_entity_attribute_role(
+    const std::string& role) {
+  size_t sep = role.find('_');
+  if (sep == std::string::npos || sep == 0 || sep + 1 >= role.size()) return std::nullopt;
+  return std::make_pair(role.substr(0, sep), role.substr(sep + 1));
+}
+
+std::vector<std::string> symbolic_relation_keys(const std::vector<ObservationSlot>& slots) {
+  std::set<std::string> keys;
+  for (size_t i = 0; i < slots.size(); ++i) {
+    auto left = split_entity_attribute_role(slots[i].type);
+    if (!left.has_value() || slots[i].value.empty()) continue;
+    for (size_t j = i + 1; j < slots.size(); ++j) {
+      auto right = split_entity_attribute_role(slots[j].type);
+      if (!right.has_value() || slots[j].value.empty()) continue;
+      if (left->first == right->first || left->second != right->second) continue;
+      std::string relation = slots[i].value == slots[j].value ? "same" : "different";
+      std::string entity_a = std::min(left->first, right->first);
+      std::string entity_b = std::max(left->first, right->first);
+      // Attribute-level relation carries transfer across entity names. Pair-level relation
+      // remains available when an episode genuinely depends on a stable role pair.
+      keys.insert(left->second + ":" + relation);
+      keys.insert("pair:" + entity_a + "-" + entity_b + ":" + left->second + ":" + relation);
+    }
+  }
+  return {keys.begin(), keys.end()};
+}
+
+std::string symbolic_relation_key_attribute(const std::string& key) {
+  if (key.rfind("pair:", 0) == 0) {
+    size_t first = key.find(':');
+    size_t second = first == std::string::npos ? std::string::npos : key.find(':', first + 1);
+    size_t third = second == std::string::npos ? std::string::npos : key.find(':', second + 1);
+    if (second == std::string::npos || third == std::string::npos) return std::string();
+    return key.substr(second + 1, third - second - 1);
+  }
+  size_t colon = key.find(':');
+  return colon == std::string::npos ? std::string() : key.substr(0, colon);
+}
+
 void refresh_trace_caches(Trace& trace) {
   trace.slots = parse_slots(trace.observations);
   trace.has_numeric_relation_control = has_numeric_relation_control(trace.slots);
   trace.threshold_keys = threshold_relation_keys(trace.slots);
   trace.modular_keys = modular_relation_keys(trace.slots);
+  trace.symbolic_relation_keys = symbolic_relation_keys(trace.slots);
 }
 
 // Persistence helpers — bit-exact double <-> hex64 so state_hash matches across save/load.
@@ -748,6 +797,16 @@ struct Hdc {
     if (config.use_modular_derived_features) {
       for (const auto& key : modular_relation_keys(slots)) {
         add_atom(vector, "num-modular:" + key, config.derived_relation_gain);
+      }
+    }
+    if (config.use_symbolic_relation_features) {
+      auto sym_keys = symbolic_relation_keys(slots);
+      for (const auto& token : tokenize(input)) {
+        for (const auto& key : sym_keys) {
+          if (token != symbolic_relation_key_attribute(key)) continue;
+          add_atom(vector, "sym-rel-cue:" + token + "|" + key,
+                   config.symbolic_relation_gain * 4.0);
+        }
       }
     }
     return vector;
@@ -1251,6 +1310,11 @@ class OrganicBrain {
   size_t slot_copy_link_count() const { return slot_copy_weights_.size(); }
   const Config& config() const { return config_; }
 
+  void set_symbolic_relation_features_enabled(bool enabled) {
+    config_.use_symbolic_relation_features = enabled;
+    hdc_ = Hdc{config_};
+  }
+
   // Line-oriented state snapshot. Ugly but loadable + hash-checked, per brief.
   // Bit-exact doubles via hex64-of-IEEE-bits so state_hash matches across save/load.
   void serialize_state(std::ostream& out, const std::string& organism_id) const {
@@ -1267,6 +1331,7 @@ class OrganicBrain {
         << " trace_gain=" << double_to_hex(config_.trace_gain)
         << " context_gain=" << double_to_hex(config_.context_gain)
         << " derived_relation_gain=" << double_to_hex(config_.derived_relation_gain)
+        << " symbolic_relation_gain=" << double_to_hex(config_.symbolic_relation_gain)
         << " transition_gain=" << double_to_hex(config_.transition_gain)
         << " position_gain=" << double_to_hex(config_.position_gain)
         << " state_binding_gain=" << double_to_hex(config_.state_binding_gain)
@@ -1281,6 +1346,7 @@ class OrganicBrain {
         << " use_threshold_derived_features=" << (config_.use_threshold_derived_features ? 1 : 0)
         << " use_modular_derived_features=" << (config_.use_modular_derived_features ? 1 : 0)
         << " use_relation_projection=" << (config_.use_relation_projection ? 1 : 0)
+        << " use_symbolic_relation_features=" << (config_.use_symbolic_relation_features ? 1 : 0)
         << " max_roles=" << config_.max_roles
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
@@ -1423,12 +1489,14 @@ class OrganicBrain {
     config_.max_roles = kMaxRoles;
     config_.segment_mode_gain = 0.3;
     config_.derived_relation_gain = 1.0;
+    config_.symbolic_relation_gain = 5.0;
     config_.trace_span_position_gain = 0.0;
     config_.use_trace_span_position_features = false;
     config_.use_numeric_derived_features = false;
     config_.use_threshold_derived_features = false;
     config_.use_modular_derived_features = false;
     config_.use_relation_projection = false;
+    config_.use_symbolic_relation_features = false;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
     std::istringstream cfg_stream(cfg_line.substr(7));
@@ -1446,6 +1514,7 @@ class OrganicBrain {
       else if (k == "trace_gain") config_.trace_gain = hex_to_double(v);
       else if (k == "context_gain") config_.context_gain = hex_to_double(v);
       else if (k == "derived_relation_gain") config_.derived_relation_gain = hex_to_double(v);
+      else if (k == "symbolic_relation_gain") config_.symbolic_relation_gain = hex_to_double(v);
       else if (k == "transition_gain") config_.transition_gain = hex_to_double(v);
       else if (k == "position_gain") config_.position_gain = hex_to_double(v);
       else if (k == "state_binding_gain") config_.state_binding_gain = hex_to_double(v);
@@ -1460,6 +1529,7 @@ class OrganicBrain {
       else if (k == "use_threshold_derived_features") config_.use_threshold_derived_features = (v != "0");
       else if (k == "use_modular_derived_features") config_.use_modular_derived_features = (v != "0");
       else if (k == "use_relation_projection") config_.use_relation_projection = (v != "0");
+      else if (k == "use_symbolic_relation_features") config_.use_symbolic_relation_features = (v != "0");
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
     // Legacy-default seeding (above) is what makes cycle-2 snapshots reload safely.
@@ -1980,6 +2050,16 @@ class OrganicBrain {
     features.insert(features.end(), threshold.begin(), threshold.end());
     auto modular = modular_derived_features(slots);
     features.insert(features.end(), modular.begin(), modular.end());
+    if (config_.use_symbolic_relation_features) {
+      auto sym_keys = symbolic_relation_keys(slots);
+      for (const auto& token : tokens) {
+        for (const auto& key : sym_keys) {
+          if (token != symbolic_relation_key_attribute(key)) continue;
+          features.push_back({hash_pair("sym-rel-cue", token + "|" + key),
+                              config_.context_gain * config_.symbolic_relation_gain * 4.0});
+        }
+      }
+    }
     return features;
   }
 
@@ -2386,6 +2466,7 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"trace_gain\": " << config.trace_gain
       << ", \"context_gain\": " << config.context_gain
       << ", \"derived_relation_gain\": " << config.derived_relation_gain
+      << ", \"symbolic_relation_gain\": " << config.symbolic_relation_gain
       << ", \"transition_gain\": " << config.transition_gain
       << ", \"position_gain\": " << config.position_gain
       << ", \"state_binding_gain\": " << config.state_binding_gain
@@ -2401,6 +2482,8 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"use_threshold_derived_features\": " << (config.use_threshold_derived_features ? "true" : "false")
       << ", \"use_modular_derived_features\": " << (config.use_modular_derived_features ? "true" : "false")
       << ", \"use_relation_projection\": " << (config.use_relation_projection ? "true" : "false")
+      << ", \"use_symbolic_relation_features\": "
+      << (config.use_symbolic_relation_features ? "true" : "false")
       << ", \"max_roles\": " << config.max_roles << "}";
 }
 
@@ -2862,6 +2945,7 @@ struct Args {
   bool ablate_threshold_derived = false;
   bool ablate_modular_derived = false;
   bool ablate_relation_projection = false;
+  bool ablate_symbolic_relations = false;
 };
 
 Args parse_args(int argc, char** argv) {
@@ -2890,6 +2974,9 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--ablate-threshold-derived") args.ablate_threshold_derived = true;
     else if (key == "--ablate-modular-derived") args.ablate_modular_derived = true;
     else if (key == "--ablate-relation-projection") args.ablate_relation_projection = true;
+    else if (key == "--ablate-symbolic-relations" || key == "--ablate-symbolic-relation") {
+      args.ablate_symbolic_relations = true;
+    }
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
@@ -2902,6 +2989,7 @@ void apply_ablations(Config& config, const Args& args) {
   if (args.ablate_threshold_derived) config.use_threshold_derived_features = false;
   if (args.ablate_modular_derived) config.use_modular_derived_features = false;
   if (args.ablate_relation_projection) config.use_relation_projection = false;
+  if (args.ablate_symbolic_relations) config.use_symbolic_relation_features = false;
 }
 
 // Append one JSONL event-log line per the docs/artifacts/PERSISTENCE_SCHEMA.md v0 schema.
@@ -3009,6 +3097,7 @@ void persistence_self_test(const Args& args) {
   if (args.ablate_threshold_derived) cmd << " --ablate-threshold-derived";
   if (args.ablate_modular_derived) cmd << " --ablate-modular-derived";
   if (args.ablate_relation_projection) cmd << " --ablate-relation-projection";
+  if (args.ablate_symbolic_relations) cmd << " --ablate-symbolic-relations";
   int rc = std::system(cmd.str().c_str());
   if (rc != 0) throw std::runtime_error("child persistence-load-verify failed with rc=" + std::to_string(rc));
 
@@ -3227,6 +3316,134 @@ std::vector<HiddenRuleStepSpec> build_hidden_rule_steps(uint64_t seed, const std
   return steps;
 }
 
+std::string pick_symbolic_value(const std::vector<std::string>& values, uint64_t seed, size_t offset) {
+  if (values.empty()) return "";
+  size_t base = static_cast<size_t>(seed % 5);
+  return values[(base + offset) % values.size()];
+}
+
+std::vector<HiddenRuleStepSpec> build_symbolic_rule_steps(uint64_t seed, const std::string& family_filter) {
+  std::vector<HiddenRuleStepSpec> steps;
+  auto want = [&](const std::string& family) {
+    return family_filter == "all" || family_filter == family;
+  };
+  auto push = [&](const std::string& family, const std::string& rule_id,
+                  std::vector<std::string> observations, const std::string& input,
+                  const std::string& correct, bool held_out) {
+    HiddenRuleStepSpec spec;
+    spec.family = family;
+    spec.rule_id = rule_id;
+    spec.step = static_cast<int>(steps.size());
+    spec.observations = std::move(observations);
+    spec.input = input;
+    spec.correct_action = correct;
+    spec.held_out = held_out;
+    steps.push_back(std::move(spec));
+  };
+
+  const std::vector<std::string> colors = {
+      "red", "blue", "green", "amber", "ivory", "teal", "violet", "cyan",
+      "black", "silver", "gold", "white", "maroon", "navy", "lime", "coral"};
+  const std::vector<std::string> shapes = {
+      "square", "circle", "triangle", "hex", "star", "oval", "diamond", "cross",
+      "kite", "ring", "bar", "leaf", "arc", "cube", "cone", "prism"};
+  const std::vector<std::string> places = {
+      "north", "south", "east", "west", "harbor", "mesa", "grove", "delta",
+      "spire", "field", "vault", "bridge", "atrium", "station", "garden", "islet"};
+  const std::vector<std::string> materials = {
+      "wood", "iron", "glass", "stone", "cloth", "brass", "paper", "clay",
+      "steel", "linen", "copper", "slate", "wax", "bone", "fiber", "ceramic"};
+  const std::vector<std::string> symbols = {
+      "ion", "kest", "moru", "sava", "tyn", "orek", "laz", "bex",
+      "pavo", "rusk", "zeni", "doma", "haro", "vex", "quim", "nilo"};
+
+  auto color = [&](size_t offset) { return pick_symbolic_value(colors, seed, offset); };
+  auto shape = [&](size_t offset) { return pick_symbolic_value(shapes, seed, offset); };
+  auto place = [&](size_t offset) { return pick_symbolic_value(places, seed, offset); };
+  auto material = [&](size_t offset) { return pick_symbolic_value(materials, seed, offset); };
+  auto symbol = [&](size_t offset) { return pick_symbolic_value(symbols, seed, offset); };
+
+  if (want("same_color")) {
+    std::string rule = "symbolic_same_color_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool same = (i % 2 == 0);
+      bool held_out = i >= 6;
+      std::string left_color = color(static_cast<size_t>(i * 2));
+      std::string right_color = same ? left_color : color(static_cast<size_t>(i * 2 + 1));
+      // Shape is an opposite distractor, so a generic same/different detector is not enough.
+      std::string left_shape = shape(static_cast<size_t>(i * 2));
+      std::string right_shape = same ? shape(static_cast<size_t>(i * 2 + 1)) : left_shape;
+      push("same_color", rule,
+           {"left_color:" + left_color, "right_color:" + right_color,
+            "left_shape:" + left_shape, "right_shape:" + right_shape},
+           "symbolic rule color pair", same ? "vire" : "nox", held_out);
+    }
+  }
+
+  if (want("different_shape")) {
+    std::string rule = "symbolic_different_shape_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool different = (i % 2 == 0);
+      bool held_out = i >= 6;
+      std::string left_shape = shape(static_cast<size_t>(6 + i * 2));
+      std::string right_shape = different ? shape(static_cast<size_t>(7 + i * 2)) : left_shape;
+      std::string left_color = color(static_cast<size_t>(6 + i * 2));
+      std::string right_color = different ? left_color : color(static_cast<size_t>(7 + i * 2));
+      push("different_shape", rule,
+           {"left_shape:" + left_shape, "right_shape:" + right_shape,
+            "left_color:" + left_color, "right_color:" + right_color},
+           "symbolic rule shape pair", different ? "talu" : "omen", held_out);
+    }
+  }
+
+  if (want("same_place")) {
+    std::string rule = "symbolic_same_place_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool same = (i % 2 == 0);
+      bool held_out = i >= 6;
+      std::string left_place = place(static_cast<size_t>(i * 2));
+      std::string right_place = same ? left_place : place(static_cast<size_t>(i * 2 + 1));
+      std::string left_material = material(static_cast<size_t>(i * 2));
+      std::string right_material = same ? material(static_cast<size_t>(i * 2 + 1)) : left_material;
+      push("same_place", rule,
+           {"left_place:" + left_place, "right_place:" + right_place,
+            "left_material:" + left_material, "right_material:" + right_material},
+           "symbolic rule place pair", same ? "loro" : "vyne", held_out);
+    }
+  }
+
+  if (want("role_match")) {
+    std::string rule = "symbolic_role_match_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool same = (i % 2 == 0);
+      bool held_out = i >= 6;
+      std::string source_symbol = symbol(static_cast<size_t>(i * 2));
+      std::string target_symbol = same ? source_symbol : symbol(static_cast<size_t>(i * 2 + 1));
+      std::string left_color = color(static_cast<size_t>(10 + i * 2));
+      std::string right_color = same ? color(static_cast<size_t>(11 + i * 2)) : left_color;
+      push("role_match", rule,
+           {"source_symbol:" + source_symbol, "target_symbol:" + target_symbol,
+            "left_color:" + left_color, "right_color:" + right_color},
+           "symbolic rule symbol pair", same ? "sato" : "dren", held_out);
+    }
+  }
+
+  return steps;
+}
+
+std::vector<HiddenRuleStepSpec> build_symbolic_probe_steps(uint64_t seed, const std::string& family_filter) {
+  auto steps = build_symbolic_rule_steps(seed + 1009, family_filter);
+  std::vector<HiddenRuleStepSpec> probes;
+  for (const auto& step : steps) {
+    if (!step.held_out) continue;
+    HiddenRuleStepSpec probe = step;
+    probe.step = static_cast<int>(probes.size());
+    probe.rule_id = "probe_" + probe.rule_id;
+    probes.push_back(std::move(probe));
+  }
+  return probes;
+}
+
 void interactive_hidden_rule(const Args& args, const std::string& command) {
   if (args.out.empty()) throw std::runtime_error("interactive-hidden-rule requires --out");
   if (args.action_budget <= 0) throw std::runtime_error("interactive-hidden-rule requires positive --action-budget");
@@ -3387,6 +3604,348 @@ void interactive_hidden_rule(const Args& args, const std::string& command) {
   out << "}\n";
 }
 
+void interactive_symbolic_rule(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("interactive-symbolic-rule requires --out");
+  if (args.action_budget <= 0) throw std::runtime_error("interactive-symbolic-rule requires positive --action-budget");
+  if (args.feedback_strength <= 0.0) throw std::runtime_error("interactive-symbolic-rule requires positive --feedback-strength");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  PersistenceContext persistence;
+  persistence.organism_id = args.organism_id;
+  persistence.loaded_state_path = args.load_state;
+  persistence.saved_state_path = args.save_state;
+  persistence.event_log_path = args.event_log;
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    brain.set_symbolic_relation_features_enabled(!args.ablate_symbolic_relations);
+    persistence.load_status = "loaded_from_disk";
+  }
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  auto steps = build_symbolic_rule_steps(args.scenario_seed, args.rule_family);
+  if (steps.empty()) throw std::runtime_error("interactive-symbolic-rule has no steps for rule family: " + args.rule_family);
+  if (static_cast<int>(steps.size()) > args.action_budget) steps.resize(static_cast<size_t>(args.action_budget));
+
+  std::vector<HiddenRuleActionRecord> history;
+  history.reserve(steps.size());
+  HiddenRuleScore overall;
+  std::map<std::string, HiddenRuleScore> by_family;
+
+  for (size_t i = 0; i < steps.size(); ++i) {
+    const auto& spec = steps[i];
+    Event action_event;
+    action_event.event_id = "evt_isr_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    action_event.episode_id = "ep_isr_" + spec.rule_id;
+    action_event.split = spec.held_out ? "heldout_interactive" : "support_interactive";
+    action_event.domain = "interactive_symbolic_rule";
+    action_event.level = spec.held_out ? 2 : 1;
+    action_event.input = spec.input;
+    action_event.observations = spec.observations;
+    action_event.target_output = spec.correct_action;
+    action_event.reward = {{"oracle_feedback", 1.0}};
+    action_event.source = "interactive_symbolic_rule_oracle_after_action";
+    action_event.composition = spec.family;
+
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(action_event.input, action_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", action_event, gen.output,
+                          spec.correct_action, before, before, "interactive_symbolic_rule", spec.rule_id);
+
+    Event feedback_event = action_event;
+    feedback_event.split = "train";
+    feedback_event.reward = {{"oracle_feedback", args.feedback_strength}};
+    brain.learn(feedback_event);
+    uint64_t after = brain.state_hash();
+    append_event_log_line(args.event_log, args.organism_id, "learn", feedback_event, spec.correct_action,
+                          spec.correct_action, before, after, "interactive_symbolic_rule_feedback", spec.rule_id);
+
+    add_hidden_rule_score(overall, spec.held_out, exact);
+    add_hidden_rule_score(by_family[spec.family], spec.held_out, exact);
+    HiddenRuleActionRecord record;
+    record.spec = spec;
+    record.generation = std::move(gen);
+    record.exact = exact;
+    record.state_before = before;
+    record.state_after_feedback = after;
+    history.push_back(std::move(record));
+  }
+
+  BrainStateStats child_stats = capture_state_stats(brain);
+  if (!args.save_state.empty()) {
+    ensure_parent_dir(args.save_state);
+    std::ofstream state_out(args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+    persistence.load_status = args.load_state.empty() ? "interacted_and_saved" : "loaded_then_interacted_and_saved";
+  } else if (args.load_state.empty()) {
+    persistence.load_status = "interactive_symbolic_rule_no_state_save";
+  } else {
+    persistence.load_status = "loaded_then_interacted_no_state_save";
+  }
+
+  auto probe_steps = build_symbolic_probe_steps(args.scenario_seed, args.rule_family);
+  std::vector<HiddenRuleActionRecord> probe_history;
+  HiddenRuleScore probe_overall;
+  std::map<std::string, HiddenRuleScore> probe_by_family;
+  probe_history.reserve(probe_steps.size());
+  for (size_t i = 0; i < probe_steps.size(); ++i) {
+    const auto& spec = probe_steps[i];
+    Event probe_event;
+    probe_event.event_id = "evt_isr_probe_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    probe_event.episode_id = "ep_isr_probe_" + spec.rule_id;
+    probe_event.split = "post_episode_probe";
+    probe_event.domain = "interactive_symbolic_rule";
+    probe_event.level = 3;
+    probe_event.input = spec.input;
+    probe_event.observations = spec.observations;
+    probe_event.target_output = spec.correct_action;
+    probe_event.reward = {{"oracle_evaluation", 1.0}};
+    probe_event.source = "interactive_symbolic_rule_probe_oracle_after_generation";
+    probe_event.composition = spec.family;
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(probe_event.input, probe_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", probe_event, gen.output,
+                          spec.correct_action, before, before, "interactive_symbolic_rule_probe", spec.rule_id);
+    add_hidden_rule_score(probe_overall, true, exact);
+    add_hidden_rule_score(probe_by_family[spec.family], true, exact);
+    HiddenRuleActionRecord record;
+    record.spec = spec;
+    record.generation = std::move(gen);
+    record.exact = exact;
+    record.state_before = before;
+    record.state_after_feedback = before;
+    probe_history.push_back(std::move(record));
+  }
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-isr-" + hex64(fnv1a(ts + hex64(child_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"interactive-symbolic-rule\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"mode\": " << q(args.mode) << ",\n";
+  out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
+  out << "  \"rule_family\": " << q(args.rule_family) << ",\n";
+  out << "  \"feedback_strength\": " << args.feedback_strength << ",\n";
+  out << "  \"ablation\": {\"symbolic_relations\": " << (args.ablate_symbolic_relations ? "true" : "false") << "},\n";
+  out << "  \"action_budget\": {\"max_actions\": " << args.action_budget
+      << ", \"actions_taken\": " << history.size() << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"feedback_after_action\": true, \"probe_evaluation\": true},\n";
+  out << "  \"symbolic_rule_exposure\": \"Input and observations do not include the rule truth or correct action; symbolic same/different relations are feature addresses only, and oracle feedback is applied after raw generation.\",\n";
+  out << "  \"model_state_hash\": " << q(hex64(child_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state_hash\": " << q(hex64(parent_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, child_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, parent_stats, child_stats); out << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
+  out << "  \"scorecard\": {\"overall\": "; write_hidden_rule_score(out, overall);
+  out << ", \"by_family\": {";
+  bool first_family = true;
+  for (const auto& item : by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"post_episode_probe_scorecard\": {\"overall\": "; write_hidden_rule_score(out, probe_overall);
+  out << ", \"by_family\": {";
+  first_family = true;
+  for (const auto& item : probe_by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"action_history\": [\n";
+  for (size_t i = 0; i < history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": " << (record.spec.held_out ? "true" : "false")
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"exact_before_feedback\": " << (record.exact ? "true" : "false")
+        << ", \"state_before_hash\": " << q(hex64(record.state_before))
+        << ", \"state_after_feedback_hash\": " << q(hex64(record.state_after_feedback))
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"post_episode_probe_history\": [\n";
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = probe_history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"expected_action\": " << q(record.spec.correct_action)
+        << ", \"exact\": " << (record.exact ? "true" : "false")
+        << ", \"state_hash\": " << q(hex64(record.state_before))
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"failure_traces\": [";
+  bool first_failure = true;
+  for (size_t i = 0; i < history.size(); ++i) {
+    const auto& record = history[i];
+    if (record.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": " << (record.spec.held_out ? "true" : "false")
+        << ", \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"state_before_hash\": " << q(hex64(record.state_before)) << "}";
+    first_failure = false;
+  }
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    const auto& record = probe_history[i];
+    if (record.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": true"
+        << ", \"probe\": true"
+        << ", \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"state_before_hash\": " << q(hex64(record.state_before)) << "}";
+    first_failure = false;
+  }
+  out << "],\n";
+  out << "  \"honest_interpretation\": \"Interactive symbolic-rule micro-harness: the model acts before oracle feedback, then feedback is learned into the same organic-v0 state. Symbolic same/different features are relation addresses, not action routes. This is not broad language or ARC competence.\"\n";
+  out << "}\n";
+}
+
+void interactive_symbolic_probe(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("interactive-symbolic-probe requires --out");
+  if (args.load_state.empty()) throw std::runtime_error("interactive-symbolic-probe requires --load-state");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  load_state_checked(brain, args.load_state);
+  brain.set_symbolic_relation_features_enabled(!args.ablate_symbolic_relations);
+  BrainStateStats state_stats = capture_state_stats(brain);
+  auto probe_steps = build_symbolic_probe_steps(args.scenario_seed, args.rule_family);
+  if (probe_steps.empty()) throw std::runtime_error("interactive-symbolic-probe has no probes for rule family: " + args.rule_family);
+
+  std::vector<HiddenRuleActionRecord> history;
+  HiddenRuleScore overall;
+  std::map<std::string, HiddenRuleScore> by_family;
+  history.reserve(probe_steps.size());
+  for (size_t i = 0; i < probe_steps.size(); ++i) {
+    const auto& spec = probe_steps[i];
+    Event probe_event;
+    probe_event.event_id = "evt_isr_disk_probe_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    probe_event.episode_id = "ep_isr_disk_probe_" + spec.rule_id;
+    probe_event.split = "from_disk_probe";
+    probe_event.domain = "interactive_symbolic_rule";
+    probe_event.level = 3;
+    probe_event.input = spec.input;
+    probe_event.observations = spec.observations;
+    probe_event.target_output = spec.correct_action;
+    probe_event.reward = {{"oracle_evaluation", 1.0}};
+    probe_event.source = "interactive_symbolic_rule_from_disk_probe";
+    probe_event.composition = spec.family;
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(probe_event.input, probe_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", probe_event, gen.output,
+                          spec.correct_action, before, before, "interactive_symbolic_rule_from_disk_probe",
+                          args.load_state);
+    add_hidden_rule_score(overall, true, exact);
+    add_hidden_rule_score(by_family[spec.family], true, exact);
+    HiddenRuleActionRecord record;
+    record.spec = spec;
+    record.generation = std::move(gen);
+    record.exact = exact;
+    record.state_before = before;
+    record.state_after_feedback = before;
+    history.push_back(std::move(record));
+  }
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-isr-probe-" + hex64(fnv1a(ts + hex64(state_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"interactive-symbolic-probe\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
+  out << "  \"rule_family\": " << q(args.rule_family) << ",\n";
+  out << "  \"loaded_state_path\": " << q(args.load_state) << ",\n";
+  out << "  \"model_state_hash\": " << q(hex64(state_stats.state_hash)) << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, state_stats); out << ",\n";
+  out << "  \"ablation\": {\"symbolic_relations\": " << (args.ablate_symbolic_relations ? "true" : "false") << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"probe_evaluation\": true},\n";
+  out << "  \"scorecard\": {\"overall\": "; write_hidden_rule_score(out, overall);
+  out << ", \"by_family\": {";
+  bool first_family = true;
+  for (const auto& item : by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"probe_history\": [\n";
+  for (size_t i = 0; i < history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"expected_action\": " << q(record.spec.correct_action)
+        << ", \"exact\": " << (record.exact ? "true" : "false")
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"honest_interpretation\": \"Fresh loaded child probe: same symbolic post-episode probes generated from disk without replaying the interactive episode.\"\n";
+  out << "}\n";
+}
+
 }  // namespace px
 
 int main(int argc, char** argv) {
@@ -3411,6 +3970,14 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "interactive-hidden-rule") {
       px::interactive_hidden_rule(args, command);
+      return 0;
+    }
+    if (args.phase == "interactive-symbolic-rule") {
+      px::interactive_symbolic_rule(args, command);
+      return 0;
+    }
+    if (args.phase == "interactive-symbolic-probe") {
+      px::interactive_symbolic_probe(args, command);
       return 0;
     }
 

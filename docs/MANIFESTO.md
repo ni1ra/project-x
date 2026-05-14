@@ -11,6 +11,8 @@ It is not a chatbot, not a RAG agent, not a wrapper around a pretrained model, n
 
 The first honest version may produce poor text. That is acceptable. A bad answer produced by learned internal state is progress. A polished answer assembled by templates, regex routes, hardcoded formulas, or persona wrappers is regression.
 
+The end-state interface should be fully chattable: normal human conversation, poetry, philosophy, opinions grounded in learned values, math, physics, and long-horizon help through a JARVIS-grade interface. That capability must emerge from the organism's learned brain state and action machinery. It must never be faked by a hardcoded voice layer, answer templates, parser dispatch, pretrained wrapper calls, or benchmark-specific routes.
+
 ## Ideal End Product
 
 The ideal Project X Raphael is a local, persistent, auditable artificial organism running on the user's workstation. It should feel less like opening a chatbot and more like sharing a machine with a growing mind that has continuity, memory, agency, limits, and a measurable internal life.

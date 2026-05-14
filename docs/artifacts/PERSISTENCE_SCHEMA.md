@@ -161,6 +161,23 @@ Three CONFIG fields document and gate the behavior:
 
 Older snapshots default `derived_relation_gain` to `1.0` and both new booleans to `0` on load. That preserves cycle-2 through cycle-5 answer-path semantics and keeps legacy state hashes stable. Runtime caches for parsed observation slots, threshold keys, modular keys, and event-id lookup are rebuilt from persisted trace observations at load time; they are not serialized and are not walked by `state_hash()`.
 
+### Cycle-7C extension: symbolic relation CONFIG fields
+
+Cycle 7C adds no new PXSTATE section. It adds cue-bound symbolic same/different relation features for non-numeric entity attributes:
+
+- observation roles shaped like `left_color:red` and `right_color:red` produce relation keys such as `color:same`
+- pair-specific keys such as `pair:left-right:color:same` are also available
+- relation keys bind only to matching cue tokens, e.g. the input token `shape` can activate `shape:different`
+
+The learned answers still live as ordinary character and mode-switch weights in `CONNS` / `SEGMENT_CONNS`. The symbolic channel creates feature addresses only; it does not map relations to action labels.
+
+Two CONFIG fields document and gate the behavior:
+
+- `symbolic_relation_gain=<hex64>`: persisted gain for cue-bound symbolic relation addresses. v2-c7C snapshots write the default value `5.0`.
+- `use_symbolic_relation_features=1|0`
+
+Older snapshots default `symbolic_relation_gain` to `5.0` and `use_symbolic_relation_features` to `0` on load. The interactive symbolic harness explicitly enables the channel after loading the v2-c6 parent unless `--ablate-symbolic-relations` is set, then saves children that persist the enabled flag. State-hash coverage needs no new walker because learned values are ordinary connection rows and traces already persist the observations needed to rebuild symbolic relation caches.
+
 ### Cycle-7A extension: continuation learning contract
 
 Cycle 7A adds no new PXSTATE section and no new answer-path mechanism. It formalizes continuation as orchestration over the existing snapshot and event-log schemas:
