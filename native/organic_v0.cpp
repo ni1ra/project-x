@@ -2136,6 +2136,77 @@ OrganicBrain train_brain(const std::vector<Event>& events, const Config& config)
   return brain;
 }
 
+struct BrainStateStats {
+  size_t trace_count = 0;
+  size_t connection_feature_count = 0;
+  size_t connection_nonzero_count = 0;
+  size_t slot_copy_link_count = 0;
+  size_t learned_char_count = 0;
+  uint64_t state_hash = 0;
+};
+
+BrainStateStats capture_state_stats(const OrganicBrain& brain) {
+  BrainStateStats stats;
+  stats.trace_count = brain.trace_count();
+  stats.connection_feature_count = brain.connection_feature_count();
+  stats.connection_nonzero_count = brain.connection_nonzero_count();
+  stats.slot_copy_link_count = brain.slot_copy_link_count();
+  stats.learned_char_count = brain.learned_char_count();
+  stats.state_hash = brain.state_hash();
+  return stats;
+}
+
+void write_state_stats(std::ostream& out, const BrainStateStats& stats) {
+  out << "{\"trace_count\": " << stats.trace_count
+      << ", \"connection_feature_count\": " << stats.connection_feature_count
+      << ", \"connection_nonzero_count\": " << stats.connection_nonzero_count
+      << ", \"slot_copy_link_count\": " << stats.slot_copy_link_count
+      << ", \"learned_char_count\": " << stats.learned_char_count
+      << ", \"state_hash\": " << q(hex64(stats.state_hash)) << "}";
+}
+
+void write_state_growth(std::ostream& out, const BrainStateStats& parent, const BrainStateStats& child) {
+  auto delta = [](size_t after, size_t before) -> long long {
+    return static_cast<long long>(after) - static_cast<long long>(before);
+  };
+  out << "{\"trace_count_delta\": " << delta(child.trace_count, parent.trace_count)
+      << ", \"connection_feature_count_delta\": "
+      << delta(child.connection_feature_count, parent.connection_feature_count)
+      << ", \"connection_nonzero_count_delta\": "
+      << delta(child.connection_nonzero_count, parent.connection_nonzero_count)
+      << ", \"slot_copy_link_count_delta\": "
+      << delta(child.slot_copy_link_count, parent.slot_copy_link_count)
+      << ", \"learned_char_count_delta\": "
+      << delta(child.learned_char_count, parent.learned_char_count) << "}";
+}
+
+void load_state_checked(OrganicBrain& brain, const std::string& path) {
+  std::ifstream state_in(path);
+  if (!state_in) throw std::runtime_error("cannot open loaded state: " + path);
+  brain.load_serialized_state(state_in);
+  if (brain.state_hash() != brain.expected_state_hash()) {
+    throw std::runtime_error("loaded state hash mismatch: file=" + hex64(brain.expected_state_hash()) +
+                             " recomputed=" + hex64(brain.state_hash()));
+  }
+}
+
+void learn_train_events(OrganicBrain& brain, const std::vector<Event>& events,
+                        const PersistenceContext& persistence, const std::string& source_kind,
+                        const std::string& source_path) {
+  uint64_t before_hash = brain.state_hash();
+  for (const auto& event : events) {
+    if (event.split != "train") continue;
+    brain.learn(event);
+    uint64_t after_hash = brain.state_hash();
+    if (!persistence.event_log_path.empty()) {
+      append_event_log_line(persistence.event_log_path, persistence.organism_id, "learn", event,
+                            event.target_output, event.target_output, before_hash, after_hash,
+                            source_kind, source_path);
+    }
+    before_hash = after_hash;
+  }
+}
+
 double lcs_ratio(const std::string& a, const std::string& b) {
   if (a.empty() && b.empty()) return 1.0;
   std::vector<int> prev(b.size() + 1, 0), cur(b.size() + 1, 0);
@@ -2403,22 +2474,61 @@ std::string command_string(int argc, char** argv) {
   return out.str();
 }
 
+void append_event_log_line(const std::string& log_path, const std::string& organism_id,
+                           const std::string& phase, const Event& event,
+                           const std::string& raw_output, const std::string& expected,
+                           uint64_t state_before_hash, uint64_t state_after_hash,
+                           const std::string& source_kind, const std::string& source_path);
+
 void write_train_artifact(const std::string& out_path, const std::string& data_path, const std::string& mode,
                           const std::string& command, const std::vector<Event>& events, const Config& config,
                           PersistenceContext& persistence) {
   auto audit = validate_splits(events);
   if (!audit.duplicates.empty()) throw std::runtime_error("held-out prompt duplicates training prompt");
-  auto brain = train_brain(events, config);
+  OrganicBrain brain(config);
+  bool continued_from_disk = false;
+  if (!persistence.loaded_state_path.empty()) {
+    std::ifstream state_in(persistence.loaded_state_path);
+    if (!state_in) throw std::runtime_error("cannot open loaded state: " + persistence.loaded_state_path);
+    brain.load_serialized_state(state_in);
+    if (brain.state_hash() != brain.expected_state_hash()) {
+      throw std::runtime_error("loaded state hash mismatch: file=" + hex64(brain.expected_state_hash()) +
+                               " recomputed=" + hex64(brain.state_hash()));
+    }
+    persistence.load_status = "loaded_then_learned";
+    continued_from_disk = true;
+  }
+  uint64_t parent_state = brain.state_hash();
+  size_t parent_trace_count = brain.trace_count();
+  size_t parent_connection_feature_count = brain.connection_feature_count();
+  size_t parent_connection_nonzero_count = brain.connection_nonzero_count();
+  size_t parent_slot_copy_link_count = brain.slot_copy_link_count();
+  size_t parent_learned_char_count = brain.learned_char_count();
+  uint64_t before_hash = parent_state;
+  for (const auto& event : events) {
+    if (event.split != "train") continue;
+    brain.learn(event);
+    uint64_t after_hash = brain.state_hash();
+    if (!persistence.event_log_path.empty()) {
+      append_event_log_line(persistence.event_log_path, persistence.organism_id, "learn", event,
+                            event.target_output, event.target_output, before_hash, after_hash,
+                            continued_from_disk ? "loaded_state_plus_benchmark" : "benchmark", data_path);
+    }
+    before_hash = after_hash;
+  }
   std::string ts = timestamp_utc();
   uint64_t state = brain.state_hash();
   std::string run_id = "organic-v0-train-" + hex64(fnv1a(ts + hex64(state))).substr(0, 12);
+  const Config& active_config = brain.config();
 
   // Persistence side-effects: save state and/or append event log if paths were provided.
   if (!persistence.saved_state_path.empty()) {
     ensure_parent_dir(persistence.saved_state_path);
     std::ofstream state_out(persistence.saved_state_path);
     brain.serialize_state(state_out, persistence.organism_id);
-    if (persistence.load_status == "schema_only_not_runtime_persistence") {
+    if (continued_from_disk) {
+      persistence.load_status = "loaded_then_learned_and_saved";
+    } else if (persistence.load_status == "schema_only_not_runtime_persistence") {
       persistence.load_status = "save_only_no_load_yet";
     }
   }
@@ -2430,10 +2540,11 @@ void write_train_artifact(const std::string& out_path, const std::string& data_p
   out << "  \"timestamp\": " << q(ts) << ",\n";
   out << "  \"command\": " << q(command) << ",\n";
   out << "  \"mode\": " << q(mode) << ",\n";
-  out << "  \"seed\": " << config.seed << ",\n";
-  out << "  \"config\": "; write_config(out, config); out << ",\n";
-  out << "  \"model_config_hash\": " << q(hex64(config_hash(config))) << ",\n";
+  out << "  \"seed\": " << active_config.seed << ",\n";
+  out << "  \"config\": "; write_config(out, active_config); out << ",\n";
+  out << "  \"model_config_hash\": " << q(hex64(config_hash(active_config))) << ",\n";
   out << "  \"model_state_hash\": " << q(hex64(state)) << ",\n";
+  out << "  \"parent_model_state_hash\": " << q(hex64(parent_state)) << ",\n";
   out << "  \"benchmark_path\": " << q(data_path) << ",\n";
   out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
   out << "  \"train_dev_test_split\": "; write_split_audit(out, events, audit, 2); out << ",\n";
@@ -2464,12 +2575,27 @@ void write_train_artifact(const std::string& out_path, const std::string& data_p
     first = false;
   }
   out << "\n  ],\n";
+  out << "  \"parent_model_state\": {\"trace_count\": " << parent_trace_count
+      << ", \"connection_feature_count\": " << parent_connection_feature_count
+      << ", \"connection_nonzero_count\": " << parent_connection_nonzero_count
+      << ", \"slot_copy_link_count\": " << parent_slot_copy_link_count
+      << ", \"learned_char_count\": " << parent_learned_char_count
+      << ", \"state_hash\": " << q(hex64(parent_state)) << "},\n";
   out << "  \"model_state\": {\"trace_count\": " << brain.trace_count()
       << ", \"connection_feature_count\": " << brain.connection_feature_count()
       << ", \"connection_nonzero_count\": " << brain.connection_nonzero_count()
       << ", \"slot_copy_link_count\": " << brain.slot_copy_link_count()
       << ", \"learned_char_count\": " << brain.learned_char_count()
       << ", \"state_hash\": " << q(hex64(state)) << "},\n";
+  out << "  \"state_growth\": {\"trace_count_delta\": " << (brain.trace_count() - parent_trace_count)
+      << ", \"connection_feature_count_delta\": "
+      << (brain.connection_feature_count() - parent_connection_feature_count)
+      << ", \"connection_nonzero_count_delta\": "
+      << (brain.connection_nonzero_count() - parent_connection_nonzero_count)
+      << ", \"slot_copy_link_count_delta\": "
+      << (brain.slot_copy_link_count() - parent_slot_copy_link_count)
+      << ", \"learned_char_count_delta\": "
+      << (brain.learned_char_count() - parent_learned_char_count) << "},\n";
   out << "  \"honest_interpretation\": \"Native organic-v0 stores rewarded event/output associations as state-bound character connections. Raw outputs are generated after training and are not cleaned.\"\n";
   out << "}\n";
 }
@@ -2507,15 +2633,22 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
   auto audit = validate_splits(events);
   if (!audit.duplicates.empty()) throw std::runtime_error("held-out prompt duplicates training prompt");
   OrganicBrain brain(config);
+  bool continued_for_eval = false;
+  BrainStateStats parent_stats;
   if (!persistence.loaded_state_path.empty()) {
-    std::ifstream state_in(persistence.loaded_state_path);
-    if (!state_in) throw std::runtime_error("cannot open loaded state: " + persistence.loaded_state_path);
-    brain.load_serialized_state(state_in);
-    if (brain.state_hash() != brain.expected_state_hash()) {
-      throw std::runtime_error("loaded state hash mismatch: file=" + hex64(brain.expected_state_hash()) +
-                               " recomputed=" + hex64(brain.state_hash()));
+    load_state_checked(brain, persistence.loaded_state_path);
+    parent_stats = capture_state_stats(brain);
+    if (!persistence.saved_state_path.empty()) {
+      continued_for_eval = true;
+      persistence.load_status = "loaded_then_learned";
+      learn_train_events(brain, events, persistence, "loaded_state_plus_benchmark", data_path);
+      ensure_parent_dir(persistence.saved_state_path);
+      std::ofstream state_out(persistence.saved_state_path);
+      brain.serialize_state(state_out, persistence.organism_id);
+      persistence.load_status = "loaded_then_learned_and_saved";
+    } else {
+      persistence.load_status = "loaded_from_disk";
     }
-    persistence.load_status = "loaded_from_disk";
   } else {
     brain = train_brain(events, config);
     if (!persistence.saved_state_path.empty()) {
@@ -2531,6 +2664,7 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
   // A --load-state run may replace binary defaults with the snapshot CONFIG line; reporting
   // the outer main() config would make legacy-load artifacts lie about answer-path behavior.
   const Config& active_config = brain.config();
+  BrainStateStats model_stats = capture_state_stats(brain);
   auto alphabet = collect_alphabet(events);
 
   struct Result {
@@ -2543,9 +2677,13 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
 
   // Held-out generation does not mutate brain state — state_hash is constant for all eval events,
   // so we capture it once and reuse it for the event-log's state_before/state_after fields.
-  uint64_t eval_state_hash = brain.state_hash();
-  std::string eval_source = persistence.loaded_state_path.empty() ? std::string("benchmark") : std::string("loaded_state");
-  std::string eval_source_path = persistence.loaded_state_path.empty() ? data_path : persistence.loaded_state_path;
+  uint64_t eval_state_hash = model_stats.state_hash;
+  std::string eval_source = persistence.loaded_state_path.empty()
+                                ? std::string("benchmark")
+                                : (continued_for_eval ? std::string("continued_state") : std::string("loaded_state"));
+  std::string eval_source_path = persistence.loaded_state_path.empty()
+                                    ? data_path
+                                    : (continued_for_eval ? persistence.saved_state_path : persistence.loaded_state_path);
 
   std::vector<Result> results;
   std::map<std::string, EvalSummary> by_split;
@@ -2631,6 +2769,12 @@ void write_eval_artifact(const std::string& out_path, const std::string& data_pa
         << ", \"source\": " << q(event.source) << "}";
   }
   out << "\n  ],\n";
+  if (continued_for_eval) {
+    out << "  \"parent_model_state_hash\": " << q(hex64(parent_stats.state_hash)) << ",\n";
+    out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+    out << "  \"model_state\": "; write_state_stats(out, model_stats); out << ",\n";
+    out << "  \"state_growth\": "; write_state_growth(out, parent_stats, model_stats); out << ",\n";
+  }
   double cold_exact = 0.0;
   double random_exact = 0.0;
   for (const auto& result : results) {
@@ -2807,28 +2951,27 @@ void persistence_self_test(const Args& args) {
   }
   if (!verify_event) throw std::runtime_error("verify event not in benchmark: " + verify_id);
 
-  // Parent process: train INCREMENTALLY so we can record honest per-event state-hash transitions.
-  // (train_brain() exists but trains in one shot; the event log requires before/after hashes per event,
-  //  so we replicate its inner loop here. Cost: ~2M hash ops over 20 events — microseconds.)
   if (!args.event_log.empty()) {
     ensure_parent_dir(args.event_log);
     std::ofstream(args.event_log, std::ios::trunc).close();  // start fresh; child will append
   }
   OrganicBrain brain(config);
-  uint64_t before_hash = brain.state_hash();
-  for (const auto& ev : events) {
-    if (ev.split != "train") continue;
-    brain.learn(ev);
-    uint64_t after_hash = brain.state_hash();
-    if (!args.event_log.empty()) {
-      // Per-event log line — state_before/after are HONEST transitions, not final-state stamps.
-      // raw_generated_output == target_output because learning is rewarded against the target.
-      append_event_log_line(args.event_log, args.organism_id, "learn", ev, ev.target_output, ev.target_output,
-                            before_hash, after_hash, "benchmark", args.data);
-    }
-    before_hash = after_hash;
+  bool continued_from_disk = false;
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    continued_from_disk = true;
   }
-  uint64_t pre_hash = brain.state_hash();
+  BrainStateStats loaded_parent_stats = capture_state_stats(brain);
+  PersistenceContext persistence;
+  persistence.organism_id = args.organism_id;
+  persistence.loaded_state_path = args.load_state;
+  persistence.saved_state_path = args.save_state;
+  persistence.event_log_path = args.event_log;
+  learn_train_events(brain, events, persistence,
+                     continued_from_disk ? "loaded_state_plus_benchmark" : "benchmark",
+                     args.data);
+  BrainStateStats saved_child_stats = capture_state_stats(brain);
+  uint64_t pre_hash = saved_child_stats.state_hash;
   auto pre_gen = brain.generate(verify_event->input, verify_event->observations);
   if (!args.event_log.empty()) {
     // Generate is read-only (no learning) — state_after equals state_before.
@@ -2873,6 +3016,7 @@ void persistence_self_test(const Args& args) {
   std::error_code rm_ec;
   std::filesystem::remove(child_out, rm_ec);  // best-effort cleanup; ignore errors
   std::string parent_hash = hex64(pre_hash);
+  std::string loaded_parent_hash = hex64(loaded_parent_stats.state_hash);
   bool hash_match = (child_hash == parent_hash);
   bool output_match = (child_output == pre_gen.output);
 
@@ -2886,11 +3030,16 @@ void persistence_self_test(const Args& args) {
   out << "  \"timestamp\": " << q(ts) << ",\n";
   out << "  \"phase\": \"persistence-self-test\",\n";
   out << "  \"organism_id\": " << q(args.organism_id) << ",\n";
+  out << "  \"loaded_parent_state_path\": " << (args.load_state.empty() ? "null" : q(args.load_state)) << ",\n";
+  out << "  \"loaded_parent_state_hash\": " << q(loaded_parent_hash) << ",\n";
   out << "  \"saved_state_path\": " << q(args.save_state) << ",\n";
   out << "  \"appended_event_log_path\": " << (args.event_log.empty() ? "null" : q(args.event_log)) << ",\n";
   out << "  \"child_verdict_path\": null,\n";
   out << "  \"child_verdict_embedded\": true,\n";
   out << "  \"verify_event_id\": " << q(verify_id) << ",\n";
+  out << "  \"loaded_parent_model_state\": "; write_state_stats(out, loaded_parent_stats); out << ",\n";
+  out << "  \"saved_child_model_state\": "; write_state_stats(out, saved_child_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, loaded_parent_stats, saved_child_stats); out << ",\n";
   out << "  \"parent_state_hash\": " << q(parent_hash) << ",\n";
   out << "  \"parent_raw_output\": " << q(pre_gen.output) << ",\n";
   out << "  \"child_state_hash\": " << q(child_hash) << ",\n";

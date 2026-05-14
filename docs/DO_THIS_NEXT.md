@@ -62,7 +62,21 @@ Legacy compatibility:
 
 The key claim is isolation, not the all-on 1.000. Threshold and modular are not piggybacking on parity; turning off one relation channel breaks only that family.
 
-## Cycle 7 Contract
+## Cycle 7A Closed - Growing Brain File Contract
+
+Cycle 7A made continuation learning first-class before starting the harder interactive rung.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/fork_divergence_cycle7a.json`: two children load the same v2-c6 parent, learn different streams, reload cleanly, diverge in state hash, and emit different held-out raw outputs.
+- child A: `fab9c2c0367ed2b5`, 1/1 from-training and 1/1 from-disk, raw `"aurora branch"`.
+- child B: `c0f016285e735e14`, 1/1 from-training and 1/1 from-disk, raw `"ember branch"`.
+- `run/artifacts/organic-v0/persist_self_test_cycle7a_child.json`: loaded parent hash `29958f0880e662dc`, child hash `fab9c2c0367ed2b5`, `hash_match=true`, `output_match=true`.
+- `run/artifacts/organic-v0/eval_cycle7a_legacy_cycle2_cycle5_fixture.json`: legacy cycle-2 snapshot remains 9/25 (`0.360000`), state hash `3536309de837d3e2`, raw `"milaquart arch6"`.
+
+This proves restart-surviving fork divergence under different experience. It does not prove fluent chat or interactive rule induction.
+
+## Cycle 7B Contract
 
 Pick one:
 

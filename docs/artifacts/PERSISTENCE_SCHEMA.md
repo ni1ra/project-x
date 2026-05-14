@@ -161,6 +161,19 @@ Three CONFIG fields document and gate the behavior:
 
 Older snapshots default `derived_relation_gain` to `1.0` and both new booleans to `0` on load. That preserves cycle-2 through cycle-5 answer-path semantics and keeps legacy state hashes stable. Runtime caches for parsed observation slots, threshold keys, modular keys, and event-id lookup are rebuilt from persisted trace observations at load time; they are not serialized and are not walked by `state_hash()`.
 
+### Cycle-7A extension: continuation learning contract
+
+Cycle 7A adds no new PXSTATE section and no new answer-path mechanism. It formalizes continuation as orchestration over the existing snapshot and event-log schemas:
+
+- `train --load-state <parent> --save-state <child>` loads a parent checkpoint, learns the train split, appends per-event `learn` log rows, saves a child checkpoint, and reports parent state, child state, and growth deltas.
+- `eval --load-state <parent> --save-state <child>` does the same continuation step, then evaluates held-out events from the in-memory child. This is the from-training child eval.
+- `eval --load-state <child>` evaluates the saved child after reload without replaying the continuation stream. This is the from-disk child eval.
+- `persistence-self-test --load-state <parent> --save-state <child>` runs the same continuation path and then spawns a child process that loads the saved child checkpoint and must match hash + output on the verify event.
+
+The cycle-7A artifact contract is documented in `docs/artifacts/CYCLE7A_GROWING_BRAIN_FILE.md`. The headline evidence is `run/artifacts/organic-v0/fork_divergence_cycle7a.json`: two children load the same v2-c6 parent, learn different rewarded streams, save different state hashes, reload cleanly from disk, and produce different held-out raw outputs.
+
+No state hash walker changes were needed because the child mutations are ordinary persisted traces, connection weights, role tables, and learned characters already covered by `state_hash()`.
+
 ### State hash gating
 
 Cycle-2 hash `3536309de837d3e2` is preserved bit-exactly when `use_segment_mode=0`. The new `state_hash` walks of `role_token_table_` and `segment_connections_` are GATED behind `if (config_.use_segment_mode)` — `combine(h, 0)` is NOT a no-op (see `combine` in `native/organic_v0.cpp:139`), so unconditional walks of empty containers would alter the hash even with `use_segment_mode=0`. With the gate active, cycle-2 saved state loads as `use_segment_mode=0` automatically via the CONFIG section and the hash stays compatible.

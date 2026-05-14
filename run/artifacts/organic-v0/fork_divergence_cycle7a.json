@@ -1,0 +1,55 @@
+{
+  "schema": "project_x.cycle7a.fork_divergence.v0",
+  "run_id": "cycle7a-fork-divergence-20260514T021458",
+  "timestamp_utc": "2026-05-14T02:14:58Z",
+  "parent": {
+    "state_path": "run/state/organic-v0/snapshots/raphael-local-0001/v2c6.pxstate",
+    "state_hash": "29958f0880e662dc",
+    "bytes": 752279
+  },
+  "child_a": {
+    "stream": "benchmarks/v2_ladder/organic_cycle7a_fork_a.jsonl",
+    "state_path": "run/state/organic-v0/snapshots/raphael-local-0001/cycle7a-child-a.pxstate",
+    "state_hash": "fab9c2c0367ed2b5",
+    "bytes": 796722,
+    "exact_count": 1,
+    "exact_rate": 1.000000,
+    "held_out_event_id": "evt_cycle7a_probe_000",
+    "held_out_raw_output": "aurora branch",
+    "train_vs_disk_summary_and_hash_match": true,
+    "from_training_artifact": "run/artifacts/organic-v0/eval_cycle7a_child_a_from_training.json",
+    "from_disk_artifact": "run/artifacts/organic-v0/eval_cycle7a_child_a_from_disk.json"
+  },
+  "child_b": {
+    "stream": "benchmarks/v2_ladder/organic_cycle7a_fork_b.jsonl",
+    "state_path": "run/state/organic-v0/snapshots/raphael-local-0001/cycle7a-child-b.pxstate",
+    "state_hash": "c0f016285e735e14",
+    "bytes": 794311,
+    "exact_count": 1,
+    "exact_rate": 1.000000,
+    "held_out_event_id": "evt_cycle7a_probe_000",
+    "held_out_raw_output": "ember branch",
+    "train_vs_disk_summary_and_hash_match": true,
+    "from_training_artifact": "run/artifacts/organic-v0/eval_cycle7a_child_b_from_training.json",
+    "from_disk_artifact": "run/artifacts/organic-v0/eval_cycle7a_child_b_from_disk.json"
+  },
+  "verdict": {
+    "child_state_hashes_diverged": true,
+    "held_out_outputs_diverged": true,
+    "child_a_growth": {
+      "trace_count_delta": 2,
+      "connection_feature_count_delta": 736,
+      "connection_nonzero_count_delta": 1049,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    },
+    "child_b_growth": {
+      "trace_count_delta": 2,
+      "connection_feature_count_delta": 703,
+      "connection_nonzero_count_delta": 962,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    }
+  },
+  "honest_interpretation": "Two child checkpoints loaded the same parent and learned different rewarded event streams. The child state hashes and held-out raw outputs diverged, and each child reloads from disk with matching summary_metrics + model_state_hash. This proves durable fork divergence under experience, not broad language intelligence."
+}

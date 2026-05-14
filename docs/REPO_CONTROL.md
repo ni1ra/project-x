@@ -35,6 +35,9 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | Path | Justification |
 |---|---|
 | `benchmarks/v2_ladder/organic_v0.jsonl` | honest compositional baseline for organic-v0. 62 events: 32 train + 30 held-out across 5 domains. Cycle 6 adds threshold and modular hidden-rule mini-suites with at least two train marks per class and held-out unseen marks; hidden_rule keeps parity distractors, threshold distractors, and modular distractors where surface signal conflicts with the computed relation; abstention keeps 2 evidence-present + 2 evidence-absence items with identical wording; memory/causal/language carry filler-length variance |
+| `benchmarks/v2_ladder/organic_live_chat_v0.jsonl` | manifesto-safe live-chat regression rail. Raw utterance observations only; no frontend-inferred greeting/farewell/identity labels. Preserves the honest 1/5 chat baseline without making chat the cycle headline |
+| `benchmarks/v2_ladder/organic_cycle7a_fork_a.jsonl` | cycle-7A continuation-learning fork stream A. Same parent and probe shape as fork B, but rewarded with a different output so checkpoint hash and held-out behavior must diverge from experience alone |
+| `benchmarks/v2_ladder/organic_cycle7a_fork_b.jsonl` | cycle-7A continuation-learning fork stream B. Same parent and probe shape as fork A, but rewarded with a different output so checkpoint hash and held-out behavior must diverge from experience alone |
 
 ### run/ — artifact output (machine-readable claims, tracked) — `run/state/` is gitignored (runtime substrate)
 
@@ -69,6 +72,17 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/eval_cycle6_ablate_relation.json` | cycle-6 regression gate: `--ablate-relation-projection` drops exact_rate to `0.933333` (28/30); failures remain isolated to evidence-present (`evt_abs_test_001`, `evt_abs_test_003`), while all numeric-relation families remain exact |
 | `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_cycle5_fixture.json` | cycle-6 legacy compatibility: cycle-2 snapshot loaded under the cycle-6 binary on the cycle-5 fixture remains at exact_rate `0.360000` (9/25), state hash `3536309de837d3e2`, and `evt_mem_test_001` raw `"milaquart arch6"` |
 | `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_current_fixture.json` | cycle-6 legacy compatibility on the expanded fixture: same cycle-2 snapshot scores exact_rate `0.300000` (9/30) because the denominator adds five new cycle-6 tests; state hash and historical raw output remain unchanged |
+| `run/artifacts/organic-v0/train_live_chat_v0_manifesto_from_v2c6.json` | manifesto-safe chat continuation artifact: v2-c6 parent learns six raw-utterance chat seed events without semantic intent labels; child hash `888b7664126b7f5f` |
+| `run/artifacts/organic-v0/eval_live_chat_v0_manifesto_from_v2c7_chat.json` | manifesto-safe chat regression artifact: child hash `888b7664126b7f5f` scores 1/5 (`0.200000`) on held-out raw chat, preserving honest failure instead of counting the contaminated 3/5 fork |
+| `run/artifacts/organic-v0/train_cycle7a_child_a.json` | cycle-7A continuation train artifact: v2-c6 parent loaded, fork stream A learned, child checkpoint saved, and state growth reported under hash `fab9c2c0367ed2b5` |
+| `run/artifacts/organic-v0/train_cycle7a_child_b.json` | cycle-7A continuation train artifact: v2-c6 parent loaded, fork stream B learned, child checkpoint saved, and state growth reported under hash `c0f016285e735e14` |
+| `run/artifacts/organic-v0/eval_cycle7a_child_a_from_training.json` | cycle-7A same-process continued-child eval for fork A; learns from parent then evaluates held-out probe at 1/1 with raw output `"aurora branch"` |
+| `run/artifacts/organic-v0/eval_cycle7a_child_a_from_disk.json` | cycle-7A fresh loaded-child eval for fork A; summary_metrics + model_state_hash match the from-training child eval |
+| `run/artifacts/organic-v0/eval_cycle7a_child_b_from_training.json` | cycle-7A same-process continued-child eval for fork B; learns from parent then evaluates held-out probe at 1/1 with raw output `"ember branch"` |
+| `run/artifacts/organic-v0/eval_cycle7a_child_b_from_disk.json` | cycle-7A fresh loaded-child eval for fork B; summary_metrics + model_state_hash match the from-training child eval |
+| `run/artifacts/organic-v0/persist_self_test_cycle7a_child.json` | cycle-7A continuation persistence self-test: v2-c6 parent loads, stream A is learned, child checkpoint reloads in a child process with hash and output match |
+| `run/artifacts/organic-v0/eval_cycle7a_legacy_cycle2_cycle5_fixture.json` | cycle-7A legacy compatibility gate: `/tmp/cycle2.pxstate` still scores 9/25 (`0.360000`) on the historical cycle-5 fixture with state hash `3536309de837d3e2` |
+| `run/artifacts/organic-v0/fork_divergence_cycle7a.json` | cycle-7A machine-readable fork-divergence verdict: children A/B load the same parent, grow by different connection deltas, reload cleanly, diverge in state hash, and emit different held-out raw outputs |
 
 ## Not tracked, on disk
 

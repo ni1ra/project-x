@@ -29,6 +29,7 @@ From the inside, Raphael should eventually contain:
 - event-sourced experience: every perception, memory, prediction, action, output, reward, mutation, and reflection has an event ID and source trail
 - high-dimensional associative memory for concepts, roles, episodes, procedures, and state/action/result traces
 - learned concept structure formed by co-occurrence, prediction, compression, reward, analogy, and causal pressure
+- a durable brain file that physically carries learned state: traces, synapse/connection weights, plasticity metadata, learned concepts, and retrieval indices must live in the checkpoint rather than in hidden prompts or external memory theater
 - a working memory that holds the current goal, context, activated traces, uncertainty, candidate actions, and expected consequences
 - learned dynamics for prediction, planning, credit assignment, policy selection, language generation, tool/action use, and self-modification
 - a reflection loop that replays evidence, measures surprise, consolidates useful structure, decays unsupported structure, and proposes bounded experiments
@@ -181,6 +182,24 @@ HDC should carry:
 - retrieval and cleanup memory
 
 HDC alone is probably not enough. The brain also needs learned dynamics: prediction, action policy, credit assignment, generative language, causal abstraction, and plasticity control.
+
+## Growing Brain File Law
+
+Raphael's learned state should be physically real.
+
+A fresh Raphael instance may begin empty or near-empty. As it experiences events, receives reward, forms associations, learns concepts, and consolidates structure, its checkpoint should change in ways that are externally visible and replayable. The brain file is not a cache of prompts. It is the organism's durable body: the place where traces, synapse-like connection weights, plasticity counters, concept structures, policy state, and retrieval indices survive restart.
+
+This law has concrete implications:
+
+- two fresh instances trained on different experience streams should diverge into different checkpoint files and different behavior
+- continuation learning must be a normal path: load parent state, ingest new events, mutate learned state, append event logs, save child state, verify the child loads
+- state growth should be measurable: byte size, trace count, connection count, learned concept count, mutation count, compression ratio, and state hash should be visible in artifacts and in the interface
+- the user interface should eventually show the forming internal web: active memories, emerging clusters, strengthened/weakened connections, recent mutations, and uncertainty, backed by real state rather than animation theater
+- local neural components are welcome when they make this state more brain-like, but they must remain auditable, serializable, and tied to event/reward history
+
+Raw file size is not intelligence. A larger checkpoint can be bloat, and a smaller checkpoint can be better if compression preserves or improves behavior. The goal is not to maximize bytes. The goal is for learned structure to have durable physical form, for different lives to produce different structures, and for every claimed improvement to be traceable to state changes that survive restart.
+
+If a feature makes the interface look smarter while the brain file does not gain useful learned structure, the feature is suspect. If the brain file changes but behavior and benchmarks do not improve, the change is unproven. State growth must be coupled to evidence.
 
 ## Reward System
 
