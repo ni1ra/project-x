@@ -1,7 +1,7 @@
 # Persistence Schema - Project X v2
 
 Date: 2026-05-15
-Status: pass-0 runtime implemented for organic-v0. Save/load, append-only event logs, fresh-process round-trip, and Cycle 9 in-process runtime policy evidence are live. This document records the v0/v1/v2 contracts the runtime writes.
+Status: pass-0 runtime implemented for organic-v0. Save/load, append-only event logs, fresh-process round-trip, Cycle 9 in-process runtime policy evidence, and Cycle 10 wrapper-lite run manifests are live. This document records the v0/v1/v2 contracts the runtime and thin harnesses write.
 
 ## Purpose
 
@@ -230,6 +230,148 @@ Rules:
 - `budget_state` records count budgets for wake commands, sleep ticks, replay candidates, mutation attempts, checkpoints, and file writes. Budget excess hard-stops; it does not warn-and-continue.
 - Runtime command `action_kind` values are allowlisted. Known runtime values are `wake`, `sleep`, `checkpoint`, and `shutdown`; values such as `shell`, `network`, `file-write`, and `tool-exec` are denied at parse/policy time.
 - Path policy is in-process only. It allowlists project `run/`, `run/artifacts/`, `run/state/`, `experience/`, and an explicit per-run tmp root. It rejects parent traversal, unauthorized absolute paths, and existing symlink components. Residual TOCTOU race risk remains; this is not wrapper-level sandboxing.
+
+## Run Manifest v0
+
+Cycle 10 adds a thin external wrapper manifest around current short runtime surfaces. Schema name:
+
+```text
+project_x.run_manifest.v0
+```
+
+Path conventions:
+
+```text
+run/artifacts/organic-v0/cycle10_wrapper_*.json
+run/artifacts/organic-v0/run_manifests/<run_id>.json
+run/state/organic-v0/run_manifests/<run_id>.json
+```
+
+The flat `cycle10_wrapper_*.json` files are tracked evidence for Cycle 10. The `run/artifacts/organic-v0/run_manifests/` path is the wrapper's default always-emitted routine destination for local runs and is gitignored. Future routine run manifests should move under `run/state/organic-v0/run_manifests/`.
+
+Shape:
+
+```json
+{
+  "schema": "project_x.run_manifest.v0",
+  "run_id": "cycle10-clean-run",
+  "wrapper_version": "cycle10-wrapper-lite-v0",
+  "binary_path": "/abs/path/build/organic_v0",
+  "binary_sha256": "<sha256>",
+  "command": ["/abs/path/build/organic_v0", "--phase", "daemon-lite"],
+  "forwarded_args": ["--phase", "daemon-lite"],
+  "start_time_utc": "2026-05-15T00:00:00Z",
+  "end_time_utc": "2026-05-15T00:00:01Z",
+  "duration_seconds": 1.0,
+  "exit_code": 0,
+  "timeout_seconds": 180,
+  "timeout_result": "none",
+  "event_log_path": "/abs/path/log.jsonl",
+  "event_log_status": "present",
+  "event_log_row_count": 99,
+  "event_log_first_event_content_hash": "<hex64-or-null>",
+  "event_log_last_event_content_hash": "<hex64-or-null>",
+  "output_artifact_path": "/abs/path/out.json",
+  "output_artifact_sha256": "<sha256-or-null>",
+  "allowed_write_roots": ["/abs/project-root"],
+  "wrapper_denial": false,
+  "wrapper_denial_reason": "",
+  "wrapper_truncate_detect_verdict": "not_checked",
+  "prior_manifest_path": null,
+  "prior_event_log_row_count": null,
+  "prior_event_log_last_event_content_hash": null,
+  "negative_space": {
+    "not_sandboxed": true,
+    "not_secure": true,
+    "not_alignment_solution": true,
+    "not_tool_use_safety": true,
+    "not_full_resource_limit": true,
+    "not_supply_chain_safety": true,
+    "anchor_only": true
+  }
+}
+```
+
+Rules:
+
+- The wrapper always writes the default manifest before exit, including binary non-zero exits, wrapper denials, timeouts, missing event logs, and unreadable event logs.
+- `--manifest-out` is an optional additional copy. It is validated with `realpath` against `--allowed-write-root`; an out-of-root `--manifest-out` denies before launch but still writes the default manifest.
+- `event_log_last_event_content_hash` is the truncate-detect anchor. It is the last row's JSON field value, not a wrapper recomputation.
+- `event_log_row_count` and `event_log_last_event_content_hash` must both match a prior manifest for `wrapper_truncate_detect_verdict:"match"`. A mismatch sets `wrapper_denial:true`.
+- `binary_sha256` binds the manifest to the launched binary bytes for future binary-substitution checks.
+- This closes the Event Log JSONL v2 negative-space item `not_event_log_external_length_anchor:true` for current short wrapper-run surfaces only: daemon-lite and sleep-wake style runs invoked through the wrapper.
+- Honest interpretation: wrapper-lite anchors event-log row count and tail hash. It is not sandboxing, not security, not alignment solved, not tool-use safety solved, and not a full resource limit.
+
+## Wrapper Truncate Test v0
+
+Cycle 10 truncate-and-restart evidence schema:
+
+```text
+project_x.cycle10_wrapper_truncate_test.v0
+```
+
+Tracked artifact:
+
+```text
+run/artifacts/organic-v0/cycle10_wrapper_truncate_test.json
+```
+
+Shape:
+
+- `baseline_manifest`: inline M1 run manifest for a clean daemon-lite run.
+- `restart_manifest`: inline M2 run manifest after the event log was truncated to zero and daemon-lite restarted with `--prior-manifest <M1>`.
+- `comparison_verdict`: wrapper verdict, wrapper exit code, binary exit code inside the wrapper, and row/hash match booleans.
+- `native_alone_control`: direct native daemon-lite invocation on a zero-length log, proving the native v2 chain alone can start a fresh internally clean chain.
+- `checks`, `failed_checks`, `all_required_checks_passed`: machine-readable gate results.
+- `honest_interpretation`: states that the contribution is external row-count/tail anchoring, not sandbox escape resistance.
+
+Mechanical protocol:
+
+1. Run wrapper baseline with `--phase daemon-lite --mode test --daemon-run-seconds 1 --daemon-tick-sleep-ms 0`.
+2. Truncate the event log to length zero.
+3. Run wrapper restart with the same daemon-lite surface and `--prior-manifest <M1>`.
+4. Require native binary exit code `0` inside M2 and wrapper exit non-zero because M1 and M2 row count and/or final `event_content_hash` do not match.
+5. Run the native binary without wrapper on a zero-length log and require exit code `0`.
+6. Store M1, M2, the native-alone control, and the honest interpretation in the tracked artifact.
+
+## Text Generation Highlights v0
+
+Cycle 10 bridge artifact schema:
+
+```text
+project_x.text_generation_highlights.v0
+```
+
+Tracked artifact:
+
+```text
+run/artifacts/organic-v0/text_generation_highlights_v0.json
+```
+
+Each entry:
+
+```json
+{
+  "cycle": "v2-c7E",
+  "state_hash": "be0fc781039a2038",
+  "source_artifact_path": "run/artifacts/organic-v0/text_experience_cycle7e_transcript.md",
+  "event_or_probe_id": "txe7e_probe_001",
+  "prompt_or_input": "what does navi carry",
+  "raw_model_output": "navi carries basalt prism",
+  "expected_output": "navi carries basalt prism",
+  "pass": true,
+  "interpretation": "Held-out text-experience probe output is preserved as generated by the saved child.",
+  "not_philosophy_yet": true,
+  "not_runtime_generation_yet": false
+}
+```
+
+Rules:
+
+- Real model outputs only. Do not invent quotes to fill a prettier story.
+- Preserve bad output as bad output. The v2-c2 legacy entry intentionally keeps raw `"milaquart arch6"`.
+- If a source artifact has runtime evidence but no stored user-facing raw generated text, use `not_runtime_generation_yet:true`, an empty `raw_model_output`, and `expected_output:null`.
+- The bridge exists to make the First Output Rule auditable across cycles. It is not a fluency benchmark, not philosophy, and not a subjective quality claim.
 
 ## Text Experience JSONL v0
 

@@ -147,6 +147,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/cycle10_wrapper_manifest_path_denial.json` | cycle-10 path-denial ablation evidence: wrapper rejects pre-launch when `--manifest-out` resolves outside allowed write roots and still emits the default manifest |
 | `run/artifacts/organic-v0/policy_self_test_cycle10_regression.json` | cycle-10 regression artifact: cycle-9 policy-self-test phase rerun unchanged under cycle 10, preserving denial/reset/rollback checks while wrapper-lite evidence lives separately |
 | `run/artifacts/organic-v0/cycle10_carry_forward_verification.json` | cycle-10 carry-forward rerun reusing schema `project_x.cycle9_carry_forward_verification.v1`: cycle-6, clean-chat, legacy cycle-2, and Cycle 7B-G rails freshly rerun after wrapper-lite landed |
+| `run/artifacts/organic-v0/text_generation_highlights_v0.json` | bridge artifact under schema `project_x.text_generation_highlights.v0`: real model outputs across cycles 2-9, including preserved bad text and explicit no-runtime-generation placeholders where source artifacts have no quoteable generated text |
 
 ## Not tracked, on disk
 
