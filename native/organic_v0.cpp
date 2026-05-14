@@ -49,6 +49,11 @@ struct Config {
   int max_output_chars = 48;
   double trace_gain = 4.0;
   double context_gain = 1.0;
+  // Cycle-6 calibration for computed-relation feature addresses. Generic hidden_rule tokens
+  // accumulate across parity/threshold/modular examples; relation-specific features need a
+  // separate persisted gain so computed evidence beats shared surface words without becoming
+  // an authored answer route.
+  double derived_relation_gain = 5.0;
   double transition_gain = 0.65;
   double position_gain = 0.35;
   double state_binding_gain = 1.35;
@@ -96,6 +101,16 @@ struct Config {
   // NEGATIVE-SPACE: this never maps odd->stay or even->go. It is an encoder-side belief
   // primitive, not an answer route.
   bool use_numeric_derived_features = true;
+  // Cycle-6 threshold-derived channel.
+  // WHAT: numeric observation fillers can be compared with a numeric cutoff observation
+  // (for example mark:8 + cutoff:5 -> gt). The relation becomes a feature address only;
+  // target text still has to be learned from rewarded examples.
+  bool use_threshold_derived_features = true;
+  // Cycle-6 modular-derived channel.
+  // WHAT: numeric observation fillers can be assigned to a modular class using an observed
+  // modulus (for example mark:11 + modulus:3 -> class 2). Namespace is distinct from parity
+  // so mod-2/parity ablations cannot accidentally couple.
+  bool use_modular_derived_features = true;
   // Cycle-5 relation projection channel.
   // WHAT: rewarded traces self-supervise role-to-role projection weights (for example
   // person:arin -> object:copper). At generation, a topic cue can activate the learned
@@ -126,6 +141,11 @@ struct Event {
   }
 };
 
+struct ObservationSlot {
+  std::string type;
+  std::string value;
+};
+
 struct Trace {
   std::string event_id;
   std::string episode_id;
@@ -134,6 +154,12 @@ struct Trace {
   int level = 0;
   std::string input;
   std::vector<std::string> observations;
+  // Derived runtime caches. These are rebuilt from observations on learn/load and are not
+  // serialized or hashed; they remove repeated parse/allocation during generation scans.
+  std::vector<ObservationSlot> slots;
+  bool has_numeric_relation_control = false;
+  std::vector<std::string> threshold_keys;
+  std::vector<std::string> modular_keys;
   std::string target_output;
   double reward_scalar = 0.0;
   std::array<double, kDim> vector{};
@@ -191,11 +217,6 @@ struct Weights {
   // mapping is kept in role_token_table_ on OrganicBrain; serialization writes role_id (the
   // hash) so the array slot is irrelevant across processes.
   std::array<double, kExtendedActions> value{};
-};
-
-struct ObservationSlot {
-  std::string type;
-  std::string value;
 };
 
 struct TraceSpanPosition {
@@ -451,6 +472,73 @@ std::optional<int> parse_pure_int(const std::string& value) {
   return negative ? -out : out;
 }
 
+bool is_threshold_cutoff_role(const std::string& role) {
+  return role == "cutoff" || role == "limit";
+}
+
+bool is_modulus_role(const std::string& role) {
+  return role == "modulus" || role == "mod";
+}
+
+bool is_numeric_relation_control_role(const std::string& role) {
+  return is_threshold_cutoff_role(role) || is_modulus_role(role) || role == "modclass";
+}
+
+bool has_numeric_relation_control(const std::vector<ObservationSlot>& slots) {
+  for (const auto& slot : slots) {
+    if (is_numeric_relation_control_role(slot.type)) return true;
+  }
+  return false;
+}
+
+int positive_mod(int value, int modulus) {
+  int result = value % modulus;
+  return result < 0 ? result + modulus : result;
+}
+
+std::vector<std::string> threshold_relation_keys(const std::vector<ObservationSlot>& slots) {
+  std::vector<std::string> keys;
+  for (const auto& value_slot : slots) {
+    if (is_numeric_relation_control_role(value_slot.type)) continue;
+    auto value = parse_pure_int(value_slot.value);
+    if (!value.has_value()) continue;
+    for (const auto& cutoff_slot : slots) {
+      if (!is_threshold_cutoff_role(cutoff_slot.type)) continue;
+      auto cutoff = parse_pure_int(cutoff_slot.value);
+      if (!cutoff.has_value()) continue;
+      std::string relation = (*value > *cutoff) ? "gt" : ((*value < *cutoff) ? "lt" : "eq");
+      keys.push_back(value_slot.type + ":" + cutoff_slot.type + ":" +
+                     std::to_string(*cutoff) + ":" + relation);
+    }
+  }
+  return keys;
+}
+
+std::vector<std::string> modular_relation_keys(const std::vector<ObservationSlot>& slots) {
+  std::vector<std::string> keys;
+  for (const auto& value_slot : slots) {
+    if (is_numeric_relation_control_role(value_slot.type)) continue;
+    auto value = parse_pure_int(value_slot.value);
+    if (!value.has_value()) continue;
+    for (const auto& modulus_slot : slots) {
+      if (!is_modulus_role(modulus_slot.type)) continue;
+      auto modulus = parse_pure_int(modulus_slot.value);
+      if (!modulus.has_value() || *modulus <= 1) continue;
+      int cls = positive_mod(*value, *modulus);
+      keys.push_back(value_slot.type + ":" + modulus_slot.type + ":" +
+                     std::to_string(*modulus) + ":" + std::to_string(cls));
+    }
+  }
+  return keys;
+}
+
+void refresh_trace_caches(Trace& trace) {
+  trace.slots = parse_slots(trace.observations);
+  trace.has_numeric_relation_control = has_numeric_relation_control(trace.slots);
+  trace.threshold_keys = threshold_relation_keys(trace.slots);
+  trace.modular_keys = modular_relation_keys(trace.slots);
+}
+
 // Persistence helpers — bit-exact double <-> hex64 so state_hash matches across save/load.
 std::string double_to_hex(double v) {
   uint64_t bits;
@@ -636,8 +724,9 @@ struct Hdc {
     for (size_t i = 0; i < observations.size(); ++i) {
       add_bound(vector, "role:observation:" + std::to_string(i % 8), encode_text(observations[i]));
     }
-    if (config.use_numeric_derived_features) {
-      for (const auto& slot : parse_slots(observations)) {
+    auto slots = parse_slots(observations);
+    if (config.use_numeric_derived_features && !has_numeric_relation_control(slots)) {
+      for (const auto& slot : slots) {
         auto numeric = parse_pure_int(slot.value);
         if (!numeric.has_value()) continue;
         int abs_value = std::abs(*numeric);
@@ -646,9 +735,19 @@ struct Hdc {
         // retrieval prefer traces that share computed evidence (for example odd marks)
         // without hardcoding any output relation for that evidence.
         add_atom(vector, "num-role:" + slot.type);
-        add_atom(vector, "num-role-parity:" + slot.type + ":" + parity);
-        add_atom(vector, "num-any-parity:" + parity);
+        add_atom(vector, "num-role-parity:" + slot.type + ":" + parity, config.derived_relation_gain);
+        add_atom(vector, "num-any-parity:" + parity, config.derived_relation_gain);
         add_atom(vector, "num-role-lastdigit:" + slot.type + ":" + std::to_string(abs_value % 10), 0.5);
+      }
+    }
+    if (config.use_threshold_derived_features) {
+      for (const auto& key : threshold_relation_keys(slots)) {
+        add_atom(vector, "num-threshold:" + key, config.derived_relation_gain);
+      }
+    }
+    if (config.use_modular_derived_features) {
+      for (const auto& key : modular_relation_keys(slots)) {
+        add_atom(vector, "num-modular:" + key, config.derived_relation_gain);
       }
     }
     return vector;
@@ -684,7 +783,9 @@ class OrganicBrain {
     trace.target_output = event.target_output;
     trace.reward_scalar = std::max(0.0, event.reward_scalar());
     trace.vector = hdc_.encode_event(event.input, event.observations);
+    refresh_trace_caches(trace);
     traces_.push_back(trace);
+    trace_index_by_event_id_[trace.event_id] = traces_.size() - 1;
 
     if (trace.reward_scalar <= 0.0) {
       mutation_connection_deltas_.push_back(0);
@@ -720,7 +821,7 @@ class OrganicBrain {
       // NEGATIVE-SPACE: the substring-match here is training-time data routing. It does NOT
       //   appear at inference (generate's mode-switch decision reads only from learned
       //   softmax weights). See CYCLE3_MECHANISM.md §"Builder-Law boundary call".
-      auto slots = parse_slots(event.observations);
+      const auto& slots = traces_.back().slots;
       const std::string& target = event.target_output;
       std::string lower_target = lower_ascii(target);
       size_t pos = 0;
@@ -852,7 +953,7 @@ class OrganicBrain {
       }
     }
     if (config_.use_relation_projection) {
-      deltas += learn_relation_projection(parse_slots(event.observations), trace.reward_scalar);
+      deltas += learn_relation_projection(traces_.back().slots, trace.reward_scalar);
     }
     mutation_connection_deltas_.push_back(deltas);
   }
@@ -870,6 +971,14 @@ class OrganicBrain {
     if (config_.use_numeric_derived_features && config_.use_trace_id_feature) {
       auto numeric_traces = numeric_derived_trace_features_for_query(observations);
       features.insert(features.end(), numeric_traces.begin(), numeric_traces.end());
+    }
+    if (config_.use_threshold_derived_features && config_.use_trace_id_feature) {
+      auto threshold_traces = threshold_derived_trace_features_for_query(observations);
+      features.insert(features.end(), threshold_traces.begin(), threshold_traces.end());
+    }
+    if (config_.use_modular_derived_features && config_.use_trace_id_feature) {
+      auto modular_traces = modular_derived_trace_features_for_query(observations);
+      features.insert(features.end(), modular_traces.begin(), modular_traces.end());
     }
     if (config_.use_trace_id_feature) {
       for (const auto& activation : gen.activations) {
@@ -1157,6 +1266,7 @@ class OrganicBrain {
         << " max_output_chars=" << config_.max_output_chars
         << " trace_gain=" << double_to_hex(config_.trace_gain)
         << " context_gain=" << double_to_hex(config_.context_gain)
+        << " derived_relation_gain=" << double_to_hex(config_.derived_relation_gain)
         << " transition_gain=" << double_to_hex(config_.transition_gain)
         << " position_gain=" << double_to_hex(config_.position_gain)
         << " state_binding_gain=" << double_to_hex(config_.state_binding_gain)
@@ -1168,6 +1278,8 @@ class OrganicBrain {
         << " use_segment_mode=" << (config_.use_segment_mode ? 1 : 0)
         << " use_trace_span_position_features=" << (config_.use_trace_span_position_features ? 1 : 0)
         << " use_numeric_derived_features=" << (config_.use_numeric_derived_features ? 1 : 0)
+        << " use_threshold_derived_features=" << (config_.use_threshold_derived_features ? 1 : 0)
+        << " use_modular_derived_features=" << (config_.use_modular_derived_features ? 1 : 0)
         << " use_relation_projection=" << (config_.use_relation_projection ? 1 : 0)
         << " max_roles=" << config_.max_roles
         << "\n";
@@ -1281,6 +1393,7 @@ class OrganicBrain {
   // After load, state_hash() must equal the STATE_HASH line value — caller verifies.
   void load_serialized_state(std::istream& in) {
     traces_.clear();
+    trace_index_by_event_id_.clear();
     connections_.clear();
     slot_copy_weights_.clear();
     learned_chars_.clear();
@@ -1309,9 +1422,12 @@ class OrganicBrain {
     config_.use_segment_mode = false;
     config_.max_roles = kMaxRoles;
     config_.segment_mode_gain = 0.3;
+    config_.derived_relation_gain = 1.0;
     config_.trace_span_position_gain = 0.0;
     config_.use_trace_span_position_features = false;
     config_.use_numeric_derived_features = false;
+    config_.use_threshold_derived_features = false;
+    config_.use_modular_derived_features = false;
     config_.use_relation_projection = false;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
@@ -1329,6 +1445,7 @@ class OrganicBrain {
       else if (k == "learning_rate") config_.learning_rate = hex_to_double(v);
       else if (k == "trace_gain") config_.trace_gain = hex_to_double(v);
       else if (k == "context_gain") config_.context_gain = hex_to_double(v);
+      else if (k == "derived_relation_gain") config_.derived_relation_gain = hex_to_double(v);
       else if (k == "transition_gain") config_.transition_gain = hex_to_double(v);
       else if (k == "position_gain") config_.position_gain = hex_to_double(v);
       else if (k == "state_binding_gain") config_.state_binding_gain = hex_to_double(v);
@@ -1340,6 +1457,8 @@ class OrganicBrain {
       else if (k == "use_segment_mode") config_.use_segment_mode = (v != "0");
       else if (k == "use_trace_span_position_features") config_.use_trace_span_position_features = (v != "0");
       else if (k == "use_numeric_derived_features") config_.use_numeric_derived_features = (v != "0");
+      else if (k == "use_threshold_derived_features") config_.use_threshold_derived_features = (v != "0");
+      else if (k == "use_modular_derived_features") config_.use_modular_derived_features = (v != "0");
       else if (k == "use_relation_projection") config_.use_relation_projection = (v != "0");
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
@@ -1376,7 +1495,9 @@ class OrganicBrain {
         tr.vector[idx++] = hex_to_double(elem);
       }
       if (idx != kDim) throw std::runtime_error("pxstate: vector dim mismatch");
+      refresh_trace_caches(tr);
       traces_.push_back(std::move(tr));
+      trace_index_by_event_id_[traces_.back().event_id] = traces_.size() - 1;
     }
 
     // CONNS M
@@ -1555,10 +1676,9 @@ class OrganicBrain {
   }
 
   const Trace* trace_by_event_id(const std::string& event_id) const {
-    for (const auto& trace : traces_) {
-      if (trace.event_id == event_id) return &trace;
-    }
-    return nullptr;
+    auto found = trace_index_by_event_id_.find(event_id);
+    if (found == trace_index_by_event_id_.end() || found->second >= traces_.size()) return nullptr;
+    return &traces_[found->second];
   }
 
   std::optional<std::pair<std::string, size_t>> find_longest_filler_match_at_readonly(
@@ -1581,11 +1701,10 @@ class OrganicBrain {
   std::optional<TraceSpanPosition> trace_span_position_at(const Trace& trace, int output_position) const {
     if (output_position < 0) return std::nullopt;
     std::string lower_target = lower_ascii(trace.target_output);
-    auto slots = parse_slots(trace.observations);
     size_t wanted = static_cast<size_t>(output_position);
     size_t pos = 0;
     while (pos < lower_target.size()) {
-      auto match = find_longest_filler_match_at_readonly(lower_target, pos, slots);
+      auto match = find_longest_filler_match_at_readonly(lower_target, pos, trace.slots);
       if (match.has_value()) {
         size_t span = match->second;
         if (wanted >= pos && wanted < pos + span) {
@@ -1622,6 +1741,7 @@ class OrganicBrain {
   std::vector<Feature> numeric_derived_features(const std::vector<ObservationSlot>& slots) const {
     std::vector<Feature> features;
     if (!config_.use_numeric_derived_features) return features;
+    if (has_numeric_relation_control(slots)) return features;
     for (const auto& slot : slots) {
       auto numeric = parse_pure_int(slot.value);
       if (!numeric.has_value()) continue;
@@ -1631,8 +1751,10 @@ class OrganicBrain {
       // expose that structure as addresses for learning; they deliberately stop before the
       // answer relation. The rule "odd means stay" still has to be learned from CONNS.
       features.push_back({hash_pair("num-role", slot.type), config_.context_gain});
-      features.push_back({hash_pair("num-role-parity", slot.type + ":" + parity), config_.context_gain});
-      features.push_back({hash_pair("num-any-parity", parity), config_.context_gain});
+      features.push_back({hash_pair("num-role-parity", slot.type + ":" + parity),
+                          config_.context_gain * config_.derived_relation_gain});
+      features.push_back({hash_pair("num-any-parity", parity),
+                          config_.context_gain * config_.derived_relation_gain});
       features.push_back({hash_pair("num-role-lastdigit", slot.type + ":" + std::to_string(abs_value % 10)),
                           config_.context_gain * 0.5});
     }
@@ -1644,12 +1766,14 @@ class OrganicBrain {
     std::vector<Feature> features;
     if (!config_.use_numeric_derived_features || !config_.use_trace_id_feature) return features;
     auto query_slots = parse_slots(observations);
+    if (has_numeric_relation_control(query_slots)) return features;
     for (const auto& query_slot : query_slots) {
       auto query_num = parse_pure_int(query_slot.value);
       if (!query_num.has_value()) continue;
       int query_parity = std::abs(*query_num) % 2;
       for (const auto& trace : traces_) {
-        for (const auto& trace_slot : parse_slots(trace.observations)) {
+        if (trace.has_numeric_relation_control) continue;
+        for (const auto& trace_slot : trace.slots) {
           if (trace_slot.type != query_slot.type) continue;
           auto trace_num = parse_pure_int(trace_slot.value);
           if (!trace_num.has_value()) continue;
@@ -1659,9 +1783,69 @@ class OrganicBrain {
           // This channel says: traces sharing the computed numeric relation are relevant
           // even when their literal fillers differ. It reuses trace-id literal weights
           // learned from those traces; it does not map parity to an answer directly.
-          features.push_back({hash_pair("trace", trace.event_id), config_.context_gain});
+          features.push_back({hash_pair("trace", trace.event_id),
+                              config_.context_gain * config_.derived_relation_gain});
           break;
         }
+      }
+    }
+    return features;
+  }
+
+  std::vector<Feature> threshold_derived_features(const std::vector<ObservationSlot>& slots) const {
+    std::vector<Feature> features;
+    if (!config_.use_threshold_derived_features) return features;
+    for (const auto& key : threshold_relation_keys(slots)) {
+      features.push_back({hash_pair("num-threshold", key),
+                          config_.context_gain * config_.derived_relation_gain});
+    }
+    return features;
+  }
+
+  std::vector<Feature> modular_derived_features(const std::vector<ObservationSlot>& slots) const {
+    std::vector<Feature> features;
+    if (!config_.use_modular_derived_features) return features;
+    for (const auto& key : modular_relation_keys(slots)) {
+      features.push_back({hash_pair("num-modular", key),
+                          config_.context_gain * config_.derived_relation_gain});
+    }
+    return features;
+  }
+
+  std::vector<Feature> threshold_derived_trace_features_for_query(
+      const std::vector<std::string>& observations) const {
+    std::vector<Feature> features;
+    if (!config_.use_threshold_derived_features || !config_.use_trace_id_feature) return features;
+    auto query_keys = threshold_relation_keys(parse_slots(observations));
+    if (query_keys.empty()) return features;
+    std::set<std::string> query_key_set(query_keys.begin(), query_keys.end());
+    for (const auto& trace : traces_) {
+      for (const auto& key : trace.threshold_keys) {
+        if (!query_key_set.contains(key)) continue;
+        // Same pattern as cycle-5 parity activation, but under a separate relation family:
+        // traces sharing computed threshold class are relevant, while the learned chars
+        // still come from the trace-id weights and ordinary CONNS rows.
+        features.push_back({hash_pair("trace", trace.event_id),
+                            config_.context_gain * config_.derived_relation_gain});
+        break;
+      }
+    }
+    return features;
+  }
+
+  std::vector<Feature> modular_derived_trace_features_for_query(
+      const std::vector<std::string>& observations) const {
+    std::vector<Feature> features;
+    if (!config_.use_modular_derived_features || !config_.use_trace_id_feature) return features;
+    auto query_keys = modular_relation_keys(parse_slots(observations));
+    if (query_keys.empty()) return features;
+    std::set<std::string> query_key_set(query_keys.begin(), query_keys.end());
+    for (const auto& trace : traces_) {
+      for (const auto& key : trace.modular_keys) {
+        if (!query_key_set.contains(key)) continue;
+        features.push_back({hash_pair("trace", trace.event_id),
+                            config_.context_gain * config_.derived_relation_gain});
+        break;
       }
     }
     return features;
@@ -1753,12 +1937,11 @@ class OrganicBrain {
       // keep using the cycle-3/4 paths instead of receiving speculative relation answers.
       if (query_slot.type != "topic" || query_slot.value.empty()) continue;
       for (const auto& trace : traces_) {
-        auto trace_slots = parse_slots(trace.observations);
-        for (const auto& cue_slot : trace_slots) {
+        for (const auto& cue_slot : trace.slots) {
           if (cue_slot.value != query_slot.value) continue;
           for (const auto& target_role : target_roles) {
             bool trace_has_target = false;
-            for (const auto& target_slot : trace_slots) {
+            for (const auto& target_slot : trace.slots) {
               if (target_slot.type == target_role && !target_slot.value.empty()) {
                 trace_has_target = true;
                 break;
@@ -1793,6 +1976,10 @@ class OrganicBrain {
     auto slots = parse_slots(observations);
     auto derived = numeric_derived_features(slots);
     features.insert(features.end(), derived.begin(), derived.end());
+    auto threshold = threshold_derived_features(slots);
+    features.insert(features.end(), threshold.begin(), threshold.end());
+    auto modular = modular_derived_features(slots);
+    features.insert(features.end(), modular.begin(), modular.end());
     return features;
   }
 
@@ -1924,6 +2111,7 @@ class OrganicBrain {
   Config config_;
   Hdc hdc_;
   std::vector<Trace> traces_;
+  std::unordered_map<std::string, size_t> trace_index_by_event_id_;
   std::unordered_map<uint64_t, Weights> connections_;
   std::unordered_map<uint64_t, double> slot_copy_weights_;
   std::set<unsigned char> learned_chars_;
@@ -2126,6 +2314,7 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"max_output_chars\": " << config.max_output_chars
       << ", \"trace_gain\": " << config.trace_gain
       << ", \"context_gain\": " << config.context_gain
+      << ", \"derived_relation_gain\": " << config.derived_relation_gain
       << ", \"transition_gain\": " << config.transition_gain
       << ", \"position_gain\": " << config.position_gain
       << ", \"state_binding_gain\": " << config.state_binding_gain
@@ -2138,6 +2327,8 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"use_trace_span_position_features\": "
       << (config.use_trace_span_position_features ? "true" : "false")
       << ", \"use_numeric_derived_features\": " << (config.use_numeric_derived_features ? "true" : "false")
+      << ", \"use_threshold_derived_features\": " << (config.use_threshold_derived_features ? "true" : "false")
+      << ", \"use_modular_derived_features\": " << (config.use_modular_derived_features ? "true" : "false")
       << ", \"use_relation_projection\": " << (config.use_relation_projection ? "true" : "false")
       << ", \"max_roles\": " << config.max_roles << "}";
 }
@@ -2520,6 +2711,8 @@ struct Args {
   std::string organism_id = "raphael-local-0001";
   bool ablate_trace_id = false;
   bool ablate_numeric_derived = false;
+  bool ablate_threshold_derived = false;
+  bool ablate_modular_derived = false;
   bool ablate_relation_projection = false;
 };
 
@@ -2542,6 +2735,8 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--organism-id") args.organism_id = need_value(key);
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
     else if (key == "--ablate-numeric-derived") args.ablate_numeric_derived = true;
+    else if (key == "--ablate-threshold-derived") args.ablate_threshold_derived = true;
+    else if (key == "--ablate-modular-derived") args.ablate_modular_derived = true;
     else if (key == "--ablate-relation-projection") args.ablate_relation_projection = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
@@ -2552,6 +2747,8 @@ Args parse_args(int argc, char** argv) {
 void apply_ablations(Config& config, const Args& args) {
   if (args.ablate_trace_id) config.use_trace_id_feature = false;
   if (args.ablate_numeric_derived) config.use_numeric_derived_features = false;
+  if (args.ablate_threshold_derived) config.use_threshold_derived_features = false;
+  if (args.ablate_modular_derived) config.use_modular_derived_features = false;
   if (args.ablate_relation_projection) config.use_relation_projection = false;
 }
 
@@ -2658,6 +2855,8 @@ void persistence_self_test(const Args& args) {
   if (!args.event_log.empty()) cmd << " --event-log " << shell_quote(args.event_log);
   if (args.ablate_trace_id) cmd << " --ablate-trace-id";
   if (args.ablate_numeric_derived) cmd << " --ablate-numeric-derived";
+  if (args.ablate_threshold_derived) cmd << " --ablate-threshold-derived";
+  if (args.ablate_modular_derived) cmd << " --ablate-modular-derived";
   if (args.ablate_relation_projection) cmd << " --ablate-relation-projection";
   int rc = std::system(cmd.str().c_str());
   if (rc != 0) throw std::runtime_error("child persistence-load-verify failed with rc=" + std::to_string(rc));

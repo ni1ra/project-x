@@ -1,6 +1,6 @@
 # REPO_CONTROL - Project X v2
 
-Date: 2026-05-13
+Date: 2026-05-14
 Status: every tracked source/test/script/non-docs artifact owns a row here, one-line justification per entry. `docs/` is exempt — the live-docs system is self-justifying. `run/state/` is gitignored — local-runtime substrate that regenerates per run.
 
 ## Rule
@@ -20,21 +20,21 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
 | Path | Justification |
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
-| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` / `--ablate-numeric-derived` / `--ablate-relation-projection` |
+| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` / `--ablate-numeric-derived` / `--ablate-threshold-derived` / `--ablate-modular-derived` / `--ablate-relation-projection` |
 | `scripts/test_organic_v0.sh` | runs both phases: `--phase self-test` (substrate guard — cold brain emits nothing, learns one event, emits "zx") then `--phase persistence-self-test` (full round-trip — train → save → fresh child process load → generate → hash + output match). Either failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
 
 | Path | Justification |
 |---|---|
-| `benchmarks/v2_ladder/organic_v0.jsonl` | honest compositional baseline for organic-v0. 47 events: 22 train + 25 held-out across 5 domains. Cycle 5 adds two `intent:farewell -> bye <name>` train events to repair the previously unlearnable held-out farewell probe; hidden_rule keeps 2 distractor probes where trained signal-association contradicts parity; abstention keeps 2 evidence-present + 2 evidence-absence items with identical wording; memory/causal/language carry filler-length variance |
+| `benchmarks/v2_ladder/organic_v0.jsonl` | honest compositional baseline for organic-v0. 62 events: 32 train + 30 held-out across 5 domains. Cycle 6 adds threshold and modular hidden-rule mini-suites with at least two train marks per class and held-out unseen marks; hidden_rule keeps parity distractors, threshold distractors, and modular distractors where surface signal conflicts with the computed relation; abstention keeps 2 evidence-present + 2 evidence-absence items with identical wording; memory/causal/language carry filler-length variance |
 
 ### run/ — artifact output (machine-readable claims, tracked) — `run/state/` is gitignored (runtime substrate)
 
@@ -60,6 +60,15 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/eval_cycle5_substrate_only_old_fixture.json` | cycle-5 falsification baseline: final binary on the un-repaired benchmark (no `bye sora`/`bye toma` train events). Substrate channels alone reach exact_rate `0.960` (24/25); only `evt_lang_test_004` (`bye elena`) fails — the by-design unlearnable farewell. State hash `b968647c92f30c57`. Splits the substrate claim from the curriculum-repair claim |
 | `run/artifacts/organic-v0/eval_cycle5_ablate_numeric.json` | cycle-5 falsification: `--ablate-numeric-derived` on the repaired benchmark drops exact_rate to `0.880` (22/25); failures isolate to the hidden-rule family (`evt_rule_test_001`, `evt_rule_test_003`, `evt_rule_test_004`). State hash `6ccada17751408d0`. Proves the numeric-derived trace activation channel is what carries hidden-rule transfer |
 | `run/artifacts/organic-v0/eval_cycle5_ablate_relation.json` | cycle-5 falsification: `--ablate-relation-projection` on the repaired benchmark drops exact_rate to `0.920` (23/25); failures isolate to evidence-present (`evt_abs_test_001`, `evt_abs_test_003`). State hash `75c0bb8012ffb437`. Proves the relation projection channel is what carries topic→object recall |
+| `run/artifacts/organic-v0/eval_cycle6_relations_all_on.json` | cycle-6 headline on the expanded benchmark: parity + threshold + modular computed-relation channels reach overall exact_rate `1.000` (30/30), with threshold_rule_transfer 2/2 and modular_rule_transfer 3/3. State hash `29958f0880e662dc`, model_config_hash `99032d46527a795b` |
+| `run/artifacts/organic-v0/eval_cycle6_relations_from_disk.json` | cycle-6 verification: fresh-process eval loaded from `run/state/organic-v0/snapshots/raphael-local-0001/v2c6.pxstate`; summary_metrics + model_state_hash diff-clean against the all-on from-training eval |
+| `run/artifacts/organic-v0/persist_self_test_v2c6.json` | cycle-6 persistence-round-trip verdict: parent_state_hash + child_state_hash `29958f0880e662dc`, parent_raw_output + child_raw_output `"mila quartz pier6"`, `hash_match: true`, `output_match: true`, `load_status: save_and_load_verified` |
+| `run/artifacts/organic-v0/eval_cycle6_ablate_numeric.json` | cycle-6 falsification: `--ablate-numeric-derived` drops exact_rate to `0.866667` (26/30); failures isolate to the four parity hidden-rule probes while threshold and modular families remain exact |
+| `run/artifacts/organic-v0/eval_cycle6_ablate_threshold.json` | cycle-6 falsification: `--ablate-threshold-derived` drops exact_rate to `0.933333` (28/30); failures isolate to the two threshold probes while parity and modular families remain exact |
+| `run/artifacts/organic-v0/eval_cycle6_ablate_modular.json` | cycle-6 falsification: `--ablate-modular-derived` drops exact_rate to `0.900000` (27/30); failures isolate to the three modular probes while parity and threshold families remain exact |
+| `run/artifacts/organic-v0/eval_cycle6_ablate_relation.json` | cycle-6 regression gate: `--ablate-relation-projection` drops exact_rate to `0.933333` (28/30); failures remain isolated to evidence-present (`evt_abs_test_001`, `evt_abs_test_003`), while all numeric-relation families remain exact |
+| `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_cycle5_fixture.json` | cycle-6 legacy compatibility: cycle-2 snapshot loaded under the cycle-6 binary on the cycle-5 fixture remains at exact_rate `0.360000` (9/25), state hash `3536309de837d3e2`, and `evt_mem_test_001` raw `"milaquart arch6"` |
+| `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_current_fixture.json` | cycle-6 legacy compatibility on the expanded fixture: same cycle-2 snapshot scores exact_rate `0.300000` (9/30) because the denominator adds five new cycle-6 tests; state hash and historical raw output remain unchanged |
 
 ## Not tracked, on disk
 

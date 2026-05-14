@@ -1,6 +1,6 @@
 # Persistence Schema - Project X v2
 
-Date: 2026-05-13
+Date: 2026-05-14
 Status: pass-0 runtime implemented for organic-v0. Save/load, append-only event log, and fresh-process round-trip are live; this document records the v0 contract the runtime now writes.
 
 ## Purpose
@@ -85,7 +85,7 @@ PXSTATE_V0
 SCHEMA project_x.state_snapshot.v0
 ORGANISM_ID raphael-local-0001
 CREATED_UTC 2026-05-13T00:00:00Z
-CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 use_numeric_derived_features=1 use_relation_projection=1 max_roles=16
+CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> derived_relation_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 use_numeric_derived_features=1 use_threshold_derived_features=1 use_modular_derived_features=1 use_relation_projection=1 max_roles=16
 TRACES <n>
 T <event_id>|<episode_id>|<split>|<domain>|<level>|<input>|<observation_csv>|<target_output>|<reward_scalar_hex64>|<hdc_vector_hex64_space_list>
 CONNS <n>
@@ -143,6 +143,23 @@ Two CONFIG booleans document and gate the answer-path behavior:
 - `use_relation_projection=1|0`
 
 Older snapshots default both to `0` on load so cycle-2 through cycle-4 saved states keep their historical semantics. New v2-c5 snapshots write both as `1`. State-hash coverage needs no new walker because the new learned values are ordinary `CONNS` rows and stored traces already persist the typed observations needed to reactivate relation projection after load.
+
+### Cycle-6 extension: threshold/modular numeric relation CONFIG fields
+
+Cycle 6 (v2-c6) adds no new PXSTATE section. It extends the cycle-5 numeric-derived pattern from parity to two more computed relation families:
+
+- threshold-derived facts compare a numeric observation filler with a numeric cutoff observation, producing namespace-separated relation addresses such as `num-threshold|mark:cutoff:5:gt`.
+- modular-derived facts compute a numeric filler's class under an observed modulus, producing namespace-separated addresses such as `num-modular|mark:modulus:3:2`.
+
+The learned answers still live as ordinary character weights in `CONNS`. The threshold/modular channels add only feature addresses and trace activation features; there is no persisted answer table and no code route from relation to output text.
+
+Three CONFIG fields document and gate the behavior:
+
+- `derived_relation_gain=<hex64>`: persisted gain applied to computed-relation feature addresses. v2-c6 snapshots write the default value `5.0`.
+- `use_threshold_derived_features=1|0`
+- `use_modular_derived_features=1|0`
+
+Older snapshots default `derived_relation_gain` to `1.0` and both new booleans to `0` on load. That preserves cycle-2 through cycle-5 answer-path semantics and keeps legacy state hashes stable. Runtime caches for parsed observation slots, threshold keys, modular keys, and event-id lookup are rebuilt from persisted trace observations at load time; they are not serialized and are not walked by `state_hash()`.
 
 ### State hash gating
 

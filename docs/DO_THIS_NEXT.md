@@ -1,6 +1,6 @@
 # Do This Next - Project X v2
 
-Generated: 2026-05-14 (post cycle-5 ship candidate)
+Generated: 2026-05-14 (post cycle-6 close)
 
 ## Read First
 
@@ -8,68 +8,75 @@ Generated: 2026-05-14 (post cycle-5 ship candidate)
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
-5. `docs/artifacts/CYCLE5_RELATIONAL_BINDING.md`
-6. `docs/artifacts/CYCLE5_INTENT_LEARNABILITY_AUDIT.md`
-7. latest cycle-5 reflection in `docs/past_work/cycles/phase_v2_organic_substrate/`
+5. `docs/artifacts/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
+6. `docs/artifacts/CYCLE6_CLAUDE_AUDIT_PACKET.md`
+7. latest cycle-6 reflection in `docs/past_work/cycles/phase_v2_organic_substrate/`
 
-## What Just Happened - Cycle 5
+## What Just Happened - Cycle 6
 
-Cycle 5 added two structural channels to organic-v0:
+Cycle 6 generalized the hidden-rule substrate beyond parity.
 
-- **Numeric-derived trace activation:** pure numeric observation fillers now emit latent facts such as role-relative parity. Generation can also activate stored traces that share the computed numeric relation, so hidden-rule events are not trapped by surface signal/color similarity.
-- **Relation projection:** rewarded typed traces write role-to-role projections into ordinary `CONNS` rows. A `topic:arin` query that asks what someone holds can reactivate the learned `person:arin -> object:copper` projection, while absent topics still fall back to abstention.
+The benchmark now contains 62 events: 32 train and 30 held-out. Hidden-rule coverage now includes three computed numeric relation families:
 
-It also repaired a benchmark learnability bug:
+- parity: `mark` odd/even, carried by the existing `--ablate-numeric-derived` channel;
+- threshold: `mark > cutoff`, carried by the new `--ablate-threshold-derived` channel;
+- modular class: `mark mod 3`, carried by the new `--ablate-modular-derived` channel.
 
-- The old `intent_transfer` held-out item expected `bye elena`, but the training set contained no `bye` output and no `intent:farewell` example.
-- Cycle 5 adds two farewell train events, `bye sora` and `bye toma`, so the held-out event tests transfer to a new name rather than pretrained English knowledge or a hardcoded lexical route.
+The train suite uses at least two distinct mark values per threshold/modular class. The held-out tests use unseen marks and conflicting surface signals, so a replay-shaped or surface-color solution fails.
 
-### Final Repaired-Benchmark Evidence
+The runtime also received a small efficiency pass: loaded/learned traces cache parsed observation slots plus threshold/modular keys, and trace span-position lookup now uses a transient event-id index. The tiny fixture still runs at roughly 0.12s, so this is an asymptotic cleanup, not a claimed wall-clock win.
 
-`run/artifacts/organic-v0/eval_compositional_v2c5.json`:
+### Final Cycle-6 Evidence
 
-| metric | cycle 4 | cycle 5 repaired |
+`run/artifacts/organic-v0/eval_cycle6_relations_all_on.json`:
+
+| metric | cycle 5 repaired | cycle 6 expanded |
 |---|---:|---:|
-| overall exact_rate | 0.760 | **1.000** |
-| exact events | 19/25 | **25/25** |
-| `unseen_rule_transfer` | 1/2 | **2/2** |
-| `distractor_rule_transfer` | 0/2 | **2/2** |
-| `evidence_present` | 0/2 | **2/2** |
-| `intent_transfer` | 0/1 | **1/1** |
+| held-out count | 25 | 30 |
+| overall exact_rate | 1.000 | **1.000** |
+| exact events | 25/25 | **30/30** |
+| parity rule transfer | 4/4 | **4/4** |
+| threshold_rule_transfer | n/a | **2/2** |
+| modular_rule_transfer | n/a | **3/3** |
+| evidence_present | 2/2 | **2/2** |
 | existing solved families | held | **held** |
 
-State hash `ccd7a48ec4614703`. Config hash `de2ad1690588249d`.
+State hash `29958f0880e662dc`. Config hash `99032d46527a795b`.
 
-Important split:
+Persistence:
 
-- Old pre-repair fixture with the cycle-5 substrate (final binary): `run/artifacts/organic-v0/eval_cycle5_substrate_only_old_fixture.json` = **24/25 (0.960)**; only `intent_transfer` (`evt_lang_test_004`) remained unlearnable. State hash `b968647c92f30c57`.
-- Repaired fixture with two farewell train examples: `run/artifacts/organic-v0/eval_compositional_v2c5.json` = **25/25 (1.000)**.
+- `run/artifacts/organic-v0/eval_cycle6_relations_from_disk.json` is diff-clean against all-on on `summary_metrics + model_state_hash`.
+- `run/artifacts/organic-v0/persist_self_test_v2c6.json` reports `save_and_load_verified`, hash match, output match.
+
+Legacy compatibility:
+
+- `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_cycle5_fixture.json`: cycle-2 snapshot loaded under the cycle-6 binary on the cycle-5 fixture remains 9/25 (`0.360000`), state hash `3536309de837d3e2`, raw `evt_mem_test_001` output `"milaquart arch6"`.
+- `run/artifacts/organic-v0/eval_cycle6_legacy_cycle2_current_fixture.json`: same snapshot on the expanded fixture is 9/30 (`0.300000`), expected denominator expansion only.
 
 ### Falsification/Ablation Evidence
 
-- `run/artifacts/organic-v0/eval_cycle5_ablate_numeric.json`: `--ablate-numeric-derived` -> **22/25 (0.880)**; failures = `evt_rule_test_001`, `evt_rule_test_003`, `evt_rule_test_004`. Hidden-rule family regresses cleanly. State hash `6ccada17751408d0`.
-- `run/artifacts/organic-v0/eval_cycle5_ablate_relation.json`: `--ablate-relation-projection` -> **23/25 (0.920)**; failures = `evt_abs_test_001`, `evt_abs_test_003`. `evidence_present` regresses to 0/2 cleanly. State hash `75c0bb8012ffb437`.
+- `run/artifacts/organic-v0/eval_cycle6_ablate_numeric.json`: `--ablate-numeric-derived` -> **26/30 (0.866667)**; failures = `evt_rule_test_001`, `evt_rule_test_002`, `evt_rule_test_003`, `evt_rule_test_004`. Threshold and modular remain exact.
+- `run/artifacts/organic-v0/eval_cycle6_ablate_threshold.json`: `--ablate-threshold-derived` -> **28/30 (0.933333)**; failures = `evt_rule_thresh_test_001`, `evt_rule_thresh_test_002`. Parity and modular remain exact.
+- `run/artifacts/organic-v0/eval_cycle6_ablate_modular.json`: `--ablate-modular-derived` -> **27/30 (0.900000)**; failures = `evt_rule_mod_test_001`, `evt_rule_mod_test_002`, `evt_rule_mod_test_003`. Parity and threshold remain exact.
+- `run/artifacts/organic-v0/eval_cycle6_ablate_relation.json`: `--ablate-relation-projection` -> **28/30 (0.933333)**; failures remain isolated to evidence-present (`evt_abs_test_001`, `evt_abs_test_003`). Numeric relation families remain exact.
 
-### Persistence/Compat
+The key claim is isolation, not the all-on 1.000. Threshold and modular are not piggybacking on parity; turning off one relation channel breaks only that family.
 
-- `run/artifacts/organic-v0/eval_compositional_v2c5_from_disk.json` is diff-clean against from-training on `summary_metrics + model_state_hash`.
-- `run/artifacts/organic-v0/persist_self_test_v2c5.json` reports `save_and_load_verified`, hash match, output match.
-- Cycle-2 snapshot `/tmp/cycle2.pxstate` still loads under the cycle-5 binary with state hash `3536309de837d3e2`, exact_rate `0.360`, and `evt_mem_test_001` raw `"milaquart arch6"`.
-
-## Cycle 6 Contract
-
-Do not spend cycle 6 making this benchmark prettier. The v2 ladder rung is saturated after the repaired curriculum.
+## Cycle 7 Contract
 
 Pick one:
 
-1. **Generalize the rule substrate beyond parity.** Add a hidden-rule mini-suite with at least two different computed relations (parity, threshold, equality, or modular class). Close criterion: new relation family learned without answer routes, with ablations proving which derived relation carries which gain.
-2. **Generalize relation projection beyond topic->object.** Add held-out questions that ask for place/effect, use different cue roles, and include absent evidence controls. Close criterion: projection works across at least two target roles while evidence_absence stays exact.
-3. **Promote to a harder benchmark rung.** Build a local hidden-rule game or ARC-style micro-harness where the organism must explore or infer a rule from sequences, not just train/eval JSONL. Close criterion: run IDs, action history, scorecard, and failure traces.
+1. **Promote to a harder benchmark rung.** Build a local hidden-rule game or ARC-style micro-harness where the organism must infer a rule from interaction/state history, not just train/eval JSONL. Close criterion: run IDs, action history, scorecard, held-out seeds, and failure traces.
+2. **Generalize relation projection beyond topic->object.** Add held-out questions for place/effect and different cue roles while keeping evidence_absence exact. Close criterion: projection works across at least two target roles, with `--ablate-relation-projection` isolating only those families.
+3. **Generalize computed relations beyond numeric values.** Add symbolic equality or role-match relations, e.g. two observed fillers being the same/different, without numeric parsing. Close criterion: new non-numeric relation family learned without answer routes and ablated cleanly.
+
+Default recommendation: option 1. The current JSONL ladder is saturated again; the next capability proof should force exploration, state fidelity, and rule induction under a budget.
 
 Hard gates:
 
-- Keep old-fixture vs repaired-fixture claims separate.
-- Keep ablation flags working.
-- Do not claim broad language understanding from two farewell examples.
-- Do not add benchmark train examples unless a learnability audit names the missing evidence.
+- Keep claim splits explicit: substrate-only, repaired/expanded fixture, from-training, and from-disk are separate claims.
+- Every new substrate channel ships with a CLI ablation and measured per-family failure isolation.
+- Do not add benchmark train examples unless a learnability audit names the missing evidence first.
 - Preserve persistence diff-clean and legacy snapshot compatibility.
+- Do not claim broad language understanding from the farewell or numeric-rule items.
+- Keep runtime speed claims tied to measurements or state them as structural/asymptotic only.
