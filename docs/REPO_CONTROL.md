@@ -20,7 +20,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log v0/v1, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe/replay phases with learning-disabled, replay-disabled, replay-audit, raw-text-span ablations, Cycle 8 sleep-wake/daemon-lite organism loop, configurable daemon tick sleep for throughput probes, A0 event-outcome predictor for replay priority only, checkpointing, and artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log v0/v1/v2, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe/replay phases with learning-disabled, replay-disabled, replay-audit, raw-text-span ablations, Cycle 8 sleep-wake/daemon-lite organism loop, configurable daemon tick sleep for throughput probes, A0 event-outcome predictor for replay priority only, Cycle 9 in-process runtime policy gates for current sleep/wake/daemon-lite surfaces, count budgets, filesystem allowlist, command/action-kind allowlist, replay-source-log integrity walk, rollback proof, resettable policy self-test, checkpointing, and artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
@@ -28,7 +28,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
 | `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, text-experience learning/replay, and raw text spans |
-| `scripts/test_organic_v0.sh` | runs substrate self-test, persistence round-trip, and a Cycle 8 short full-mode `sleep-wake` JSONL rail under a hard 180s timeout. Any failure is `set -e` fatal |
+| `scripts/test_organic_v0.sh` | runs substrate self-test, persistence round-trip, and a short full-mode `sleep-wake` JSONL rail under a hard 180s timeout. The runtime smoke uses an explicit per-run `/tmp` root passed through the Cycle 9 policy allowlist. Any failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
 
@@ -137,6 +137,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/sleep_wake_cycle8_random_baseline.json` | cycle-8 fixed-seed random null baseline for replay selection: same wake stream and tick budget as the priority run, random seed 8801, accepted/rejected replay mutations, checkpoint chain, and divergent final state hash |
 | `run/artifacts/organic-v0/daemon_lite_cycle8_1h.json` | cycle-8 daemon-lite proof artifact: one native process ran for >=1 hour with periodic checkpoints, v1 event-log records, replay mutation evidence, and final state hash |
 | `run/artifacts/organic-v0/cycle8_organic_metrics.json` | cycle-8 metric comparison artifact: prediction-priority versus fixed-seed random null on predeclared `surprise_reduction`, accepted/rejected mutation counts, checkpoint counts, state-hash chains, and honest A0-unproven interpretation |
+| `run/artifacts/organic-v0/policy_self_test_cycle9.json` | cycle-9 safety-boundary denial/reset artifact: policy ON/OFF controls for path traversal, unauthorized absolute path, shell/network action_kind, replay-source state-hash spoof, event-log integrity tamper, budget exhaustion, rollback live-state + predictor-state preservation, and resettable per-run root hash equality |
 
 ## Not tracked, on disk
 

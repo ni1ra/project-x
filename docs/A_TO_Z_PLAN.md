@@ -261,4 +261,14 @@ Per-cycle status row. Each cycle ticks one or more architecture-target sub-point
 
 ## 10. Phase Boundary
 
-v2 Cycle 8 closes the organic-substrate runtime-shape phase: the native loop can wake, sleep, replay, checkpoint, and run daemon-lite, but A0 remains unproven. Cycle 9 should open a safety-boundary/runtime-governance phase focused on budgets, allowlists, rollback, resettable environments, and denied-action evidence. Do not extend v2 with a more capable daemon until that boundary exists unless the user explicitly reopens the v2 phase.
+v2 Cycle 8 closes the organic-substrate runtime-shape phase: the native loop can wake, sleep, replay, checkpoint, and run daemon-lite, but A0 remains unproven. Cycle 9 opened a safety-boundary/runtime-governance phase focused on budgets, allowlists, rollback, resettable environments, event-log integrity, and denied-action evidence. Do not extend the daemon with broader capability until wrapper-level sandboxing exists unless the user explicitly changes scope.
+
+## 11. Phase Changelog (v3 - safety boundary)
+
+Per-cycle status row for the safety-boundary/runtime-governance phase. Phase v2 cycles 1-8 remain archived under `docs/past_work/cycles/phase_v2_organic_substrate/`.
+
+| Cycle | Date closed | Scope | Status | Evidence |
+|---|---|---|---|---|
+| v3-c9 | 2026-05-15 | In-process runtime policy gates for current sleep/wake and daemon-lite surfaces: count budgets, filesystem allowlist, command/action-kind allowlist, v2 event-log hash chain, replay-source-log integrity walk, rollback proof including predictor hash, resettable per-run root proof, and denial artifact with ablation controls. | ✅ in-process only / wrapper sandbox future work | implementation commit `b8f3cff`; `run/artifacts/organic-v0/policy_self_test_cycle9.json` (`all_required_checks_passed:true`, reset final hash equality `f922498181ba3064`, rollback predictor hash preserved); `make test`; short daemon-lite policy smoke at `/tmp/cycle9-policy-daemon-smoke.tpiiaf/daemon.json`; `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-9-b8f3cff.md` |
+
+Honest boundary for v3-c9: In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.

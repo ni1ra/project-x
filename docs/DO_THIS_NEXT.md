@@ -1,8 +1,8 @@
-# Do This Next - Project X v2
+# Do This Next - Project X
 
-Generated: 2026-05-14, after Cycle 8 implementation.
+Generated: 2026-05-15, after Cycle 9 implementation.
 
-This file is the immediate queue cut from the phase plan. It is not a cycle archive. Closed cycle evidence belongs in `docs/A_TO_Z_PLAN.md` and `docs/past_work/cycles/phase_v2_organic_substrate/`; machine-readable runtime artifacts belong under `run/artifacts/`.
+This file is the immediate queue cut from the phase plan. It is not a cycle archive. Closed cycle evidence belongs in `docs/A_TO_Z_PLAN.md` and `docs/past_work/cycles/`; machine-readable runtime artifacts belong under `run/artifacts/`.
 
 ## Read First
 
@@ -10,7 +10,7 @@ This file is the immediate queue cut from the phase plan. It is not a cycle arch
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
-5. `docs/past_work/cycles/phase_v2_organic_substrate/dev-cycle-8-049b764.md`
+5. `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-9-b8f3cff.md`
 
 ## Current State
 
@@ -26,30 +26,44 @@ Cycle 8 should be treated as infrastructure-only until stronger replay evidence 
 
 Post-audit cleanup added `--daemon-tick-sleep-ms` for daemon-lite throughput tests. Default behavior is preserved: daemon mode sleeps 100ms per tick, and test mode sleeps 1ms per tick. Set the knob lower, including `0`, only when the local run intentionally spends more CPU for faster evidence.
 
-## Immediate Next: Cycle 9 Safety Boundary
+Cycle 9 opened phase v3 and added in-process runtime policy gates for the current sleep/wake and daemon-lite surfaces:
 
-Phase boundary: v2 Cycle 8 closes the organic-substrate runtime-shape phase. Cycle 9 opens a safety-boundary/runtime-governance phase, not another v2 capability cycle, unless the user explicitly reopens v2.
+- policy ON by default, with explicit unsafe disable flag `--unsafe-disable-policy`
+- count budgets for wake commands, sleep ticks, replay candidates, mutation attempts, checkpoints, and file writes
+- filesystem allowlist for project run/artifact/state/experience roots plus explicit per-run tmp roots
+- runtime command/action-kind allowlist
+- v2 event-log content hash chaining and replay-source-log integrity walk
+- hard-stop denial artifact with guard-ON/guard-OFF controls
+- rollback proof for rejected sleep mutations including predictor hash equality
+- resettable rerun proof over a wiped per-run root
 
-Default direction: implement the formal safety boundary that Cycle 8 explicitly did not solve.
+Evidence:
 
-The reason to prioritize this now is mechanical: organic-v0 can now ingest stdin JSONL and replay event-log records inside a persistent process. Even though Cycle 8 does not execute shell commands, network calls, or arbitrary filesystem actions from data, the runtime still needs explicit budgets and a resettable operating envelope before the daemon becomes more capable.
+- implementation commit `b8f3cff`
+- denial/reset artifact `run/artifacts/organic-v0/policy_self_test_cycle9.json`
+- reflection `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-9-b8f3cff.md`
 
-Cycle 9 should add:
+Honest boundary: In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.
 
-- a runtime policy object with explicit action budgets for wake, sleep, replay, mutation, checkpoint, and file I/O
-- a filesystem allowlist rooted in configured state/log/artifact/experience paths
-- hard rejection tests for JSONL/event-log data that attempts shell execution, network access, path traversal, or unauthorized file writes
-- a resettable environment contract for daemon-lite runs
-- checkpoint rollback semantics for rejected or unsafe mutations
-- audit artifacts proving denied actions are denied by code, not by absent test data
-- a 180s test-mode gate using the same codepaths as full mode
-- a >=1 hour daemon-lite rerun under the new policy once the safety boundary exists, using `--daemon-tick-sleep-ms` only when a measured faster local run is intentional
+## Immediate Next: Cycle 10 Wrapper Boundary
 
-Close Cycle 9 only if the boundary is enforced by tests and artifacts. Do not claim this solves alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.
+Default direction: add a wrapper-level runtime boundary around `organic_v0` rather than increasing daemon capability.
+
+Cycle 10 should add:
+
+- a thin launcher/harness that runs `organic_v0` inside an OS-level constrained environment available on this machine
+- per-run filesystem namespace setup that makes allowed roots physical, not only in-process policy decisions
+- process-level timeout, CPU/memory/file-descriptor limits where available
+- stdout/stderr/event-log capture with immutable run manifest
+- a wrapper/in-process ablation pair: the same denial cases should be blocked by both layers where meaningful
+- a replay-source-log tamper test where the wrapper preserves evidence after native refusal
+- documentation that native policy is defense-in-depth, not the sandbox
+
+Do not rerun the one-hour daemon proof unless a default runtime behavior changes. Use short full-codepath tests first.
 
 ## Secondary Queue: Concept-Emergence Pressure
 
-If the safety boundary is deliberately deferred by user order, the next capability pressure should be concept-emergence over the Cycle 8 substrate:
+After the wrapper boundary exists, the next capability pressure should be concept-emergence over the Cycle 8/9 substrate:
 
 - feed replay with more varied event evidence instead of hand-built answer routes
 - measure whether prediction error discovers reusable latent clusters across text, symbolic, grid, and numeric traces

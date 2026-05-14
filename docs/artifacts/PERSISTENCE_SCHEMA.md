@@ -1,7 +1,7 @@
 # Persistence Schema - Project X v2
 
 Date: 2026-05-14
-Status: pass-0 runtime implemented for organic-v0. Save/load, append-only event log, and fresh-process round-trip are live; this document records the v0 contract the runtime now writes.
+Status: pass-0 runtime implemented for organic-v0. Save/load, append-only event logs, fresh-process round-trip, and Cycle 9 in-process runtime policy evidence are live. This document records the v0/v1/v2 contracts the runtime writes.
 
 ## Purpose
 
@@ -152,6 +152,83 @@ Rules:
 - `mutation_refs` must be non-empty for wake learning and sleep replay accept/reject events.
 - sleep replay generation is `audit_only:true`; it is not user-facing wake output.
 - v1 data is runtime evidence only. The daemon does not execute shell commands, network calls, or arbitrary filesystem actions from event text.
+
+## Event Log JSONL v2
+
+Cycle 9 adds a safety-boundary/runtime-governance event schema. v0 remains valid for legacy train/eval/text/interactive phases. Existing Cycle 8 evidence remains v1. New `sleep-wake`, `daemon-lite`, and Cycle 9 policy self-test runtime evidence writes v2 records.
+
+Path shape:
+
+```text
+run/state/organic-v0/events/<organism_id>-cycle9-<run_id>.jsonl
+```
+
+or, when an explicit per-run tmp root is configured:
+
+```text
+<policy_tmp_root>/events/<run_id>.jsonl
+```
+
+Each line is append-only and extends v1 with policy and integrity fields:
+
+```json
+{
+  "schema": "project_x.event_log.v2",
+  "event_id": "evtlog_000001",
+  "run_id": "cycle9-policy-daemon-smoke",
+  "organism_id": "raphael-local-0001",
+  "step_id": "step_1",
+  "step_mode": "wake|sleep|policy_denial",
+  "timestamp_utc": "2026-05-14T00:00:00Z",
+  "phase": "generate|learn|mutate|reflect",
+  "source": {
+    "source_kind": "stdin_jsonl|wake_event_log|event_log|sleep_idle|runtime_policy",
+    "source_path": "stdin",
+    "source_event_id": "wake_cycle8_0001"
+  },
+  "input": {"text": "navi carries basalt prism", "observations": []},
+  "output": {
+    "raw_generated_output": "",
+    "expected_output": "navi carries basalt prism",
+    "oracle_used_in_generation": false,
+    "audit_only": false
+  },
+  "reward": {"task_success": 1.0},
+  "prediction": {"predictor": "a0_event_outcome", "feature_count": 9},
+  "prediction_error": null,
+  "trace_refs": [],
+  "mutation_refs": [],
+  "state_before_hash": "0000000000000000",
+  "state_after_hash": "0000000000000000",
+  "policy_denial": false,
+  "denial_reason": "",
+  "budget_state": {
+    "policy_enabled": true,
+    "unsafe_disabled": false,
+    "wake_commands": {"used": 1, "max": 1024},
+    "sleep_ticks": {"used": 0, "max": 100000},
+    "replay_candidates": {"used": 0, "max": 10000},
+    "mutation_attempts": {"used": 1, "max": 100000},
+    "checkpoints": {"used": 0, "max": 10000},
+    "file_writes": {"used": 1, "max": 250000}
+  },
+  "prev_event_content_hash": "GENESIS",
+  "backend": {"runtime": "native_cpp20", "gpu_backend": "not_used_in_organic_v0"},
+  "event_content_hash": "0000000000000000"
+}
+```
+
+Rules:
+
+- v2 rows are append-only in code: runtime event writers open the log in append mode and never rewrite older rows.
+- `event_content_hash` is computed over the canonical row content before the terminal `event_content_hash` field is added.
+- `prev_event_content_hash` must equal `GENESIS` for the first row and the previous row's `event_content_hash` afterward.
+- Runtime boot/replay-source-log loading walks the v2 chain and rejects content-hash mismatch, prev-hash mismatch, non-v2 rows, and malformed replay state hashes.
+- `policy_denial:true` rows record hard stops such as schema denial or budget exhaustion. They are evidence records and are not replayable candidates.
+- `denial_reason` must be machine-readable enough to identify the gate that stopped the run.
+- `budget_state` records count budgets for wake commands, sleep ticks, replay candidates, mutation attempts, checkpoints, and file writes. Budget excess hard-stops; it does not warn-and-continue.
+- Runtime command `action_kind` values are allowlisted. Known runtime values are `wake`, `sleep`, `checkpoint`, and `shutdown`; values such as `shell`, `network`, `file-write`, and `tool-exec` are denied at parse/policy time.
+- Path policy is in-process only. It allowlists project `run/`, `run/artifacts/`, `run/state/`, `experience/`, and an explicit per-run tmp root. It rejects parent traversal, unauthorized absolute paths, and existing symlink components. Residual TOCTOU race risk remains; this is not wrapper-level sandboxing.
 
 ## Text Experience JSONL v0
 
