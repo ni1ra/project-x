@@ -215,3 +215,54 @@ Candidate close criteria:
 - preserve Cycle 7D, Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails
 
 The goal is not to fake fluent text in one pass. The goal is to create the database-backed learning substrate that makes coherent organic text possible later.
+
+## Cycle 7E Closed - Text Experience Rail
+
+Cycle 7E shipped the default direction: a durable text-experience database and native organic text rail.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/text_experience_cycle7e_summary.json`: all-on probe 4/4 (`1.000000`), from-disk probe 4/4 (`1.000000`), learning-disabled ablation probe 0/4 (`0.000000`).
+- `run/artifacts/organic-v0/text_experience_cycle7e.json`: native all-on ingest run; train-before 1/6, train-after 4/6, probe 4/4, child hash `be0fc781039a2038`.
+- `run/artifacts/organic-v0/text_experience_cycle7e_from_disk_probe.json`: fresh loaded child matches same-process probe metrics and model hash `be0fc781039a2038`.
+- `run/artifacts/organic-v0/text_experience_cycle7e_ablate_learning.json`: `--ablate-text-experience-learning` leaves state growth at zero and drops probe to 0/4, hash `29958f0880e662dc`.
+- `run/artifacts/organic-v0/text_experience_cycle7e_transcript.md`: readable transcript preserving raw before/after outputs and failures.
+- `docs/artifacts/CYCLE7E_TEXT_EXPERIENCE_RAIL.md`: closed interpretation and negative-space audit.
+
+Plain English:
+
+- This proves the new text experience rail is durable and load-bearing.
+- It does not prove fluent chat. The clean chat rail remains 1/5, and the 7E training transcript still preserves bad outputs.
+- It is a database-backed substrate step toward organic language learning, not a finished language mind.
+
+Regression gates after Cycle 7E:
+
+- `make test`: PASS
+- cycle-6 regression: 30/30, hash `29958f0880e662dc`
+- clean chat rail: 1/5, hash `888b7664126b7f5f`
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
+- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
+- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact and 8/8 post-episode probe exact
+- Cycle 7D grid interactive regression: seeds 7201/7202 remain 8/8 held-out exact and 8/8 post-episode probe exact
+
+## Cycle 7F Contract
+
+Default direction: **text-experience replay and consolidation**.
+
+Do not drift back into isolated puzzle patching. The next major step should make the text experience database more organism-like by letting failed or weak records replay into a child state and measuring whether replay improves or stabilizes future text probes.
+
+Candidate close criteria:
+
+- write the learnability/design audit before code or data edits
+- add a native replay/consolidation path for text experience records
+- preserve raw first-pass failures and replay decisions in the artifact
+- add `--ablate-text-experience-replay` or an equivalent replay-disabled control
+- include from-disk child probes before and after replay
+- include a replay transcript that shows which failures were replayed and what changed
+- keep clean chat visible at 1/5 unless it organically improves
+- preserve Cycle 7E, Cycle 7D, Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails
+- do not add response templates, intent trigger lists, answer dispatchers, or a polished voice layer
+- update docs and `REPO_CONTROL.md`
+- write and sha7-rename the cycle reflection
+
+The target is not to claim fluency. The target is to make durable language experience accumulate, replay, and consolidate through learned state.

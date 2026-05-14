@@ -1,0 +1,75 @@
+{
+  "cycle": "7E",
+  "date": "2026-05-14",
+  "claim": "durable text-experience rail, not fluent chat",
+  "evidence_paths": {
+    "all_on": "run/artifacts/organic-v0/text_experience_cycle7e.json",
+    "from_disk": "run/artifacts/organic-v0/text_experience_cycle7e_from_disk_probe.json",
+    "ablation": "run/artifacts/organic-v0/text_experience_cycle7e_ablate_learning.json",
+    "transcript": "run/artifacts/organic-v0/text_experience_cycle7e_transcript.md"
+  },
+  "metrics": {
+    "all_on": {
+      "train_before": {
+        "count": 6,
+        "exact": 1,
+        "exact_rate": 0.166667,
+        "mean_sequence_ratio": 0.698660
+      },
+      "train_after": {
+        "count": 6,
+        "exact": 4,
+        "exact_rate": 0.666667,
+        "mean_sequence_ratio": 0.921498
+      },
+      "probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "from_disk": {
+      "probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "ablation": {
+      "probe": {
+        "count": 4,
+        "exact": 0,
+        "exact_rate": 0.000000,
+        "mean_sequence_ratio": 0.652944
+      }
+    }
+  },
+  "model_hashes": {
+    "all_on": "be0fc781039a2038",
+    "from_disk": "be0fc781039a2038",
+    "ablation": "29958f0880e662dc"
+  },
+  "state_growth": {
+    "all_on": {
+      "trace_count_delta": 6,
+      "connection_feature_count_delta": 4861,
+      "connection_nonzero_count_delta": 6988,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    },
+    "ablation": {
+      "trace_count_delta": 0,
+      "connection_feature_count_delta": 0,
+      "connection_nonzero_count_delta": 0,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    }
+  },
+  "checks": {
+    "from_disk_probe_and_hash_diff_clean": true,
+    "ablation_probe_degraded": true
+  },
+  "counter_claim": "Does not prove GPT/Claude-style chat, opinions, math, physics, broad reasoning, or beyond-human capability."
+}

@@ -20,14 +20,14 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), cue-bound symbolic same/different relation channel, cue-bound grid/spatial relation channel, relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule/symbolic-rule/grid-rule action-feedback harnesses, native text-experience ingest/probe phases with learning-disabled ablation, artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
 | Path | Justification |
 |---|---|
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
-| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; supports `--load-state` / `--save-state` / `--event-log` / `--ablate-trace-id` / `--ablate-numeric-derived` / `--ablate-threshold-derived` / `--ablate-modular-derived` / `--ablate-relation-projection` / `--ablate-symbolic-relations` / `--ablate-grid-spatial` |
+| `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, and text-experience learning |
 | `scripts/test_organic_v0.sh` | runs both phases: `--phase self-test` (substrate guard — cold brain emits nothing, learns one event, emits "zx") then `--phase persistence-self-test` (full round-trip — train → save → fresh child process load → generate → hash + output match). Either failure is `set -e` fatal |
 
 ### benchmarks/ — measurement substrate
@@ -38,6 +38,12 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `benchmarks/v2_ladder/organic_live_chat_v0.jsonl` | manifesto-safe live-chat regression rail. Raw utterance observations only; no frontend-inferred greeting/farewell/identity labels. Preserves the honest 1/5 chat baseline without making chat the cycle headline |
 | `benchmarks/v2_ladder/organic_cycle7a_fork_a.jsonl` | cycle-7A continuation-learning fork stream A. Same parent and probe shape as fork B, but rewarded with a different output so checkpoint hash and held-out behavior must diverge from experience alone |
 | `benchmarks/v2_ladder/organic_cycle7a_fork_b.jsonl` | cycle-7A continuation-learning fork stream B. Same parent and probe shape as fork A, but rewarded with a different output so checkpoint hash and held-out behavior must diverge from experience alone |
+
+### experience/ — durable organism experience stores
+
+| Path | Justification |
+|---|---|
+| `experience/organic-v0/text_experience_seed_v0.jsonl` | cycle-7E seed text-interaction experience database: six correction records and four probe records with raw input text, observations, correction output, reward, source, and composition fields. Lives outside `benchmarks/` so language experience can accumulate as replayable substrate instead of a one-off score fixture |
 
 ### run/ — artifact output (machine-readable claims, tracked) — `run/state/` is gitignored (runtime substrate)
 
@@ -105,6 +111,12 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_ablate_seed7201.json` | cycle-7D grid-spatial ablation member for seed 7201: `--ablate-grid-spatial` drops held-out transfer from 8/8 to 2/8 and preserves the failure traces |
 | `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_ablate_seed7202.json` | cycle-7D grid-spatial ablation member for seed 7202: `--ablate-grid-spatial` drops held-out transfer from 8/8 to 1/8 and preserves the failure traces |
 | `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_grid_ablation.json` | cycle-7D ablation summary: all-on reaches 16/16 held-out and 48/64 total; disabling cue-bound grid/spatial features drops to 3/16 held-out and 6/64 total |
+| `run/artifacts/organic-v0/text_experience_cycle7e.json` | cycle-7E native text-experience all-on artifact: loaded v2-c6 parent, generated before correction, learned six correction records, saved child hash `be0fc781039a2038`, and scored four held-out text probes at 4/4 exact |
+| `run/artifacts/organic-v0/text_experience_cycle7e_transcript.md` | cycle-7E readable transcript preserving raw train-before, train-after, and probe outputs, including imperfect post-correction training rows so the text rail cannot be mistaken for a polished chat wrapper |
+| `run/artifacts/organic-v0/text_experience_cycle7e_from_disk_probe.json` | cycle-7E fresh loaded-child text probe artifact: loaded `cycle7e-text-experience.pxstate` and reproduced the same 4/4 probe score with matching hash `be0fc781039a2038` without replaying the text experience train records |
+| `run/artifacts/organic-v0/text_experience_cycle7e_ablate_learning.json` | cycle-7E learning-disabled ablation artifact: `--ablate-text-experience-learning` leaves state growth at zero, keeps hash `29958f0880e662dc`, and drops held-out text probes to 0/4 |
+| `run/artifacts/organic-v0/text_experience_cycle7e_ablate_transcript.md` | cycle-7E ablation transcript preserving raw outputs when correction learning is disabled; documents that before/after outputs do not improve without state mutation |
+| `run/artifacts/organic-v0/text_experience_cycle7e_summary.json` | cycle-7E aggregate scorecard: all-on probe 4/4, from-disk probe 4/4 with matching hash, learning-disabled ablation 0/4, plus explicit counter-claim that this is not fluent chat or broad reasoning |
 
 ## Not tracked, on disk
 

@@ -155,6 +155,19 @@ struct Event {
   }
 };
 
+struct TextExperienceRecord {
+  std::string schema;
+  std::string experience_id;
+  std::string session_id;
+  std::string split;
+  std::string input_text;
+  std::vector<std::string> observations;
+  std::string correction_output;
+  std::map<std::string, double> reward;
+  std::string source;
+  std::string composition = "text_experience";
+};
+
 struct ObservationSlot {
   std::string type;
   std::string value;
@@ -457,6 +470,37 @@ Event parse_event(const std::string& line) {
   event.reward = get_number_object(line, "reward");
   event.source = get_string(line, "source");
   if (auto composition = maybe_get_string(line, "composition")) event.composition = *composition;
+  return event;
+}
+
+TextExperienceRecord parse_text_experience_record(const std::string& line) {
+  TextExperienceRecord record;
+  if (auto schema = maybe_get_string(line, "schema")) record.schema = *schema;
+  record.experience_id = get_string(line, "experience_id");
+  record.session_id = get_string(line, "session_id");
+  record.split = get_string(line, "split");
+  record.input_text = get_string(line, "input_text");
+  record.observations = get_string_array(line, "observations");
+  record.correction_output = get_string(line, "correction_output");
+  record.reward = get_number_object(line, "reward");
+  record.source = get_string(line, "source");
+  if (auto composition = maybe_get_string(line, "composition")) record.composition = *composition;
+  return record;
+}
+
+Event event_from_text_experience(const TextExperienceRecord& record) {
+  Event event;
+  event.event_id = record.experience_id;
+  event.episode_id = record.session_id;
+  event.split = record.split == "train" ? "train" : "probe";
+  event.domain = "text_experience";
+  event.level = record.split == "train" ? 0 : 1;
+  event.input = record.input_text;
+  event.observations = record.observations;
+  event.target_output = record.correction_output;
+  event.reward = record.reward;
+  event.source = record.source;
+  event.composition = record.composition;
   return event;
 }
 
@@ -777,6 +821,28 @@ std::vector<Event> load_events(const std::string& path) {
     }
   }
   return events;
+}
+
+std::vector<TextExperienceRecord> load_text_experience_records(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) throw std::runtime_error("cannot open text experience database: " + path);
+  std::vector<TextExperienceRecord> records;
+  std::string line;
+  int line_no = 0;
+  while (std::getline(in, line)) {
+    ++line_no;
+    if (line.empty()) continue;
+    try {
+      auto record = parse_text_experience_record(line);
+      if (record.split != "train" && record.split != "probe") {
+        throw std::runtime_error("split must be train or probe");
+      }
+      records.push_back(std::move(record));
+    } catch (const std::exception& e) {
+      throw std::runtime_error(path + ":" + std::to_string(line_no) + ": " + e.what());
+    }
+  }
+  return records;
 }
 
 struct SplitAudit {
@@ -2557,6 +2623,10 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
       << ", \"state_hash\": " << q(hex64(gen.state_hash)) << "}";
 }
 
+std::string display_output(const std::string& output) {
+  return output.empty() ? std::string("<empty>") : output;
+}
+
 void write_config(std::ostream& out, const Config& config) {
   // CYCLE-3.5: segment-mode fields are part of the config-hash because they change
   // answer-path behavior (action-space width + softmax mixing). Pre-3.5 artifacts
@@ -3044,6 +3114,8 @@ struct Args {
   std::string verify_event_id;
   std::string organism_id = "raphael-local-0001";
   std::string rule_family = "all";
+  std::string experience_db = "experience/organic-v0/text_experience_seed_v0.jsonl";
+  std::string transcript_out;
   uint64_t scenario_seed = 7001;
   int action_budget = 64;
   double feedback_strength = 2.0;
@@ -3054,6 +3126,7 @@ struct Args {
   bool ablate_relation_projection = false;
   bool ablate_symbolic_relations = false;
   bool ablate_grid_spatial = false;
+  bool ablate_text_experience_learning = false;
 };
 
 Args parse_args(int argc, char** argv) {
@@ -3074,6 +3147,8 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--verify-event") args.verify_event_id = need_value(key);
     else if (key == "--organism-id") args.organism_id = need_value(key);
     else if (key == "--rule-family") args.rule_family = need_value(key);
+    else if (key == "--experience-db") args.experience_db = need_value(key);
+    else if (key == "--transcript-out") args.transcript_out = need_value(key);
     else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
     else if (key == "--action-budget") args.action_budget = std::stoi(need_value(key));
     else if (key == "--feedback-strength") args.feedback_strength = std::stod(need_value(key));
@@ -3086,6 +3161,7 @@ Args parse_args(int argc, char** argv) {
       args.ablate_symbolic_relations = true;
     }
     else if (key == "--ablate-grid-spatial") args.ablate_grid_spatial = true;
+    else if (key == "--ablate-text-experience-learning") args.ablate_text_experience_learning = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
@@ -3665,6 +3741,364 @@ std::vector<HiddenRuleStepSpec> build_grid_probe_steps(uint64_t seed, const std:
     probes.push_back(std::move(probe));
   }
   return probes;
+}
+
+struct TextExperienceScore {
+  int count = 0;
+  int exact = 0;
+  double ratio_total = 0.0;
+};
+
+void add_text_experience_score(TextExperienceScore& score, const std::string& raw,
+                               const std::string& expected) {
+  score.count += 1;
+  score.exact += raw == expected ? 1 : 0;
+  score.ratio_total += lcs_ratio(raw, expected);
+}
+
+void write_text_experience_score(std::ostream& out, const TextExperienceScore& score) {
+  out << "{\"count\": " << score.count
+      << ", \"exact\": " << score.exact
+      << ", \"exact_rate\": " << std::fixed << std::setprecision(6)
+      << (score.count ? static_cast<double>(score.exact) / static_cast<double>(score.count) : 0.0)
+      << ", \"mean_sequence_ratio\": "
+      << (score.count ? score.ratio_total / static_cast<double>(score.count) : 0.0)
+      << std::defaultfloat << "}";
+}
+
+void write_string_array_json(std::ostream& out, const std::vector<std::string>& values) {
+  out << "[";
+  for (size_t i = 0; i < values.size(); ++i) {
+    if (i) out << ", ";
+    out << q(values[i]);
+  }
+  out << "]";
+}
+
+struct TextExperienceTrainHistory {
+  TextExperienceRecord record;
+  Generation before_learning;
+  Generation after_learning;
+  bool exact_before = false;
+  bool exact_after = false;
+  uint64_t state_before = 0;
+  uint64_t state_after = 0;
+  bool learning_applied = false;
+};
+
+struct TextExperienceProbeHistory {
+  TextExperienceRecord record;
+  Generation generation;
+  bool exact = false;
+  uint64_t state_hash = 0;
+};
+
+void write_text_experience_transcript(const std::string& transcript_path,
+                                      const std::vector<TextExperienceTrainHistory>& train_history,
+                                      const std::vector<TextExperienceProbeHistory>& probe_history,
+                                      bool learning_disabled) {
+  ensure_parent_dir(transcript_path);
+  std::ofstream out(transcript_path);
+  out << "# Cycle 7E Text Experience Transcript\n\n";
+  out << "Generated: " << timestamp_utc() << "\n\n";
+  out << "This transcript preserves raw organic-v0 output before correction, after correction, "
+      << "and on held-out probes. Empty output is written as `<empty>`. The correction text is "
+      << "training feedback, not a generation-time answer template.\n\n";
+  out << "Learning disabled by ablation: " << (learning_disabled ? "true" : "false") << "\n\n";
+  out << "## Training Records\n\n";
+  for (size_t i = 0; i < train_history.size(); ++i) {
+    const auto& item = train_history[i];
+    out << "### " << item.record.experience_id << "\n\n";
+    out << "- input: `" << item.record.input_text << "`\n";
+    out << "- before correction: `" << display_output(item.before_learning.output) << "`\n";
+    out << "- correction: `" << item.record.correction_output << "`\n";
+    out << "- after correction: `" << display_output(item.after_learning.output) << "`\n";
+    out << "- exact before/after: " << (item.exact_before ? "true" : "false")
+        << " / " << (item.exact_after ? "true" : "false");
+    if (i + 1 < train_history.size()) out << "\n\n";
+  }
+  out << "\n\n## Probe Records\n\n";
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    const auto& item = probe_history[i];
+    out << "### " << item.record.experience_id << "\n\n";
+    out << "- input: `" << item.record.input_text << "`\n";
+    out << "- raw output: `" << display_output(item.generation.output) << "`\n";
+    out << "- expected after oracle scoring: `" << item.record.correction_output << "`\n";
+    out << "- exact: " << (item.exact ? "true" : "false");
+    if (i + 1 < probe_history.size()) out << "\n\n";
+  }
+  out << "\n";
+}
+
+void text_experience_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("text-experience requires --out");
+  if (args.experience_db.empty()) throw std::runtime_error("text-experience requires --experience-db");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  PersistenceContext persistence;
+  persistence.organism_id = args.organism_id;
+  persistence.loaded_state_path = args.load_state;
+  persistence.saved_state_path = args.save_state;
+  persistence.event_log_path = args.event_log;
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    persistence.load_status = "loaded_from_disk";
+  }
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+
+  auto records = load_text_experience_records(args.experience_db);
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  TextExperienceScore train_before_score;
+  TextExperienceScore train_after_score;
+  TextExperienceScore probe_score;
+  std::vector<TextExperienceTrainHistory> train_history;
+  std::vector<TextExperienceProbeHistory> probe_history;
+
+  for (const auto& record : records) {
+    if (record.split != "train") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t before_hash = brain.state_hash();
+    auto before_gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, before_gen.output,
+                          event.target_output, before_hash, before_hash,
+                          "text_experience_before_learning", args.experience_db);
+
+    bool learned = false;
+    uint64_t after_hash = before_hash;
+    if (!args.ablate_text_experience_learning) {
+      brain.learn(event);
+      learned = true;
+      after_hash = brain.state_hash();
+      append_event_log_line(args.event_log, args.organism_id, "learn", event, event.target_output,
+                            event.target_output, before_hash, after_hash,
+                            "text_experience_correction", args.experience_db);
+    }
+    auto after_gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, after_gen.output,
+                          event.target_output, after_hash, after_hash,
+                          learned ? "text_experience_after_learning"
+                                  : "text_experience_after_learning_ablation_disabled",
+                          args.experience_db);
+
+    add_text_experience_score(train_before_score, before_gen.output, event.target_output);
+    add_text_experience_score(train_after_score, after_gen.output, event.target_output);
+    train_history.push_back({record, std::move(before_gen), std::move(after_gen),
+                             false, false, before_hash, after_hash, learned});
+    auto& stored = train_history.back();
+    stored.exact_before = stored.before_learning.output == event.target_output;
+    stored.exact_after = stored.after_learning.output == event.target_output;
+  }
+
+  BrainStateStats child_stats = capture_state_stats(brain);
+  if (!args.save_state.empty()) {
+    ensure_parent_dir(args.save_state);
+    std::ofstream state_out(args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+    persistence.load_status = args.load_state.empty()
+                                  ? "text_experience_ingested_and_saved"
+                                  : "loaded_then_text_experience_ingested_and_saved";
+  } else if (args.load_state.empty()) {
+    persistence.load_status = "text_experience_ingested_no_state_save";
+  } else {
+    persistence.load_status = "loaded_then_text_experience_ingested_no_state_save";
+  }
+
+  for (const auto& record : records) {
+    if (record.split != "probe") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t state_hash = brain.state_hash();
+    auto gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
+                          event.target_output, state_hash, state_hash,
+                          "text_experience_probe", args.experience_db);
+    add_text_experience_score(probe_score, gen.output, event.target_output);
+    probe_history.push_back({record, std::move(gen), false, state_hash});
+    auto& stored = probe_history.back();
+    stored.exact = stored.generation.output == event.target_output;
+  }
+
+  std::string transcript_path = args.transcript_out.empty()
+                                    ? args.out + ".transcript.md"
+                                    : args.transcript_out;
+  write_text_experience_transcript(transcript_path, train_history, probe_history,
+                                   args.ablate_text_experience_learning);
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-text-exp-" + hex64(fnv1a(ts + hex64(child_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"text-experience\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"experience_db_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
+  out << "  \"schema\": \"project_x.text_experience.v0\",\n";
+  out << "  \"ablation\": {\"text_experience_learning_disabled\": "
+      << (args.ablate_text_experience_learning ? "true" : "false") << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": true, \"probe_evaluation\": true},\n";
+  out << "  \"model_state_hash\": " << q(hex64(child_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state_hash\": " << q(hex64(parent_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, child_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, parent_stats, child_stats); out << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
+  out << "  \"summary_metrics\": {\"train_before\": "; write_text_experience_score(out, train_before_score);
+  out << ", \"train_after\": "; write_text_experience_score(out, train_after_score);
+  out << ", \"probe\": "; write_text_experience_score(out, probe_score);
+  out << "},\n";
+  out << "  \"training_history\": [\n";
+  for (size_t i = 0; i < train_history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& item = train_history[i];
+    out << "    {\"experience_id\": " << q(item.record.experience_id)
+        << ", \"session_id\": " << q(item.record.session_id)
+        << ", \"input_text\": " << q(item.record.input_text)
+        << ", \"observations\": ";
+    write_string_array_json(out, item.record.observations);
+    out << ", \"correction_output\": " << q(item.record.correction_output)
+        << ", \"raw_before_learning\": " << q(item.before_learning.output)
+        << ", \"exact_before_learning\": " << (item.exact_before ? "true" : "false")
+        << ", \"raw_after_learning\": " << q(item.after_learning.output)
+        << ", \"exact_after_learning\": " << (item.exact_after ? "true" : "false")
+        << ", \"learning_applied\": " << (item.learning_applied ? "true" : "false")
+        << ", \"state_before_hash\": " << q(hex64(item.state_before))
+        << ", \"state_after_hash\": " << q(hex64(item.state_after))
+        << ", \"before_learning_evidence\": ";
+    write_generation_evidence(out, item.before_learning);
+    out << ", \"after_learning_evidence\": ";
+    write_generation_evidence(out, item.after_learning);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"probe_history\": [\n";
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& item = probe_history[i];
+    out << "    {\"experience_id\": " << q(item.record.experience_id)
+        << ", \"session_id\": " << q(item.record.session_id)
+        << ", \"input_text\": " << q(item.record.input_text)
+        << ", \"observations\": ";
+    write_string_array_json(out, item.record.observations);
+    out << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"raw_generated_output\": " << q(item.generation.output)
+        << ", \"exact\": " << (item.exact ? "true" : "false")
+        << ", \"score\": ";
+    write_score(out, item.generation.output, item.record.correction_output);
+    out << ", \"state_hash\": " << q(hex64(item.state_hash))
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, item.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"failure_traces\": [";
+  bool first_failure = true;
+  for (const auto& item : train_history) {
+    if (item.exact_after) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"stage\": \"train_after_learning\""
+        << ", \"raw_output\": " << q(item.after_learning.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"state_hash\": " << q(hex64(item.state_after)) << "}";
+    first_failure = false;
+  }
+  for (const auto& item : probe_history) {
+    if (item.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"stage\": \"probe\""
+        << ", \"raw_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"state_hash\": " << q(hex64(item.state_hash)) << "}";
+    first_failure = false;
+  }
+  out << "],\n";
+  out << "  \"honest_interpretation\": \"Cycle 7E text-experience rail: correction records mutate the same organic-v0 learned state used by prior phases. The transcript preserves weak raw outputs; exact matches here are small database-backed language recall/generalization, not fluent chat or broad reasoning.\"\n";
+  out << "}\n";
+}
+
+void text_experience_probe_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("text-experience-probe requires --out");
+  if (args.load_state.empty()) throw std::runtime_error("text-experience-probe requires --load-state");
+  if (args.experience_db.empty()) throw std::runtime_error("text-experience-probe requires --experience-db");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  load_state_checked(brain, args.load_state);
+  auto records = load_text_experience_records(args.experience_db);
+  BrainStateStats state_stats = capture_state_stats(brain);
+  TextExperienceScore probe_score;
+  std::vector<TextExperienceProbeHistory> probe_history;
+  for (const auto& record : records) {
+    if (record.split != "probe") continue;
+    Event event = event_from_text_experience(record);
+    uint64_t state_hash = brain.state_hash();
+    auto gen = brain.generate(event.input, event.observations);
+    append_event_log_line(args.event_log, args.organism_id, "generate", event, gen.output,
+                          event.target_output, state_hash, state_hash,
+                          "text_experience_from_disk_probe", args.load_state);
+    add_text_experience_score(probe_score, gen.output, event.target_output);
+    probe_history.push_back({record, std::move(gen), false, state_hash});
+    auto& stored = probe_history.back();
+    stored.exact = stored.generation.output == event.target_output;
+  }
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-text-probe-" + hex64(fnv1a(ts + hex64(state_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"text-experience-probe\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"experience_db_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"loaded_state_path\": " << q(args.load_state) << ",\n";
+  out << "  \"model_state_hash\": " << q(hex64(state_stats.state_hash)) << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, state_stats); out << ",\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"probe_evaluation\": true},\n";
+  out << "  \"summary_metrics\": {\"probe\": "; write_text_experience_score(out, probe_score);
+  out << "},\n";
+  out << "  \"probe_history\": [\n";
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& item = probe_history[i];
+    out << "    {\"experience_id\": " << q(item.record.experience_id)
+        << ", \"input_text\": " << q(item.record.input_text)
+        << ", \"observations\": ";
+    write_string_array_json(out, item.record.observations);
+    out << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"raw_generated_output\": " << q(item.generation.output)
+        << ", \"exact\": " << (item.exact ? "true" : "false")
+        << ", \"score\": ";
+    write_score(out, item.generation.output, item.record.correction_output);
+    out << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, item.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"failure_traces\": [";
+  bool first_failure = true;
+  for (const auto& item : probe_history) {
+    if (item.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"experience_id\": " << q(item.record.experience_id)
+        << ", \"raw_output\": " << q(item.generation.output)
+        << ", \"expected_output\": " << q(item.record.correction_output)
+        << ", \"state_hash\": " << q(hex64(item.state_hash)) << "}";
+    first_failure = false;
+  }
+  out << "],\n";
+  out << "  \"honest_interpretation\": \"Fresh loaded-child text probe: generated from disk without replaying the text experience stream.\"\n";
+  out << "}\n";
 }
 
 void interactive_hidden_rule(const Args& args, const std::string& command) {
@@ -4530,6 +4964,14 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "interactive-grid-probe") {
       px::interactive_grid_probe(args, command);
+      return 0;
+    }
+    if (args.phase == "text-experience") {
+      px::text_experience_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "text-experience-probe") {
+      px::text_experience_probe_phase(args, command);
       return 0;
     }
 

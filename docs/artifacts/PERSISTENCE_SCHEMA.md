@@ -64,6 +64,48 @@ Rules:
 - Oracle fields may be filled only after generation.
 - Every learning or mutation event records before/after state hashes.
 
+## Text Experience JSONL v0
+
+Cycle 7E adds a durable text-interaction experience store separate from benchmark fixtures.
+
+Path shape:
+
+```text
+experience/organic-v0/<label>.jsonl
+```
+
+Each line is one replayable text experience record:
+
+```json
+{
+  "schema": "project_x.text_experience.v0",
+  "experience_id": "txe7e_train_001",
+  "session_id": "sess7e_seed_text_001",
+  "split": "train|probe",
+  "input_text": "what does arin carry",
+  "observations": [
+    "raw_utterance:what does arin carry",
+    "person:arin",
+    "object:copper key"
+  ],
+  "correction_output": "arin carries copper key",
+  "reward": {
+    "correction": 2.0
+  },
+  "source": "cycle7e_seed_text_experience",
+  "composition": "carry_relation"
+}
+```
+
+Rules:
+
+- `train` records may mutate state after raw generation.
+- `probe` records are scored after generation and do not mutate state.
+- `correction_output` is training feedback, not a generation-time template.
+- `input_text` is the raw text stimulus; observations are explicit sense fields stored for audit and existing organic-v0 event compatibility.
+- `--ablate-text-experience-learning` must skip the train mutation path and leave state growth at zero.
+- Fresh loaded-child probes must load the saved PXSTATE and generate without replaying the experience database train records.
+
 ## State Snapshot PXSTATE Line v0
 
 Path shape:

@@ -51,10 +51,43 @@ Examples:
 
 - `--ablate-symbolic-relations`: disables Cycle 7C symbolic same/different relation features
 - `--ablate-grid-spatial`: disables Cycle 7D grid/spatial features
+- `--ablate-text-experience-learning`: disables Cycle 7E correction-driven learning from the text experience database
 
 The desired pattern is:
 
 > all-on succeeds, ablation fails, unrelated regressions stay green.
+
+## Text Experience Metrics
+
+`train-before`
+
+The raw output on a training text record before the correction is learned. This answers:
+
+> What did the existing brain already say before this experience changed state?
+
+`train-after`
+
+The raw output on the same training text after correction mutates state. This answers:
+
+> Did the correction actually change the learned state enough to affect generation?
+
+`probe`
+
+Held-out text experience records scored after training records have been learned. The probe records are not learned during scoring. This answers:
+
+> Did the text experience stream transfer to new text records?
+
+`from-disk probe`
+
+The saved child checkpoint is loaded by a fresh process and scored on the same probe records without replaying training records. This answers:
+
+> Did the text behavior survive restart?
+
+`ablation probe`
+
+The same text rail is run with correction learning disabled. This answers:
+
+> Was the result carried by state mutation from experience, or by an unchanged parent/model shortcut?
 
 ## Regression Rails
 
