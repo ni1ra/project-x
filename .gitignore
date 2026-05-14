@@ -8,3 +8,7 @@ __pycache__/
 # The eval-artifact JSONs (run/artifacts/) point to these paths and are the load-bearing evidence
 # tracked in git. To audit a snapshot, regenerate with `make test` or the persistence-self-test phase.
 run/state/
+
+# Routine wrapper manifests are emitted on every wrapper run. Cycle evidence copies live as flat
+# tracked JSON artifacts under run/artifacts/organic-v0/.
+run/artifacts/organic-v0/run_manifests/

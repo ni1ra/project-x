@@ -13,7 +13,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `.gitignore` | excludes `build/`, `__pycache__/`, `*.pyc`, and runtime persistence substrate under `run/state/` from version control |
+| `.gitignore` | excludes `build/`, `__pycache__/`, `*.pyc`, runtime persistence substrate under `run/state/`, and routine wrapper manifests under `run/artifacts/organic-v0/run_manifests/` from version control |
 | `Makefile` | minimal native build: `g++ -std=c++20 -O3 -march=native` → `build/organic_v0`; `make test` runs the combined self-test (substrate guard + persistence round-trip) |
 
 ### native/ — brain core (C++20)
@@ -30,6 +30,8 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, text-experience learning/replay, and raw text spans |
 | `scripts/test_organic_v0.sh` | runs substrate self-test, persistence round-trip, and a short full-mode `sleep-wake` JSONL rail under a hard 180s timeout. The runtime smoke uses an explicit per-run `/tmp` root passed through the Cycle 9 policy allowlist. Any failure is `set -e` fatal |
 | `scripts/verify_cycle9_carry_forward.sh` | thin post-audit rail harness: rebuilds `build/organic_v0`, copies legacy `/tmp` inputs into a unique per-run root, reruns cycle-6/chat/legacy/Cycle 7B-G rails under command timeouts, and writes `run/artifacts/organic-v0/cycle9_carry_forward_verification.json` |
+| `scripts/run_organic_wrapper.py` | cycle-10 wrapper-lite around `build/organic_v0`: subprocess launch with timeout, per-run manifest emission with binary sha256 plus event-log row count and last `event_content_hash`, optional prior-manifest truncate-detect verdict, always-emitted default manifest, and pre-launch denial when `--manifest-out` resolves outside `--allowed-write-root` |
+| `scripts/verify_cycle10_wrapper.sh` | post-cycle wrapper-lite rail: clean wrapper run, truncate-and-restart test, path-denial ablation, and carry-forward rerun under 180s per command; writes `run/artifacts/organic-v0/cycle10_*.json` evidence |
 
 ### benchmarks/ — measurement substrate
 
