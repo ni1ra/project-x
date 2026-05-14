@@ -76,15 +76,28 @@ Final evidence:
 
 This proves restart-surviving fork divergence under different experience. It does not prove fluent chat or interactive rule induction.
 
-## Cycle 7B Contract
+## Cycle 7B Closed - Interactive Hidden Rule Micro-Harness
+
+Cycle 7B shipped the first native action/feedback rung.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_summary.json`: aggregate held-out 14/14 (`1.000000`) across seeds 7001 and 7002; total pre-feedback actions 26/42 (`0.619048`); support pre-feedback actions 12/28 (`0.428571`).
+- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json`: loaded v2-c6 parent, 7/7 held-out, 8 support failure traces, final hash `879b7e4f6295fc12`.
+- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json`: loaded v2-c6 parent, 7/7 held-out, 8 support failure traces, final hash `030516a10354131a`.
+- The oracle is not in the generation path. It grades and supplies correction only after raw action.
+
+This proves a small action/feedback loop with held-out transfer under state mutation. It does not prove ARC-grid competence, open-ended planning, or natural chat.
+
+## Cycle 7C Contract
 
 Pick one:
 
-1. **Promote to a harder benchmark rung.** Build a local hidden-rule game or ARC-style micro-harness where the organism must infer a rule from interaction/state history, not just train/eval JSONL. Close criterion: run IDs, action history, scorecard, held-out seeds, and failure traces.
+1. **Promote to a less typed interactive rung.** Extend the native harness to symbolic same/different, role-match, or tiny grid transformation rules where no numeric-derived relation channel can carry the task alone. Close criterion: action history, held-out seeds/rules, failure traces, and a measured ablation showing which substrate carries the win.
 2. **Generalize relation projection beyond topic->object.** Add held-out questions for place/effect and different cue roles while keeping evidence_absence exact. Close criterion: projection works across at least two target roles, with `--ablate-relation-projection` isolating only those families.
-3. **Generalize computed relations beyond numeric values.** Add symbolic equality or role-match relations, e.g. two observed fillers being the same/different, without numeric parsing. Close criterion: new non-numeric relation family learned without answer routes and ablated cleanly.
+3. **Ablate interactive correction mechanics.** Add a CLI ablation or harness flag for feedback correction strength / parent-prior interference, then rerun seeds 7001/7002. Close criterion: held-out score degrades in a way that explains why cycle 7B needed stronger correction.
 
-Default recommendation: option 1. The current JSONL ladder is saturated again; the next capability proof should force exploration, state fidelity, and rule induction under a budget.
+Default recommendation: option 1. Cycle 7B is still numeric and typed; the next capability proof should make the rule less directly aligned with the existing numeric relation senses.
 
 Hard gates:
 

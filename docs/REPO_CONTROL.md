@@ -20,7 +20,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, artifact writer. Single translation unit by design — the first code has nowhere to hide |
+| `native/organic_v0.cpp` | organic-v0 runtime: HDC encoder, context-feature learner, slot-typed observation pass-through, computed numeric relation channels (parity/threshold/modular), relation projection, autoregressive char generator, train/eval/self-test phases, line-oriented state save/load, append-only event log, fresh-process persistence-round-trip orchestration, native interactive hidden-rule action/feedback harness, artifact writer. Single translation unit by design — the first code has nowhere to hide |
 
 ### scripts/ — thin harness over the native binary
 
@@ -83,6 +83,9 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/persist_self_test_cycle7a_child.json` | cycle-7A continuation persistence self-test: v2-c6 parent loads, stream A is learned, child checkpoint reloads in a child process with hash and output match |
 | `run/artifacts/organic-v0/eval_cycle7a_legacy_cycle2_cycle5_fixture.json` | cycle-7A legacy compatibility gate: `/tmp/cycle2.pxstate` still scores 9/25 (`0.360000`) on the historical cycle-5 fixture with state hash `3536309de837d3e2` |
 | `run/artifacts/organic-v0/fork_divergence_cycle7a.json` | cycle-7A machine-readable fork-divergence verdict: children A/B load the same parent, grow by different connection deltas, reload cleanly, diverge in state hash, and emit different held-out raw outputs |
+| `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json` | cycle-7B native interactive hidden-rule artifact for seed 7001: loaded v2-c6 parent, action-before-feedback history, 7/7 held-out exact, and support failure traces preserved |
+| `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json` | cycle-7B native interactive hidden-rule artifact for seed 7002: loaded v2-c6 parent, action-before-feedback history, 7/7 held-out exact, and support failure traces preserved |
+| `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_summary.json` | cycle-7B aggregate scorecard over seeds 7001/7002: 14/14 held-out exact and 26/42 total pre-feedback exact, with oracle access limited to after-action feedback |
 
 ## Not tracked, on disk
 

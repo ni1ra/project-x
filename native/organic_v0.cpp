@@ -2853,6 +2853,9 @@ struct Args {
   std::string event_log;
   std::string verify_event_id;
   std::string organism_id = "raphael-local-0001";
+  std::string rule_family = "all";
+  uint64_t scenario_seed = 7001;
+  int action_budget = 64;
   bool ablate_trace_id = false;
   bool ablate_numeric_derived = false;
   bool ablate_threshold_derived = false;
@@ -2877,6 +2880,9 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--event-log") args.event_log = need_value(key);
     else if (key == "--verify-event") args.verify_event_id = need_value(key);
     else if (key == "--organism-id") args.organism_id = need_value(key);
+    else if (key == "--rule-family") args.rule_family = need_value(key);
+    else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
+    else if (key == "--action-budget") args.action_budget = std::stoi(need_value(key));
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
     else if (key == "--ablate-numeric-derived") args.ablate_numeric_derived = true;
     else if (key == "--ablate-threshold-derived") args.ablate_threshold_derived = true;
@@ -3099,11 +3105,290 @@ void persistence_load_verify(const Args& args) {
   }
 }
 
+struct HiddenRuleStepSpec {
+  std::string family;
+  std::string rule_id;
+  int step = 0;
+  int mark = 0;
+  std::vector<std::string> observations;
+  std::string input;
+  std::string correct_action;
+  bool held_out = false;
+};
+
+struct HiddenRuleActionRecord {
+  HiddenRuleStepSpec spec;
+  Generation generation;
+  bool exact = false;
+  uint64_t state_before = 0;
+  uint64_t state_after_feedback = 0;
+};
+
+struct HiddenRuleScore {
+  int count = 0;
+  int exact = 0;
+  int held_out_count = 0;
+  int held_out_exact = 0;
+  int support_count = 0;
+  int support_exact = 0;
+};
+
+void add_hidden_rule_score(HiddenRuleScore& score, bool held_out, bool exact) {
+  score.count += 1;
+  score.exact += exact ? 1 : 0;
+  if (held_out) {
+    score.held_out_count += 1;
+    score.held_out_exact += exact ? 1 : 0;
+  } else {
+    score.support_count += 1;
+    score.support_exact += exact ? 1 : 0;
+  }
+}
+
+void write_hidden_rule_score(std::ostream& out, const HiddenRuleScore& score) {
+  auto rate = [](int exact, int count) -> double {
+    return count ? static_cast<double>(exact) / static_cast<double>(count) : 0.0;
+  };
+  out << "{\"count\": " << score.count
+      << ", \"exact\": " << score.exact
+      << ", \"exact_rate\": " << std::fixed << std::setprecision(6) << rate(score.exact, score.count)
+      << ", \"held_out_count\": " << score.held_out_count
+      << ", \"held_out_exact\": " << score.held_out_exact
+      << ", \"held_out_exact_rate\": " << rate(score.held_out_exact, score.held_out_count)
+      << ", \"support_count\": " << score.support_count
+      << ", \"support_exact\": " << score.support_exact
+      << ", \"support_exact_rate\": " << rate(score.support_exact, score.support_count)
+      << std::defaultfloat << "}";
+}
+
+std::vector<HiddenRuleStepSpec> build_hidden_rule_steps(uint64_t seed, const std::string& family_filter) {
+  std::vector<HiddenRuleStepSpec> steps;
+  auto want = [&](const std::string& family) {
+    return family_filter == "all" || family_filter == family;
+  };
+  auto push = [&](const std::string& family, const std::string& rule_id, int mark,
+                  std::vector<std::string> observations, const std::string& input,
+                  const std::string& correct, bool held_out) {
+    HiddenRuleStepSpec spec;
+    spec.family = family;
+    spec.rule_id = rule_id;
+    spec.step = static_cast<int>(steps.size());
+    spec.mark = mark;
+    spec.observations = std::move(observations);
+    spec.input = input;
+    spec.correct_action = correct;
+    spec.held_out = held_out;
+    steps.push_back(std::move(spec));
+  };
+
+  if (want("parity")) {
+    int offset = static_cast<int>((seed % 5) * 2);
+    std::vector<int> marks = {2 + offset, 3 + offset, 4 + offset, 5 + offset, 8 + offset, 9 + offset};
+    for (size_t i = 0; i < marks.size(); ++i) {
+      int mark = marks[i];
+      std::string correct = (mark % 2 == 0) ? "dax" : "mira";
+      push("parity", "hidden_parity_seed_" + std::to_string(seed), mark,
+           {"mark:" + std::to_string(mark)},
+           "hidden rule mark " + std::to_string(mark),
+           correct, i >= 4);
+    }
+  }
+
+  if (want("threshold")) {
+    int cutoff = 5 + static_cast<int>(seed % 3);
+    std::vector<int> marks = {cutoff - 3, cutoff + 3, cutoff - 1, cutoff + 4, cutoff - 4, cutoff + 2};
+    for (size_t i = 0; i < marks.size(); ++i) {
+      int mark = marks[i];
+      std::string correct = (mark > cutoff) ? "keto" : "luma";
+      push("threshold", "hidden_threshold_cutoff_" + std::to_string(cutoff), mark,
+           {"mark:" + std::to_string(mark), "cutoff:" + std::to_string(cutoff)},
+           "hidden rule mark " + std::to_string(mark) + " cutoff " + std::to_string(cutoff),
+           correct, i >= 4);
+    }
+  }
+
+  if (want("modular")) {
+    int base = static_cast<int>((seed % 3) * 3);
+    std::vector<int> marks = {base, base + 1, base + 2, base + 3, base + 4, base + 5,
+                              base + 6, base + 7, base + 8};
+    for (size_t i = 0; i < marks.size(); ++i) {
+      int mark = marks[i];
+      int cls = ((mark % 3) + 3) % 3;
+      std::string correct = cls == 0 ? "zun" : (cls == 1 ? "pax" : "rilo");
+      push("modular", "hidden_modular_modulus_3_seed_" + std::to_string(seed), mark,
+           {"mark:" + std::to_string(mark), "modulus:3"},
+           "hidden rule mark " + std::to_string(mark) + " modulus 3",
+           correct, i >= 6);
+    }
+  }
+
+  return steps;
+}
+
+void interactive_hidden_rule(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("interactive-hidden-rule requires --out");
+  if (args.action_budget <= 0) throw std::runtime_error("interactive-hidden-rule requires positive --action-budget");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  PersistenceContext persistence;
+  persistence.organism_id = args.organism_id;
+  persistence.loaded_state_path = args.load_state;
+  persistence.saved_state_path = args.save_state;
+  persistence.event_log_path = args.event_log;
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    persistence.load_status = "loaded_from_disk";
+  }
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  auto steps = build_hidden_rule_steps(args.scenario_seed, args.rule_family);
+  if (steps.empty()) throw std::runtime_error("interactive-hidden-rule has no steps for rule family: " + args.rule_family);
+  if (static_cast<int>(steps.size()) > args.action_budget) steps.resize(static_cast<size_t>(args.action_budget));
+
+  std::vector<HiddenRuleActionRecord> history;
+  history.reserve(steps.size());
+  HiddenRuleScore overall;
+  std::map<std::string, HiddenRuleScore> by_family;
+
+  for (size_t i = 0; i < steps.size(); ++i) {
+    const auto& spec = steps[i];
+    Event action_event;
+    action_event.event_id = "evt_ihr_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    action_event.episode_id = "ep_ihr_" + spec.rule_id;
+    action_event.split = spec.held_out ? "heldout_interactive" : "support_interactive";
+    action_event.domain = "interactive_hidden_rule";
+    action_event.level = spec.held_out ? 1 : 0;
+    action_event.input = spec.input;
+    action_event.observations = spec.observations;
+    action_event.target_output = spec.correct_action;
+    action_event.reward = {{"oracle_feedback", 1.0}};
+    action_event.source = "interactive_hidden_rule_oracle_after_action";
+    action_event.composition = spec.family;
+
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(action_event.input, action_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", action_event, gen.output,
+                          spec.correct_action, before, before, "interactive_hidden_rule", spec.rule_id);
+
+    Event feedback_event = action_event;
+    feedback_event.split = "train";
+    feedback_event.reward = {{"oracle_feedback", 2.0}};
+    brain.learn(feedback_event);
+    uint64_t after = brain.state_hash();
+    append_event_log_line(args.event_log, args.organism_id, "learn", feedback_event, spec.correct_action,
+                          spec.correct_action, before, after, "interactive_hidden_rule_feedback", spec.rule_id);
+
+    add_hidden_rule_score(overall, spec.held_out, exact);
+    add_hidden_rule_score(by_family[spec.family], spec.held_out, exact);
+    HiddenRuleActionRecord record;
+    record.spec = spec;
+    record.generation = std::move(gen);
+    record.exact = exact;
+    record.state_before = before;
+    record.state_after_feedback = after;
+    history.push_back(std::move(record));
+  }
+
+  BrainStateStats child_stats = capture_state_stats(brain);
+  if (!args.save_state.empty()) {
+    ensure_parent_dir(args.save_state);
+    std::ofstream state_out(args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+    persistence.load_status = args.load_state.empty() ? "interacted_and_saved" : "loaded_then_interacted_and_saved";
+  } else if (args.load_state.empty()) {
+    persistence.load_status = "interactive_hidden_rule_no_state_save";
+  } else {
+    persistence.load_status = "loaded_then_interacted_no_state_save";
+  }
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-ihr-" + hex64(fnv1a(ts + hex64(child_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"interactive-hidden-rule\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"mode\": " << q(args.mode) << ",\n";
+  out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
+  out << "  \"rule_family\": " << q(args.rule_family) << ",\n";
+  out << "  \"action_budget\": {\"max_actions\": " << args.action_budget
+      << ", \"actions_taken\": " << history.size() << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"feedback_after_action\": true},\n";
+  out << "  \"hidden_rule_exposure\": \"Rule family and correct action are not included in the action input or observations; oracle feedback is applied only after raw generation.\",\n";
+  out << "  \"model_state_hash\": " << q(hex64(child_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state_hash\": " << q(hex64(parent_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, child_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, parent_stats, child_stats); out << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
+  out << "  \"scorecard\": {\"overall\": "; write_hidden_rule_score(out, overall);
+  out << ", \"by_family\": {";
+  bool first_family = true;
+  for (const auto& item : by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"action_history\": [\n";
+  for (size_t i = 0; i < history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": " << (record.spec.held_out ? "true" : "false")
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"exact_before_feedback\": " << (record.exact ? "true" : "false")
+        << ", \"state_before_hash\": " << q(hex64(record.state_before))
+        << ", \"state_after_feedback_hash\": " << q(hex64(record.state_after_feedback))
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"failure_traces\": [";
+  bool first_failure = true;
+  for (size_t i = 0; i < history.size(); ++i) {
+    const auto& record = history[i];
+    if (record.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": " << (record.spec.held_out ? "true" : "false")
+        << ", \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"state_before_hash\": " << q(hex64(record.state_before)) << "}";
+    first_failure = false;
+  }
+  out << "],\n";
+  out << "  \"honest_interpretation\": \"Interactive hidden-rule micro-harness: the model acts before oracle feedback, then feedback is learned into the same organic-v0 state. Scores measure pre-feedback actions only. This is not broad ARC competence.\"\n";
+  out << "}\n";
+}
+
 }  // namespace px
 
 int main(int argc, char** argv) {
   try {
     px::Args args = px::parse_args(argc, argv);
+    std::string command = px::command_string(argc, argv);
     // Sentinel phases bypass the normal artifact-writer pipeline:
     //   self-test                 — cold-brain emit-then-learn-then-emit substrate guard
     //   persistence-self-test     — full round-trip save/spawn-child/load/verify orchestration
@@ -3120,13 +3405,16 @@ int main(int argc, char** argv) {
       px::persistence_load_verify(args);
       return 0;
     }
+    if (args.phase == "interactive-hidden-rule") {
+      px::interactive_hidden_rule(args, command);
+      return 0;
+    }
 
     // train / eval — normal artifact-writer pipeline. Persistence side-effects honored if paths provided.
     if (args.out.empty()) throw std::runtime_error("--out is required for train/eval");
     px::Config config;
     px::apply_ablations(config, args);
     auto events = px::load_events(args.data);
-    std::string command = px::command_string(argc, argv);
 
     // PersistenceContext threaded through artifact writers; status updates as side-effects occur (save / load).
     px::PersistenceContext persistence;

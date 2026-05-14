@@ -1,0 +1,139 @@
+{
+  "schema": "project_x.cycle7b.interactive_hidden_rule_summary.v0",
+  "run_id": "cycle7b-interactive-hidden-rule-20260514T022752",
+  "timestamp_utc": "2026-05-14T02:27:52Z",
+  "parent_state_hash": "29958f0880e662dc",
+  "rule_families": [
+    "parity",
+    "threshold",
+    "modular"
+  ],
+  "seeds": [
+    7001,
+    7002
+  ],
+  "artifacts": [
+    "run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json",
+    "run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json"
+  ],
+  "aggregate": {
+    "count": 42,
+    "exact": 26,
+    "exact_rate": 0.6190476190476191,
+    "held_out_count": 14,
+    "held_out_exact": 14,
+    "held_out_exact_rate": 1,
+    "support_count": 28,
+    "support_exact": 12,
+    "support_exact_rate": 0.42857142857142855
+  },
+  "per_seed": [
+    {
+      "seed": 7001,
+      "model_state_hash": "879b7e4f6295fc12",
+      "scorecard": {
+        "count": 21,
+        "exact": 13,
+        "exact_rate": 0.619048,
+        "held_out_count": 7,
+        "held_out_exact": 7,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 14,
+        "support_exact": 6,
+        "support_exact_rate": 0.428571
+      },
+      "by_family": {
+        "modular": {
+          "count": 9,
+          "exact": 5,
+          "exact_rate": 0.555556,
+          "held_out_count": 3,
+          "held_out_exact": 3,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 2,
+          "support_exact_rate": 0.333333
+        },
+        "parity": {
+          "count": 6,
+          "exact": 4,
+          "exact_rate": 0.666667,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 4,
+          "support_exact": 2,
+          "support_exact_rate": 0.500000
+        },
+        "threshold": {
+          "count": 6,
+          "exact": 4,
+          "exact_rate": 0.666667,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 4,
+          "support_exact": 2,
+          "support_exact_rate": 0.500000
+        }
+      },
+      "failure_trace_count": 8
+    },
+    {
+      "seed": 7002,
+      "model_state_hash": "030516a10354131a",
+      "scorecard": {
+        "count": 21,
+        "exact": 13,
+        "exact_rate": 0.619048,
+        "held_out_count": 7,
+        "held_out_exact": 7,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 14,
+        "support_exact": 6,
+        "support_exact_rate": 0.428571
+      },
+      "by_family": {
+        "modular": {
+          "count": 9,
+          "exact": 5,
+          "exact_rate": 0.555556,
+          "held_out_count": 3,
+          "held_out_exact": 3,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 2,
+          "support_exact_rate": 0.333333
+        },
+        "parity": {
+          "count": 6,
+          "exact": 4,
+          "exact_rate": 0.666667,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 4,
+          "support_exact": 2,
+          "support_exact_rate": 0.500000
+        },
+        "threshold": {
+          "count": 6,
+          "exact": 4,
+          "exact_rate": 0.666667,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 4,
+          "support_exact": 2,
+          "support_exact_rate": 0.500000
+        }
+      },
+      "failure_trace_count": 8
+    }
+  ],
+  "oracle_access": {
+    "generation": false,
+    "feedback_after_action": true
+  },
+  "honest_interpretation": "The loaded v2-c6 parent acts before oracle feedback, learns feedback into organic-v0 state, then succeeds on held-out marks for parity, threshold, and modular rule families across two seeds. Support-step errors remain scored and preserved as failure traces, showing pre-feedback exploration/adaptation cost. This is a local micro-harness result, not broad ARC competence."
+}
