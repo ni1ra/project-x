@@ -8,8 +8,8 @@ Generated: 2026-05-14 (post cycle-7D close)
 2. `docs/A_TO_Z_PLAN.md`
 3. `docs/REPO_CONTROL.md`
 4. `docs/artifacts/PERSISTENCE_SCHEMA.md`
-5. `docs/artifacts/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
-6. `docs/artifacts/CYCLE6_CLAUDE_AUDIT_PACKET.md`
+5. `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
+6. `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_CLAUDE_AUDIT_PACKET.md`
 7. latest cycle-6 reflection in `docs/past_work/cycles/phase_v2_organic_substrate/`
 
 ## What Just Happened - Cycle 6
@@ -118,7 +118,7 @@ Final evidence:
 - `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_summary.json`: aggregate held-out 16/16 (`1.000000`) across seeds 7101/7102; total pre-feedback 48/64 (`0.750000`); support pre-feedback 32/48 (`0.666667`); post-episode probes 16/16 (`1.000000`).
 - `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_symbolic_ablation.json`: `--ablate-symbolic-relations` drops held-out to 2/16 (`0.125000`) and total to 4/64 (`0.062500`).
 - `run/artifacts/organic-v0/interactive_symbolic_rule_cycle7c_probe_seed7101.json` and `_seed7102.json`: fresh loaded child probes match same-process probe summaries and model hashes.
-- `docs/artifacts/CYCLE7C_INTERACTIVE_SYMBOLIC_RULE.md`: closed interpretation and negative-space audit.
+- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7C_INTERACTIVE_SYMBOLIC_RULE.md`: closed interpretation and negative-space audit.
 
 The mechanism is cue-bound symbolic relation features over non-numeric entity attributes:
 
@@ -169,7 +169,7 @@ Final evidence:
 - `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_summary.json`: aggregate held-out 16/16 (`1.000000`) across seeds 7201/7202; total pre-feedback 48/64 (`0.750000`); support pre-feedback 32/48 (`0.666667`); post-episode probes 16/16 (`1.000000`).
 - `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_grid_ablation.json`: `--ablate-grid-spatial` drops held-out to 3/16 (`0.187500`) and total to 6/64 (`0.093750`).
 - `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_probe_seed7201.json` and `_seed7202.json`: fresh loaded child probes match same-process probe summaries and model hashes.
-- `docs/artifacts/CYCLE7D_INTERACTIVE_GRID_RULE.md`: closed interpretation, anti-repetition guard, and negative-space audit.
+- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7D_INTERACTIVE_GRID_RULE.md`: closed interpretation, anti-repetition guard, and negative-space audit.
 
 The mechanism is cue-bound 3x3 cell spatial relation features:
 
@@ -227,7 +227,7 @@ Final evidence:
 - `run/artifacts/organic-v0/text_experience_cycle7e_from_disk_probe.json`: fresh loaded child matches same-process probe metrics and model hash `be0fc781039a2038`.
 - `run/artifacts/organic-v0/text_experience_cycle7e_ablate_learning.json`: `--ablate-text-experience-learning` leaves state growth at zero and drops probe to 0/4, hash `29958f0880e662dc`.
 - `run/artifacts/organic-v0/text_experience_cycle7e_transcript.md`: readable transcript preserving raw before/after outputs and failures.
-- `docs/artifacts/CYCLE7E_TEXT_EXPERIENCE_RAIL.md`: closed interpretation and negative-space audit.
+- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7E_TEXT_EXPERIENCE_RAIL.md`: closed interpretation and negative-space audit.
 
 Plain English:
 
@@ -279,7 +279,7 @@ Final evidence:
 - `run/artifacts/organic-v0/text_experience_replay_cycle7f_replay_disabled.json`: replay-disabled control leaves replay state growth at zero and hash `be0fc781039a2038`.
 - `run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation.json`: disabling the acceptance audit lets blind replay damage held-out probe behavior, dropping to 1/4.
 - `run/artifacts/organic-v0/text_experience_replay_cycle7f_transcript.md`: readable replay transcript with accepted/rejected candidates.
-- `docs/artifacts/CYCLE7F_TEXT_EXPERIENCE_REPLAY.md`: closed interpretation and negative-space audit.
+- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7F_TEXT_EXPERIENCE_REPLAY.md`: closed interpretation and negative-space audit.
 
 Plain English:
 
@@ -330,7 +330,7 @@ Final evidence:
 - `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_from_disk_probe.json`: fresh loaded child matches same-process probe metrics and hash `16c29f604e814f58`.
 - `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation.json`: `--ablate-raw-text-spans` drops probe to 0/4.
 - `run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_transcript.md`: readable raw-span transcript.
-- `docs/artifacts/CYCLE7G_RAW_TEXT_SPAN_SENSE.md`: closed interpretation and negative-space audit.
+- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7G_RAW_TEXT_SPAN_SENSE.md`: closed interpretation and negative-space audit.
 
 Plain English:
 

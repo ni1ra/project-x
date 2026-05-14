@@ -36,7 +36,7 @@ Both channels share the cycle-4 lesson: weights live in existing `CONNS`, no new
 - `evt_lang_train_004` — `intent:farewell, name:sora → "bye sora"`
 - `evt_lang_train_005` — `intent:farewell, name:toma → "bye toma"`
 
-The two-example choice is intentional: one example would teach the lexeme but permit a replay-shaped solution where the substrate emits the exact training name; two distinct names force the brain to learn the replaceable-name structure through the existing learned segment mechanism. Justified in `docs/artifacts/CYCLE5_INTENT_LEARNABILITY_AUDIT.md`.
+The two-example choice is intentional: one example would teach the lexeme but permit a replay-shaped solution where the substrate emits the exact training name; two distinct names force the brain to learn the replaceable-name structure through the existing learned segment mechanism. Justified in `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE5_INTENT_LEARNABILITY_AUDIT.md`.
 
 ### Plumbing
 
@@ -126,7 +126,7 @@ These are evidence of in-flight discipline, not embarrassments.
 Codex shipped substrate, ablations, eval/from-disk/persist verification, and four updated docs to disk before hitting cap. Continuation completion did:
 
 1. On-disk audit — `git status` + final-eval `jq` + `make test` all matched the transcript exactly (hash `ccd7a48ec4614703`, 25/25, 0 failures, persistence round-trip pass).
-2. Promoted three /tmp evidence files to durable paths under `run/artifacts/organic-v0/` and updated `docs/REPO_CONTROL.md` + `docs/DO_THIS_NEXT.md` + `docs/artifacts/CYCLE5_RELATIONAL_BINDING.md` to reference the durable paths.
+2. Promoted three /tmp evidence files to durable paths under `run/artifacts/organic-v0/` and updated `docs/REPO_CONTROL.md` + `docs/DO_THIS_NEXT.md` + `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE5_RELATIONAL_BINDING.md` to reference the durable paths.
 3. Re-ran substrate-only on the un-repaired fixture under the final binary to close the only audit gap (probe2 was generated at a transient build state); the result `b968647c92f30c57 / 0.960 / failure=evt_lang_test_004` matched the prediction exactly.
 4. Wrote this reflection.
 5. Shipped three atomic commits (substrate + benchmark repair + sha7 chore), no push — lain pushes.

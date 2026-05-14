@@ -170,7 +170,7 @@ PXSTATE_END
 
 ### Cycle-3 extension: ROLES + SEGMENT_CONNS
 
-Two new sections added in cycle 3 (v2-c3) for the learned segment-generation mechanism. See `docs/artifacts/CYCLE3_MECHANISM.md` for the mechanism design and advisor verdict (405/420).
+Two new sections added in cycle 3 (v2-c3) for the learned segment-generation mechanism. See `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE3_MECHANISM.md` for the mechanism design and advisor verdict (405/420).
 
 **ROLES section** — catalog of role-token strings encountered during training:
 
@@ -271,7 +271,7 @@ Cycle 7A adds no new PXSTATE section and no new answer-path mechanism. It formal
 - `eval --load-state <child>` evaluates the saved child after reload without replaying the continuation stream. This is the from-disk child eval.
 - `persistence-self-test --load-state <parent> --save-state <child>` runs the same continuation path and then spawns a child process that loads the saved child checkpoint and must match hash + output on the verify event.
 
-The cycle-7A artifact contract is documented in `docs/artifacts/CYCLE7A_GROWING_BRAIN_FILE.md`. The headline evidence is `run/artifacts/organic-v0/fork_divergence_cycle7a.json`: two children load the same v2-c6 parent, learn different rewarded streams, save different state hashes, reload cleanly from disk, and produce different held-out raw outputs.
+The cycle-7A artifact contract is documented in `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE7A_GROWING_BRAIN_FILE.md`. The headline evidence is `run/artifacts/organic-v0/fork_divergence_cycle7a.json`: two children load the same v2-c6 parent, learn different rewarded streams, save different state hashes, reload cleanly from disk, and produce different held-out raw outputs.
 
 No state hash walker changes were needed because the child mutations are ordinary persisted traces, connection weights, role tables, and learned characters already covered by `state_hash()`.
 

@@ -54,7 +54,7 @@ The close criterion is family isolation, not the all-on score.
 - threshold: two low marks below cutoff, two high marks above cutoff, two held-out unseen marks with conflicting surface signals;
 - modular: two marks per class for `modulus:3`, three held-out unseen marks with conflicting surface signals.
 
-The train examples include the explicit class labels (`threshold:*`, `modclass:*`) so the output mapping is learnable. The held-out tests omit those labels, forcing the runtime to compute from `mark:*` plus `cutoff:*` or `modulus:*`. The learnability audit lives in `docs/artifacts/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md` and was written before the benchmark edit.
+The train examples include the explicit class labels (`threshold:*`, `modclass:*`) so the output mapping is learnable. The held-out tests omit those labels, forcing the runtime to compute from `mark:*` plus `cutoff:*` or `modulus:*`. The learnability audit lives in `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md` and was written before the benchmark edit.
 
 ### (e) Persistence and speed cleanup
 

@@ -109,7 +109,7 @@ The learnability audit for threshold and modular benchmark additions was written
 
 Evidence:
 
-- Audit/design doc: `docs/artifacts/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
+- Audit/design doc: `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
 - Benchmark: `benchmarks/v2_ladder/organic_v0.jsonl`
 
 Training-data guard:
@@ -140,7 +140,7 @@ Benchmark:
 
 Docs:
 
-- `docs/artifacts/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
+- `docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE6_NUMERIC_RELATION_GENERALIZATION.md`
 - `docs/artifacts/PERSISTENCE_SCHEMA.md`
 - `docs/REPO_CONTROL.md`
 - `docs/A_TO_Z_PLAN.md`
