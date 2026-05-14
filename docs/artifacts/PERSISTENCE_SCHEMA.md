@@ -64,6 +64,95 @@ Rules:
 - Oracle fields may be filled only after generation.
 - Every learning or mutation event records before/after state hashes.
 
+## Event Log JSONL v1
+
+Cycle 8 adds a sleep/wake runtime event schema. v0 remains valid for legacy train/eval/text/interactive phases. v1 is used by `--phase sleep-wake` and `--phase daemon-lite`.
+
+Path shape remains:
+
+```text
+run/state/organic-v0/events/<organism_id>-cycle8-<run_id>.jsonl
+```
+
+Each line is append-only:
+
+```json
+{
+  "schema": "project_x.event_log.v1",
+  "event_id": "evtlog_000001",
+  "run_id": "cycle8-test",
+  "organism_id": "raphael-local-0001",
+  "step_id": "step_1",
+  "step_mode": "wake",
+  "timestamp_utc": "2026-05-14T00:00:00Z",
+  "phase": "generate",
+  "source": {
+    "source_kind": "stdin_jsonl|wake_event_log|event_log|sleep_idle",
+    "source_path": "stdin",
+    "source_event_id": "wake_cycle8_0001"
+  },
+  "input": {
+    "text": "navi carries basalt prism",
+    "observations": []
+  },
+  "output": {
+    "raw_generated_output": "",
+    "expected_output": "navi carries basalt prism",
+    "oracle_used_in_generation": false,
+    "audit_only": false
+  },
+  "reward": {
+    "task_success": 1.0,
+    "source_fidelity": 1.0
+  },
+  "prediction": {
+    "predictor": "a0_event_outcome",
+    "reward_scalar_pred": 0.0,
+    "exact_score_or_prob_pred": 0.0,
+    "lcs_error_ratio_pred": 0.0,
+    "surprise_pred": 0.5,
+    "feature_count": 9
+  },
+  "prediction_error": {
+    "reward_abs_error": 1.0,
+    "exact_abs_error": 0.0,
+    "lcs_error_abs_error": 1.0,
+    "surprise": 0.666667
+  },
+  "trace_refs": [
+    {
+      "event_id": "wake_cycle8_0001",
+      "similarity": 1.0
+    }
+  ],
+  "mutation_refs": [
+    {
+      "mutation_id": "mut_step_2",
+      "kind": "sleep_replay_candidate",
+      "accepted": true,
+      "state_before_hash": "0000000000000000",
+      "state_after_hash": "0000000000000000",
+      "reason": "accepted_prediction_error_reduced_without_local_degradation"
+    }
+  ],
+  "state_before_hash": "0000000000000000",
+  "state_after_hash": "0000000000000000",
+  "backend": {
+    "runtime": "native_cpp20",
+    "gpu_backend": "not_used_in_organic_v0"
+  }
+}
+```
+
+Rules:
+
+- `prediction` is written before reward/correction is applied to the predictor.
+- `prediction_error` is `null` only when no target/reward exists.
+- `trace_refs` must be non-empty when retrieval produced activated traces.
+- `mutation_refs` must be non-empty for wake learning and sleep replay accept/reject events.
+- sleep replay generation is `audit_only:true`; it is not user-facing wake output.
+- v1 data is runtime evidence only. The daemon does not execute shell commands, network calls, or arbitrary filesystem actions from event text.
+
 ## Text Experience JSONL v0
 
 Cycle 7E adds a durable text-interaction experience store separate from benchmark fixtures.
@@ -164,9 +253,34 @@ ROLES <n>
 R <role_id_hex64> <role_string>
 SEGMENT_CONNS <n>
 SC <feature_id_hex64>|<role_id_hex64>:<weight_hex64>,...
+PREDICTOR_CONNS <n>
+PC <feature_id_hex64>|reward:<weight_hex64>,exact:<weight_hex64>,error:<weight_hex64>
 STATE_HASH <hex64>
 PXSTATE_END
 ```
+
+### Cycle-8 extension: A0 event-outcome predictor
+
+Cycle 8 adds an optional `PREDICTOR_CONNS` section for the A0 event-outcome predictor used by sleep/wake replay priority.
+
+CONFIG fields:
+
+- `use_outcome_predictor=1|0`
+- `outcome_predictor_learning_rate=<hex64>`
+
+Section:
+
+- `PREDICTOR_CONNS <n>`
+- `PC <feature_id_hex64>|reward:<weight_hex64>,exact:<weight_hex64>,error:<weight_hex64>`
+
+Rules:
+
+- The section is written only when the predictor is enabled.
+- Loader tolerates absence so old snapshots remain loadable.
+- Predictor doubles use the same bit-exact hex64 encoding as CONNS.
+- State hash includes predictor weights only when `use_outcome_predictor=1` and weights exist.
+- Legacy train/eval/text/interactive phases leave `use_outcome_predictor=0`; `OrganicBrain::learn` does not update A0 by itself.
+- `OrganicBrain::generate` is predictor-blind. A0 may affect replay priority and confidence only, not emitted characters, mode switches, copied spans, or response text.
 
 ### Cycle-3 extension: ROLES + SEGMENT_CONNS
 

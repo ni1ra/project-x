@@ -18,9 +18,11 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <unistd.h>
 
 namespace px {
 
@@ -28,7 +30,7 @@ constexpr int kDim = 256;
 constexpr int kAscii = 128;
 // kMaxRoles caps the segment-mode action-space expansion (cycle-3 mechanism).
 // WHAT: extra action ids past kAscii reserved for "start copy span from role-token R".
-// WHY: per docs/artifacts/CYCLE3_MECHANISM.md, the generator's softmax now ranges over
+// WHY: per docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE3_MECHANISM.md, the generator's softmax now ranges over
 //   literal-char actions [0..kAscii) PLUS role-switch actions [kAscii..kAscii+kMaxRoles).
 //   Same connection weights drive both — no authored role-dispatch.
 // NEGATIVE-SPACE: this is a compile-time cap on UNIQUE role strings the brain has ever
@@ -132,6 +134,11 @@ struct Config {
   bool use_relation_projection = true;
   bool use_symbolic_relation_features = true;
   bool use_grid_spatial_features = true;
+  // Cycle-8 A0 event-outcome predictor.
+  // Disabled by default so legacy train/eval/text/interactive phases keep their pinned
+  // state hashes. sleep-wake/daemon-lite explicitly enables it and owns all updates.
+  bool use_outcome_predictor = false;
+  double outcome_predictor_learning_rate = 0.025;
 };
 
 struct Event {
@@ -205,6 +212,44 @@ struct Activation {
   int level = 0;
   double similarity = 0.0;
   double reward_scalar = 0.0;
+};
+
+struct OutcomePrediction {
+  double reward_scalar = 0.0;
+  double exact_prob_or_score = 0.0;
+  double lcs_error_ratio = 1.0;
+  double surprise = 1.0;
+  size_t feature_count = 0;
+  std::vector<Feature> features;
+  std::vector<Activation> trace_refs;
+};
+
+struct OutcomeTarget {
+  double reward_scalar = 0.0;
+  double exact_binary = 0.0;
+  double lcs_error_ratio = 1.0;
+};
+
+struct PredictionError {
+  double reward_abs_error = 0.0;
+  double exact_abs_error = 0.0;
+  double lcs_error_abs_error = 0.0;
+  double surprise = 0.0;
+};
+
+struct PredictorWeights {
+  double reward_w = 0.0;
+  double exact_w = 0.0;
+  double error_w = 0.0;
+};
+
+struct MutationRef {
+  std::string mutation_id;
+  std::string kind;
+  bool accepted = false;
+  uint64_t state_before_hash = 0;
+  uint64_t state_after_hash = 0;
+  std::string reason;
 };
 
 struct GenerationStep {
@@ -744,6 +789,27 @@ double hex_to_double(const std::string& hex) {
   double v;
   std::memcpy(&v, &bits, sizeof(v));
   return v;
+}
+
+double clamp_double(double value, double lo, double hi) {
+  return std::max(lo, std::min(hi, value));
+}
+
+uint64_t double_bits(double value) {
+  uint64_t bits;
+  std::memcpy(&bits, &value, sizeof(bits));
+  return bits;
+}
+
+PredictionError prediction_error_for(const OutcomePrediction& prediction,
+                                     const OutcomeTarget& target) {
+  PredictionError error;
+  error.reward_abs_error = std::abs(prediction.reward_scalar - target.reward_scalar);
+  error.exact_abs_error = std::abs(prediction.exact_prob_or_score - target.exact_binary);
+  error.lcs_error_abs_error = std::abs(prediction.lcs_error_ratio - target.lcs_error_ratio);
+  error.surprise =
+      (error.reward_abs_error + error.exact_abs_error + error.lcs_error_abs_error) / 3.0;
+  return error;
 }
 
 // Split on a single delimiter char. PXSTATE write-time validation below keeps these rows
@@ -1468,6 +1534,20 @@ class OrganicBrain {
         }
       }
     }
+    if (config_.use_outcome_predictor && !outcome_predictor_.empty()) {
+      h = combine(h, fnv1a("cycle8-a0-outcome-predictor"));
+      std::vector<uint64_t> pred_keys;
+      pred_keys.reserve(outcome_predictor_.size());
+      for (const auto& kv : outcome_predictor_) pred_keys.push_back(kv.first);
+      std::sort(pred_keys.begin(), pred_keys.end());
+      for (uint64_t fid : pred_keys) {
+        const auto& weights = outcome_predictor_.at(fid);
+        h = combine(h, fid);
+        h = combine(h, double_bits(weights.reward_w));
+        h = combine(h, double_bits(weights.exact_w));
+        h = combine(h, double_bits(weights.error_w));
+      }
+    }
     return h;
   }
 
@@ -1494,6 +1574,74 @@ class OrganicBrain {
   void set_grid_spatial_features_enabled(bool enabled) {
     config_.use_grid_spatial_features = enabled;
     hdc_ = Hdc{config_};
+  }
+
+  void set_outcome_predictor_enabled(bool enabled) {
+    config_.use_outcome_predictor = enabled;
+  }
+
+  // Cycle-8 A0 boundary: prediction is a side substrate for replay priority and confidence.
+  // OrganicBrain::generate() must not read outcome_predictor_, prediction errors, or replay
+  // priority. Keep outcome prediction separate from output-character scoring.
+  OutcomePrediction predict_outcome(const std::string& input,
+                                    const std::vector<std::string>& observations) const {
+    OutcomePrediction prediction;
+    prediction.features = outcome_features(input, observations, &prediction.trace_refs);
+    prediction.feature_count = prediction.features.size();
+    if (!config_.use_outcome_predictor || prediction.features.empty()) {
+      prediction.reward_scalar = 0.0;
+      prediction.exact_prob_or_score = 0.0;
+      prediction.lcs_error_ratio = 1.0;
+      prediction.surprise = 1.0;
+      return prediction;
+    }
+    double reward = 0.0;
+    double exact = 0.0;
+    double error = 0.0;
+    for (const auto& feature : prediction.features) {
+      auto found = outcome_predictor_.find(feature.id);
+      if (found == outcome_predictor_.end()) continue;
+      reward += feature.scale * found->second.reward_w;
+      exact += feature.scale * found->second.exact_w;
+      error += feature.scale * found->second.error_w;
+    }
+    prediction.reward_scalar = clamp_double(reward, 0.0, 2.0);
+    prediction.exact_prob_or_score = clamp_double(exact, 0.0, 1.0);
+    prediction.lcs_error_ratio = clamp_double(error, 0.0, 1.0);
+    prediction.surprise =
+        clamp_double((1.0 - prediction.exact_prob_or_score + prediction.lcs_error_ratio) / 2.0,
+                     0.0, 1.0);
+    return prediction;
+  }
+
+  PredictionError update_outcome_predictor(const OutcomePrediction& prediction,
+                                           const OutcomeTarget& target) {
+    PredictionError error = prediction_error_for(prediction, target);
+    if (!config_.use_outcome_predictor || prediction.features.empty()) return error;
+    double reward_delta = target.reward_scalar - prediction.reward_scalar;
+    double exact_delta = target.exact_binary - prediction.exact_prob_or_score;
+    double lcs_delta = target.lcs_error_ratio - prediction.lcs_error_ratio;
+    constexpr double kMaxDelta = 0.05;
+    for (const auto& feature : prediction.features) {
+      auto& weights = outcome_predictor_[feature.id];
+      double lr = config_.outcome_predictor_learning_rate * feature.scale;
+      weights.reward_w += clamp_double(lr * reward_delta, -kMaxDelta, kMaxDelta);
+      weights.exact_w += clamp_double(lr * exact_delta, -kMaxDelta, kMaxDelta);
+      weights.error_w += clamp_double(lr * lcs_delta, -kMaxDelta, kMaxDelta);
+    }
+    return error;
+  }
+
+  size_t outcome_predictor_weight_count() const { return outcome_predictor_.size(); }
+
+  size_t outcome_predictor_nonzero_count() const {
+    size_t count = 0;
+    for (const auto& item : outcome_predictor_) {
+      if (item.second.reward_w != 0.0) ++count;
+      if (item.second.exact_w != 0.0) ++count;
+      if (item.second.error_w != 0.0) ++count;
+    }
+    return count;
   }
 
   // Line-oriented state snapshot. Ugly but loadable + hash-checked, per brief.
@@ -1530,6 +1678,8 @@ class OrganicBrain {
         << " use_relation_projection=" << (config_.use_relation_projection ? 1 : 0)
         << " use_symbolic_relation_features=" << (config_.use_symbolic_relation_features ? 1 : 0)
         << " use_grid_spatial_features=" << (config_.use_grid_spatial_features ? 1 : 0)
+        << " use_outcome_predictor=" << (config_.use_outcome_predictor ? 1 : 0)
+        << " outcome_predictor_learning_rate=" << double_to_hex(config_.outcome_predictor_learning_rate)
         << " max_roles=" << config_.max_roles
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
@@ -1634,6 +1784,20 @@ class OrganicBrain {
         out << "\n";
       }
     }
+    if (config_.use_outcome_predictor) {
+      std::vector<uint64_t> pred_keys;
+      pred_keys.reserve(outcome_predictor_.size());
+      for (const auto& kv : outcome_predictor_) pred_keys.push_back(kv.first);
+      std::sort(pred_keys.begin(), pred_keys.end());
+      out << "PREDICTOR_CONNS " << pred_keys.size() << "\n";
+      for (uint64_t fid : pred_keys) {
+        const auto& weights = outcome_predictor_.at(fid);
+        out << "PC " << hex64(fid)
+            << "|reward:" << double_to_hex(weights.reward_w)
+            << ",exact:" << double_to_hex(weights.exact_w)
+            << ",error:" << double_to_hex(weights.error_w) << "\n";
+      }
+    }
     out << "STATE_HASH " << hex64(state_hash()) << "\n";
     out << "PXSTATE_END\n";
   }
@@ -1647,6 +1811,7 @@ class OrganicBrain {
     slot_copy_weights_.clear();
     learned_chars_.clear();
     mutation_connection_deltas_.clear();
+    outcome_predictor_.clear();
 
     std::string line;
     auto next_line = [&]() -> std::string {
@@ -1682,6 +1847,8 @@ class OrganicBrain {
     config_.use_relation_projection = false;
     config_.use_symbolic_relation_features = false;
     config_.use_grid_spatial_features = false;
+    config_.use_outcome_predictor = false;
+    config_.outcome_predictor_learning_rate = 0.025;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
     std::istringstream cfg_stream(cfg_line.substr(7));
@@ -1717,6 +1884,8 @@ class OrganicBrain {
       else if (k == "use_relation_projection") config_.use_relation_projection = (v != "0");
       else if (k == "use_symbolic_relation_features") config_.use_symbolic_relation_features = (v != "0");
       else if (k == "use_grid_spatial_features") config_.use_grid_spatial_features = (v != "0");
+      else if (k == "use_outcome_predictor") config_.use_outcome_predictor = (v != "0");
+      else if (k == "outcome_predictor_learning_rate") config_.outcome_predictor_learning_rate = hex_to_double(v);
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
     // Legacy-default seeding (above) is what makes cycle-2 snapshots reload safely.
@@ -1867,6 +2036,31 @@ class OrganicBrain {
         }
       }
       // Now the STATE_HASH line is the NEXT line; consume it.
+      lookahead = next_line();
+    }
+
+    if (lookahead.rfind("PREDICTOR_CONNS ", 0) == 0) {
+      size_t n_pred = std::stoull(lookahead.substr(16));
+      for (size_t i = 0; i < n_pred; ++i) {
+        std::string pline = next_line();
+        if (pline.rfind("PC ", 0) != 0) throw std::runtime_error("pxstate: bad PREDICTOR_CONNS row");
+        auto pipe = pline.find('|');
+        if (pipe == std::string::npos) throw std::runtime_error("pxstate: PREDICTOR_CONNS missing |");
+        uint64_t fid = std::stoull(pline.substr(3, pipe - 3), nullptr, 16);
+        PredictorWeights weights;
+        std::string rest = pline.substr(pipe + 1);
+        for (const auto& pair : split_delim(rest, ',')) {
+          auto colon = pair.find(':');
+          if (colon == std::string::npos) throw std::runtime_error("pxstate: PREDICTOR_CONNS missing :");
+          std::string name = pair.substr(0, colon);
+          double value = hex_to_double(pair.substr(colon + 1));
+          if (name == "reward") weights.reward_w = value;
+          else if (name == "exact") weights.exact_w = value;
+          else if (name == "error") weights.error_w = value;
+        }
+        outcome_predictor_[fid] = weights;
+      }
+      config_.use_outcome_predictor = true;
       lookahead = next_line();
     }
 
@@ -2260,6 +2454,26 @@ class OrganicBrain {
     return features;
   }
 
+  std::vector<Feature> outcome_features(const std::string& input,
+                                        const std::vector<std::string>& observations,
+                                        std::vector<Activation>* trace_refs) const {
+    std::vector<Feature> features;
+    features.push_back({fnv1a("a0-outcome-bias"), 1.0});
+    auto context = context_features(input, observations);
+    features.insert(features.end(), context.begin(), context.end());
+    auto query = hdc_.encode_event(input, observations);
+    auto activations = retrieve(query);
+    if (trace_refs) *trace_refs = activations;
+    if (config_.use_trace_id_feature) {
+      for (const auto& activation : activations) {
+        if (activation.similarity <= 0.0) continue;
+        features.push_back({hash_pair("trace", activation.event_id),
+                            activation.similarity * config_.trace_gain});
+      }
+    }
+    return features;
+  }
+
   std::vector<Feature> state_features(const std::vector<Feature>& base, unsigned char previous, int position) const {
     std::vector<Feature> features;
     features.reserve(3 + base.size() * 4);
@@ -2366,7 +2580,7 @@ class OrganicBrain {
   //   gating, or autoregressive ordering.
   // NEGATIVE-SPACE: does NOT fire at generate time. The mode-switch decision at inference
   //   reads ONLY from learned softmax weights — no substring-match anywhere in generate().
-  //   See docs/artifacts/CYCLE3_MECHANISM.md §"Builder-Law boundary call".
+  //   See docs/past_work/cycles/phase_v2_organic_substrate/cycle_docs/CYCLE3_MECHANISM.md §"Builder-Law boundary call".
   std::optional<std::pair<int, size_t>> find_longest_filler_match_at(
       const std::string& lower_target, size_t pos,
       const std::vector<ObservationSlot>& slots) {
@@ -2393,6 +2607,7 @@ class OrganicBrain {
   std::unordered_map<uint64_t, double> slot_copy_weights_;
   std::set<unsigned char> learned_chars_;
   std::vector<size_t> mutation_connection_deltas_;
+  std::unordered_map<uint64_t, PredictorWeights> outcome_predictor_;
   uint64_t expected_state_hash_ = 0;  // populated by load_serialized_state for round-trip verification
   // Cycle-3 segment-mode state.
   // role_token_table_: registry of role-type strings encountered during training. Index in
@@ -3138,14 +3353,23 @@ struct Args {
   std::string save_state;
   std::string load_state;
   std::string event_log;
+  std::string run_id;
+  std::string replay_policy = "prediction_error";
+  std::string replay_source_log;
   std::string verify_event_id;
   std::string organism_id = "raphael-local-0001";
   std::string rule_family = "all";
   std::string experience_db = "experience/organic-v0/text_experience_seed_v0.jsonl";
   std::string transcript_out;
   uint64_t scenario_seed = 7001;
+  uint64_t random_baseline_seed = 8801;
   int action_budget = 64;
   int replay_passes = 2;
+  int sleep_ticks = 100;
+  int daemon_run_seconds = 0;
+  int checkpoint_interval_seconds = 60;
+  int checkpoint_interval_ticks = 100;
+  int internal_timeout_seconds = 180;
   double feedback_strength = 2.0;
   double replay_min_sequence_ratio = 1.0;
   bool ablate_trace_id = false;
@@ -3177,14 +3401,23 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--save-state") args.save_state = need_value(key);
     else if (key == "--load-state") args.load_state = need_value(key);
     else if (key == "--event-log") args.event_log = need_value(key);
+    else if (key == "--run-id") args.run_id = need_value(key);
+    else if (key == "--replay-policy") args.replay_policy = need_value(key);
+    else if (key == "--replay-source-log") args.replay_source_log = need_value(key);
     else if (key == "--verify-event") args.verify_event_id = need_value(key);
     else if (key == "--organism-id") args.organism_id = need_value(key);
     else if (key == "--rule-family") args.rule_family = need_value(key);
     else if (key == "--experience-db") args.experience_db = need_value(key);
     else if (key == "--transcript-out") args.transcript_out = need_value(key);
     else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
+    else if (key == "--random-baseline-seed") args.random_baseline_seed = std::stoull(need_value(key));
     else if (key == "--action-budget") args.action_budget = std::stoi(need_value(key));
     else if (key == "--replay-passes") args.replay_passes = std::stoi(need_value(key));
+    else if (key == "--sleep-ticks") args.sleep_ticks = std::stoi(need_value(key));
+    else if (key == "--daemon-run-seconds") args.daemon_run_seconds = std::stoi(need_value(key));
+    else if (key == "--checkpoint-interval-seconds") args.checkpoint_interval_seconds = std::stoi(need_value(key));
+    else if (key == "--checkpoint-interval-ticks") args.checkpoint_interval_ticks = std::stoi(need_value(key));
+    else if (key == "--internal-timeout-seconds") args.internal_timeout_seconds = std::stoi(need_value(key));
     else if (key == "--feedback-strength") args.feedback_strength = std::stod(need_value(key));
     else if (key == "--replay-threshold") args.replay_min_sequence_ratio = std::stod(need_value(key));
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
@@ -3254,6 +3487,656 @@ void append_event_log_line(const std::string& log_path, const std::string& organ
       << "\"trace_refs\":[],"
       << "\"mutation_refs\":[],"
       << "\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}\n";
+}
+
+bool json_key_exists(const std::string& line, const std::string& key) {
+  return line.find("\"" + key + "\"") != std::string::npos;
+}
+
+std::optional<int> maybe_get_int(const std::string& line, const std::string& key) {
+  if (!json_key_exists(line, key)) return std::nullopt;
+  return get_int(line, key);
+}
+
+std::vector<std::string> maybe_get_string_array_or_empty(const std::string& line,
+                                                         const std::string& key) {
+  if (!json_key_exists(line, key)) return {};
+  return get_string_array(line, key);
+}
+
+std::map<std::string, double> maybe_get_number_object_or_empty(const std::string& line,
+                                                               const std::string& key) {
+  if (!json_key_exists(line, key)) return {};
+  return get_number_object(line, key);
+}
+
+void write_trace_refs_json(std::ostream& out, const std::vector<Activation>& refs) {
+  out << "[";
+  for (size_t i = 0; i < refs.size(); ++i) {
+    if (i) out << ",";
+    out << "{\"event_id\":" << q(refs[i].event_id)
+        << ",\"similarity\":" << std::fixed << std::setprecision(6) << refs[i].similarity
+        << std::defaultfloat << "}";
+  }
+  out << "]";
+}
+
+void write_mutation_refs_json(std::ostream& out, const std::vector<MutationRef>& refs) {
+  out << "[";
+  for (size_t i = 0; i < refs.size(); ++i) {
+    if (i) out << ",";
+    out << "{\"mutation_id\":" << q(refs[i].mutation_id)
+        << ",\"kind\":" << q(refs[i].kind)
+        << ",\"accepted\":" << (refs[i].accepted ? "true" : "false")
+        << ",\"state_before_hash\":" << q(hex64(refs[i].state_before_hash))
+        << ",\"state_after_hash\":" << q(hex64(refs[i].state_after_hash))
+        << ",\"reason\":" << q(refs[i].reason) << "}";
+  }
+  out << "]";
+}
+
+void write_prediction_json(std::ostream& out, const OutcomePrediction& prediction) {
+  out << "{\"predictor\":\"a0_event_outcome\""
+      << ",\"reward_scalar_pred\":" << std::fixed << std::setprecision(6)
+      << prediction.reward_scalar
+      << ",\"exact_score_or_prob_pred\":" << prediction.exact_prob_or_score
+      << ",\"lcs_error_ratio_pred\":" << prediction.lcs_error_ratio
+      << ",\"surprise_pred\":" << prediction.surprise
+      << std::defaultfloat
+      << ",\"feature_count\":" << prediction.feature_count << "}";
+}
+
+void write_prediction_error_json(std::ostream& out, const PredictionError* error) {
+  if (!error) {
+    out << "null";
+    return;
+  }
+  out << "{\"reward_abs_error\":" << std::fixed << std::setprecision(6)
+      << error->reward_abs_error
+      << ",\"exact_abs_error\":" << error->exact_abs_error
+      << ",\"lcs_error_abs_error\":" << error->lcs_error_abs_error
+      << ",\"surprise\":" << error->surprise
+      << std::defaultfloat << "}";
+}
+
+void append_event_log_v1(const std::string& log_path, const std::string& run_id,
+                         const std::string& organism_id, const std::string& step_id,
+                         const std::string& step_mode, const std::string& phase,
+                         const Event& event, const std::string& raw_output,
+                         const std::string& expected, bool audit_only,
+                         const OutcomePrediction& prediction,
+                         const PredictionError* prediction_error,
+                         const std::vector<Activation>& trace_refs,
+                         const std::vector<MutationRef>& mutation_refs,
+                         uint64_t state_before_hash, uint64_t state_after_hash,
+                         const std::string& source_kind, const std::string& source_path) {
+  if (log_path.empty()) return;
+  if (!valid_event_log_phase(phase)) throw std::runtime_error("event log phase outside schema: " + phase);
+  ensure_parent_dir(log_path);
+  std::string log_event_id = event_log_id(next_event_log_ordinal(log_path));
+  std::ofstream log(log_path, std::ios::app);
+  if (!log) throw std::runtime_error("cannot open event log: " + log_path);
+  log << "{\"schema\":\"project_x.event_log.v1\""
+      << ",\"event_id\":" << q(log_event_id)
+      << ",\"run_id\":" << q(run_id)
+      << ",\"organism_id\":" << q(organism_id)
+      << ",\"step_id\":" << q(step_id)
+      << ",\"step_mode\":" << q(step_mode)
+      << ",\"timestamp_utc\":" << q(timestamp_utc())
+      << ",\"phase\":" << q(phase)
+      << ",\"source\":{\"source_kind\":" << q(source_kind)
+      << ",\"source_path\":" << q(source_path)
+      << ",\"source_event_id\":" << q(event.event_id) << "}"
+      << ",\"input\":{\"text\":" << q(event.input) << ",\"observations\":[";
+  for (size_t i = 0; i < event.observations.size(); ++i) {
+    if (i) log << ",";
+    log << q(event.observations[i]);
+  }
+  log << "]}"
+      << ",\"output\":{\"raw_generated_output\":" << q(raw_output)
+      << ",\"expected_output\":" << q(expected)
+      << ",\"oracle_used_in_generation\":false"
+      << ",\"audit_only\":" << (audit_only ? "true" : "false") << "}"
+      << ",\"reward\":";
+  write_reward_object(log, event.reward);
+  log << ",\"prediction\":";
+  write_prediction_json(log, prediction);
+  log << ",\"prediction_error\":";
+  write_prediction_error_json(log, prediction_error);
+  log << ",\"trace_refs\":";
+  write_trace_refs_json(log, trace_refs);
+  log << ",\"mutation_refs\":";
+  write_mutation_refs_json(log, mutation_refs);
+  log << ",\"state_before_hash\":" << q(hex64(state_before_hash))
+      << ",\"state_after_hash\":" << q(hex64(state_after_hash))
+      << ",\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}\n";
+}
+
+OutcomeTarget target_from_generation(const Event& event, const std::string& raw_output) {
+  OutcomeTarget target;
+  target.reward_scalar = event.reward_scalar();
+  target.exact_binary = raw_output == event.target_output ? 1.0 : 0.0;
+  target.lcs_error_ratio = 1.0 - lcs_ratio(raw_output, event.target_output);
+  return target;
+}
+
+struct RuntimeCommand {
+  std::string cmd;
+  Event event;
+  int ticks = 0;
+};
+
+RuntimeCommand parse_runtime_command(const std::string& line) {
+  RuntimeCommand command;
+  command.cmd = get_string(line, "cmd");
+  if (command.cmd == "wake") {
+    command.event.event_id = get_string(line, "event_id");
+    command.event.episode_id = maybe_get_string(line, "session_id").value_or("cycle8_stdin");
+    command.event.split = "wake";
+    command.event.domain = "sleep_wake_runtime";
+    command.event.level = 0;
+    command.event.input = get_string(line, "input_text");
+    command.event.observations = maybe_get_string_array_or_empty(line, "observations");
+    command.event.target_output = maybe_get_string(line, "correction_output").value_or("");
+    command.event.reward = maybe_get_number_object_or_empty(line, "reward");
+    command.event.source = "stdin_jsonl";
+    command.event.composition = "wake_event";
+  } else if (command.cmd == "sleep") {
+    command.ticks = maybe_get_int(line, "ticks").value_or(1);
+  } else if (command.cmd != "checkpoint" && command.cmd != "shutdown") {
+    throw std::runtime_error("unknown sleep-wake JSONL cmd: " + command.cmd);
+  }
+  return command;
+}
+
+struct ReplayCandidate {
+  Event event;
+  std::string source_path;
+  std::string source_kind = "event_log";
+};
+
+std::optional<Event> event_from_event_log_line(const std::string& line) {
+  if (!json_key_exists(line, "expected_output")) return std::nullopt;
+  std::string expected = maybe_get_string(line, "expected_output").value_or("");
+  if (expected.empty()) return std::nullopt;
+  Event event;
+  event.event_id = maybe_get_string(line, "source_event_id").value_or(
+      maybe_get_string(line, "event_id").value_or("event_log_candidate"));
+  event.episode_id = maybe_get_string(line, "step_id").value_or("event_log_replay");
+  event.split = "replay";
+  event.domain = "sleep_wake_runtime";
+  event.level = 0;
+  event.input = maybe_get_string(line, "text").value_or("");
+  event.observations = maybe_get_string_array_or_empty(line, "observations");
+  event.target_output = expected;
+  event.reward = maybe_get_number_object_or_empty(line, "reward");
+  event.source = maybe_get_string(line, "source_kind").value_or(
+      maybe_get_string(line, "kind").value_or("event_log"));
+  event.composition = "event_log_replay";
+  if (event.input.empty()) return std::nullopt;
+  return event;
+}
+
+std::vector<ReplayCandidate> load_replay_candidates_from_log(const std::string& path) {
+  std::vector<ReplayCandidate> candidates;
+  if (path.empty()) return candidates;
+  std::ifstream in(path);
+  if (!in) return candidates;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.empty()) continue;
+    try {
+      auto event = event_from_event_log_line(line);
+      if (!event.has_value()) continue;
+      candidates.push_back({*event, path, "event_log"});
+    } catch (...) {
+      continue;
+    }
+  }
+  return candidates;
+}
+
+struct OrganismStepInput {
+  std::string run_id;
+  std::string organism_id;
+  std::string step_id;
+  std::string source_kind;
+  std::string source_path;
+  Event event;
+};
+
+struct OrganismStepResult {
+  OutcomePrediction prediction;
+  PredictionError prediction_error;
+  Generation generation;
+  uint64_t state_before_hash = 0;
+  uint64_t state_after_hash = 0;
+  bool has_target = false;
+  bool learned = false;
+  bool accepted = false;
+  double surprise_reduction = 0.0;
+  std::string reason;
+  std::vector<MutationRef> mutation_refs;
+};
+
+struct RuntimeMetrics {
+  std::string run_id;
+  std::string phase;
+  std::string replay_policy;
+  std::string event_log_path;
+  std::vector<std::string> checkpoint_paths;
+  std::vector<uint64_t> state_hash_chain;
+  std::vector<double> prediction_error_over_time;
+  int wake_count = 0;
+  int sleep_tick_count = 0;
+  int replay_candidate_count = 0;
+  int accepted_mutation_count = 0;
+  int rejected_mutation_count = 0;
+  double surprise_reduction = 0.0;
+  bool timed_out = false;
+};
+
+std::string default_cycle8_run_id(const Args& args) {
+  if (!args.run_id.empty()) return args.run_id;
+  return "cycle8-" + hex64(fnv1a(timestamp_utc() + args.replay_policy +
+                                  std::to_string(args.random_baseline_seed))).substr(0, 12);
+}
+
+std::string default_cycle8_event_log_path(const Args& args, const std::string& run_id) {
+  if (!args.event_log.empty()) return args.event_log;
+  return "run/state/organic-v0/events/" + args.organism_id + "-cycle8-" + run_id + ".jsonl";
+}
+
+std::string default_cycle8_out_path(const Args& args) {
+  if (!args.out.empty()) return args.out;
+  if (args.phase == "daemon-lite") return "run/artifacts/organic-v0/daemon_lite_cycle8_1h.json";
+  return "run/artifacts/organic-v0/sleep_wake_cycle8_test.json";
+}
+
+std::string checkpoint_path_for(const Args& args, const std::string& run_id, int ordinal) {
+  if (!args.save_state.empty() && ordinal == 1) return args.save_state;
+  std::ostringstream out;
+  out << "run/state/organic-v0/snapshots/" << args.organism_id
+      << "/cycle8-" << run_id << "-ckpt-" << std::setw(6) << std::setfill('0')
+      << ordinal << ".pxstate";
+  return out.str();
+}
+
+std::string write_cycle8_checkpoint(const Args& args, const std::string& run_id,
+                                    OrganicBrain& brain, RuntimeMetrics& metrics) {
+  int ordinal = static_cast<int>(metrics.checkpoint_paths.size()) + 1;
+  std::string path = checkpoint_path_for(args, run_id, ordinal);
+  ensure_parent_dir(path);
+  std::ofstream out(path);
+  brain.serialize_state(out, args.organism_id);
+  metrics.checkpoint_paths.push_back(path);
+  metrics.state_hash_chain.push_back(brain.state_hash());
+  return path;
+}
+
+OrganismStepResult organism_wake_step(OrganicBrain& brain, const OrganismStepInput& input,
+                                      const std::string& event_log_path) {
+  OrganismStepResult result;
+  result.state_before_hash = brain.state_hash();
+  result.prediction = brain.predict_outcome(input.event.input, input.event.observations);
+  result.generation = brain.generate(input.event.input, input.event.observations);
+  result.has_target = !input.event.target_output.empty() && !input.event.reward.empty();
+  result.state_after_hash = result.state_before_hash;
+
+  std::optional<PredictionError> error;
+  if (result.has_target) {
+    auto target = target_from_generation(input.event, result.generation.output);
+    result.prediction_error = brain.update_outcome_predictor(result.prediction, target);
+    error = result.prediction_error;
+    brain.learn(input.event);
+    result.state_after_hash = brain.state_hash();
+    result.learned = true;
+    result.reason = "wake_correction_reward_learned";
+    result.mutation_refs.push_back({
+        "mut_" + input.step_id,
+        "wake_learn_and_predictor_update",
+        true,
+        result.state_before_hash,
+        result.state_after_hash,
+        result.reason,
+    });
+  } else {
+    result.reason = "wake_no_correction_or_reward_no_learning";
+  }
+
+  append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+                      "wake", "generate", input.event, result.generation.output,
+                      input.event.target_output, false, result.prediction,
+                      error ? &(*error) : nullptr, result.prediction.trace_refs, {},
+                      result.state_before_hash, result.state_before_hash,
+                      input.source_kind, input.source_path);
+  if (result.learned) {
+    append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+                        "wake", "learn", input.event, result.generation.output,
+                        input.event.target_output, false, result.prediction,
+                        &result.prediction_error, result.prediction.trace_refs,
+                        result.mutation_refs, result.state_before_hash,
+                        result.state_after_hash, input.source_kind, input.source_path);
+  }
+  return result;
+}
+
+size_t select_replay_candidate(const OrganicBrain& brain,
+                               const std::vector<ReplayCandidate>& candidates,
+                               const std::string& policy, uint64_t random_seed,
+                               int tick) {
+  if (candidates.empty()) return 0;
+  if (policy == "random") {
+    uint64_t state = mix64(combine(random_seed, static_cast<uint64_t>(tick)));
+    return static_cast<size_t>(state % candidates.size());
+  }
+  double best = -1.0;
+  size_t best_index = 0;
+  for (size_t i = 0; i < candidates.size(); ++i) {
+    const auto& event = candidates[i].event;
+    auto prediction = brain.predict_outcome(event.input, event.observations);
+    auto generation = brain.generate(event.input, event.observations);
+    auto target = target_from_generation(event, generation.output);
+    auto error = prediction_error_for(prediction, target);
+    if (error.surprise > best) {
+      best = error.surprise;
+      best_index = i;
+    }
+  }
+  return best_index;
+}
+
+OrganismStepResult organism_sleep_step(OrganicBrain& brain, const OrganismStepInput& input,
+                                       const std::string& event_log_path) {
+  OrganismStepResult result;
+  result.state_before_hash = brain.state_hash();
+  result.prediction = brain.predict_outcome(input.event.input, input.event.observations);
+  result.generation = brain.generate(input.event.input, input.event.observations);
+  result.has_target = !input.event.target_output.empty();
+  if (!result.has_target) {
+    result.state_after_hash = result.state_before_hash;
+    result.reason = "sleep_no_replay_target";
+    append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+                        "sleep", "reflect", input.event, "", "", true, result.prediction,
+                        nullptr, result.prediction.trace_refs, {}, result.state_before_hash,
+                        result.state_after_hash, input.source_kind, input.source_path);
+    return result;
+  }
+
+  auto target = target_from_generation(input.event, result.generation.output);
+  result.prediction_error = prediction_error_for(result.prediction, target);
+  OrganicBrain candidate = brain;
+  candidate.learn(input.event);
+  candidate.update_outcome_predictor(result.prediction, target);
+  uint64_t candidate_hash = candidate.state_hash();
+  auto after_prediction = candidate.predict_outcome(input.event.input, input.event.observations);
+  auto after_generation = candidate.generate(input.event.input, input.event.observations);
+  auto after_target = target_from_generation(input.event, after_generation.output);
+  auto after_error = prediction_error_for(after_prediction, after_target);
+  double before_ratio = lcs_ratio(result.generation.output, input.event.target_output);
+  double after_ratio = lcs_ratio(after_generation.output, input.event.target_output);
+  bool local_not_worse = after_ratio >= before_ratio;
+  bool surprise_reduced = after_error.surprise + 1e-9 < result.prediction_error.surprise;
+  result.surprise_reduction = std::max(0.0, result.prediction_error.surprise - after_error.surprise);
+  result.accepted = local_not_worse && surprise_reduced;
+  result.learned = result.accepted;
+  result.state_after_hash = result.accepted ? candidate_hash : result.state_before_hash;
+  result.reason = result.accepted
+                      ? "accepted_prediction_error_reduced_without_local_degradation"
+                      : "rejected_no_prediction_error_reduction_or_local_degradation";
+  result.mutation_refs.push_back({
+      "mut_" + input.step_id,
+      "sleep_replay_candidate",
+      result.accepted,
+      result.state_before_hash,
+      candidate_hash,
+      result.reason,
+  });
+  if (result.accepted) brain = std::move(candidate);
+  append_event_log_v1(event_log_path, input.run_id, input.organism_id, input.step_id,
+                      "sleep", "mutate", input.event, after_generation.output,
+                      input.event.target_output, true, result.prediction,
+                      &result.prediction_error, result.prediction.trace_refs,
+                      result.mutation_refs, result.state_before_hash,
+                      result.state_after_hash, input.source_kind, input.source_path);
+  return result;
+}
+
+std::vector<RuntimeCommand> read_runtime_commands_from_stdin() {
+  std::vector<RuntimeCommand> commands;
+  if (isatty(STDIN_FILENO)) return commands;
+  std::string line;
+  while (std::getline(std::cin, line)) {
+    if (line.empty()) continue;
+    commands.push_back(parse_runtime_command(line));
+  }
+  return commands;
+}
+
+std::vector<RuntimeCommand> default_cycle8_commands(int sleep_ticks) {
+  RuntimeCommand wake;
+  wake.cmd = "wake";
+  wake.event.event_id = "wake_cycle8_0001";
+  wake.event.episode_id = "cycle8_manual";
+  wake.event.split = "wake";
+  wake.event.domain = "sleep_wake_runtime";
+  wake.event.level = 0;
+  wake.event.input = "navi carries basalt prism";
+  wake.event.observations = raw_text_span_observations(wake.event.input);
+  wake.event.target_output = "navi carries basalt prism";
+  wake.event.reward = {{"source_fidelity", 1.0}, {"task_success", 1.0}};
+  wake.event.source = "cycle8_default_command";
+  wake.event.composition = "wake_event";
+  RuntimeCommand sleep;
+  sleep.cmd = "sleep";
+  sleep.ticks = sleep_ticks;
+  RuntimeCommand checkpoint;
+  checkpoint.cmd = "checkpoint";
+  RuntimeCommand shutdown;
+  shutdown.cmd = "shutdown";
+  return {wake, sleep, checkpoint, shutdown};
+}
+
+void write_cycle8_artifact(const std::string& out_path, const Args& args,
+                           const std::string& command, const RuntimeMetrics& metrics,
+                           const BrainStateStats& parent_stats,
+                           const BrainStateStats& final_stats,
+                           const std::string& loaded_state_path) {
+  ensure_parent_dir(out_path);
+  std::ofstream out(out_path);
+  out << "{\n";
+  out << "  \"run_id\": " << q(metrics.run_id) << ",\n";
+  out << "  \"timestamp\": " << q(timestamp_utc()) << ",\n";
+  out << "  \"phase\": " << q(metrics.phase) << ",\n";
+  out << "  \"mode\": " << q(args.mode) << ",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"organism_id\": " << q(args.organism_id) << ",\n";
+  out << "  \"loaded_state_path\": " << (loaded_state_path.empty() ? "null" : q(loaded_state_path)) << ",\n";
+  out << "  \"event_log_path\": " << q(metrics.event_log_path) << ",\n";
+  out << "  \"replay_policy\": {\"selector\": " << q(metrics.replay_policy)
+      << ", \"random_named_as_null_baseline\": " << (metrics.replay_policy == "random" ? "true" : "false")
+      << ", \"random_baseline_seed\": " << args.random_baseline_seed << "},\n";
+  out << "  \"checkpoint_policy\": {\"interval_seconds\": " << args.checkpoint_interval_seconds
+      << ", \"interval_ticks\": " << args.checkpoint_interval_ticks
+      << ", \"default_policy\": \"every 60 seconds or every 100 replay ticks, whichever comes first\"},\n";
+  out << "  \"checkpoint_count\": " << metrics.checkpoint_paths.size() << ",\n";
+  out << "  \"checkpoint_paths\": [";
+  for (size_t i = 0; i < metrics.checkpoint_paths.size(); ++i) {
+    if (i) out << ", ";
+    out << q(metrics.checkpoint_paths[i]);
+  }
+  out << "],\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"final_model_state\": "; write_state_stats(out, final_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, parent_stats, final_stats); out << ",\n";
+  out << "  \"state_hash_chain\": [";
+  for (size_t i = 0; i < metrics.state_hash_chain.size(); ++i) {
+    if (i) out << ", ";
+    out << q(hex64(metrics.state_hash_chain[i]));
+  }
+  out << "],\n";
+  out << "  \"prediction_error_over_time\": [";
+  for (size_t i = 0; i < metrics.prediction_error_over_time.size(); ++i) {
+    if (i) out << ", ";
+    out << std::fixed << std::setprecision(6) << metrics.prediction_error_over_time[i]
+        << std::defaultfloat;
+  }
+  out << "],\n";
+  out << "  \"summary_metrics\": {"
+      << "\"wake_count\": " << metrics.wake_count
+      << ", \"sleep_tick_count\": " << metrics.sleep_tick_count
+      << ", \"replay_candidate_count\": " << metrics.replay_candidate_count
+      << ", \"accepted_mutation_count\": " << metrics.accepted_mutation_count
+      << ", \"rejected_mutation_count\": " << metrics.rejected_mutation_count
+      << ", \"surprise_reduction\": " << std::fixed << std::setprecision(6)
+      << metrics.surprise_reduction << std::defaultfloat
+      << ", \"timed_out\": " << (metrics.timed_out ? "true" : "false") << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": true, \"sleep_audit\": true},\n";
+  out << "  \"negative_space\": {\"not_fluent_chat\": true, \"not_broad_reasoning\": true, \"not_agi\": true, \"not_safety_boundary_solution\": true, \"not_next_token_predictor\": true},\n";
+  out << "  \"honest_interpretation\": \"Cycle 8 sleep/wake runtime evidence: one native process accepts wake JSONL, predicts before correction, updates learned state only when correction/reward exist, replays event-log evidence during sleep, and checkpoints persistent state. A0 is only a replay-priority/error substrate, not a generator or answer path.\"\n";
+  out << "}\n";
+}
+
+void sleep_wake_runtime_phase(const Args& args, const std::string& command) {
+  if (args.replay_policy != "prediction_error" && args.replay_policy != "random") {
+    throw std::runtime_error("--replay-policy must be prediction_error or random");
+  }
+  if (args.checkpoint_interval_seconds <= 0 || args.checkpoint_interval_ticks <= 0) {
+    throw std::runtime_error("checkpoint intervals must be positive");
+  }
+  Config config;
+  apply_ablations(config, args);
+  config.use_outcome_predictor = true;
+  OrganicBrain brain(config);
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    brain.set_outcome_predictor_enabled(true);
+  }
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  std::string run_id = default_cycle8_run_id(args);
+  std::string event_log_path = default_cycle8_event_log_path(args, run_id);
+  std::string out_path = default_cycle8_out_path(args);
+  RuntimeMetrics metrics;
+  metrics.run_id = run_id;
+  metrics.phase = args.phase;
+  metrics.replay_policy = args.replay_policy;
+  metrics.event_log_path = event_log_path;
+  metrics.state_hash_chain.push_back(brain.state_hash());
+
+  std::vector<RuntimeCommand> commands = read_runtime_commands_from_stdin();
+  if (commands.empty()) {
+    commands = default_cycle8_commands(args.sleep_ticks);
+    if (args.phase == "daemon-lite") commands.resize(1);
+  }
+  std::vector<ReplayCandidate> replay_candidates = load_replay_candidates_from_log(args.replay_source_log);
+  auto add_replay_candidate = [&](const Event& event, const std::string& source_path,
+                                  const std::string& source_kind) {
+    if (event.target_output.empty() || event.reward.empty()) return;
+    replay_candidates.push_back({event, source_path, source_kind});
+    metrics.replay_candidate_count = static_cast<int>(replay_candidates.size());
+  };
+
+  auto started = std::chrono::steady_clock::now();
+  auto last_checkpoint = started;
+  int ticks_since_checkpoint = 0;
+  int step_counter = 0;
+  bool shutdown = false;
+
+  auto maybe_timeout = [&]() {
+    if (args.phase == "sleep-wake" && args.mode == "test" && args.internal_timeout_seconds > 0) {
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::steady_clock::now() - started).count();
+      if (elapsed > args.internal_timeout_seconds) {
+        metrics.timed_out = true;
+        throw std::runtime_error("sleep-wake internal timeout exceeded");
+      }
+    }
+  };
+
+  auto do_sleep_tick = [&]() {
+    ++step_counter;
+    ++metrics.sleep_tick_count;
+    ++ticks_since_checkpoint;
+    maybe_timeout();
+    if (replay_candidates.empty()) {
+      Event idle;
+      idle.event_id = "sleep_idle_" + std::to_string(step_counter);
+      idle.episode_id = run_id;
+      idle.split = "sleep";
+      idle.domain = "sleep_wake_runtime";
+      idle.input = "sleep idle replay scan";
+      idle.source = "sleep_wake_runtime";
+      OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
+                              "sleep_idle", event_log_path, idle};
+      organism_sleep_step(brain, input, event_log_path);
+      return;
+    }
+    size_t index = select_replay_candidate(brain, replay_candidates, args.replay_policy,
+                                           args.random_baseline_seed, metrics.sleep_tick_count);
+    const auto& candidate = replay_candidates[index];
+    OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
+                            candidate.source_kind, candidate.source_path, candidate.event};
+    auto result = organism_sleep_step(brain, input, event_log_path);
+    metrics.prediction_error_over_time.push_back(result.prediction_error.surprise);
+    if (result.accepted) {
+      ++metrics.accepted_mutation_count;
+      metrics.surprise_reduction += result.surprise_reduction;
+      write_cycle8_checkpoint(args, run_id, brain, metrics);
+      ticks_since_checkpoint = 0;
+      last_checkpoint = std::chrono::steady_clock::now();
+    } else {
+      ++metrics.rejected_mutation_count;
+      metrics.state_hash_chain.push_back(brain.state_hash());
+    }
+    auto now = std::chrono::steady_clock::now();
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now - last_checkpoint).count();
+    if (ticks_since_checkpoint >= args.checkpoint_interval_ticks ||
+        seconds >= args.checkpoint_interval_seconds) {
+      write_cycle8_checkpoint(args, run_id, brain, metrics);
+      ticks_since_checkpoint = 0;
+      last_checkpoint = now;
+    }
+  };
+
+  for (const auto& command_item : commands) {
+    if (shutdown) break;
+    if (command_item.cmd == "wake") {
+      ++step_counter;
+      ++metrics.wake_count;
+      OrganismStepInput input{run_id, args.organism_id, "step_" + std::to_string(step_counter),
+                              "stdin_jsonl", "stdin", command_item.event};
+      auto result = organism_wake_step(brain, input, event_log_path);
+      if (result.has_target) {
+        metrics.prediction_error_over_time.push_back(result.prediction_error.surprise);
+        add_replay_candidate(command_item.event, event_log_path, "wake_event_log");
+      }
+      metrics.state_hash_chain.push_back(brain.state_hash());
+    } else if (command_item.cmd == "sleep") {
+      int ticks = std::max(0, command_item.ticks);
+      for (int i = 0; i < ticks; ++i) do_sleep_tick();
+    } else if (command_item.cmd == "checkpoint") {
+      write_cycle8_checkpoint(args, run_id, brain, metrics);
+      ticks_since_checkpoint = 0;
+      last_checkpoint = std::chrono::steady_clock::now();
+    } else if (command_item.cmd == "shutdown") {
+      shutdown = true;
+    }
+  }
+
+  if (args.phase == "daemon-lite" && !shutdown) {
+    int seconds = args.daemon_run_seconds > 0 ? args.daemon_run_seconds : 3600;
+    while (true) {
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::steady_clock::now() - started).count();
+      if (elapsed >= seconds) break;
+      do_sleep_tick();
+      std::this_thread::sleep_for(std::chrono::milliseconds(args.mode == "test" ? 1 : 100));
+    }
+  }
+  write_cycle8_checkpoint(args, run_id, brain, metrics);
+  BrainStateStats final_stats = capture_state_stats(brain);
+  write_cycle8_artifact(out_path, args, command, metrics, parent_stats, final_stats, args.load_state);
+  std::cout << "wrote " << out_path << "\n";
 }
 
 // Orchestrate the persistence round-trip: train → save → spawn child → load+generate → verify.
@@ -5475,6 +6358,10 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "text-experience-replay") {
       px::text_experience_replay_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "sleep-wake" || args.phase == "daemon-lite") {
+      px::sleep_wake_runtime_phase(args, command);
       return 0;
     }
 
