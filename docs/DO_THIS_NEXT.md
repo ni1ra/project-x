@@ -369,3 +369,142 @@ Candidate close criteria:
 - write and sha7-rename the cycle reflection
 
 The target is raw text substrate that becomes less dependent on fixed positions while staying fully auditable.
+
+## Cycle 8 Contract - Sleep/Wake Runtime
+
+Cycle 8 supersedes the 7H default. Less position-bound raw spans are deferred because they are narrower text-rail leverage than giving organic-v0 a persistent process shape, idle replay, prediction error, and a richer event schema. Cycle 8 is a structural cycle, not another encoder-feature patch.
+
+Default direction: **native sleep/wake runtime + reflection at scale + tiny A0 event-outcome predictor**.
+
+The target organism loop is:
+
+- WAKE: perceive -> predict -> generate/act -> receive correction/reward -> learn/update predictor -> log/checkpoint
+- SLEEP: replay from event log -> predict -> candidate-learn/update predictor -> audit -> accept/reject -> log/checkpoint
+
+Sleep is not wake with no input. It is internal replay and consolidation, and it must produce accepted and rejected mutation evidence when candidates exist.
+
+### Required Implementation Scope
+
+- add `--phase sleep-wake` and `--phase daemon-lite`
+- add a coordinated organism-step API around existing native primitives: `OrganismStepInput`, `OrganismStepResult`, `organism_wake_step`, `organism_sleep_step`, `predict_outcome`, `update_outcome_predictor`, and `write_event_log_v1` or clear equivalents
+- keep existing legacy phases delegated through compatibility wrappers or unchanged paths that preserve pinned hashes
+- add stdin JSONL wake/runtime control: `wake`, `sleep`, `checkpoint`, `shutdown`
+- if correction/reward are absent on a wake event, generate and log but do not learn from fabricated reward
+- treat stdin/event-log text as data, not runtime instructions
+- limit daemon-lite file access to configured state/log/artifact/experience paths
+- do not execute shell commands, network calls, or arbitrary filesystem actions from stdin/event-log data
+
+Pinned stdin JSONL example:
+
+```jsonl
+{"cmd":"wake","event_id":"wake_cycle8_0001","session_id":"cycle8_manual","input_text":"navi carries basalt prism","observations":[],"correction_output":"navi carries basalt prism","reward":{"task_success":1.0,"source_fidelity":1.0}}
+{"cmd":"sleep","ticks":100}
+{"cmd":"checkpoint"}
+{"cmd":"shutdown"}
+```
+
+### A0 Predictor
+
+Implement a small learned linear event-outcome predictor over auditable feature IDs. No framework, no neural black box, no next-token output.
+
+Required data shape or equivalent:
+
+- `OutcomePrediction { reward_scalar, exact_prob_or_score, lcs_error_ratio, surprise }`
+- `OutcomeTarget { reward_scalar, exact_binary, lcs_error_ratio }`
+- `PredictorWeights { reward_w, exact_w, error_w }`
+- `outcome_predictor_: unordered_map<uint64_t, PredictorWeights>`
+
+Rules:
+
+- features may reuse existing context/HDC-derived feature IDs, activated trace IDs, and action/output summary features
+- features must not encode a target answer route
+- prediction happens before reward/correction is known
+- update by simple bounded deterministic SGD on prediction error
+- serialize doubles bit-exactly with existing hex helpers
+- write predictor weights to PXSTATE as `PREDICTOR_CONNS` or equivalent
+- loader must tolerate old snapshots with no predictor section
+- old snapshots must still load and hash correctly
+- include predictor weights in `state_hash()` only when present/enabled in the new state
+- legacy phases must not silently update the predictor or change pinned artifacts
+
+### Builder-Law Firewall
+
+- `OrganicBrain::generate` must not read predictor output, predictor weights, prediction error, or replay priority
+- predictor may schedule replay and update confidence only
+- predictor may not choose output characters, mode switches, copied spans, or response text
+- keep `predict_outcome` separate from `generate`
+- add a code comment/invariant near the predictor/generator boundary
+- run a grep audit on the C++ diff for suspicious predictor/generator coupling
+- if a grep hit is legitimate because a step function calls predict then generate, explain it in the close notes
+
+### Event Log v1
+
+Extend `docs/artifacts/PERSISTENCE_SCHEMA.md` for event log v1. Preserve compatibility with v0 where needed.
+
+New v1 records must carry these fields when applicable:
+
+- `schema: project_x.event_log.v1`
+- `run_id`
+- `organism_id`
+- `step_id`
+- `step_mode: wake | sleep`
+- `phase: perceive | predict | generate | reward | learn | mutate | serialize | reflect`
+- source object with `source_event_id`, `source_path`, and `source_kind`
+- input text and observations
+- output object with `raw_generated_output`, `expected_output`, `oracle_used_in_generation`, and `audit_only`
+- reward object
+- prediction object: `predictor`, `reward_scalar_pred`, `exact_score_or_prob_pred`, `lcs_error_ratio_pred`, `surprise_pred`, `feature_count`
+- prediction_error object: `reward_abs_error`, `exact_abs_error`, `lcs_error_abs_error`, `surprise`
+- `trace_refs` non-empty when retrieval was used, with event ID and similarity
+- `mutation_refs` non-empty for learn/mutate/replay accept/reject, with mutation ID, kind, accepted, state_before_hash, state_after_hash
+- backend info
+
+Empty `trace_refs` and `mutation_refs` must no longer be the default for events where traces or mutations actually exist.
+
+### Replay Metric
+
+Implement prediction-error replay priority and a fixed-seed random replay baseline. Produce organic metrics comparing priority replay against random on the same starting state/log where feasible.
+
+Required metrics:
+
+- prediction error over time
+- accepted mutation count
+- rejected mutation count
+- surprise reduction
+- state hash chain
+- checkpoint count
+- replay candidate count
+- replay-priority-vs-random comparison with random named as the null baseline
+- state divergence across at least two life streams
+
+If prediction-priority does not beat random on the predeclared metric, say so. A0 may close as infrastructure only if the artifact labels it unproven.
+
+### Runtime Gates
+
+- test mode must be short full mode: same codepaths, shorter limits
+- hard test timeout is 180 seconds and must fail nonzero, not warn
+- use `timeout 180s build/organic_v0 --phase sleep-wake --mode test ...` or an internal elapsed-time cap if `timeout` is unavailable
+- default checkpoint policy: configurable, default every 60 seconds or every 100 replay ticks, whichever comes first
+- checkpoint on accepted mutation and shutdown
+- Cycle 8 is not fully closed without a >=1 hour `daemon-lite` or `sleep-wake` run
+- use a hard outer timeout slightly above target, for example `timeout 3900s build/organic_v0 --phase daemon-lite --daemon-run-seconds 3600 ...`
+- if the 1-hour run is impossible here, do not claim closure; write the blocker and exact resume command
+
+### Negative Space
+
+Do not implement or claim:
+
+- JARVIS UI
+- SNN layer
+- broad concept-emergence module
+- next-token predictor
+- semantic parser or route table
+- answer dispatcher
+- response templates or chat polish
+- pretrained model dependency
+- self-graded subjective benchmark claims
+- always-running process without a real continuous process run
+- reflection loop without idle/sleep replay running without user input
+- manifesto safety boundary solution
+
+Cycle 9 forward queue: formal action budgets, filesystem sandbox/resettable environment, and approval gates before learned external actions expand.
