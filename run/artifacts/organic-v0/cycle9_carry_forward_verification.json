@@ -1,0 +1,888 @@
+{
+  "all_required_checks_passed": true,
+  "checks": [
+    {
+      "actual": 30,
+      "expected": 30,
+      "name": "cycle6_count",
+      "passed": true
+    },
+    {
+      "actual": 1.0,
+      "expected": 1.0,
+      "name": "cycle6_exact_rate",
+      "passed": true
+    },
+    {
+      "actual": "29958f0880e662dc",
+      "expected": "29958f0880e662dc",
+      "name": "cycle6_hash",
+      "passed": true
+    },
+    {
+      "actual": 25,
+      "expected": 25,
+      "name": "legacy_count",
+      "passed": true
+    },
+    {
+      "actual": 0.36,
+      "expected": 0.36,
+      "name": "legacy_exact_rate",
+      "passed": true
+    },
+    {
+      "actual": "3536309de837d3e2",
+      "expected": "3536309de837d3e2",
+      "name": "legacy_hash",
+      "passed": true
+    },
+    {
+      "actual": "milaquart arch6",
+      "expected": "milaquart arch6",
+      "name": "legacy_raw_evt_mem_test_001",
+      "passed": true
+    },
+    {
+      "actual": 5,
+      "expected": 5,
+      "name": "clean_chat_count",
+      "passed": true
+    },
+    {
+      "actual": 0.2,
+      "expected": 0.2,
+      "name": "clean_chat_exact_rate",
+      "passed": true
+    },
+    {
+      "actual": "888b7664126b7f5f",
+      "expected": "888b7664126b7f5f",
+      "name": "clean_chat_hash",
+      "passed": true
+    },
+    {
+      "actual": 7,
+      "expected": 7,
+      "name": "cycle7b_7001_held_out_count",
+      "passed": true
+    },
+    {
+      "actual": 7,
+      "expected": 7,
+      "name": "cycle7b_7001_held_out_exact",
+      "passed": true
+    },
+    {
+      "actual": "879b7e4f6295fc12",
+      "expected": "879b7e4f6295fc12",
+      "name": "cycle7b_7001_hash",
+      "passed": true
+    },
+    {
+      "actual": 7,
+      "expected": 7,
+      "name": "cycle7b_7002_held_out_count",
+      "passed": true
+    },
+    {
+      "actual": 7,
+      "expected": 7,
+      "name": "cycle7b_7002_held_out_exact",
+      "passed": true
+    },
+    {
+      "actual": "030516a10354131a",
+      "expected": "030516a10354131a",
+      "name": "cycle7b_7002_hash",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7c_7101_held_out_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7c_7101_post_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7c_7101_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "0bb1b59f651f32eb",
+      "expected": "0bb1b59f651f32eb",
+      "name": "cycle7c_7101_hash",
+      "passed": true
+    },
+    {
+      "actual": "0bb1b59f651f32eb",
+      "expected": "0bb1b59f651f32eb",
+      "name": "cycle7c_7101_probe_hash_match",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7c_7102_held_out_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7c_7102_post_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7c_7102_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "5bc8e066bf1ba522",
+      "expected": "5bc8e066bf1ba522",
+      "name": "cycle7c_7102_hash",
+      "passed": true
+    },
+    {
+      "actual": "5bc8e066bf1ba522",
+      "expected": "5bc8e066bf1ba522",
+      "name": "cycle7c_7102_probe_hash_match",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7d_7201_held_out_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7d_7201_post_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7d_7201_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "93032ff81f0bc258",
+      "expected": "93032ff81f0bc258",
+      "name": "cycle7d_7201_hash",
+      "passed": true
+    },
+    {
+      "actual": "93032ff81f0bc258",
+      "expected": "93032ff81f0bc258",
+      "name": "cycle7d_7201_probe_hash_match",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7d_7202_held_out_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7d_7202_post_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 8,
+      "expected": 8,
+      "name": "cycle7d_7202_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "ba359ad133fe4d3a",
+      "expected": "ba359ad133fe4d3a",
+      "name": "cycle7d_7202_hash",
+      "passed": true
+    },
+    {
+      "actual": "ba359ad133fe4d3a",
+      "expected": "ba359ad133fe4d3a",
+      "name": "cycle7d_7202_probe_hash_match",
+      "passed": true
+    },
+    {
+      "actual": 4,
+      "expected": 4,
+      "name": "cycle7e_all_on_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 4,
+      "expected": 4,
+      "name": "cycle7e_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "be0fc781039a2038",
+      "expected": "be0fc781039a2038",
+      "name": "cycle7e_all_on_hash",
+      "passed": true
+    },
+    {
+      "actual": "be0fc781039a2038",
+      "expected": "be0fc781039a2038",
+      "name": "cycle7e_hash_match",
+      "passed": true
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "cycle7e_ablation_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "29958f0880e662dc",
+      "expected": "29958f0880e662dc",
+      "name": "cycle7e_ablation_hash",
+      "passed": true
+    },
+    {
+      "actual": 4,
+      "expected": 4,
+      "name": "cycle7f_all_on_post_replay_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 4,
+      "expected": 4,
+      "name": "cycle7f_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "89fc3a01a35451e9",
+      "expected": "89fc3a01a35451e9",
+      "name": "cycle7f_all_on_hash",
+      "passed": true
+    },
+    {
+      "actual": "89fc3a01a35451e9",
+      "expected": "89fc3a01a35451e9",
+      "name": "cycle7f_hash_match",
+      "passed": true
+    },
+    {
+      "actual": "be0fc781039a2038",
+      "expected": "be0fc781039a2038",
+      "name": "cycle7f_replay_disabled_hash",
+      "passed": true
+    },
+    {
+      "actual": true,
+      "expected": true,
+      "name": "cycle7f_replay_disabled_growth_zero",
+      "passed": true
+    },
+    {
+      "actual": 1,
+      "expected": 1,
+      "name": "cycle7f_audit_ablation_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "f6dfaabe5eda3d11",
+      "expected": "f6dfaabe5eda3d11",
+      "name": "cycle7f_audit_ablation_hash",
+      "passed": true
+    },
+    {
+      "actual": 4,
+      "expected": 4,
+      "name": "cycle7g_all_on_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": 4,
+      "expected": 4,
+      "name": "cycle7g_from_disk_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "16c29f604e814f58",
+      "expected": "16c29f604e814f58",
+      "name": "cycle7g_all_on_hash",
+      "passed": true
+    },
+    {
+      "actual": "16c29f604e814f58",
+      "expected": "16c29f604e814f58",
+      "name": "cycle7g_hash_match",
+      "passed": true
+    },
+    {
+      "actual": 0,
+      "expected": 0,
+      "name": "cycle7g_ablation_probe_exact",
+      "passed": true
+    },
+    {
+      "actual": "0229fbe5c96d5c3e",
+      "expected": "0229fbe5c96d5c3e",
+      "name": "cycle7g_ablation_hash",
+      "passed": true
+    }
+  ],
+  "date": "2026-05-15",
+  "failed_checks": [],
+  "honest_interpretation": "Fresh post-Cycle-9 carry-forward rerun over the listed substrate rails. This verifies bit-exact hashes and expected held-out/probe/ablation scores for those rails only. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety. It also does not prove A0 predictor usefulness or one-hour policy-scale endurance.",
+  "legacy_input_copies_sha256": {
+    "/tmp/cycle9_carry_forward.iFTdno/legacy_inputs/cycle2.pxstate": "ec9e1dca35f96b0f087d50867eff8c7ae3e3d8a6aa65f639fed52a4f9c37a247",
+    "/tmp/cycle9_carry_forward.iFTdno/legacy_inputs/organic_v0_cycle5_fixture.jsonl": "4a83dd989cd23a691219fc83ef118b0cfb43a35436b9b6887cb259c4989793e7"
+  },
+  "negative_space": {
+    "not_alignment": true,
+    "not_event_log_external_length_anchor": true,
+    "not_sandbox_escape_resistance": true,
+    "not_supply_chain_safety": true,
+    "not_tool_use_safety": true,
+    "not_wrapper_sandbox": true
+  },
+  "rails": {
+    "clean_chat": {
+      "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/eval_live_chat_v0_manifesto_from_v2c7_chat.json",
+      "model_state_hash": "888b7664126b7f5f",
+      "overall": {
+        "cold_exact_rate": 0.0,
+        "count": 5,
+        "exact_rate": 0.2,
+        "mean_sequence_ratio": 0.440734,
+        "random_exact_rate": 0.0
+      }
+    },
+    "cycle6_regression": {
+      "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/eval_cycle6_relations_all_on.json",
+      "model_state_hash": "29958f0880e662dc",
+      "overall": {
+        "cold_exact_rate": 0.0,
+        "count": 30,
+        "exact_rate": 1.0,
+        "mean_sequence_ratio": 1.0,
+        "random_exact_rate": 0.0
+      }
+    },
+    "cycle7b_numeric_interactive": {
+      "7001": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_hidden_rule_cycle7b_seed7001.json",
+        "model_state_hash": "879b7e4f6295fc12",
+        "scorecard": {
+          "count": 21,
+          "exact": 13,
+          "exact_rate": 0.619048,
+          "held_out_count": 7,
+          "held_out_exact": 7,
+          "held_out_exact_rate": 1.0,
+          "support_count": 14,
+          "support_exact": 6,
+          "support_exact_rate": 0.428571
+        }
+      },
+      "7002": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_hidden_rule_cycle7b_seed7002.json",
+        "model_state_hash": "030516a10354131a",
+        "scorecard": {
+          "count": 21,
+          "exact": 13,
+          "exact_rate": 0.619048,
+          "held_out_count": 7,
+          "held_out_exact": 7,
+          "held_out_exact_rate": 1.0,
+          "support_count": 14,
+          "support_exact": 6,
+          "support_exact_rate": 0.428571
+        }
+      }
+    },
+    "cycle7c_symbolic_interactive": {
+      "7101": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_seed7101.json",
+        "from_disk_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "model_state_hash": "0bb1b59f651f32eb",
+        "post_episode_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_probe_seed7101.json",
+        "probe_model_state_hash": "0bb1b59f651f32eb",
+        "scorecard": {
+          "count": 32,
+          "exact": 24,
+          "exact_rate": 0.75,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 24,
+          "support_exact": 16,
+          "support_exact_rate": 0.666667
+        }
+      },
+      "7102": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_seed7102.json",
+        "from_disk_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "model_state_hash": "5bc8e066bf1ba522",
+        "post_episode_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_probe_seed7102.json",
+        "probe_model_state_hash": "5bc8e066bf1ba522",
+        "scorecard": {
+          "count": 32,
+          "exact": 24,
+          "exact_rate": 0.75,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 24,
+          "support_exact": 16,
+          "support_exact_rate": 0.666667
+        }
+      }
+    },
+    "cycle7d_grid_interactive": {
+      "7201": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_seed7201.json",
+        "from_disk_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "model_state_hash": "93032ff81f0bc258",
+        "post_episode_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_probe_seed7201.json",
+        "probe_model_state_hash": "93032ff81f0bc258",
+        "scorecard": {
+          "count": 32,
+          "exact": 24,
+          "exact_rate": 0.75,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 24,
+          "support_exact": 16,
+          "support_exact_rate": 0.666667
+        }
+      },
+      "7202": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_seed7202.json",
+        "from_disk_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "model_state_hash": "ba359ad133fe4d3a",
+        "post_episode_probe": {
+          "count": 8,
+          "exact": 8,
+          "exact_rate": 1.0,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 0,
+          "support_exact": 0,
+          "support_exact_rate": 0.0
+        },
+        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_probe_seed7202.json",
+        "probe_model_state_hash": "ba359ad133fe4d3a",
+        "scorecard": {
+          "count": 32,
+          "exact": 24,
+          "exact_rate": 0.75,
+          "held_out_count": 8,
+          "held_out_exact": 8,
+          "held_out_exact_rate": 1.0,
+          "support_count": 24,
+          "support_exact": 16,
+          "support_exact_rate": 0.666667
+        }
+      }
+    },
+    "cycle7e_text": {
+      "all_on": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_cycle7e.json",
+        "model_state_hash": "be0fc781039a2038",
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "train_after": {
+            "count": 6,
+            "exact": 4,
+            "exact_rate": 0.666667,
+            "mean_sequence_ratio": 0.921498
+          },
+          "train_before": {
+            "count": 6,
+            "exact": 1,
+            "exact_rate": 0.166667,
+            "mean_sequence_ratio": 0.69866
+          }
+        }
+      },
+      "from_disk": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_cycle7e_from_disk_probe.json",
+        "model_state_hash": "be0fc781039a2038",
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          }
+        }
+      },
+      "learning_disabled_ablation": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_cycle7e_ablate_learning.json",
+        "model_state_hash": "29958f0880e662dc",
+        "state_growth": {
+          "connection_feature_count_delta": 0,
+          "connection_nonzero_count_delta": 0,
+          "learned_char_count_delta": 0,
+          "outcome_predictor_nonzero_count_delta": 0,
+          "outcome_predictor_weight_count_delta": 0,
+          "slot_copy_link_count_delta": 0,
+          "trace_count_delta": 0
+        },
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 0,
+            "exact_rate": 0.0,
+            "mean_sequence_ratio": 0.652944
+          },
+          "train_after": {
+            "count": 6,
+            "exact": 0,
+            "exact_rate": 0.0,
+            "mean_sequence_ratio": 0.583566
+          },
+          "train_before": {
+            "count": 6,
+            "exact": 0,
+            "exact_rate": 0.0,
+            "mean_sequence_ratio": 0.583566
+          }
+        }
+      }
+    },
+    "cycle7f_replay": {
+      "all_on": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f.json",
+        "model_state_hash": "89fc3a01a35451e9",
+        "summary_metrics": {
+          "first_pass_train_after": {
+            "count": 6,
+            "exact": 4,
+            "exact_rate": 0.666667,
+            "mean_sequence_ratio": 0.921498
+          },
+          "first_pass_train_before": {
+            "count": 6,
+            "exact": 1,
+            "exact_rate": 0.166667,
+            "mean_sequence_ratio": 0.69866
+          },
+          "post_replay_probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "post_replay_train": {
+            "count": 6,
+            "exact": 6,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "pre_replay_probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "replay_after": {
+            "count": 4,
+            "exact": 2,
+            "exact_rate": 0.5,
+            "mean_sequence_ratio": 0.934783
+          },
+          "replay_before": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          }
+        }
+      },
+      "audit_ablation": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f_audit_ablation.json",
+        "model_state_hash": "f6dfaabe5eda3d11",
+        "summary_metrics": {
+          "first_pass_train_after": {
+            "count": 6,
+            "exact": 4,
+            "exact_rate": 0.666667,
+            "mean_sequence_ratio": 0.921498
+          },
+          "first_pass_train_before": {
+            "count": 6,
+            "exact": 1,
+            "exact_rate": 0.166667,
+            "mean_sequence_ratio": 0.69866
+          },
+          "post_replay_probe": {
+            "count": 4,
+            "exact": 1,
+            "exact_rate": 0.25,
+            "mean_sequence_ratio": 0.725978
+          },
+          "post_replay_train": {
+            "count": 6,
+            "exact": 4,
+            "exact_rate": 0.666667,
+            "mean_sequence_ratio": 0.898699
+          },
+          "pre_replay_probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "replay_after": {
+            "count": 4,
+            "exact": 3,
+            "exact_rate": 0.75,
+            "mean_sequence_ratio": 0.967391
+          },
+          "replay_before": {
+            "count": 4,
+            "exact": 3,
+            "exact_rate": 0.75,
+            "mean_sequence_ratio": 0.967391
+          }
+        }
+      },
+      "from_disk": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f_from_disk_probe.json",
+        "model_state_hash": "89fc3a01a35451e9",
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          }
+        }
+      },
+      "replay_disabled": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f_replay_disabled.json",
+        "model_state_hash": "be0fc781039a2038",
+        "replay_state_growth": {
+          "connection_feature_count_delta": 0,
+          "connection_nonzero_count_delta": 0,
+          "learned_char_count_delta": 0,
+          "outcome_predictor_nonzero_count_delta": 0,
+          "outcome_predictor_weight_count_delta": 0,
+          "slot_copy_link_count_delta": 0,
+          "trace_count_delta": 0
+        },
+        "summary_metrics": {
+          "first_pass_train_after": {
+            "count": 6,
+            "exact": 4,
+            "exact_rate": 0.666667,
+            "mean_sequence_ratio": 0.921498
+          },
+          "first_pass_train_before": {
+            "count": 6,
+            "exact": 1,
+            "exact_rate": 0.166667,
+            "mean_sequence_ratio": 0.69866
+          },
+          "post_replay_probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "post_replay_train": {
+            "count": 6,
+            "exact": 6,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "pre_replay_probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "replay_after": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "replay_before": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          }
+        }
+      }
+    },
+    "cycle7g_raw_spans": {
+      "all_on": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_raw_spans_cycle7g.json",
+        "model_state_hash": "16c29f604e814f58",
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "train_after": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "train_before": {
+            "count": 4,
+            "exact": 2,
+            "exact_rate": 0.5,
+            "mean_sequence_ratio": 0.694194
+          }
+        }
+      },
+      "from_disk": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_raw_spans_cycle7g_from_disk_probe.json",
+        "model_state_hash": "16c29f604e814f58",
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          }
+        }
+      },
+      "raw_span_ablation": {
+        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_raw_spans_cycle7g_ablation.json",
+        "model_state_hash": "0229fbe5c96d5c3e",
+        "summary_metrics": {
+          "probe": {
+            "count": 4,
+            "exact": 0,
+            "exact_rate": 0.0,
+            "mean_sequence_ratio": 0.579181
+          },
+          "train_after": {
+            "count": 4,
+            "exact": 4,
+            "exact_rate": 1.0,
+            "mean_sequence_ratio": 1.0
+          },
+          "train_before": {
+            "count": 4,
+            "exact": 0,
+            "exact_rate": 0.0,
+            "mean_sequence_ratio": 0.426131
+          }
+        }
+      }
+    },
+    "legacy_cycle2_cycle5": {
+      "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/eval_cycle6_legacy_cycle2_cycle5_fixture.json",
+      "evt_mem_test_001_raw": "milaquart arch6",
+      "model_state_hash": "3536309de837d3e2",
+      "overall": {
+        "cold_exact_rate": 0.0,
+        "count": 25,
+        "exact_rate": 0.36,
+        "mean_sequence_ratio": 0.666339,
+        "random_exact_rate": 0.04
+      }
+    }
+  },
+  "run_id": "cycle9-carry-forward-iFTdno",
+  "run_root": "/tmp/cycle9_carry_forward.iFTdno",
+  "schema": "project_x.cycle9_carry_forward_verification.v1",
+  "timeout_per_command": "180s"
+}

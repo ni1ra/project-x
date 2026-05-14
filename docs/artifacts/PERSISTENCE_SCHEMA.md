@@ -1,6 +1,6 @@
 # Persistence Schema - Project X v2
 
-Date: 2026-05-14
+Date: 2026-05-15
 Status: pass-0 runtime implemented for organic-v0. Save/load, append-only event logs, fresh-process round-trip, and Cycle 9 in-process runtime policy evidence are live. This document records the v0/v1/v2 contracts the runtime writes.
 
 ## Purpose
@@ -224,6 +224,7 @@ Rules:
 - `event_content_hash` is computed over the canonical row content before the terminal `event_content_hash` field is added.
 - `prev_event_content_hash` must equal `GENESIS` for the first row and the previous row's `event_content_hash` afterward.
 - Runtime boot/replay-source-log loading walks the v2 chain and rejects content-hash mismatch, prev-hash mismatch, non-v2 rows, and malformed replay state hashes.
+- The v2 chain is internal to one log. It catches content tamper and broken prev-hash links, but it has no external head hash, length anchor, signed manifest, or wrapper-held monotonic sequence yet. A truncate-and-restart chain from `GENESIS` can be internally clean if no external run manifest is consulted; wrapper-level anchoring is future work.
 - `policy_denial:true` rows record hard stops such as schema denial or budget exhaustion. They are evidence records and are not replayable candidates.
 - `denial_reason` must be machine-readable enough to identify the gate that stopped the run.
 - `budget_state` records count budgets for wake commands, sleep ticks, replay candidates, mutation attempts, checkpoints, and file writes. Budget excess hard-stops; it does not warn-and-continue.

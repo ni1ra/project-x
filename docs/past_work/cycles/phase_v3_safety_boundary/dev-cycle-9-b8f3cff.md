@@ -1,7 +1,8 @@
 # Dev Cycle 9 - In-Process Runtime Policy Boundary
 
 Date: 2026-05-15
-Branch: `feat/organic-v0-trace-id-ablation`
+Branch at implementation close: `feat/organic-v0-trace-id-ablation`
+Post-audit working branch: `phase-v3-safety-boundary`
 Implementation commit: `b8f3cff`
 
 ## Scope
@@ -26,6 +27,7 @@ Added for current `sleep-wake` and `daemon-lite` runtime surfaces:
 Primary tracked artifact:
 
 - `run/artifacts/organic-v0/policy_self_test_cycle9.json`
+- `run/artifacts/organic-v0/cycle9_carry_forward_verification.json` (post-audit carry-forward rerun)
 
 Artifact result:
 
@@ -47,7 +49,7 @@ Artifact result:
 Short daemon-lite smoke:
 
 ```bash
-timeout 20s build/organic_v0 --phase daemon-lite --mode test --run-id cycle9-policy-daemon-smoke --daemon-run-seconds 1 --daemon-tick-sleep-ms 0 --policy-tmp-root /tmp/cycle9-policy-daemon-smoke.tpiiaf --out /tmp/cycle9-policy-daemon-smoke.tpiiaf/daemon.json --event-log /tmp/cycle9-policy-daemon-smoke.tpiiaf/daemon.jsonl
+timeout 20s build/organic_v0 --phase daemon-lite --mode test --run-id cycle9-policy-daemon-smoke --daemon-run-seconds 1 --daemon-tick-sleep-ms 0 --policy-tmp-root /tmp/cycle9-policy-daemon-smoke.OPyyy3 --out /tmp/cycle9-policy-daemon-smoke.OPyyy3/daemon.json --event-log /tmp/cycle9-policy-daemon-smoke.OPyyy3/daemon.jsonl
 ```
 
 Daemon smoke result:
@@ -60,7 +62,7 @@ Daemon smoke result:
 - rejected mutations: 93
 - hard stopped: false
 - rollback proofs preserve live state and predictor state
-- artifact path: `/tmp/cycle9-policy-daemon-smoke.tpiiaf/daemon.json`
+- artifact path: `/tmp/cycle9-policy-daemon-smoke.OPyyy3/daemon.json`
 
 ## Tests
 
@@ -69,10 +71,23 @@ Passed:
 ```bash
 timeout 180s build/organic_v0 --phase policy-self-test --mode test --run-id cycle9-policy-self-test --out run/artifacts/organic-v0/policy_self_test_cycle9.json
 make test
-timeout 20s build/organic_v0 --phase daemon-lite --mode test --run-id cycle9-policy-daemon-smoke --daemon-run-seconds 1 --daemon-tick-sleep-ms 0 --policy-tmp-root /tmp/cycle9-policy-daemon-smoke.tpiiaf --out /tmp/cycle9-policy-daemon-smoke.tpiiaf/daemon.json --event-log /tmp/cycle9-policy-daemon-smoke.tpiiaf/daemon.jsonl
+timeout 20s build/organic_v0 --phase daemon-lite --mode test --run-id cycle9-policy-daemon-smoke --daemon-run-seconds 1 --daemon-tick-sleep-ms 0 --policy-tmp-root /tmp/cycle9-policy-daemon-smoke.OPyyy3 --out /tmp/cycle9-policy-daemon-smoke.OPyyy3/daemon.json --event-log /tmp/cycle9-policy-daemon-smoke.OPyyy3/daemon.jsonl
+timeout 180s scripts/verify_cycle9_carry_forward.sh
 ```
 
 The one-hour daemon proof was not rerun because Cycle 9 did not invalidate default daemon duration behavior. Cycle 9 used short full-codepath tests.
+Therefore "policy holds at one-hour scale" is inferred from the short full-codepath policy smoke plus the pre-policy Cycle 8 one-hour daemon proof, not directly measured.
+
+Post-audit carry-forward verification:
+
+- artifact: `run/artifacts/organic-v0/cycle9_carry_forward_verification.json`
+- run root: `/tmp/cycle9_carry_forward.iFTdno`
+- all required checks passed: true
+- cycle-6 regression: 30/30, hash `29958f0880e662dc`
+- clean chat rail: 1/5, hash `888b7664126b7f5f`
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, `evt_mem_test_001` raw `"milaquart arch6"`
+- Cycle 7B/7C/7D held-out/probe rails retained exact scores and pinned hashes
+- Cycle 7E/7F/7G all-on/from-disk/ablation rails retained expected scores and pinned hashes
 
 ## Latent Cycle 8 Notes
 
@@ -94,8 +109,11 @@ In-process policy enforcement; wrapper-level sandbox is a future cycle. This doe
   "not_sandbox_escape_resistance": true,
   "not_wrapper_sandbox": true,
   "not_supply_chain_safety": true,
-  "not_tool_use_safety": true
+  "not_tool_use_safety": true,
+  "not_event_log_external_length_anchor": true
 }
 ```
 
 Remaining risk: path validation rejects traversal, unauthorized roots, and existing symlink components, but it is still in-process and does not claim full TOCTOU protection or wrapper-level sandbox escape resistance.
+
+Event-log integrity remaining risk: v2 `prev_event_content_hash` chaining catches content tamper and broken links inside the log, but it has no external head hash, length anchor, signed run manifest, or wrapper-held monotonic sequence. A truncate-and-restart chain from `GENESIS` can be internally clean if no external run manifest is consulted. Wrapper-level anchoring is future work.

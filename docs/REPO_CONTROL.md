@@ -1,6 +1,6 @@
 # REPO_CONTROL - Project X v2
 
-Date: 2026-05-14
+Date: 2026-05-15
 Status: every tracked source/test/script/non-docs artifact owns a row here, one-line justification per entry. `docs/` is exempt — the live-docs system is self-justifying. `run/state/` is gitignored — local-runtime substrate that regenerates per run.
 
 ## Rule
@@ -29,6 +29,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `scripts/train_organic_v0.sh` | `make -s build/organic_v0 && exec build/organic_v0 --phase train "$@"` — forwards all flags to the native binary |
 | `scripts/eval_organic_v0.sh` | same pattern for `--phase eval`; forwards flags such as `--load-state`, `--save-state`, `--event-log`, and ablations including trace-id, numeric/threshold/modular/relation channels, symbolic/grid channels, text-experience learning/replay, and raw text spans |
 | `scripts/test_organic_v0.sh` | runs substrate self-test, persistence round-trip, and a short full-mode `sleep-wake` JSONL rail under a hard 180s timeout. The runtime smoke uses an explicit per-run `/tmp` root passed through the Cycle 9 policy allowlist. Any failure is `set -e` fatal |
+| `scripts/verify_cycle9_carry_forward.sh` | thin post-audit rail harness: rebuilds `build/organic_v0`, copies legacy `/tmp` inputs into a unique per-run root, reruns cycle-6/chat/legacy/Cycle 7B-G rails under command timeouts, and writes `run/artifacts/organic-v0/cycle9_carry_forward_verification.json` |
 
 ### benchmarks/ — measurement substrate
 
@@ -138,6 +139,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/daemon_lite_cycle8_1h.json` | cycle-8 daemon-lite proof artifact: one native process ran for >=1 hour with periodic checkpoints, v1 event-log records, replay mutation evidence, and final state hash |
 | `run/artifacts/organic-v0/cycle8_organic_metrics.json` | cycle-8 metric comparison artifact: prediction-priority versus fixed-seed random null on predeclared `surprise_reduction`, accepted/rejected mutation counts, checkpoint counts, state-hash chains, and honest A0-unproven interpretation |
 | `run/artifacts/organic-v0/policy_self_test_cycle9.json` | cycle-9 safety-boundary denial/reset artifact: policy ON/OFF controls for path traversal, unauthorized absolute path, shell/network action_kind, replay-source state-hash spoof, event-log integrity tamper, budget exhaustion, rollback live-state + predictor-state preservation, and resettable per-run root hash equality |
+| `run/artifacts/organic-v0/cycle9_carry_forward_verification.json` | cycle-9 post-audit carry-forward artifact: fresh rerun confirms cycle-6 30/30 hash `29958f0880e662dc`, clean chat 1/5 hash `888b7664126b7f5f`, legacy cycle-2 9/25 hash `3536309de837d3e2` with raw `"milaquart arch6"`, and Cycle 7B/C/D/E/F/G rail preservation |
 
 ## Not tracked, on disk
 

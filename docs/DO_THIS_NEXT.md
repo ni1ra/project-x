@@ -1,6 +1,6 @@
 # Do This Next - Project X
 
-Generated: 2026-05-15, after Cycle 9 implementation.
+Generated: 2026-05-15, after Cycle 9 post-audit follow-up.
 
 This file is the immediate queue cut from the phase plan. It is not a cycle archive. Closed cycle evidence belongs in `docs/A_TO_Z_PLAN.md` and `docs/past_work/cycles/`; machine-readable runtime artifacts belong under `run/artifacts/`.
 
@@ -41,9 +41,12 @@ Evidence:
 
 - implementation commit `b8f3cff`
 - denial/reset artifact `run/artifacts/organic-v0/policy_self_test_cycle9.json`
+- post-audit carry-forward artifact `run/artifacts/organic-v0/cycle9_carry_forward_verification.json`
 - reflection `docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-9-b8f3cff.md`
 
 Honest boundary: In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.
+
+Post-audit follow-up closed the carry-forward-rails gap: `timeout 180s scripts/verify_cycle9_carry_forward.sh` freshly reran the cycle-6, clean-chat, legacy cycle-2, Cycle 7B/C/D, and Cycle 7E/F/G rails with all required checks passing. It also names the v2 event-log limit: the internal hash chain has no external head/length anchor yet, so truncate-and-restart resistance remains wrapper-cycle work.
 
 ## Immediate Next: Cycle 10 Wrapper Boundary
 
@@ -55,6 +58,7 @@ Cycle 10 should add:
 - per-run filesystem namespace setup that makes allowed roots physical, not only in-process policy decisions
 - process-level timeout, CPU/memory/file-descriptor limits where available
 - stdout/stderr/event-log capture with immutable run manifest
+- external event-log head/length anchoring, such as a wrapper-held run manifest with final head hash, row count, and monotonic run sequence
 - a wrapper/in-process ablation pair: the same denial cases should be blocked by both layers where meaningful
 - a replay-source-log tamper test where the wrapper preserves evidence after native refusal
 - documentation that native policy is defense-in-depth, not the sandbox
@@ -78,6 +82,7 @@ This remains secondary because a more capable daemon without formal budgets is t
 Every implementation cycle must preserve these rails unless the artifact explicitly diagnoses and justifies a change:
 
 - `make test`
+- post-audit full rail script: `timeout 180s scripts/verify_cycle9_carry_forward.sh`
 - cycle-6 regression: 30/30, hash `29958f0880e662dc`
 - clean chat rail: 1/5, hash `888b7664126b7f5f`
 - legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` output `"milaquart arch6"`

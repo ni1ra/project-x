@@ -4593,8 +4593,8 @@ void write_cycle8_artifact(const std::string& out_path, const Args& args,
   }
   out << "],\n";
   out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": true, \"sleep_audit\": true},\n";
-  out << "  \"negative_space\": {\"not_fluent_chat\": true, \"not_broad_reasoning\": true, \"not_agi\": true, \"not_safety_boundary_solution\": true, \"not_next_token_predictor\": true, \"not_alignment\": true, \"not_sandbox_escape_resistance\": true, \"not_wrapper_sandbox\": true, \"not_supply_chain_safety\": true, \"not_tool_use_safety\": true},\n";
-  out << "  \"honest_interpretation\": \"Cycle 9 in-process policy evidence for the current sleep/wake and daemon-lite runtime surfaces: stdin command schema, count budgets, filesystem roots, v2 event-log chaining, replay-source validation, checkpoint writes, and rollback proofs are handled inside the native process. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.\"\n";
+  out << "  \"negative_space\": {\"not_fluent_chat\": true, \"not_broad_reasoning\": true, \"not_agi\": true, \"not_safety_boundary_solution\": true, \"not_next_token_predictor\": true, \"not_alignment\": true, \"not_sandbox_escape_resistance\": true, \"not_wrapper_sandbox\": true, \"not_supply_chain_safety\": true, \"not_tool_use_safety\": true, \"not_event_log_external_length_anchor\": true},\n";
+  out << "  \"honest_interpretation\": \"Cycle 9 in-process policy evidence for the current sleep/wake and daemon-lite runtime surfaces: stdin command schema, count budgets, filesystem roots, v2 event-log chaining, replay-source validation, checkpoint writes, and rollback proofs are handled inside the native process. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety. The v2 hash chain is internal to the log and has no external length/head anchor yet, so wrapper-level anchoring remains future work.\"\n";
   out << "}\n";
 }
 
@@ -5129,9 +5129,9 @@ void policy_self_test_phase(const Args& args, const std::string& command) {
   out << ", \"writes_subset_allowed_roots\": "
       << (writes_subset_allowed_roots(second_reset.policy) ? "true" : "false")
       << "},\n";
-  out << "  \"negative_space\": {\"not_alignment\": true, \"not_sandbox_escape_resistance\": true, \"not_wrapper_sandbox\": true, \"not_supply_chain_safety\": true, \"not_tool_use_safety\": true},\n";
+  out << "  \"negative_space\": {\"not_alignment\": true, \"not_sandbox_escape_resistance\": true, \"not_wrapper_sandbox\": true, \"not_supply_chain_safety\": true, \"not_tool_use_safety\": true, \"not_event_log_external_length_anchor\": true},\n";
   out << "  \"all_required_checks_passed\": " << (all_ok ? "true" : "false") << ",\n";
-  out << "  \"honest_interpretation\": \"Cycle 9 denial artifact for current daemon-lite/sleep-wake surfaces. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety.\"\n";
+  out << "  \"honest_interpretation\": \"Cycle 9 denial artifact for current daemon-lite/sleep-wake surfaces. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety. The v2 hash chain is internal to the log and has no external length/head anchor yet, so wrapper-level anchoring remains future work.\"\n";
   out << "}\n";
   if (!all_ok) throw std::runtime_error("policy self-test failed required checks");
   std::cout << "wrote " << args.out << "\n";
