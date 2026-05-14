@@ -85,7 +85,7 @@ PXSTATE_V0
 SCHEMA project_x.state_snapshot.v0
 ORGANISM_ID raphael-local-0001
 CREATED_UTC 2026-05-13T00:00:00Z
-CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> derived_relation_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 use_numeric_derived_features=1 use_threshold_derived_features=1 use_modular_derived_features=1 use_relation_projection=1 max_roles=16
+CONFIG dimensions=256 seed=1729 learning_rate=<hex64> top_k=5 max_output_chars=48 trace_gain=<hex64> context_gain=<hex64> derived_relation_gain=<hex64> symbolic_relation_gain=<hex64> grid_spatial_gain=<hex64> transition_gain=<hex64> position_gain=<hex64> state_binding_gain=<hex64> slot_pass_gain=<hex64> segment_mode_gain=<hex64> trace_span_position_gain=<hex64> use_trace_id_feature=1 use_slot_pass_through=1 use_segment_mode=1 use_trace_span_position_features=1 use_numeric_derived_features=1 use_threshold_derived_features=1 use_modular_derived_features=1 use_relation_projection=1 use_symbolic_relation_features=1 use_grid_spatial_features=1 max_roles=16
 TRACES <n>
 T <event_id>|<episode_id>|<split>|<domain>|<level>|<input>|<observation_csv>|<target_output>|<reward_scalar_hex64>|<hdc_vector_hex64_space_list>
 CONNS <n>
@@ -177,6 +177,23 @@ Two CONFIG fields document and gate the behavior:
 - `use_symbolic_relation_features=1|0`
 
 Older snapshots default `symbolic_relation_gain` to `5.0` and `use_symbolic_relation_features` to `0` on load. The interactive symbolic harness explicitly enables the channel after loading the v2-c6 parent unless `--ablate-symbolic-relations` is set, then saves children that persist the enabled flag. State-hash coverage needs no new walker because learned values are ordinary connection rows and traces already persist the observations needed to rebuild symbolic relation caches.
+
+### Cycle-7D extension: grid/spatial CONFIG fields
+
+Cycle 7D adds no new PXSTATE section. It adds cue-bound tiny-grid spatial relation features for 3x3 cell observations:
+
+- roles shaped like `cell_<row>_<col>` with non-empty symbolic fillers are parsed as grid cells
+- matching marker pairs can produce keys such as `horizontal_mirror:yes`, `vertical_mirror:no`, `diagonal_mirror:yes`, and `row_shift:no`
+- relation keys bind only to matching cue tokens such as `horizontal`, `vertical`, `diagonal`, or `row`
+
+The learned answers still live as ordinary character and mode-switch weights in `CONNS` / `SEGMENT_CONNS`. The grid/spatial channel creates feature addresses only; it does not map spatial relations to action labels.
+
+Two CONFIG fields document and gate the behavior:
+
+- `grid_spatial_gain=<hex64>`: persisted gain for cue-bound grid/spatial relation addresses. v2-c7D snapshots write the default value `5.0`.
+- `use_grid_spatial_features=1|0`
+
+Older snapshots default `grid_spatial_gain` to `5.0` and `use_grid_spatial_features` to `0` on load. The interactive grid harness explicitly enables the channel after loading the v2-c6 parent unless `--ablate-grid-spatial` is set, then saves children that persist the enabled flag. State-hash coverage needs no new walker because learned values are ordinary connection rows and traces already persist the observations needed to rebuild grid/spatial relation caches.
 
 ### Cycle-7A extension: continuation learning contract
 

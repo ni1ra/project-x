@@ -1,0 +1,95 @@
+{
+  "schema": "project_x.cycle7d.grid_spatial_ablation.v0",
+  "run_id": "cycle7d-grid-spatial-ablation-20260514",
+  "timestamp_utc": "2026-05-14T03:27:06Z",
+  "ablation_flag": "--ablate-grid-spatial",
+  "baseline_artifacts": [
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_seed7201.json",
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_seed7202.json"
+  ],
+  "ablation_artifacts": [
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_ablate_seed7201.json",
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_ablate_seed7202.json"
+  ],
+  "baseline": {
+    "count": 64,
+    "exact": 48,
+    "held_out_count": 16,
+    "held_out_exact": 16,
+    "support_count": 48,
+    "support_exact": 32,
+    "exact_rate": 0.75,
+    "held_out_exact_rate": 1,
+    "support_exact_rate": 0.6666666666666666
+  },
+  "ablated": {
+    "count": 64,
+    "exact": 6,
+    "held_out_count": 16,
+    "held_out_exact": 3,
+    "support_count": 48,
+    "support_exact": 3,
+    "exact_rate": 0.09375,
+    "held_out_exact_rate": 0.1875,
+    "support_exact_rate": 0.0625
+  },
+  "held_out_delta": -13,
+  "total_delta": -42,
+  "per_seed": [
+    {
+      "seed": 7201,
+      "baseline": {
+        "count": 32,
+        "exact": 24,
+        "exact_rate": 0.750000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 24,
+        "support_exact": 16,
+        "support_exact_rate": 0.666667
+      },
+      "ablated": {
+        "count": 32,
+        "exact": 3,
+        "exact_rate": 0.093750,
+        "held_out_count": 8,
+        "held_out_exact": 2,
+        "held_out_exact_rate": 0.250000,
+        "support_count": 24,
+        "support_exact": 1,
+        "support_exact_rate": 0.041667
+      },
+      "baseline_hash": "93032ff81f0bc258",
+      "ablated_hash": "e41ade83f66b5a27"
+    },
+    {
+      "seed": 7202,
+      "baseline": {
+        "count": 32,
+        "exact": 24,
+        "exact_rate": 0.750000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 24,
+        "support_exact": 16,
+        "support_exact_rate": 0.666667
+      },
+      "ablated": {
+        "count": 32,
+        "exact": 3,
+        "exact_rate": 0.093750,
+        "held_out_count": 8,
+        "held_out_exact": 1,
+        "held_out_exact_rate": 0.125000,
+        "support_count": 24,
+        "support_exact": 2,
+        "support_exact_rate": 0.083333
+      },
+      "baseline_hash": "ba359ad133fe4d3a",
+      "ablated_hash": "634b3df529fc892a"
+    }
+  ],
+  "honest_interpretation": "Disabling cue-bound grid/spatial features collapses held-out grid transfer from 16/16 to 3/16, isolating the new channel as load-bearing."
+}

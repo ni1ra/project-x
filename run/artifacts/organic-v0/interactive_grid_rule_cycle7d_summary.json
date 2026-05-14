@@ -1,0 +1,210 @@
+{
+  "schema": "project_x.cycle7d.interactive_grid_rule_summary.v0",
+  "run_id": "cycle7d-interactive-grid-rule-20260514",
+  "timestamp_utc": "2026-05-14T03:27:06Z",
+  "parent_state_hash": "29958f0880e662dc",
+  "feedback_strength": 2,
+  "grid_spatial_channel": "cue-bound 3x3 cell spatial relation feature addresses",
+  "rule_families": [
+    "horizontal_mirror",
+    "vertical_mirror",
+    "diagonal_mirror",
+    "row_shift"
+  ],
+  "seeds": [
+    7201,
+    7202
+  ],
+  "artifacts": [
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_seed7201.json",
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_seed7202.json"
+  ],
+  "from_disk_probe_artifacts": [
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_probe_seed7201.json",
+    "run/artifacts/organic-v0/interactive_grid_rule_cycle7d_probe_seed7202.json"
+  ],
+  "aggregate": {
+    "count": 64,
+    "exact": 48,
+    "held_out_count": 16,
+    "held_out_exact": 16,
+    "support_count": 48,
+    "support_exact": 32,
+    "exact_rate": 0.75,
+    "held_out_exact_rate": 1,
+    "support_exact_rate": 0.6666666666666666
+  },
+  "aggregate_post_episode_probe": {
+    "count": 16,
+    "exact": 16,
+    "held_out_count": 16,
+    "held_out_exact": 16,
+    "support_count": 0,
+    "support_exact": 0,
+    "exact_rate": 1,
+    "held_out_exact_rate": 1,
+    "support_exact_rate": 0
+  },
+  "per_seed": [
+    {
+      "seed": 7201,
+      "model_state_hash": "93032ff81f0bc258",
+      "scorecard": {
+        "count": 32,
+        "exact": 24,
+        "exact_rate": 0.750000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 24,
+        "support_exact": 16,
+        "support_exact_rate": 0.666667
+      },
+      "by_family": {
+        "diagonal_mirror": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        },
+        "horizontal_mirror": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        },
+        "row_shift": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        },
+        "vertical_mirror": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        }
+      },
+      "post_episode_probe": {
+        "count": 8,
+        "exact": 8,
+        "exact_rate": 1.000000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 0,
+        "support_exact": 0,
+        "support_exact_rate": 0.000000
+      },
+      "failure_trace_count": 8,
+      "from_disk_probe_summary_and_hash_match": true
+    },
+    {
+      "seed": 7202,
+      "model_state_hash": "ba359ad133fe4d3a",
+      "scorecard": {
+        "count": 32,
+        "exact": 24,
+        "exact_rate": 0.750000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 24,
+        "support_exact": 16,
+        "support_exact_rate": 0.666667
+      },
+      "by_family": {
+        "diagonal_mirror": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        },
+        "horizontal_mirror": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        },
+        "row_shift": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        },
+        "vertical_mirror": {
+          "count": 8,
+          "exact": 6,
+          "exact_rate": 0.750000,
+          "held_out_count": 2,
+          "held_out_exact": 2,
+          "held_out_exact_rate": 1.000000,
+          "support_count": 6,
+          "support_exact": 4,
+          "support_exact_rate": 0.666667
+        }
+      },
+      "post_episode_probe": {
+        "count": 8,
+        "exact": 8,
+        "exact_rate": 1.000000,
+        "held_out_count": 8,
+        "held_out_exact": 8,
+        "held_out_exact_rate": 1.000000,
+        "support_count": 0,
+        "support_exact": 0,
+        "support_exact_rate": 0.000000
+      },
+      "failure_trace_count": 8,
+      "from_disk_probe_summary_and_hash_match": true
+    }
+  ],
+  "plain_english_metrics": {
+    "held_out": "new grid layouts answered before feedback",
+    "support": "early adaptation examples where mistakes are expected and preserved",
+    "ablation": "same run with the grid/spatial sense disabled",
+    "from_disk": "saved child state loaded by a fresh process and reprobed"
+  },
+  "oracle_access": {
+    "generation": false,
+    "feedback_after_action": true,
+    "probe_evaluation": true
+  },
+  "honest_interpretation": "Cycle 7D shows learned action transfer on tiny 3x3 spatial relations under feedback. It is not ARC competence, natural chat, math/physics competence, or beyond-human intelligence."
+}

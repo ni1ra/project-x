@@ -1,6 +1,6 @@
 # Do This Next - Project X v2
 
-Generated: 2026-05-14 (post cycle-7C close)
+Generated: 2026-05-14 (post cycle-7D close)
 
 ## Read First
 
@@ -157,3 +157,61 @@ Hard gates:
 - Keep action labels arbitrary and oracle access after action.
 - Update docs and `REPO_CONTROL.md`.
 - Write and sha7-rename the cycle reflection.
+
+## Cycle 7D Closed - Tiny Grid Spatial Rule Rung
+
+Cycle 7D shipped the default option: a tiny 3x3 grid/spatial interactive rung.
+
+Plain-English metric definitions are now in `docs/artifacts/METRIC_GLOSSARY.md`.
+
+Final evidence:
+
+- `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_summary.json`: aggregate held-out 16/16 (`1.000000`) across seeds 7201/7202; total pre-feedback 48/64 (`0.750000`); support pre-feedback 32/48 (`0.666667`); post-episode probes 16/16 (`1.000000`).
+- `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_grid_ablation.json`: `--ablate-grid-spatial` drops held-out to 3/16 (`0.187500`) and total to 6/64 (`0.093750`).
+- `run/artifacts/organic-v0/interactive_grid_rule_cycle7d_probe_seed7201.json` and `_seed7202.json`: fresh loaded child probes match same-process probe summaries and model hashes.
+- `docs/artifacts/CYCLE7D_INTERACTIVE_GRID_RULE.md`: closed interpretation, anti-repetition guard, and negative-space audit.
+
+The mechanism is cue-bound 3x3 cell spatial relation features:
+
+- horizontal mirror
+- vertical mirror
+- diagonal mirror
+- adjacent row shift
+
+The oracle still acts only after generation. The action labels are arbitrary and learned from feedback. This is not ARC, chat, poetry, philosophy, math, physics, or beyond-human ability.
+
+Regression gates after Cycle 7D:
+
+- `make test`: PASS
+- cycle-6 regression: 30/30, hash `29958f0880e662dc`
+- clean chat rail: 1/5, hash `888b7664126b7f5f`
+- legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` `"milaquart arch6"`
+- Cycle 7B numeric interactive regression: seeds 7001/7002 remain 7/7 held-out exact
+- Cycle 7C symbolic interactive regression: seeds 7101/7102 remain 8/8 held-out exact
+
+## Cycle 7E Contract
+
+Default direction: **experience database and organic text rail**.
+
+This is a course correction against repetition hell. Do not keep stacking isolated micro-puzzle channels as the main work. The next major substrate should make Raphael's language path learn from durable experience:
+
+- raw text input
+- generated output
+- correction/feedback
+- event IDs and source trails
+- learned state mutation
+- replayable training records
+- from-disk continuation
+- failure preservation
+
+Candidate close criteria:
+
+- add a native or directly-auditable experience store format for text interactions, separate from benchmark fixtures but compatible with event-log/state loading
+- add a phase that can ingest a small text-interaction experience stream, save a child, reload it, and generate from the child without replaying the stream
+- include a plain chat transcript artifact showing raw model outputs before and after correction
+- include an ablation or replay-off control showing the experience rail is load-bearing
+- keep the clean chat rail visible at 1/5 unless it organically improves
+- do not add response templates, intent trigger lists, answer dispatchers, or a polished voice layer
+- preserve Cycle 7D, Cycle 7C, Cycle 7B, cycle-6, clean-chat, and legacy rails
+
+The goal is not to fake fluent text in one pass. The goal is to create the database-backed learning substrate that makes coherent organic text possible later.

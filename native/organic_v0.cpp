@@ -60,6 +60,12 @@ struct Config {
   // addresses only; arbitrary action labels still have to be learned from feedback.
   // NEGATIVE-SPACE: this never maps color:same, shape:different, etc. to an answer.
   double symbolic_relation_gain = 5.0;
+  // Cycle-7D tiny-grid spatial channel.
+  // WHAT: 3x3 cell observations can activate spatial relation addresses such as
+  // horizontal_mirror:yes or row_shift:no, bound to the cue token in the input.
+  // NEGATIVE-SPACE: no relation-to-action branch; arbitrary labels are still learned
+  // from feedback after action.
+  double grid_spatial_gain = 5.0;
   double transition_gain = 0.65;
   double position_gain = 0.35;
   double state_binding_gain = 1.35;
@@ -125,6 +131,7 @@ struct Config {
   // learned CONNS rows exactly like normal literals.
   bool use_relation_projection = true;
   bool use_symbolic_relation_features = true;
+  bool use_grid_spatial_features = true;
 };
 
 struct Event {
@@ -168,6 +175,7 @@ struct Trace {
   std::vector<std::string> threshold_keys;
   std::vector<std::string> modular_keys;
   std::vector<std::string> symbolic_relation_keys;
+  std::vector<std::string> grid_spatial_keys;
   std::string target_output;
   double reward_scalar = 0.0;
   std::array<double, kDim> vector{};
@@ -580,12 +588,77 @@ std::string symbolic_relation_key_attribute(const std::string& key) {
   return colon == std::string::npos ? std::string() : key.substr(0, colon);
 }
 
+struct GridCell {
+  int row = 0;
+  int col = 0;
+  std::string value;
+};
+
+std::optional<std::pair<int, int>> parse_grid_cell_role(const std::string& role) {
+  constexpr std::string_view prefix = "cell_";
+  if (role.rfind(std::string(prefix), 0) != 0) return std::nullopt;
+  size_t first = role.find('_', prefix.size());
+  if (first == std::string::npos || first + 1 >= role.size()) return std::nullopt;
+  auto row = parse_pure_int(role.substr(prefix.size(), first - prefix.size()));
+  auto col = parse_pure_int(role.substr(first + 1));
+  if (!row.has_value() || !col.has_value()) return std::nullopt;
+  if (*row < 0 || *row > 2 || *col < 0 || *col > 2) return std::nullopt;
+  return std::make_pair(*row, *col);
+}
+
+std::vector<GridCell> grid_cells_from_slots(const std::vector<ObservationSlot>& slots) {
+  std::vector<GridCell> cells;
+  for (const auto& slot : slots) {
+    if (slot.value.empty() || slot.value == "empty" || slot.value == "blank") continue;
+    auto pos = parse_grid_cell_role(slot.type);
+    if (!pos.has_value()) continue;
+    cells.push_back({pos->first, pos->second, slot.value});
+  }
+  return cells;
+}
+
+std::vector<std::string> grid_spatial_keys(const std::vector<ObservationSlot>& slots) {
+  auto cells = grid_cells_from_slots(slots);
+  if (cells.size() < 2) return {};
+  bool horizontal_mirror = false;
+  bool vertical_mirror = false;
+  bool diagonal_mirror = false;
+  bool row_shift = false;
+  for (size_t i = 0; i < cells.size(); ++i) {
+    for (size_t j = i + 1; j < cells.size(); ++j) {
+      const auto& a = cells[i];
+      const auto& b = cells[j];
+      if (a.value != b.value) continue;
+      horizontal_mirror = horizontal_mirror || (a.row == b.row && a.col + b.col == 2 && a.col != b.col);
+      vertical_mirror = vertical_mirror || (a.col == b.col && a.row + b.row == 2 && a.row != b.row);
+      diagonal_mirror = diagonal_mirror || (a.row == b.col && a.col == b.row &&
+                                            (a.row != b.row || a.col != b.col));
+      row_shift = row_shift || (a.row == b.row && std::abs(a.col - b.col) == 1);
+    }
+  }
+  return {
+      std::string("horizontal_mirror:") + (horizontal_mirror ? "yes" : "no"),
+      std::string("vertical_mirror:") + (vertical_mirror ? "yes" : "no"),
+      std::string("diagonal_mirror:") + (diagonal_mirror ? "yes" : "no"),
+      std::string("row_shift:") + (row_shift ? "yes" : "no"),
+  };
+}
+
+std::string grid_spatial_key_cue(const std::string& key) {
+  if (key.rfind("horizontal_mirror:", 0) == 0) return "horizontal";
+  if (key.rfind("vertical_mirror:", 0) == 0) return "vertical";
+  if (key.rfind("diagonal_mirror:", 0) == 0) return "diagonal";
+  if (key.rfind("row_shift:", 0) == 0) return "row";
+  return "";
+}
+
 void refresh_trace_caches(Trace& trace) {
   trace.slots = parse_slots(trace.observations);
   trace.has_numeric_relation_control = has_numeric_relation_control(trace.slots);
   trace.threshold_keys = threshold_relation_keys(trace.slots);
   trace.modular_keys = modular_relation_keys(trace.slots);
   trace.symbolic_relation_keys = symbolic_relation_keys(trace.slots);
+  trace.grid_spatial_keys = grid_spatial_keys(trace.slots);
 }
 
 // Persistence helpers — bit-exact double <-> hex64 so state_hash matches across save/load.
@@ -806,6 +879,16 @@ struct Hdc {
           if (token != symbolic_relation_key_attribute(key)) continue;
           add_atom(vector, "sym-rel-cue:" + token + "|" + key,
                    config.symbolic_relation_gain * 4.0);
+        }
+      }
+    }
+    if (config.use_grid_spatial_features) {
+      auto grid_keys = grid_spatial_keys(slots);
+      for (const auto& token : tokenize(input)) {
+        for (const auto& key : grid_keys) {
+          if (token != grid_spatial_key_cue(key)) continue;
+          add_atom(vector, "grid-spatial-cue:" + token + "|" + key,
+                   config.grid_spatial_gain * 4.0);
         }
       }
     }
@@ -1315,6 +1398,11 @@ class OrganicBrain {
     hdc_ = Hdc{config_};
   }
 
+  void set_grid_spatial_features_enabled(bool enabled) {
+    config_.use_grid_spatial_features = enabled;
+    hdc_ = Hdc{config_};
+  }
+
   // Line-oriented state snapshot. Ugly but loadable + hash-checked, per brief.
   // Bit-exact doubles via hex64-of-IEEE-bits so state_hash matches across save/load.
   void serialize_state(std::ostream& out, const std::string& organism_id) const {
@@ -1332,6 +1420,7 @@ class OrganicBrain {
         << " context_gain=" << double_to_hex(config_.context_gain)
         << " derived_relation_gain=" << double_to_hex(config_.derived_relation_gain)
         << " symbolic_relation_gain=" << double_to_hex(config_.symbolic_relation_gain)
+        << " grid_spatial_gain=" << double_to_hex(config_.grid_spatial_gain)
         << " transition_gain=" << double_to_hex(config_.transition_gain)
         << " position_gain=" << double_to_hex(config_.position_gain)
         << " state_binding_gain=" << double_to_hex(config_.state_binding_gain)
@@ -1347,6 +1436,7 @@ class OrganicBrain {
         << " use_modular_derived_features=" << (config_.use_modular_derived_features ? 1 : 0)
         << " use_relation_projection=" << (config_.use_relation_projection ? 1 : 0)
         << " use_symbolic_relation_features=" << (config_.use_symbolic_relation_features ? 1 : 0)
+        << " use_grid_spatial_features=" << (config_.use_grid_spatial_features ? 1 : 0)
         << " max_roles=" << config_.max_roles
         << "\n";
     out << "TRACES " << traces_.size() << "\n";
@@ -1490,6 +1580,7 @@ class OrganicBrain {
     config_.segment_mode_gain = 0.3;
     config_.derived_relation_gain = 1.0;
     config_.symbolic_relation_gain = 5.0;
+    config_.grid_spatial_gain = 5.0;
     config_.trace_span_position_gain = 0.0;
     config_.use_trace_span_position_features = false;
     config_.use_numeric_derived_features = false;
@@ -1497,6 +1588,7 @@ class OrganicBrain {
     config_.use_modular_derived_features = false;
     config_.use_relation_projection = false;
     config_.use_symbolic_relation_features = false;
+    config_.use_grid_spatial_features = false;
     std::string cfg_line = next_line();
     if (cfg_line.rfind("CONFIG ", 0) != 0) throw std::runtime_error("pxstate: missing CONFIG");
     std::istringstream cfg_stream(cfg_line.substr(7));
@@ -1515,6 +1607,7 @@ class OrganicBrain {
       else if (k == "context_gain") config_.context_gain = hex_to_double(v);
       else if (k == "derived_relation_gain") config_.derived_relation_gain = hex_to_double(v);
       else if (k == "symbolic_relation_gain") config_.symbolic_relation_gain = hex_to_double(v);
+      else if (k == "grid_spatial_gain") config_.grid_spatial_gain = hex_to_double(v);
       else if (k == "transition_gain") config_.transition_gain = hex_to_double(v);
       else if (k == "position_gain") config_.position_gain = hex_to_double(v);
       else if (k == "state_binding_gain") config_.state_binding_gain = hex_to_double(v);
@@ -1530,6 +1623,7 @@ class OrganicBrain {
       else if (k == "use_modular_derived_features") config_.use_modular_derived_features = (v != "0");
       else if (k == "use_relation_projection") config_.use_relation_projection = (v != "0");
       else if (k == "use_symbolic_relation_features") config_.use_symbolic_relation_features = (v != "0");
+      else if (k == "use_grid_spatial_features") config_.use_grid_spatial_features = (v != "0");
       else if (k == "max_roles") config_.max_roles = std::stoi(v);
     }
     // Legacy-default seeding (above) is what makes cycle-2 snapshots reload safely.
@@ -2060,6 +2154,16 @@ class OrganicBrain {
         }
       }
     }
+    if (config_.use_grid_spatial_features) {
+      auto grid_keys = grid_spatial_keys(slots);
+      for (const auto& token : tokens) {
+        for (const auto& key : grid_keys) {
+          if (token != grid_spatial_key_cue(key)) continue;
+          features.push_back({hash_pair("grid-spatial-cue", token + "|" + key),
+                              config_.context_gain * config_.grid_spatial_gain * 4.0});
+        }
+      }
+    }
     return features;
   }
 
@@ -2467,6 +2571,7 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"context_gain\": " << config.context_gain
       << ", \"derived_relation_gain\": " << config.derived_relation_gain
       << ", \"symbolic_relation_gain\": " << config.symbolic_relation_gain
+      << ", \"grid_spatial_gain\": " << config.grid_spatial_gain
       << ", \"transition_gain\": " << config.transition_gain
       << ", \"position_gain\": " << config.position_gain
       << ", \"state_binding_gain\": " << config.state_binding_gain
@@ -2484,6 +2589,8 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"use_relation_projection\": " << (config.use_relation_projection ? "true" : "false")
       << ", \"use_symbolic_relation_features\": "
       << (config.use_symbolic_relation_features ? "true" : "false")
+      << ", \"use_grid_spatial_features\": "
+      << (config.use_grid_spatial_features ? "true" : "false")
       << ", \"max_roles\": " << config.max_roles << "}";
 }
 
@@ -2946,6 +3053,7 @@ struct Args {
   bool ablate_modular_derived = false;
   bool ablate_relation_projection = false;
   bool ablate_symbolic_relations = false;
+  bool ablate_grid_spatial = false;
 };
 
 Args parse_args(int argc, char** argv) {
@@ -2977,6 +3085,7 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--ablate-symbolic-relations" || key == "--ablate-symbolic-relation") {
       args.ablate_symbolic_relations = true;
     }
+    else if (key == "--ablate-grid-spatial") args.ablate_grid_spatial = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
   if (args.phase.empty()) throw std::runtime_error("--phase is required");
@@ -2990,6 +3099,7 @@ void apply_ablations(Config& config, const Args& args) {
   if (args.ablate_modular_derived) config.use_modular_derived_features = false;
   if (args.ablate_relation_projection) config.use_relation_projection = false;
   if (args.ablate_symbolic_relations) config.use_symbolic_relation_features = false;
+  if (args.ablate_grid_spatial) config.use_grid_spatial_features = false;
 }
 
 // Append one JSONL event-log line per the docs/artifacts/PERSISTENCE_SCHEMA.md v0 schema.
@@ -3098,6 +3208,7 @@ void persistence_self_test(const Args& args) {
   if (args.ablate_modular_derived) cmd << " --ablate-modular-derived";
   if (args.ablate_relation_projection) cmd << " --ablate-relation-projection";
   if (args.ablate_symbolic_relations) cmd << " --ablate-symbolic-relations";
+  if (args.ablate_grid_spatial) cmd << " --ablate-grid-spatial";
   int rc = std::system(cmd.str().c_str());
   if (rc != 0) throw std::runtime_error("child persistence-load-verify failed with rc=" + std::to_string(rc));
 
@@ -3433,6 +3544,118 @@ std::vector<HiddenRuleStepSpec> build_symbolic_rule_steps(uint64_t seed, const s
 
 std::vector<HiddenRuleStepSpec> build_symbolic_probe_steps(uint64_t seed, const std::string& family_filter) {
   auto steps = build_symbolic_rule_steps(seed + 1009, family_filter);
+  std::vector<HiddenRuleStepSpec> probes;
+  for (const auto& step : steps) {
+    if (!step.held_out) continue;
+    HiddenRuleStepSpec probe = step;
+    probe.step = static_cast<int>(probes.size());
+    probe.rule_id = "probe_" + probe.rule_id;
+    probes.push_back(std::move(probe));
+  }
+  return probes;
+}
+
+std::string grid_cell_observation(int row, int col, const std::string& value) {
+  return "cell_" + std::to_string(row) + "_" + std::to_string(col) + ":" + value;
+}
+
+std::vector<HiddenRuleStepSpec> build_grid_rule_steps(uint64_t seed, const std::string& family_filter) {
+  std::vector<HiddenRuleStepSpec> steps;
+  auto want = [&](const std::string& family) {
+    return family_filter == "all" || family_filter == family;
+  };
+  auto push = [&](const std::string& family, const std::string& rule_id,
+                  std::pair<int, int> a, std::pair<int, int> b, const std::string& marker,
+                  const std::string& input, const std::string& correct, bool held_out) {
+    HiddenRuleStepSpec spec;
+    spec.family = family;
+    spec.rule_id = rule_id;
+    spec.step = static_cast<int>(steps.size());
+    spec.observations = {
+        grid_cell_observation(a.first, a.second, marker),
+        grid_cell_observation(b.first, b.second, marker),
+    };
+    spec.input = input;
+    spec.correct_action = correct;
+    spec.held_out = held_out;
+    steps.push_back(std::move(spec));
+  };
+
+  const std::vector<std::string> markers = {
+      "red", "blue", "green", "amber", "ivory", "teal", "violet", "cyan",
+      "black", "silver", "gold", "white", "maroon", "navy", "lime", "coral"};
+  auto marker = [&](size_t offset) { return pick_symbolic_value(markers, seed, offset); };
+  using P = std::pair<int, int>;
+  const std::vector<std::pair<P, P>> h_yes = {
+      {{0, 0}, {0, 2}}, {{1, 0}, {1, 2}}, {{2, 0}, {2, 2}}, {{0, 0}, {0, 2}}};
+  const std::vector<std::pair<P, P>> h_no = {
+      {{0, 0}, {1, 0}}, {{0, 0}, {0, 1}}, {{0, 1}, {2, 1}}, {{1, 1}, {2, 2}}};
+  const std::vector<std::pair<P, P>> v_yes = {
+      {{0, 0}, {2, 0}}, {{0, 1}, {2, 1}}, {{0, 2}, {2, 2}}, {{0, 0}, {2, 0}}};
+  const std::vector<std::pair<P, P>> v_no = {
+      {{0, 0}, {0, 2}}, {{0, 0}, {1, 0}}, {{1, 1}, {1, 2}}, {{0, 1}, {1, 2}}};
+  const std::vector<std::pair<P, P>> d_yes = {
+      {{0, 1}, {1, 0}}, {{0, 2}, {2, 0}}, {{1, 2}, {2, 1}}, {{0, 1}, {1, 0}}};
+  const std::vector<std::pair<P, P>> d_no = {
+      {{0, 0}, {0, 2}}, {{0, 0}, {2, 0}}, {{1, 0}, {1, 2}}, {{0, 2}, {2, 2}}};
+  const std::vector<std::pair<P, P>> r_yes = {
+      {{0, 0}, {0, 1}}, {{0, 1}, {0, 2}}, {{1, 0}, {1, 1}}, {{2, 1}, {2, 2}}};
+  const std::vector<std::pair<P, P>> r_no = {
+      {{0, 0}, {0, 2}}, {{0, 0}, {1, 0}}, {{0, 2}, {2, 0}}, {{1, 1}, {2, 1}}};
+  size_t offset = static_cast<size_t>(seed % 3);
+  auto choose = [&](const std::vector<std::pair<P, P>>& layouts, int i) {
+    return layouts[(offset + static_cast<size_t>(i / 2)) % layouts.size()];
+  };
+
+  if (want("horizontal_mirror")) {
+    std::string rule = "grid_horizontal_mirror_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool yes = (i % 2 == 0);
+      bool held_out = i >= 6;
+      auto layout = choose(yes ? h_yes : h_no, i);
+      push("horizontal_mirror", rule, layout.first, layout.second, marker(static_cast<size_t>(i)),
+           "grid rule horizontal mirror", yes ? "haxo" : "mep", held_out);
+    }
+  }
+
+  if (want("vertical_mirror")) {
+    std::string rule = "grid_vertical_mirror_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool yes = (i % 2 == 0);
+      bool held_out = i >= 6;
+      auto layout = choose(yes ? v_yes : v_no, i);
+      push("vertical_mirror", rule, layout.first, layout.second, marker(static_cast<size_t>(8 + i)),
+           "grid rule vertical mirror", yes ? "voro" : "daxu", held_out);
+    }
+  }
+
+  if (want("diagonal_mirror")) {
+    std::string rule = "grid_diagonal_mirror_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool yes = (i % 2 == 0);
+      bool held_out = i >= 6;
+      auto layout = choose(yes ? d_yes : d_no, i);
+      push("diagonal_mirror", rule, layout.first, layout.second, marker(static_cast<size_t>(16 + i)),
+           "grid rule diagonal mirror", yes ? "qira" : "lent", held_out);
+    }
+  }
+
+  if (want("row_shift")) {
+    std::string rule = "grid_row_shift_seed_" + std::to_string(seed);
+    for (int i = 0; i < 8; ++i) {
+      bool yes = (i % 2 == 0);
+      bool held_out = i >= 6;
+      auto layout = choose(yes ? r_yes : r_no, i);
+      push("row_shift", rule, layout.first, layout.second, marker(static_cast<size_t>(24 + i)),
+           "grid rule row shift", yes ? "juno" : "bask", held_out);
+    }
+  }
+
+  return steps;
+}
+
+std::vector<HiddenRuleStepSpec> build_grid_probe_steps(uint64_t seed, const std::string& family_filter) {
+  auto steps = build_grid_rule_steps(seed + 2003, family_filter);
   std::vector<HiddenRuleStepSpec> probes;
   for (const auto& step : steps) {
     if (!step.held_out) continue;
@@ -3946,6 +4169,327 @@ void interactive_symbolic_probe(const Args& args, const std::string& command) {
   out << "}\n";
 }
 
+void interactive_grid_rule(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("interactive-grid-rule requires --out");
+  if (args.action_budget <= 0) throw std::runtime_error("interactive-grid-rule requires positive --action-budget");
+  if (args.feedback_strength <= 0.0) throw std::runtime_error("interactive-grid-rule requires positive --feedback-strength");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  PersistenceContext persistence;
+  persistence.organism_id = args.organism_id;
+  persistence.loaded_state_path = args.load_state;
+  persistence.saved_state_path = args.save_state;
+  persistence.event_log_path = args.event_log;
+  if (!args.load_state.empty()) {
+    load_state_checked(brain, args.load_state);
+    brain.set_grid_spatial_features_enabled(!args.ablate_grid_spatial);
+    persistence.load_status = "loaded_from_disk";
+  }
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+  BrainStateStats parent_stats = capture_state_stats(brain);
+  auto steps = build_grid_rule_steps(args.scenario_seed, args.rule_family);
+  if (steps.empty()) throw std::runtime_error("interactive-grid-rule has no steps for rule family: " + args.rule_family);
+  if (static_cast<int>(steps.size()) > args.action_budget) steps.resize(static_cast<size_t>(args.action_budget));
+
+  std::vector<HiddenRuleActionRecord> history;
+  HiddenRuleScore overall;
+  std::map<std::string, HiddenRuleScore> by_family;
+  history.reserve(steps.size());
+  for (size_t i = 0; i < steps.size(); ++i) {
+    const auto& spec = steps[i];
+    Event action_event;
+    action_event.event_id = "evt_igr_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    action_event.episode_id = "ep_igr_" + spec.rule_id;
+    action_event.split = spec.held_out ? "heldout_interactive" : "support_interactive";
+    action_event.domain = "interactive_grid_rule";
+    action_event.level = spec.held_out ? 3 : 2;
+    action_event.input = spec.input;
+    action_event.observations = spec.observations;
+    action_event.target_output = spec.correct_action;
+    action_event.reward = {{"oracle_feedback", 1.0}};
+    action_event.source = "interactive_grid_rule_oracle_after_action";
+    action_event.composition = spec.family;
+
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(action_event.input, action_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", action_event, gen.output,
+                          spec.correct_action, before, before, "interactive_grid_rule", spec.rule_id);
+
+    Event feedback_event = action_event;
+    feedback_event.split = "train";
+    feedback_event.reward = {{"oracle_feedback", args.feedback_strength}};
+    brain.learn(feedback_event);
+    uint64_t after = brain.state_hash();
+    append_event_log_line(args.event_log, args.organism_id, "learn", feedback_event, spec.correct_action,
+                          spec.correct_action, before, after, "interactive_grid_rule_feedback", spec.rule_id);
+
+    add_hidden_rule_score(overall, spec.held_out, exact);
+    add_hidden_rule_score(by_family[spec.family], spec.held_out, exact);
+    history.push_back({spec, std::move(gen), exact, before, after});
+  }
+
+  BrainStateStats child_stats = capture_state_stats(brain);
+  if (!args.save_state.empty()) {
+    ensure_parent_dir(args.save_state);
+    std::ofstream state_out(args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+    persistence.load_status = args.load_state.empty() ? "interacted_and_saved" : "loaded_then_interacted_and_saved";
+  } else if (args.load_state.empty()) {
+    persistence.load_status = "interactive_grid_rule_no_state_save";
+  } else {
+    persistence.load_status = "loaded_then_interacted_no_state_save";
+  }
+
+  auto probe_steps = build_grid_probe_steps(args.scenario_seed, args.rule_family);
+  std::vector<HiddenRuleActionRecord> probe_history;
+  HiddenRuleScore probe_overall;
+  std::map<std::string, HiddenRuleScore> probe_by_family;
+  for (size_t i = 0; i < probe_steps.size(); ++i) {
+    const auto& spec = probe_steps[i];
+    Event probe_event;
+    probe_event.event_id = "evt_igr_probe_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    probe_event.episode_id = "ep_igr_probe_" + spec.rule_id;
+    probe_event.split = "post_episode_probe";
+    probe_event.domain = "interactive_grid_rule";
+    probe_event.level = 4;
+    probe_event.input = spec.input;
+    probe_event.observations = spec.observations;
+    probe_event.target_output = spec.correct_action;
+    probe_event.reward = {{"oracle_evaluation", 1.0}};
+    probe_event.source = "interactive_grid_rule_probe_oracle_after_generation";
+    probe_event.composition = spec.family;
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(probe_event.input, probe_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", probe_event, gen.output,
+                          spec.correct_action, before, before, "interactive_grid_rule_probe", spec.rule_id);
+    add_hidden_rule_score(probe_overall, true, exact);
+    add_hidden_rule_score(probe_by_family[spec.family], true, exact);
+    probe_history.push_back({spec, std::move(gen), exact, before, before});
+  }
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-igr-" + hex64(fnv1a(ts + hex64(child_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"interactive-grid-rule\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"mode\": " << q(args.mode) << ",\n";
+  out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
+  out << "  \"rule_family\": " << q(args.rule_family) << ",\n";
+  out << "  \"feedback_strength\": " << args.feedback_strength << ",\n";
+  out << "  \"ablation\": {\"grid_spatial\": " << (args.ablate_grid_spatial ? "true" : "false") << "},\n";
+  out << "  \"action_budget\": {\"max_actions\": " << args.action_budget
+      << ", \"actions_taken\": " << history.size() << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"feedback_after_action\": true, \"probe_evaluation\": true},\n";
+  out << "  \"grid_rule_exposure\": \"Input and cell observations do not include the rule truth or correct action; grid/spatial relations are feature addresses only, and oracle feedback is applied after raw generation.\",\n";
+  out << "  \"model_state_hash\": " << q(hex64(child_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state_hash\": " << q(hex64(parent_stats.state_hash)) << ",\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, child_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, parent_stats, child_stats); out << ",\n";
+  out << "  \"persistence\": "; write_persistence_contract(out, persistence); out << ",\n";
+  out << "  \"scorecard\": {\"overall\": "; write_hidden_rule_score(out, overall);
+  out << ", \"by_family\": {";
+  bool first_family = true;
+  for (const auto& item : by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"post_episode_probe_scorecard\": {\"overall\": "; write_hidden_rule_score(out, probe_overall);
+  out << ", \"by_family\": {";
+  first_family = true;
+  for (const auto& item : probe_by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"action_history\": [\n";
+  for (size_t i = 0; i < history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": " << (record.spec.held_out ? "true" : "false")
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"exact_before_feedback\": " << (record.exact ? "true" : "false")
+        << ", \"state_before_hash\": " << q(hex64(record.state_before))
+        << ", \"state_after_feedback_hash\": " << q(hex64(record.state_after_feedback))
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"post_episode_probe_history\": [\n";
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = probe_history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"expected_action\": " << q(record.spec.correct_action)
+        << ", \"exact\": " << (record.exact ? "true" : "false")
+        << ", \"state_hash\": " << q(hex64(record.state_before))
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"failure_traces\": [";
+  bool first_failure = true;
+  for (size_t i = 0; i < history.size(); ++i) {
+    const auto& record = history[i];
+    if (record.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": " << (record.spec.held_out ? "true" : "false")
+        << ", \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"state_before_hash\": " << q(hex64(record.state_before)) << "}";
+    first_failure = false;
+  }
+  for (size_t i = 0; i < probe_history.size(); ++i) {
+    const auto& record = probe_history[i];
+    if (record.exact) continue;
+    if (!first_failure) out << ", ";
+    out << "{\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"held_out\": true"
+        << ", \"probe\": true"
+        << ", \"raw_action\": " << q(record.generation.output)
+        << ", \"correct_action_after_feedback\": " << q(record.spec.correct_action)
+        << ", \"state_before_hash\": " << q(hex64(record.state_before)) << "}";
+    first_failure = false;
+  }
+  out << "],\n";
+  out << "  \"honest_interpretation\": \"Interactive grid-rule micro-harness: the model acts before oracle feedback, then feedback is learned into the same organic-v0 state. Grid/spatial features are relation addresses, not action routes. This is not ARC competence or broad language.\"\n";
+  out << "}\n";
+}
+
+void interactive_grid_probe(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("interactive-grid-probe requires --out");
+  if (args.load_state.empty()) throw std::runtime_error("interactive-grid-probe requires --load-state");
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  load_state_checked(brain, args.load_state);
+  brain.set_grid_spatial_features_enabled(!args.ablate_grid_spatial);
+  BrainStateStats state_stats = capture_state_stats(brain);
+  auto probe_steps = build_grid_probe_steps(args.scenario_seed, args.rule_family);
+  if (probe_steps.empty()) throw std::runtime_error("interactive-grid-probe has no probes for rule family: " + args.rule_family);
+
+  std::vector<HiddenRuleActionRecord> history;
+  HiddenRuleScore overall;
+  std::map<std::string, HiddenRuleScore> by_family;
+  for (size_t i = 0; i < probe_steps.size(); ++i) {
+    const auto& spec = probe_steps[i];
+    Event probe_event;
+    probe_event.event_id = "evt_igr_disk_probe_" + std::to_string(args.scenario_seed) + "_" + std::to_string(i);
+    probe_event.episode_id = "ep_igr_disk_probe_" + spec.rule_id;
+    probe_event.split = "from_disk_probe";
+    probe_event.domain = "interactive_grid_rule";
+    probe_event.level = 4;
+    probe_event.input = spec.input;
+    probe_event.observations = spec.observations;
+    probe_event.target_output = spec.correct_action;
+    probe_event.reward = {{"oracle_evaluation", 1.0}};
+    probe_event.source = "interactive_grid_rule_from_disk_probe";
+    probe_event.composition = spec.family;
+    uint64_t before = brain.state_hash();
+    auto gen = brain.generate(probe_event.input, probe_event.observations);
+    bool exact = (gen.output == spec.correct_action);
+    append_event_log_line(args.event_log, args.organism_id, "generate", probe_event, gen.output,
+                          spec.correct_action, before, before, "interactive_grid_rule_from_disk_probe",
+                          args.load_state);
+    add_hidden_rule_score(overall, true, exact);
+    add_hidden_rule_score(by_family[spec.family], true, exact);
+    history.push_back({spec, std::move(gen), exact, before, before});
+  }
+
+  std::string ts = timestamp_utc();
+  std::string run_id = "organic-v0-igr-probe-" + hex64(fnv1a(ts + hex64(state_stats.state_hash))).substr(0, 12);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  out << "{\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"interactive-grid-probe\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
+  out << "  \"rule_family\": " << q(args.rule_family) << ",\n";
+  out << "  \"loaded_state_path\": " << q(args.load_state) << ",\n";
+  out << "  \"model_state_hash\": " << q(hex64(state_stats.state_hash)) << ",\n";
+  out << "  \"model_state\": "; write_state_stats(out, state_stats); out << ",\n";
+  out << "  \"ablation\": {\"grid_spatial\": " << (args.ablate_grid_spatial ? "true" : "false") << "},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"probe_evaluation\": true},\n";
+  out << "  \"scorecard\": {\"overall\": "; write_hidden_rule_score(out, overall);
+  out << ", \"by_family\": {";
+  bool first_family = true;
+  for (const auto& item : by_family) {
+    if (!first_family) out << ", ";
+    out << q(item.first) << ": ";
+    write_hidden_rule_score(out, item.second);
+    first_family = false;
+  }
+  out << "}},\n";
+  out << "  \"probe_history\": [\n";
+  for (size_t i = 0; i < history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& record = history[i];
+    out << "    {\"step\": " << i
+        << ", \"family\": " << q(record.spec.family)
+        << ", \"rule_id\": " << q(record.spec.rule_id)
+        << ", \"input\": " << q(record.spec.input)
+        << ", \"observations\": [";
+    for (size_t j = 0; j < record.spec.observations.size(); ++j) {
+      if (j) out << ", ";
+      out << q(record.spec.observations[j]);
+    }
+    out << "], \"raw_action\": " << q(record.generation.output)
+        << ", \"expected_action\": " << q(record.spec.correct_action)
+        << ", \"exact\": " << (record.exact ? "true" : "false")
+        << ", \"activated_memory_state\": ";
+    write_generation_evidence(out, record.generation);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"honest_interpretation\": \"Fresh loaded child probe: same grid post-episode probes generated from disk without replaying the interactive episode.\"\n";
+  out << "}\n";
+}
+
 }  // namespace px
 
 int main(int argc, char** argv) {
@@ -3978,6 +4522,14 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "interactive-symbolic-probe") {
       px::interactive_symbolic_probe(args, command);
+      return 0;
+    }
+    if (args.phase == "interactive-grid-rule") {
+      px::interactive_grid_rule(args, command);
+      return 0;
+    }
+    if (args.phase == "interactive-grid-probe") {
+      px::interactive_grid_probe(args, command);
       return 0;
     }
 
