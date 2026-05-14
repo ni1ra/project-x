@@ -83,6 +83,7 @@ Cycle 7B shipped the first native action/feedback rung.
 Final evidence:
 
 - `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_summary.json`: aggregate held-out 14/14 (`1.000000`) across seeds 7001 and 7002; total pre-feedback actions 26/42 (`0.619048`); support pre-feedback actions 12/28 (`0.428571`).
+- `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback_ablation.json`: feedback strength 2.0 scores 14/14 held-out and 26/42 total; feedback strength 1.0 drops to 13/14 held-out and 15/42 total.
 - `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json`: loaded v2-c6 parent, 7/7 held-out, 8 support failure traces, final hash `879b7e4f6295fc12`.
 - `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json`: loaded v2-c6 parent, 7/7 held-out, 8 support failure traces, final hash `030516a10354131a`.
 - The oracle is not in the generation path. It grades and supplies correction only after raw action.
@@ -95,7 +96,7 @@ Pick one:
 
 1. **Promote to a less typed interactive rung.** Extend the native harness to symbolic same/different, role-match, or tiny grid transformation rules where no numeric-derived relation channel can carry the task alone. Close criterion: action history, held-out seeds/rules, failure traces, and a measured ablation showing which substrate carries the win.
 2. **Generalize relation projection beyond topic->object.** Add held-out questions for place/effect and different cue roles while keeping evidence_absence exact. Close criterion: projection works across at least two target roles, with `--ablate-relation-projection` isolating only those families.
-3. **Ablate interactive correction mechanics.** Add a CLI ablation or harness flag for feedback correction strength / parent-prior interference, then rerun seeds 7001/7002. Close criterion: held-out score degrades in a way that explains why cycle 7B needed stronger correction.
+3. **Add replay/consolidation after interaction.** After an interactive episode, replay support failures into a saved child and rerun held-out probes from disk. Close criterion: fresh-child held-out behavior matches same-process behavior, with a replay/correction ablation that degrades predictably.
 
 Default recommendation: option 1. Cycle 7B is still numeric and typed; the next capability proof should make the rule less directly aligned with the existing numeric relation senses.
 

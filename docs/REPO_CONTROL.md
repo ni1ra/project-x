@@ -86,6 +86,9 @@ Every commit owns its delta. File added → row added in the same commit. File d
 | `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json` | cycle-7B native interactive hidden-rule artifact for seed 7001: loaded v2-c6 parent, action-before-feedback history, 7/7 held-out exact, and support failure traces preserved |
 | `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json` | cycle-7B native interactive hidden-rule artifact for seed 7002: loaded v2-c6 parent, action-before-feedback history, 7/7 held-out exact, and support failure traces preserved |
 | `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_summary.json` | cycle-7B aggregate scorecard over seeds 7001/7002: 14/14 held-out exact and 26/42 total pre-feedback exact, with oracle access limited to after-action feedback |
+| `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback1_seed7001.json` | cycle-7B feedback-strength ablation member: seed 7001 rerun with correction strength 1.0 instead of 2.0; preserves the weaker adaptation trace |
+| `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback1_seed7002.json` | cycle-7B feedback-strength ablation member: seed 7002 rerun with correction strength 1.0 instead of 2.0; exposes the held-out modular miss under weaker correction |
+| `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback_ablation.json` | cycle-7B feedback-strength ablation summary: strength 2.0 reaches 14/14 held-out and 26/42 total; strength 1.0 drops to 13/14 held-out and 15/42 total |
 
 ## Not tracked, on disk
 

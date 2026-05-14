@@ -1,8 +1,9 @@
 {
   "schema": "project_x.cycle7b.interactive_hidden_rule_summary.v0",
-  "run_id": "cycle7b-interactive-hidden-rule-20260514T022752",
-  "timestamp_utc": "2026-05-14T02:27:52Z",
+  "run_id": "cycle7b-interactive-hidden-rule-20260514T023234",
+  "timestamp_utc": "2026-05-14T02:32:34Z",
   "parent_state_hash": "29958f0880e662dc",
+  "feedback_strength": 2.0,
   "rule_families": [
     "parity",
     "threshold",

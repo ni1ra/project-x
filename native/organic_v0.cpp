@@ -2856,6 +2856,7 @@ struct Args {
   std::string rule_family = "all";
   uint64_t scenario_seed = 7001;
   int action_budget = 64;
+  double feedback_strength = 2.0;
   bool ablate_trace_id = false;
   bool ablate_numeric_derived = false;
   bool ablate_threshold_derived = false;
@@ -2883,6 +2884,7 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--rule-family") args.rule_family = need_value(key);
     else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
     else if (key == "--action-budget") args.action_budget = std::stoi(need_value(key));
+    else if (key == "--feedback-strength") args.feedback_strength = std::stod(need_value(key));
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
     else if (key == "--ablate-numeric-derived") args.ablate_numeric_derived = true;
     else if (key == "--ablate-threshold-derived") args.ablate_threshold_derived = true;
@@ -3228,6 +3230,7 @@ std::vector<HiddenRuleStepSpec> build_hidden_rule_steps(uint64_t seed, const std
 void interactive_hidden_rule(const Args& args, const std::string& command) {
   if (args.out.empty()) throw std::runtime_error("interactive-hidden-rule requires --out");
   if (args.action_budget <= 0) throw std::runtime_error("interactive-hidden-rule requires positive --action-budget");
+  if (args.feedback_strength <= 0.0) throw std::runtime_error("interactive-hidden-rule requires positive --feedback-strength");
 
   Config config;
   apply_ablations(config, args);
@@ -3278,7 +3281,7 @@ void interactive_hidden_rule(const Args& args, const std::string& command) {
 
     Event feedback_event = action_event;
     feedback_event.split = "train";
-    feedback_event.reward = {{"oracle_feedback", 2.0}};
+    feedback_event.reward = {{"oracle_feedback", args.feedback_strength}};
     brain.learn(feedback_event);
     uint64_t after = brain.state_hash();
     append_event_log_line(args.event_log, args.organism_id, "learn", feedback_event, spec.correct_action,
@@ -3319,6 +3322,7 @@ void interactive_hidden_rule(const Args& args, const std::string& command) {
   out << "  \"mode\": " << q(args.mode) << ",\n";
   out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
   out << "  \"rule_family\": " << q(args.rule_family) << ",\n";
+  out << "  \"feedback_strength\": " << args.feedback_strength << ",\n";
   out << "  \"action_budget\": {\"max_actions\": " << args.action_budget
       << ", \"actions_taken\": " << history.size() << "},\n";
   out << "  \"oracle_access\": {\"generation\": false, \"feedback_after_action\": true},\n";

@@ -95,6 +95,15 @@ Regression gates after implementation:
 - manifesto-safe live chat: 1/5 (`0.200000`), hash `888b7664126b7f5f`
 - legacy cycle-2 snapshot on cycle-5 fixture: 9/25 (`0.360000`), hash `3536309de837d3e2`, raw `"milaquart arch6"`
 
+Feedback-strength ablation:
+
+- Artifact: `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback_ablation.json`
+- Baseline `--feedback-strength 2.0`: 14/14 held-out, 26/42 total
+- Ablated `--feedback-strength 1.0`: 13/14 held-out, 15/42 total
+- Delta: -1 held-out exact, -11 total exact
+
+This makes the adaptation claim more falsifiable: stronger correction pressure is load-bearing when the loaded parent initially prefers old labels.
+
 ## Negative Space
 
 Cycle 7B does not add:
@@ -130,6 +139,7 @@ The 7B claim would be weakened or false if:
 - held-out actions were scored after feedback rather than before
 - event logs lacked generate/learn ordering
 - support failures were hidden
+- lowering correction strength had no measurable effect
 - cycle-6, chat, or legacy regression gates moved silently
 
 ## What Remains

@@ -1,0 +1,33 @@
+{
+  "schema": "project_x.cycle7b.feedback_strength_ablation.v0",
+  "run_id": "cycle7b-feedback-strength-ablation-20260514T023234",
+  "timestamp_utc": "2026-05-14T02:32:34Z",
+  "parent_state_hash": "29958f0880e662dc",
+  "baseline": {
+    "feedback_strength": 2.0,
+    "artifacts": [
+      "run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7001.json",
+      "run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_seed7002.json"
+    ],
+    "held_out_exact": 14,
+    "held_out_count": 14,
+    "overall_exact": 26,
+    "overall_count": 42
+  },
+  "ablation": {
+    "feedback_strength": 1.0,
+    "artifacts": [
+      "run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback1_seed7001.json",
+      "run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback1_seed7002.json"
+    ],
+    "held_out_exact": 13,
+    "held_out_count": 14,
+    "overall_exact": 15,
+    "overall_count": 42
+  },
+  "delta": {
+    "held_out_exact_delta": 1,
+    "overall_exact_delta": 11
+  },
+  "honest_interpretation": "Lowering feedback strength from 2.0 to 1.0 weakens loaded-parent adaptation: held-out drops from 14/14 to 13/14 and total pre-feedback exact drops from 26/42 to 15/42. This supports the claim that correction plasticity, not a hidden answer route, carries cycle 7B adaptation."
+}

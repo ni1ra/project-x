@@ -72,6 +72,13 @@ Each seed by family:
 - threshold held-out: 2/2
 - modular held-out: 3/3
 
+Feedback-strength ablation:
+
+- artifact: `run/artifacts/organic-v0/interactive_hidden_rule_cycle7b_feedback_ablation.json`
+- baseline `--feedback-strength 2.0`: 14/14 held-out, 26/42 total
+- ablated `--feedback-strength 1.0`: 13/14 held-out, 15/42 total
+- delta: -1 held-out exact, -11 total exact
+
 Regression gates:
 
 - `make test`: PASS, hash `29958f0880e662dc`, output `"mila quartz pier6"`
@@ -91,7 +98,7 @@ This is not ARC-grid competence. The rules are still typed numeric relations and
 
 This is not natural language fluency. The clean chat regression remains 1/5.
 
-This is not a claim that all old priors are solved. It shows a correction strength that can override them inside this harness.
+This is not a claim that all old priors are solved. It shows a correction strength that can override them inside this harness, and the feedback-strength ablation shows that correction pressure is load-bearing.
 
 ## Falsification
 
