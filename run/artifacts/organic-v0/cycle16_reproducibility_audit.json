@@ -1,0 +1,11 @@
+{
+  "all_samples_match": true,
+  "comparison_method": "raw_generated_output string equality across 128/128 samples; raw_output_fnv1a64 also checked",
+  "fresh_process_artifact": "/tmp/cycle16-audits/cycle16_regen.json",
+  "fresh_process_sample_count": 128,
+  "honest_interpretation": "Cycle 16 fresh-process regeneration confirms PXNN v2 state + deterministic sampler produce bit-exact output identical to the in-process generation batch. This proves reproducibility, not language quality.",
+  "in_process_artifact": "run/artifacts/organic-v0/cycle16_recurrent_text_train.json",
+  "in_process_sample_count": 128,
+  "mismatch_count": 0,
+  "schema": "project_x.cycle16_reproducibility_audit.v0"
+}
