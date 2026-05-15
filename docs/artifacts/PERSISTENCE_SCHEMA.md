@@ -391,6 +391,183 @@ Rules:
 - If a source artifact has runtime evidence but no stored user-facing raw generated text, use `not_runtime_generation_yet:true`, an empty `raw_model_output`, and `expected_output:null`.
 - The bridge exists to make the First Output Rule auditable across cycles. It is not a fluency benchmark, not philosophy, and not a subjective quality claim.
 
+## Philosophy Prompts JSONL v0
+
+Cycle 11 adds an unlabeled voice-pressure prompt store. Schema name:
+
+```text
+project_x.philosophy_prompt.v0
+```
+
+Tracked path:
+
+```text
+experience/organic-v0/philosophy_prompts_v0.jsonl
+```
+
+Each line:
+
+```json
+{
+  "schema": "project_x.philosophy_prompt.v0",
+  "prompt_id": "c11p_001",
+  "prompt_text": "what does arin remember carrying",
+  "observations": [
+    "raw_utterance:what does arin remember carrying",
+    "person:arin",
+    "object:copper key",
+    "theme:memory"
+  ],
+  "source": "cycle11_voice_pressure",
+  "composition": "memory_carry_reflection"
+}
+```
+
+Rules:
+
+- Prompt records are input pressure only. They must not contain `label`, `labels`, `correction_output`, `expected_output`, `target_output`, `reward`, or `score`.
+- `observations` may include typed fields and raw utterance fields, but they are not answer routes. The generator still emits from learned connection state.
+- These prompts are not a benchmark and not a curriculum. They are an unlabeled probe surface for raw generation.
+
+## Cycle 11 Probe State Manifest v0
+
+Cycle 11 names the persisted states used by the quote probe without tracking the gitignored state snapshots. Schema name:
+
+```text
+project_x.cycle11_probe_state.v0
+```
+
+Tracked path:
+
+```text
+experience/organic-v0/cycle11_probe_states_v0.jsonl
+```
+
+Each line:
+
+```json
+{
+  "schema": "project_x.cycle11_probe_state.v0",
+  "state_id": "cycle7e_text_child",
+  "state_path": "run/state/organic-v0/snapshots/raphael-local-0001/cycle7e-text-experience.pxstate",
+  "source_artifact_path": "run/artifacts/organic-v0/text_experience_cycle7e.json",
+  "lineage": "cycle-7E typed text-experience child"
+}
+```
+
+Rules:
+
+- `state_path` points to local runtime substrate under `run/state/`, which is intentionally gitignored.
+- Consumers must verify the loaded state's embedded hash against the recomputed state hash before trusting outputs.
+- The manifest is lineage metadata only. It does not bless a state as semantically good or philosophically capable.
+
+## Quote Per State Cycle 11 v0
+
+Cycle 11 raw voice-pressure artifact schema:
+
+```text
+project_x.quote_per_state_cycle11.v0
+```
+
+Tracked artifacts:
+
+```text
+run/artifacts/organic-v0/quote_per_state_cycle11.json
+run/artifacts/organic-v0/quote_per_state_cycle11_transcript.md
+run/artifacts/organic-v0/cycle11_voice_pressure_event_log.jsonl
+run/artifacts/organic-v0/cycle11_voice_pressure_manifest.json
+run/artifacts/organic-v0/cycle11_voice_pressure_verification.json
+```
+
+Core shape:
+
+```json
+{
+  "schema": "project_x.quote_per_state_cycle11.v0",
+  "run_id": "cycle11-voice-pressure",
+  "phase": "quote-probe",
+  "prompt_db_path": "experience/organic-v0/philosophy_prompts_v0.jsonl",
+  "state_manifest_path": "experience/organic-v0/cycle11_probe_states_v0.jsonl",
+  "generation_budget": {
+    "legacy_max_output_chars": 48,
+    "runtime_max_output_chars": 160,
+    "runtime_override_applied": true,
+    "loaded_state_hash_excludes_generation_cap": true
+  },
+  "oracle_access": {
+    "generation": false,
+    "correction_after_generation": false,
+    "expected_outputs_present": false,
+    "semantic_quality_scoring": false
+  },
+  "states": [
+    {
+      "state_id": "cycle7e_text_child",
+      "state_path": "run/state/organic-v0/snapshots/raphael-local-0001/cycle7e-text-experience.pxstate",
+      "loaded_state_hash": "be0fc781039a2038",
+      "hash_self_check": true,
+      "active_max_output_chars": 160,
+      "outputs": [
+        {
+          "prompt_id": "c11p_001",
+          "prompt_text": "what does arin remember carrying",
+          "raw_generated_output": "arin carries copper key",
+          "output_char_count": 22,
+          "state_unchanged": true,
+          "activated_memory_state": {}
+        }
+      ]
+    }
+  ],
+  "summary_metrics": {
+    "state_count": 5,
+    "prompt_count": 12,
+    "generation_count": 60,
+    "nonempty_output_count": 60,
+    "outputs_exceeding_legacy_48_char_cap": 4
+  },
+  "larger_budget_result": {
+    "at_least_one_output_exceeded_legacy_cap": true
+  }
+}
+```
+
+Rules:
+
+- `quote-probe` is read-only: each output records equal `state_hash_before` and `state_hash_after`.
+- The runtime generation cap may be overridden for probing after state load; this must not mutate the loaded state hash.
+- Every generated row must also be represented in the v2 event log, and the Cycle 10 wrapper manifest must anchor row count, tail `event_content_hash`, binary sha256, and output artifact sha256.
+- `summary_metrics` are mechanical counts only. Do not add semantic quality scores or subjective self-grades.
+- `larger_budget_result` must honestly say whether raising the budget actually produced output beyond the old 48-character cap.
+- Negative space is binding: this is not philosophy, not fluent chat, not semantic understanding, not A0 improvement, not sandbox/security, not template generation, and not a pretrained model.
+
+## Cycle 11 Voice Pressure Verification v0
+
+Cycle 11 verification artifact schema:
+
+```text
+project_x.cycle11_voice_pressure_verification.v0
+```
+
+Tracked path:
+
+```text
+run/artifacts/organic-v0/cycle11_voice_pressure_verification.json
+```
+
+Required checks:
+
+- prompt DB records contain no label/correction/expected/reward/score keys
+- quote artifact schema, state count, prompt count, and generation count match the run contract
+- runtime budget override is recorded as 160 characters
+- all loaded state hashes self-check
+- all generation calls leave state unchanged
+- at least one output is nonempty
+- at least one output exceeds the old 48-character cap, or the artifact explicitly records that none did
+- v2 event-log row count equals generation count and prev-hash continuity holds
+- wrapper manifest has no denial, exit code 0, row count/tail hash matching the event log, and output artifact SHA matching the quote artifact bytes
+- static A0 boundary check confirms `OrganicBrain::generate()` does not read predictor/replay-priority symbols
+
 ## Text Experience JSONL v0
 
 Cycle 7E adds a durable text-interaction experience store separate from benchmark fixtures.

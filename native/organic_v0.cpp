@@ -177,6 +177,23 @@ struct TextExperienceRecord {
   std::string composition = "text_experience";
 };
 
+struct VoicePromptRecord {
+  std::string schema;
+  std::string prompt_id;
+  std::string prompt_text;
+  std::vector<std::string> observations;
+  std::string source;
+  std::string composition = "voice_pressure";
+};
+
+struct ProbeStateRecord {
+  std::string schema;
+  std::string state_id;
+  std::string state_path;
+  std::string source_artifact_path;
+  std::string lineage;
+};
+
 struct ObservationSlot {
   std::string type;
   std::string value;
@@ -557,6 +574,40 @@ TextExperienceRecord parse_text_experience_record(const std::string& line) {
   return record;
 }
 
+VoicePromptRecord parse_voice_prompt_record(const std::string& line) {
+  static const std::vector<std::string> kForbiddenKeys = {
+      "\"label\"", "\"labels\"", "\"correction_output\"", "\"expected_output\"",
+      "\"target_output\"", "\"reward\"", "\"score\""};
+  for (const auto& key : kForbiddenKeys) {
+    if (line.find(key) != std::string::npos) {
+      throw std::runtime_error("voice prompt record contains forbidden key " + key);
+    }
+  }
+  VoicePromptRecord record;
+  if (auto schema = maybe_get_string(line, "schema")) record.schema = *schema;
+  record.prompt_id = get_string(line, "prompt_id");
+  record.prompt_text = get_string(line, "prompt_text");
+  if (line.find("\"observations\"") != std::string::npos) {
+    record.observations = get_string_array(line, "observations");
+  }
+  if (record.observations.empty()) {
+    record.observations = {"raw_utterance:" + record.prompt_text};
+  }
+  record.source = maybe_get_string(line, "source").value_or("cycle11_voice_pressure");
+  if (auto composition = maybe_get_string(line, "composition")) record.composition = *composition;
+  return record;
+}
+
+ProbeStateRecord parse_probe_state_record(const std::string& line) {
+  ProbeStateRecord record;
+  if (auto schema = maybe_get_string(line, "schema")) record.schema = *schema;
+  record.state_id = get_string(line, "state_id");
+  record.state_path = get_string(line, "state_path");
+  record.source_artifact_path = maybe_get_string(line, "source_artifact_path").value_or("");
+  record.lineage = maybe_get_string(line, "lineage").value_or("");
+  return record;
+}
+
 Event event_from_text_experience(const TextExperienceRecord& record,
                                  bool include_raw_text_spans = false) {
   Event event;
@@ -573,6 +624,21 @@ Event event_from_text_experience(const TextExperienceRecord& record,
   }
   event.target_output = record.correction_output;
   event.reward = record.reward;
+  event.source = record.source;
+  event.composition = record.composition;
+  return event;
+}
+
+Event event_from_voice_prompt(const VoicePromptRecord& record) {
+  Event event;
+  event.event_id = record.prompt_id;
+  event.episode_id = "cycle11_voice_pressure";
+  event.split = "probe";
+  event.domain = "voice_pressure";
+  event.level = 0;
+  event.input = record.prompt_text;
+  event.observations = record.observations;
+  event.target_output = "";
   event.source = record.source;
   event.composition = record.composition;
   return event;
@@ -931,6 +997,50 @@ std::vector<TextExperienceRecord> load_text_experience_records(const std::string
       auto record = parse_text_experience_record(line);
       if (record.split != "train" && record.split != "probe") {
         throw std::runtime_error("split must be train or probe");
+      }
+      records.push_back(std::move(record));
+    } catch (const std::exception& e) {
+      throw std::runtime_error(path + ":" + std::to_string(line_no) + ": " + e.what());
+    }
+  }
+  return records;
+}
+
+std::vector<VoicePromptRecord> load_voice_prompt_records(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) throw std::runtime_error("cannot open voice prompt database: " + path);
+  std::vector<VoicePromptRecord> records;
+  std::string line;
+  int line_no = 0;
+  while (std::getline(in, line)) {
+    ++line_no;
+    if (line.empty()) continue;
+    try {
+      auto record = parse_voice_prompt_record(line);
+      if (record.prompt_id.empty() || record.prompt_text.empty()) {
+        throw std::runtime_error("prompt_id and prompt_text are required");
+      }
+      records.push_back(std::move(record));
+    } catch (const std::exception& e) {
+      throw std::runtime_error(path + ":" + std::to_string(line_no) + ": " + e.what());
+    }
+  }
+  return records;
+}
+
+std::vector<ProbeStateRecord> load_probe_state_records(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) throw std::runtime_error("cannot open probe state manifest: " + path);
+  std::vector<ProbeStateRecord> records;
+  std::string line;
+  int line_no = 0;
+  while (std::getline(in, line)) {
+    ++line_no;
+    if (line.empty()) continue;
+    try {
+      auto record = parse_probe_state_record(line);
+      if (record.state_id.empty() || record.state_path.empty()) {
+        throw std::runtime_error("state_id and state_path are required");
       }
       records.push_back(std::move(record));
     } catch (const std::exception& e) {
@@ -1580,6 +1690,11 @@ class OrganicBrain {
 
   void set_outcome_predictor_enabled(bool enabled) {
     config_.use_outcome_predictor = enabled;
+  }
+
+  void set_max_output_chars(int max_output_chars) {
+    if (max_output_chars <= 0) throw std::runtime_error("max_output_chars must be positive");
+    config_.max_output_chars = max_output_chars;
   }
 
   // Cycle-8 A0 boundary: prediction is a side substrate for replay priority and confidence.
@@ -3393,6 +3508,7 @@ struct Args {
   std::string organism_id = "raphael-local-0001";
   std::string rule_family = "all";
   std::string experience_db = "experience/organic-v0/text_experience_seed_v0.jsonl";
+  std::string state_manifest;
   std::string transcript_out;
   uint64_t scenario_seed = 7001;
   uint64_t random_baseline_seed = 8801;
@@ -3404,6 +3520,7 @@ struct Args {
   int checkpoint_interval_seconds = 60;
   int checkpoint_interval_ticks = 100;
   int internal_timeout_seconds = 180;
+  int generation_max_output_chars = 0;
   int policy_max_wake_commands = 1024;
   int policy_max_sleep_ticks = 100000;
   int policy_max_replay_candidates = 10000;
@@ -3464,6 +3581,7 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--organism-id") args.organism_id = need_value(key);
     else if (key == "--rule-family") args.rule_family = need_value(key);
     else if (key == "--experience-db") args.experience_db = need_value(key);
+    else if (key == "--state-manifest") args.state_manifest = need_value(key);
     else if (key == "--transcript-out") args.transcript_out = need_value(key);
     else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
     else if (key == "--random-baseline-seed") args.random_baseline_seed = std::stoull(need_value(key));
@@ -3477,6 +3595,9 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--checkpoint-interval-seconds") args.checkpoint_interval_seconds = std::stoi(need_value(key));
     else if (key == "--checkpoint-interval-ticks") args.checkpoint_interval_ticks = std::stoi(need_value(key));
     else if (key == "--internal-timeout-seconds") args.internal_timeout_seconds = std::stoi(need_value(key));
+    else if (key == "--generation-max-output-chars") {
+      args.generation_max_output_chars = parse_nonnegative_int_flag(key, need_value(key));
+    }
     else if (key == "--policy-max-wake-commands") args.policy_max_wake_commands = std::stoi(need_value(key));
     else if (key == "--policy-max-sleep-ticks") args.policy_max_sleep_ticks = std::stoi(need_value(key));
     else if (key == "--policy-max-replay-candidates") args.policy_max_replay_candidates = std::stoi(need_value(key));
@@ -5134,6 +5255,218 @@ void policy_self_test_phase(const Args& args, const std::string& command) {
   out << "  \"honest_interpretation\": \"Cycle 9 denial artifact for current daemon-lite/sleep-wake surfaces. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety. The v2 hash chain is internal to the log and has no external length/head anchor yet, so wrapper-level anchoring remains future work.\"\n";
   out << "}\n";
   if (!all_ok) throw std::runtime_error("policy self-test failed required checks");
+  std::cout << "wrote " << args.out << "\n";
+}
+
+void write_string_array_json(std::ostream& out, const std::vector<std::string>& values);
+
+void write_quote_probe_transcript_header(std::ostream& out, const Args& args,
+                                         const std::string& transcript_path) {
+  out << "# Cycle 11 Voice Pressure Transcript\n\n";
+  out << "Generated: " << timestamp_utc() << "\n\n";
+  out << "Prompt database: `" << args.experience_db << "`\n\n";
+  out << "State manifest: `" << args.state_manifest << "`\n\n";
+  out << "Artifact: `" << args.out << "`\n\n";
+  out << "Runtime max output chars: "
+      << (args.generation_max_output_chars > 0 ? std::to_string(args.generation_max_output_chars)
+                                               : std::string("loaded-state default"))
+      << "\n\n";
+  out << "This transcript preserves raw organic-v0 generation from loaded persisted states. "
+      << "The prompts have no labels, corrections, expected outputs, or semantic scoring.\n\n";
+  out << "Transcript path: `" << transcript_path << "`\n";
+}
+
+void quote_probe_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("quote-probe requires --out");
+  if (args.experience_db.empty()) throw std::runtime_error("quote-probe requires --experience-db");
+  if (args.state_manifest.empty()) throw std::runtime_error("quote-probe requires --state-manifest");
+  if (args.generation_max_output_chars < 0) {
+    throw std::runtime_error("--generation-max-output-chars cannot be negative");
+  }
+
+  std::string run_id = args.run_id.empty() ? "cycle11-voice-pressure" : args.run_id;
+  auto prompts = load_voice_prompt_records(args.experience_db);
+  auto states = load_probe_state_records(args.state_manifest);
+  if (prompts.empty()) throw std::runtime_error("quote-probe prompt database is empty");
+  if (states.empty()) throw std::runtime_error("quote-probe state manifest is empty");
+
+  RuntimePolicy policy = RuntimePolicy::from_args(args);
+  policy.note_file_write("quote_probe_artifact", args.out);
+  std::string transcript_path = args.transcript_out.empty()
+                                    ? args.out + ".transcript.md"
+                                    : args.transcript_out;
+  policy.note_file_write("quote_probe_transcript", transcript_path);
+  if (!args.event_log.empty()) {
+    policy.note_file_write("quote_probe_event_log_truncate", args.event_log);
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+
+  ensure_parent_dir(transcript_path);
+  std::ofstream transcript(transcript_path);
+  if (!transcript) throw std::runtime_error("cannot open transcript: " + transcript_path);
+  write_quote_probe_transcript_header(transcript, args, transcript_path);
+
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  if (!out) throw std::runtime_error("cannot open quote-probe artifact: " + args.out);
+
+  std::string ts = timestamp_utc();
+  int generation_count = 0;
+  int nonempty_count = 0;
+  int outputs_exceeding_legacy_cap = 0;
+  size_t max_output_char_count = 0;
+  bool all_state_hash_self_checks = true;
+  bool all_generations_state_unchanged = true;
+
+  out << "{\n";
+  out << "  \"schema\": \"project_x.quote_per_state_cycle11.v0\",\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"quote-probe\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"prompt_db_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"state_manifest_path\": " << q(args.state_manifest) << ",\n";
+  out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
+  out << "  \"event_log_path\": " << (args.event_log.empty() ? "null" : q(args.event_log)) << ",\n";
+  out << "  \"generation_budget\": {\"legacy_max_output_chars\": 48, \"runtime_max_output_chars\": "
+      << (args.generation_max_output_chars > 0 ? args.generation_max_output_chars : 0)
+      << ", \"runtime_override_applied\": "
+      << (args.generation_max_output_chars > 0 ? "true" : "false")
+      << ", \"loaded_state_hash_excludes_generation_cap\": true},\n";
+  out << "  \"raw_text_span_sense\": {\"enabled\": "
+      << (args.derive_raw_text_spans && !args.ablate_raw_text_spans ? "true" : "false")
+      << ", \"derive_flag\": " << (args.derive_raw_text_spans ? "true" : "false")
+      << ", \"ablation_flag\": " << (args.ablate_raw_text_spans ? "true" : "false")
+      << ", \"max_span_tokens\": 8, \"max_span_len\": 3},\n";
+  out << "  \"oracle_access\": {\"generation\": false, \"correction_after_generation\": false, "
+      << "\"expected_outputs_present\": false, \"semantic_quality_scoring\": false},\n";
+  out << "  \"a0_boundary\": {\"generator_predictor_blind\": true, "
+      << "\"evidence\": \"OrganicBrain::generate remains separate from predict_outcome; verify_cycle11_voice_pressure.sh checks the generate() body for predictor tokens.\"},\n";
+  out << "  \"negative_space\": {\"not_philosophy\": true, \"not_fluent_chat\": true, "
+      << "\"not_semantic_understanding\": true, \"not_a0_improvement\": true, "
+      << "\"not_sandbox_or_security\": true, \"not_template_generation\": true, "
+      << "\"not_pretrained_model\": true},\n";
+  out << "  \"states\": [\n";
+
+  for (size_t si = 0; si < states.size(); ++si) {
+    const auto& state = states[si];
+    Config config;
+    apply_ablations(config, args);
+    OrganicBrain brain(config);
+    load_state_checked(brain, state.state_path);
+    uint64_t loaded_hash = brain.state_hash();
+    uint64_t expected_hash = brain.expected_state_hash();
+    bool hash_self_check = loaded_hash == expected_hash;
+    all_state_hash_self_checks = all_state_hash_self_checks && hash_self_check;
+    int loaded_max_output_chars = brain.config().max_output_chars;
+    if (args.generation_max_output_chars > 0) {
+      brain.set_max_output_chars(args.generation_max_output_chars);
+    }
+    int active_max_output_chars = brain.config().max_output_chars;
+    BrainStateStats state_stats = capture_state_stats(brain);
+
+    if (si) out << ",\n";
+    out << "    {\"state_id\": " << q(state.state_id)
+        << ", \"state_path\": " << q(state.state_path)
+        << ", \"source_artifact_path\": " << q(state.source_artifact_path)
+        << ", \"lineage\": " << q(state.lineage)
+        << ", \"loaded_state_hash\": " << q(hex64(loaded_hash))
+        << ", \"expected_state_hash\": " << q(hex64(expected_hash))
+        << ", \"hash_self_check\": " << (hash_self_check ? "true" : "false")
+        << ", \"loaded_max_output_chars\": " << loaded_max_output_chars
+        << ", \"active_max_output_chars\": " << active_max_output_chars
+        << ", \"model_state\": ";
+    write_state_stats(out, state_stats);
+    out << ", \"outputs\": [\n";
+
+    transcript << "\n\n## " << state.state_id << "\n\n";
+    transcript << "- state path: `" << state.state_path << "`\n";
+    transcript << "- loaded state hash: `" << hex64(loaded_hash) << "`\n";
+    transcript << "- active max output chars: " << active_max_output_chars << "\n";
+
+    for (size_t pi = 0; pi < prompts.size(); ++pi) {
+      const auto& prompt = prompts[pi];
+      Event event = event_from_voice_prompt(prompt);
+      if (args.derive_raw_text_spans && !args.ablate_raw_text_spans) {
+        auto spans = raw_text_span_observations(prompt.prompt_text);
+        event.observations.insert(event.observations.end(), spans.begin(), spans.end());
+      }
+      uint64_t before_hash = brain.state_hash();
+      auto gen = brain.generate(event.input, event.observations);
+      uint64_t after_hash = brain.state_hash();
+      bool state_unchanged = before_hash == after_hash;
+      all_generations_state_unchanged = all_generations_state_unchanged && state_unchanged;
+      if (!args.event_log.empty()) {
+        OutcomePrediction prediction = brain.predict_outcome(event.input, event.observations);
+        append_event_log_v2(args.event_log, policy, run_id, args.organism_id,
+                            state.state_id + "__" + prompt.prompt_id, "quote_probe",
+                            "generate", event, gen.output, "", true, prediction, nullptr,
+                            gen.activations, {}, before_hash, after_hash,
+                            "cycle11_voice_prompt", args.experience_db);
+      }
+
+      ++generation_count;
+      if (!gen.output.empty()) ++nonempty_count;
+      max_output_char_count = std::max(max_output_char_count, gen.output.size());
+      bool exceeds_legacy = gen.output.size() > 48;
+      if (exceeds_legacy) ++outputs_exceeding_legacy_cap;
+
+      if (pi) out << ",\n";
+      out << "      {\"prompt_id\": " << q(prompt.prompt_id)
+          << ", \"prompt_text\": " << q(prompt.prompt_text)
+          << ", \"observations\": ";
+      write_string_array_json(out, event.observations);
+      out << ", \"source\": " << q(prompt.source)
+          << ", \"composition\": " << q(prompt.composition)
+          << ", \"raw_generated_output\": " << q(gen.output)
+          << ", \"output_char_count\": " << gen.output.size()
+          << ", \"exceeds_legacy_48_char_cap\": " << (exceeds_legacy ? "true" : "false")
+          << ", \"state_hash_before\": " << q(hex64(before_hash))
+          << ", \"state_hash_after\": " << q(hex64(after_hash))
+          << ", \"state_unchanged\": " << (state_unchanged ? "true" : "false")
+          << ", \"activated_memory_state\": ";
+      write_generation_evidence(out, gen);
+      out << "}";
+
+      transcript << "\n### " << prompt.prompt_id << "\n\n";
+      transcript << "- prompt: `" << prompt.prompt_text << "`\n";
+      transcript << "- observations: ";
+      for (size_t oi = 0; oi < event.observations.size(); ++oi) {
+        if (oi) transcript << ", ";
+        transcript << "`" << event.observations[oi] << "`";
+      }
+      transcript << "\n";
+      transcript << "- raw output: `" << display_output(gen.output) << "`\n";
+      transcript << "- char count: " << gen.output.size() << "\n";
+      transcript << "- state unchanged: " << (state_unchanged ? "true" : "false") << "\n";
+    }
+    out << "\n    ]}";
+  }
+
+  out << "\n  ],\n";
+  out << "  \"summary_metrics\": {\"state_count\": " << states.size()
+      << ", \"prompt_count\": " << prompts.size()
+      << ", \"generation_count\": " << generation_count
+      << ", \"nonempty_output_count\": " << nonempty_count
+      << ", \"max_output_char_count\": " << max_output_char_count
+      << ", \"outputs_exceeding_legacy_48_char_cap\": " << outputs_exceeding_legacy_cap
+      << ", \"all_state_hash_self_checks\": "
+      << (all_state_hash_self_checks ? "true" : "false")
+      << ", \"all_generations_state_unchanged\": "
+      << (all_generations_state_unchanged ? "true" : "false") << "},\n";
+  out << "  \"larger_budget_result\": {\"at_least_one_output_exceeded_legacy_cap\": "
+      << (outputs_exceeding_legacy_cap > 0 ? "true" : "false")
+      << ", \"honest_note\": "
+      << q(outputs_exceeding_legacy_cap > 0
+               ? "At least one raw output crossed the old 48-character cap under the runtime generation budget."
+               : "The runtime budget was raised, but current learned state still ended outputs at or before the old 48-character cap.")
+      << "},\n";
+  out << "  \"honest_interpretation\": \"Cycle 11 quote-probe loads persisted organic-v0 states and asks unlabeled raw prompts under a runtime-only longer generation cap. Outputs are raw and unscored; nonempty text proves only that learned state emitted characters, not philosophy, semantic understanding, fluent chat, or A0 improvement.\"\n";
+  out << "}\n";
+
+  if (!all_state_hash_self_checks) throw std::runtime_error("quote-probe state hash self-check failed");
+  if (!all_generations_state_unchanged) throw std::runtime_error("quote-probe generation mutated state");
   std::cout << "wrote " << args.out << "\n";
 }
 
@@ -7360,6 +7693,10 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "policy-self-test") {
       px::policy_self_test_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "quote-probe") {
+      px::quote_probe_phase(args, command);
       return 0;
     }
     if (args.phase == "sleep-wake" || args.phase == "daemon-lite") {
