@@ -24,8 +24,8 @@ Diagnostic move (advisor + lain "knock socks off Demis" steer): scale from 1 sou
 
 Cycle-1 ship (4 new files, no edits to Cycle 12B v0 files — rail isolation):
 
-- `experience/organic-v0/cycle16_corpus_sources.jsonl` — Cycle 16 multi-source descriptors (1/3 authored: Austen Pride and Prejudice #1342, 1813, sha256 `212c4047137af6855be612024988dc8fe82d4720e7ac7e2ed4311427a57eabdb`, 772,389 raw bytes)
-- `experience/organic-v0/cycle16_corpus_manifest.jsonl` — Cycle 16 shard manifest (22,034 rows from 1 source)
+- `experience/organic-v0/cycle16_corpus_sources.jsonl` — Cycle 16 multi-source descriptors (3 of 3 authored after cycle-1 over-ship: Austen P&P #1342, Darwin Origin #1228, Shakespeare Sonnets #1041; all sha256-anchored)
+- `experience/organic-v0/cycle16_corpus_manifest.jsonl` — Cycle 16 shard manifest (48,025 rows across 3 sources)
 - `scripts/prepare_cycle16_corpus.sh` — fork of prepare_cycle12 with multi-source iteration; reuses Cycle 12B filter + split + dedup + canonicalization discipline verbatim; SEPARATE manifest file preserves Cycle 12B `verify_cycle12_corpus.sh` carry-forward rail (hardcoded single-source assertion)
 - `run/artifacts/organic-v0/cycle16_corpus_prepare.json` — schema `project_x.cycle16_corpus_prepare.v1`
 
@@ -47,16 +47,15 @@ Honest boundary: cycle 1 ships rail infrastructure + 1 source. It does not prove
 
 Cycle 2 finishes the corpus-prep half of Cycle 16. Substantive code work (native training extension to multi-source manifest) starts cycle 3.
 
+Cycle 1 over-shipped: all 3 source descriptors + full multi-source manifest landed in cycle 1. Cycle 2 work shifts to **verifier scaffolding + REPO_CONTROL upkeep + native training extension prep**.
+
 Acceptance gates for godify-cycle 2:
 
-1. Append 2 source descriptors to `experience/organic-v0/cycle16_corpus_sources.jsonl`:
-   - Darwin Origin #1228 (sha256 anchor above)
-   - Shakespeare Sonnets #1041 (sha256 anchor above)
-2. Re-run `scripts/prepare_cycle16_corpus.sh` over all 3 sources; expect `cycle16_corpus_manifest.jsonl` to grow with new rows; existing Austen rows MUST NOT mutate (append-only rail).
-3. Inspect new aggregate stats in `run/artifacts/organic-v0/cycle16_corpus_prepare.json`: per-source candidate/accepted/rejected breakdown, cross-source dedup rate (a sonnet text shared between any sources would be rejected as duplicate).
-4. Author `scripts/verify_cycle16_text_scaling.sh` scaffold — verifier shape that asserts (a) cycle16_corpus_sources.jsonl schema, (b) at least 1 cycle16 source, (c) per-row schema validation against `project_x.corpus_manifest.v0`, (d) source-id known set check, (e) deterministic split-bucket reproducibility from canonicalization hash.
-5. Run `scripts/verify_cycle12_corpus.sh` after every change — Cycle 12B rail must stay green.
-6. Add `experience/organic-v0/cycle16_corpus_sources.jsonl`, `experience/organic-v0/cycle16_corpus_manifest.jsonl`, `scripts/prepare_cycle16_corpus.sh`, `run/artifacts/organic-v0/cycle16_corpus_prepare.json` to `docs/REPO_CONTROL.md` (REPO_CONTROL upkeep vow — co-land file + row in same commit).
+1. Author `scripts/verify_cycle16_text_scaling.sh` (verifier scaffold) — asserts: (a) `cycle16_corpus_sources.jsonl` schema, (b) at least one cycle16 source descriptor, (c) per-manifest-row schema validation against `project_x.corpus_manifest.v0`, (d) source-id known set check, (e) deterministic split-bucket reproducibility from canonicalization hash, (f) per-shard sha256/canonicalization-hash/dedup-hash recomputation, (g) cross-source dedup integrity check.
+2. Add Cycle 16 rows to `docs/REPO_CONTROL.md` (REPO_CONTROL upkeep vow — file + row co-land): `experience/organic-v0/cycle16_corpus_sources.jsonl`, `experience/organic-v0/cycle16_corpus_manifest.jsonl`, `scripts/prepare_cycle16_corpus.sh`, `run/artifacts/organic-v0/cycle16_corpus_prepare.json`, `scripts/verify_cycle16_text_scaling.sh` (when authored).
+3. Begin recon on `native/organic_v0.cpp` `neural-recurrent-text` phase to identify where multi-manifest read (Cycle 12 + Cycle 16) needs to be added. The Cycle 15 training reads from a single corpus_manifest path; Cycle 16 training needs to accept BOTH cycle12 + cycle16 manifests and union accepted-train shards.
+4. Re-run the full carry-forward rail set (`make test` + `verify_cycle9..15_*.sh`) to confirm zero regression introduced by cycle-1 work.
+5. Smart-commit per logical unit; atomic conventional commit body with WHY/HOW/VERIFY.
 
 Negative-space block for cycle 2:
 
