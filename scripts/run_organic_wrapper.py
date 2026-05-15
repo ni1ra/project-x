@@ -123,7 +123,13 @@ def compare_prior(current: dict[str, Any], prior_path: str | None) -> dict[str, 
     wrapper_denial = False
     prior_count = None
     prior_hash = None
+    prior_binary_sha256 = None
+    prior_event_log_path = None
+    prior_wrapper_version = None
     details = {
+        "wrapper_version_match": None,
+        "binary_sha256_match": None,
+        "event_log_path_match": None,
         "row_count_match": None,
         "final_hash_match": None,
     }
@@ -134,13 +140,31 @@ def compare_prior(current: dict[str, Any], prior_path: str | None) -> dict[str, 
         else:
             prior_count = prior.get("event_log_row_count")
             prior_hash = prior.get("event_log_last_event_content_hash")
+            prior_binary_sha256 = prior.get("binary_sha256")
+            prior_event_log_path = prior.get("event_log_path")
+            prior_wrapper_version = prior.get("wrapper_version")
+            wrapper_version_match = prior_wrapper_version == current.get("wrapper_version")
+            binary_sha256_match = prior_binary_sha256 == current.get("binary_sha256")
+            event_log_path_match = prior_event_log_path == current.get("event_log_path")
             row_count_match = prior_count == current.get("event_log_row_count")
             final_hash_match = prior_hash == current.get("event_log_last_event_content_hash")
             details = {
+                "wrapper_version_match": wrapper_version_match,
+                "binary_sha256_match": binary_sha256_match,
+                "event_log_path_match": event_log_path_match,
                 "row_count_match": row_count_match,
                 "final_hash_match": final_hash_match,
             }
-            if not row_count_match:
+            if not wrapper_version_match:
+                verdict = "mismatch_wrapper_version"
+                wrapper_denial = True
+            elif not binary_sha256_match:
+                verdict = "mismatch_binary_sha256"
+                wrapper_denial = True
+            elif not event_log_path_match:
+                verdict = "mismatch_event_log_path"
+                wrapper_denial = True
+            elif not row_count_match:
                 verdict = "mismatch_row_count"
                 wrapper_denial = True
             elif not final_hash_match:
@@ -154,6 +178,9 @@ def compare_prior(current: dict[str, Any], prior_path: str | None) -> dict[str, 
         "prior_manifest_load_status": status,
         "prior_event_log_row_count": prior_count,
         "prior_event_log_last_event_content_hash": prior_hash,
+        "prior_binary_sha256": prior_binary_sha256,
+        "prior_event_log_path": prior_event_log_path,
+        "prior_wrapper_version": prior_wrapper_version,
         "prior_manifest_path": str(realpath(prior_path)) if prior_path else None,
         "prior_mismatch_denial": wrapper_denial,
     }
@@ -211,14 +238,32 @@ def main(argv: list[str]) -> int:
     stderr_tail = ""
     wrapper_denial = False
     wrapper_denial_reason = ""
+    preflight_denial_reasons: list[str] = []
     rejected_manifest_out_path: str | None = None
+    rejected_output_artifact_path: str | None = None
+    rejected_event_log_path: str | None = None
     valid_manifest_out = manifest_out
 
     if manifest_out and not validate_inside_roots(manifest_out, allowed_roots):
-        wrapper_denial = True
-        wrapper_denial_reason = f"manifest-out resolves outside allowed write roots: {manifest_out}"
+        preflight_denial_reasons.append(f"manifest-out resolves outside allowed write roots: {manifest_out}")
         rejected_manifest_out_path = str(manifest_out)
         valid_manifest_out = None
+
+    output_artifact_path = str(realpath(output_artifact_arg)) if output_artifact_arg else None
+    if output_artifact_arg and not validate_inside_roots(realpath(output_artifact_arg), allowed_roots):
+        preflight_denial_reasons.append(
+            f"out resolves outside allowed write roots: {realpath(output_artifact_arg)}"
+        )
+        rejected_output_artifact_path = str(realpath(output_artifact_arg))
+    if event_log_arg and not validate_inside_roots(realpath(event_log_arg), allowed_roots):
+        preflight_denial_reasons.append(
+            f"event-log resolves outside allowed write roots: {realpath(event_log_arg)}"
+        )
+        rejected_event_log_path = str(realpath(event_log_arg))
+
+    if preflight_denial_reasons:
+        wrapper_denial = True
+        wrapper_denial_reason = "; ".join(preflight_denial_reasons)
 
     if not binary_path.is_file() and not wrapper_denial:
         wrapper_denial = True
@@ -252,8 +297,14 @@ def main(argv: list[str]) -> int:
             wrapper_denial = True
             wrapper_denial_reason = f"wrapper launch failed: {exc}"
 
+    binary_sha256 = sha256_file(binary_path)
     event_log = read_event_log(event_log_arg)
-    prior = compare_prior(event_log, args.prior_manifest)
+    current_anchor = {
+        **event_log,
+        "binary_sha256": binary_sha256,
+        "wrapper_version": WRAPPER_VERSION,
+    }
+    prior = compare_prior(current_anchor, args.prior_manifest)
     if prior["prior_mismatch_denial"]:
         wrapper_denial = True
         if prior["wrapper_truncate_detect_verdict"] == "prior_missing":
@@ -264,7 +315,6 @@ def main(argv: list[str]) -> int:
                 f"{prior['wrapper_truncate_detect_verdict']}"
             )
 
-    output_artifact_path = str(realpath(output_artifact_arg)) if output_artifact_arg else None
     output_artifact_sha256 = sha256_file(realpath(output_artifact_arg)) if output_artifact_arg else None
     duration = time.monotonic() - start_monotonic
     end_time = utc_now()
@@ -274,7 +324,7 @@ def main(argv: list[str]) -> int:
         "run_id": args.run_id,
         "wrapper_version": WRAPPER_VERSION,
         "binary_path": str(binary_path),
-        "binary_sha256": sha256_file(binary_path),
+        "binary_sha256": binary_sha256,
         "command": [str(binary_path), *args.forwarded_args],
         "forwarded_args": args.forwarded_args,
         "start_time_utc": start_time,
@@ -290,6 +340,9 @@ def main(argv: list[str]) -> int:
         "default_manifest_path": str(default_manifest),
         "manifest_out_path": str(manifest_out) if manifest_out else None,
         "rejected_manifest_out_path": rejected_manifest_out_path,
+        "rejected_output_artifact_path": rejected_output_artifact_path,
+        "rejected_event_log_path": rejected_event_log_path,
+        "preflight_denial_reasons": preflight_denial_reasons,
         "binary_launched": binary_launched,
         "wrapper_denial": wrapper_denial,
         "wrapper_denial_reason": wrapper_denial_reason,

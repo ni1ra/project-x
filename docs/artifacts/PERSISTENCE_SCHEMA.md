@@ -274,10 +274,24 @@ Shape:
   "output_artifact_path": "/abs/path/out.json",
   "output_artifact_sha256": "<sha256-or-null>",
   "allowed_write_roots": ["/abs/project-root"],
+  "rejected_manifest_out_path": null,
+  "rejected_output_artifact_path": null,
+  "rejected_event_log_path": null,
+  "preflight_denial_reasons": [],
   "wrapper_denial": false,
   "wrapper_denial_reason": "",
   "wrapper_truncate_detect_verdict": "not_checked",
+  "wrapper_truncate_detect_details": {
+    "wrapper_version_match": null,
+    "binary_sha256_match": null,
+    "event_log_path_match": null,
+    "row_count_match": null,
+    "final_hash_match": null
+  },
   "prior_manifest_path": null,
+  "prior_wrapper_version": null,
+  "prior_binary_sha256": null,
+  "prior_event_log_path": null,
   "prior_event_log_row_count": null,
   "prior_event_log_last_event_content_hash": null,
   "negative_space": {
@@ -296,9 +310,11 @@ Rules:
 
 - The wrapper always writes the default manifest before exit, including binary non-zero exits, wrapper denials, timeouts, missing event logs, and unreadable event logs.
 - `--manifest-out` is an optional additional copy. It is validated with `realpath` against `--allowed-write-root`; an out-of-root `--manifest-out` denies before launch but still writes the default manifest.
+- Forwarded `--out` and `--event-log` paths are also validated with `realpath` against `--allowed-write-root` before launch. Out-of-root forwarded write paths deny before launch and are recorded in `rejected_output_artifact_path` or `rejected_event_log_path`.
 - `event_log_last_event_content_hash` is the truncate-detect anchor. It is the last row's JSON field value, not a wrapper recomputation.
-- `event_log_row_count` and `event_log_last_event_content_hash` must both match a prior manifest for `wrapper_truncate_detect_verdict:"match"`. A mismatch sets `wrapper_denial:true`.
-- `binary_sha256` binds the manifest to the launched binary bytes for future binary-substitution checks.
+- `wrapper_version`, `binary_sha256`, `event_log_path`, `event_log_row_count`, and `event_log_last_event_content_hash` must all match a prior manifest for `wrapper_truncate_detect_verdict:"match"`.
+- Mismatch verdicts are `mismatch_wrapper_version`, `mismatch_binary_sha256`, `mismatch_event_log_path`, `mismatch_row_count`, and `mismatch_final_hash`. Any mismatch sets `wrapper_denial:true`.
+- `binary_sha256` binds prior-manifest comparison to the launched binary bytes; a binary substitution is rejected even if row count and tail hash happen to match.
 - This closes the Event Log JSONL v2 negative-space item `not_event_log_external_length_anchor:true` for current short wrapper-run surfaces only: daemon-lite and sleep-wake style runs invoked through the wrapper.
 - Honest interpretation: wrapper-lite anchors event-log row count and tail hash. It is not sandboxing, not security, not alignment solved, not tool-use safety solved, and not a full resource limit.
 
@@ -322,6 +338,7 @@ Shape:
 - `restart_manifest`: inline M2 run manifest after the event log was truncated to zero and daemon-lite restarted with `--prior-manifest <M1>`.
 - `comparison_verdict`: wrapper verdict, wrapper exit code, binary exit code inside the wrapper, and row/hash match booleans.
 - `native_alone_control`: direct native daemon-lite invocation on a zero-length log, proving the native v2 chain alone can start a fresh internally clean chain.
+- `hardening_controls`: synthetic controls proving prior `binary_sha256` and `event_log_path` mismatches deny even when row count and final hash match.
 - `checks`, `failed_checks`, `all_required_checks_passed`: machine-readable gate results.
 - `honest_interpretation`: states that the contribution is external row-count/tail anchoring, not sandbox escape resistance.
 
@@ -332,7 +349,8 @@ Mechanical protocol:
 3. Run wrapper restart with the same daemon-lite surface and `--prior-manifest <M1>`.
 4. Require native binary exit code `0` inside M2 and wrapper exit non-zero because M1 and M2 row count and/or final `event_content_hash` do not match.
 5. Run the native binary without wrapper on a zero-length log and require exit code `0`.
-6. Store M1, M2, the native-alone control, and the honest interpretation in the tracked artifact.
+6. Run synthetic prior-manifest controls where row count and final hash match but `binary_sha256` or `event_log_path` differs, and require wrapper denial.
+7. Store M1, M2, the native-alone control, hardening controls, and the honest interpretation in the tracked artifact.
 
 ## Text Generation Highlights v0
 

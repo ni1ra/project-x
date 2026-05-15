@@ -106,8 +106,74 @@ run_cmd truncate_native_alone_control "$BIN" \
 NATIVE_ALONE_RC=$?
 set -e
 
+HARDEN_ROOT="$RUN_ROOT/hardening"
+mkdir -p "$HARDEN_ROOT"
+TRUE_BIN="$(type -P true || command -v true)"
+HARDEN_LOG="$HARDEN_ROOT/static-log.jsonl"
+HARDEN_BASE="$HARDEN_ROOT/baseline.json"
+HARDEN_PRIOR_BINARY="$HARDEN_ROOT/prior-binary-mismatch.json"
+HARDEN_PRIOR_LOG_PATH="$HARDEN_ROOT/prior-log-path-mismatch.json"
+HARDEN_BINARY_MISMATCH="$HARDEN_ROOT/binary-mismatch.json"
+HARDEN_LOG_PATH_MISMATCH="$HARDEN_ROOT/log-path-mismatch.json"
+printf '{"event_content_hash":"0000000000000000"}\n' > "$HARDEN_LOG"
+run_cmd hardening_static_baseline "$WRAPPER" \
+  --binary "$TRUE_BIN" \
+  --run-id cycle10-hardening-static-baseline \
+  --timeout-seconds "$WRAPPER_TIMEOUT_SECONDS" \
+  --allowed-write-root "$ROOT" \
+  --allowed-write-root "$HARDEN_ROOT" \
+  --manifest-out "$HARDEN_BASE" \
+  -- \
+  --event-log "$HARDEN_LOG"
+
+HARDEN_BASE="$HARDEN_BASE" HARDEN_PRIOR_BINARY="$HARDEN_PRIOR_BINARY" \
+HARDEN_PRIOR_LOG_PATH="$HARDEN_PRIOR_LOG_PATH" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+base = json.loads(Path(os.environ["HARDEN_BASE"]).read_text())
+binary_mismatch = dict(base)
+binary_mismatch["binary_sha256"] = "0" * 64
+Path(os.environ["HARDEN_PRIOR_BINARY"]).write_text(json.dumps(binary_mismatch, indent=2, sort_keys=True) + "\n")
+log_path_mismatch = dict(base)
+log_path_mismatch["event_log_path"] = "/tmp/project-x-cycle10-intentional-different-log.jsonl"
+Path(os.environ["HARDEN_PRIOR_LOG_PATH"]).write_text(json.dumps(log_path_mismatch, indent=2, sort_keys=True) + "\n")
+PY
+
+set +e
+run_wrapper_allow_fail hardening_binary_sha_mismatch "$WRAPPER" \
+  --binary "$TRUE_BIN" \
+  --run-id cycle10-hardening-binary-mismatch \
+  --timeout-seconds "$WRAPPER_TIMEOUT_SECONDS" \
+  --allowed-write-root "$ROOT" \
+  --allowed-write-root "$HARDEN_ROOT" \
+  --manifest-out "$HARDEN_BINARY_MISMATCH" \
+  --prior-manifest "$HARDEN_PRIOR_BINARY" \
+  -- \
+  --event-log "$HARDEN_LOG"
+HARDEN_BINARY_RC=$?
+set -e
+
+set +e
+run_wrapper_allow_fail hardening_event_log_path_mismatch "$WRAPPER" \
+  --binary "$TRUE_BIN" \
+  --run-id cycle10-hardening-log-path-mismatch \
+  --timeout-seconds "$WRAPPER_TIMEOUT_SECONDS" \
+  --allowed-write-root "$ROOT" \
+  --allowed-write-root "$HARDEN_ROOT" \
+  --manifest-out "$HARDEN_LOG_PATH_MISMATCH" \
+  --prior-manifest "$HARDEN_PRIOR_LOG_PATH" \
+  -- \
+  --event-log "$HARDEN_LOG"
+HARDEN_LOG_PATH_RC=$?
+set -e
+
 M1="$M1" M2="$M2" RUN_ROOT="$RUN_ROOT" TRUNCATE_ROOT="$TRUNCATE_ROOT" \
 TRUNCATE_WRAPPER_RC="$TRUNCATE_WRAPPER_RC" NATIVE_ALONE_RC="$NATIVE_ALONE_RC" \
+HARDEN_BASE="$HARDEN_BASE" HARDEN_BINARY_MISMATCH="$HARDEN_BINARY_MISMATCH" \
+HARDEN_LOG_PATH_MISMATCH="$HARDEN_LOG_PATH_MISMATCH" \
+HARDEN_BINARY_RC="$HARDEN_BINARY_RC" HARDEN_LOG_PATH_RC="$HARDEN_LOG_PATH_RC" \
 ARTIFACT="$ARTIFACT_DIR/cycle10_wrapper_truncate_test.json" python3 - <<'PY'
 import json
 import os
@@ -132,11 +198,16 @@ def event_log_count(path):
 
 m1 = load(os.environ["M1"])
 m2 = load(os.environ["M2"])
+hardening_base = load(os.environ["HARDEN_BASE"])
+hardening_binary = load(os.environ["HARDEN_BINARY_MISMATCH"])
+hardening_log_path = load(os.environ["HARDEN_LOG_PATH_MISMATCH"])
 truncate_root = Path(os.environ["TRUNCATE_ROOT"])
 native_artifact = truncate_root / "native-alone.json"
 native_log = truncate_root / "log.jsonl"
 wrapper_rc = int(os.environ["TRUNCATE_WRAPPER_RC"])
 native_rc = int(os.environ["NATIVE_ALONE_RC"])
+hardening_binary_rc = int(os.environ["HARDEN_BINARY_RC"])
+hardening_log_path_rc = int(os.environ["HARDEN_LOG_PATH_RC"])
 checks = [
     {
         "name": "baseline_manifest_nonzero_rows",
@@ -173,6 +244,30 @@ checks = [
         "passed": event_log_count(native_log) > 0,
         "actual": event_log_count(native_log),
         "expected": ">0",
+    },
+    {
+        "name": "prior_binary_sha256_mismatch_denied",
+        "passed": hardening_binary_rc != 0
+        and hardening_binary.get("wrapper_denial") is True
+        and hardening_binary.get("wrapper_truncate_detect_verdict") == "mismatch_binary_sha256",
+        "actual": {
+            "wrapper_exit_code": hardening_binary_rc,
+            "wrapper_denial": hardening_binary.get("wrapper_denial"),
+            "verdict": hardening_binary.get("wrapper_truncate_detect_verdict"),
+        },
+        "expected": "nonzero wrapper exit with mismatch_binary_sha256",
+    },
+    {
+        "name": "prior_event_log_path_mismatch_denied",
+        "passed": hardening_log_path_rc != 0
+        and hardening_log_path.get("wrapper_denial") is True
+        and hardening_log_path.get("wrapper_truncate_detect_verdict") == "mismatch_event_log_path",
+        "actual": {
+            "wrapper_exit_code": hardening_log_path_rc,
+            "wrapper_denial": hardening_log_path.get("wrapper_denial"),
+            "verdict": hardening_log_path.get("wrapper_truncate_detect_verdict"),
+        },
+        "expected": "nonzero wrapper exit with mismatch_event_log_path",
     },
 ]
 failed = [check for check in checks if not check["passed"]]
@@ -215,6 +310,11 @@ result = {
             "because it compares against the prior external manifest."
         ),
     },
+    "hardening_controls": {
+        "static_baseline_manifest": hardening_base,
+        "binary_sha256_mismatch_manifest": hardening_binary,
+        "event_log_path_mismatch_manifest": hardening_log_path,
+    },
     "checks": checks,
     "failed_checks": failed,
     "all_required_checks_passed": not failed,
@@ -247,7 +347,7 @@ run_wrapper_allow_fail path_denial "$WRAPPER" \
   --run-id cycle10-path-denial \
   --timeout-seconds "$WRAPPER_TIMEOUT_SECONDS" \
   --allowed-write-root "$ROOT" \
-  --manifest-out /etc/should-not-write.json \
+  --manifest-out "$ARTIFACT_DIR/cycle10_wrapper_manifest_path_denial.json" \
   -- \
   --phase daemon-lite \
   --mode test \
@@ -255,7 +355,7 @@ run_wrapper_allow_fail path_denial "$WRAPPER" \
   --daemon-run-seconds 1 \
   --daemon-tick-sleep-ms 0 \
   --policy-tmp-root "$PATH_DENIAL_ROOT" \
-  --event-log "$PATH_DENIAL_ROOT/log.jsonl" \
+  --event-log /etc/binary-events.jsonl \
   --out /etc/binary-output.json
 PATH_DENIAL_RC=$?
 set -e
@@ -289,10 +389,16 @@ manifest["path_denial_required_checks"] = [
         "expected": False,
     },
     {
-        "name": "invalid_manifest_out_recorded",
-        "passed": manifest.get("rejected_manifest_out_path") == "/etc/should-not-write.json",
-        "actual": manifest.get("rejected_manifest_out_path"),
-        "expected": "/etc/should-not-write.json",
+        "name": "invalid_output_artifact_path_recorded",
+        "passed": manifest.get("rejected_output_artifact_path") == "/etc/binary-output.json",
+        "actual": manifest.get("rejected_output_artifact_path"),
+        "expected": "/etc/binary-output.json",
+    },
+    {
+        "name": "invalid_event_log_path_recorded",
+        "passed": manifest.get("rejected_event_log_path") == "/etc/binary-events.jsonl",
+        "actual": manifest.get("rejected_event_log_path"),
+        "expected": "/etc/binary-events.jsonl",
     },
 ]
 manifest["all_required_checks_passed"] = all(check["passed"] for check in manifest["path_denial_required_checks"])

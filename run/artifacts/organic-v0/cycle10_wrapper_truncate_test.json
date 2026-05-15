@@ -3,7 +3,7 @@
   "baseline_manifest": {
     "allowed_write_roots": [
       "/home/nira/Research/projext-x",
-      "/tmp/cycle10_wrapper.vZlScM/truncate"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate"
     ],
     "binary_launched": true,
     "binary_path": "/home/nira/Research/projext-x/build/organic_v0",
@@ -21,20 +21,20 @@
       "--daemon-tick-sleep-ms",
       "0",
       "--policy-tmp-root",
-      "/tmp/cycle10_wrapper.vZlScM/truncate",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate",
       "--event-log",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
       "--out",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/baseline.json"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/baseline.json"
     ],
     "default_manifest_path": "/home/nira/Research/projext-x/run/artifacts/organic-v0/run_manifests/cycle10-truncate-baseline.json",
-    "duration_seconds": 1.012565,
-    "end_time_utc": "2026-05-14T23:43:21Z",
+    "duration_seconds": 1.011659,
+    "end_time_utc": "2026-05-15T00:06:44Z",
     "event_log_error": "",
-    "event_log_first_event_content_hash": "0d0d1c16dd84a2b7",
-    "event_log_last_event_content_hash": "52ef72e92f35da97",
-    "event_log_path": "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
-    "event_log_row_count": 98,
+    "event_log_first_event_content_hash": "aec1e21407267af7",
+    "event_log_last_event_content_hash": "f32fda75f2ff3794",
+    "event_log_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
+    "event_log_row_count": 95,
     "event_log_status": "present",
     "exit_code": 0,
     "forwarded_args": [
@@ -49,14 +49,14 @@
       "--daemon-tick-sleep-ms",
       "0",
       "--policy-tmp-root",
-      "/tmp/cycle10_wrapper.vZlScM/truncate",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate",
       "--event-log",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
       "--out",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/baseline.json"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/baseline.json"
     ],
     "honest_interpretation": "Cycle 10 wrapper-lite anchors event-log row count and the last event_content_hash for current short runtime surfaces. It is not a sandbox, not secure, and not a broader safety solution.",
-    "manifest_out_path": "/tmp/cycle10_wrapper.vZlScM/truncate/M1.json",
+    "manifest_out_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/M1.json",
     "negative_space": {
       "anchor_only": true,
       "not_alignment_solution": true,
@@ -66,34 +66,43 @@
       "not_supply_chain_safety": true,
       "not_tool_use_safety": true
     },
-    "output_artifact_path": "/tmp/cycle10_wrapper.vZlScM/truncate/baseline.json",
-    "output_artifact_sha256": "54c35fc02d2782a888190d0325f9cfa60c9d8a1885b6cb5b199bcb31bb8bd065",
+    "output_artifact_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/baseline.json",
+    "output_artifact_sha256": "de4b09ab267911ebf7032610f85fe610f0284fabd04759a74247035e428aafc3",
+    "preflight_denial_reasons": [],
+    "prior_binary_sha256": null,
     "prior_event_log_last_event_content_hash": null,
+    "prior_event_log_path": null,
     "prior_event_log_row_count": null,
     "prior_manifest_load_status": "not_checked",
     "prior_manifest_path": null,
     "prior_mismatch_denial": false,
+    "prior_wrapper_version": null,
+    "rejected_event_log_path": null,
     "rejected_manifest_out_path": null,
+    "rejected_output_artifact_path": null,
     "run_id": "cycle10-truncate-baseline",
     "schema": "project_x.run_manifest.v0",
-    "start_time_utc": "2026-05-14T23:43:20Z",
+    "start_time_utc": "2026-05-15T00:06:43Z",
     "stderr_tail": "",
-    "stdout_tail": "wrote /tmp/cycle10_wrapper.vZlScM/truncate/baseline.json\n",
+    "stdout_tail": "wrote /tmp/cycle10_wrapper.XbU9j1/truncate/baseline.json\n",
     "timeout_result": "none",
     "timeout_seconds": 180,
     "wrapper_denial": false,
     "wrapper_denial_reason": "",
     "wrapper_truncate_detect_details": {
+      "binary_sha256_match": null,
+      "event_log_path_match": null,
       "final_hash_match": null,
-      "row_count_match": null
+      "row_count_match": null,
+      "wrapper_version_match": null
     },
     "wrapper_truncate_detect_verdict": "not_checked",
     "wrapper_version": "cycle10-wrapper-lite-v0"
   },
-  "baseline_manifest_path": "/tmp/cycle10_wrapper.vZlScM/truncate/M1.json",
+  "baseline_manifest_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/M1.json",
   "checks": [
     {
-      "actual": 98,
+      "actual": 95,
       "expected": ">0",
       "name": "baseline_manifest_nonzero_rows",
       "passed": true
@@ -127,23 +136,261 @@
       "expected": ">0",
       "name": "native_alone_control_wrote_event_log",
       "passed": true
+    },
+    {
+      "actual": {
+        "verdict": "mismatch_binary_sha256",
+        "wrapper_denial": true,
+        "wrapper_exit_code": 1
+      },
+      "expected": "nonzero wrapper exit with mismatch_binary_sha256",
+      "name": "prior_binary_sha256_mismatch_denied",
+      "passed": true
+    },
+    {
+      "actual": {
+        "verdict": "mismatch_event_log_path",
+        "wrapper_denial": true,
+        "wrapper_exit_code": 1
+      },
+      "expected": "nonzero wrapper exit with mismatch_event_log_path",
+      "name": "prior_event_log_path_mismatch_denied",
+      "passed": true
     }
   ],
   "comparison_verdict": {
     "binary_exit_code_inside_wrapper": 0,
     "wrapper_denial": true,
-    "wrapper_denial_reason": "prior manifest mismatch: mismatch_row_count",
+    "wrapper_denial_reason": "prior manifest mismatch: mismatch_final_hash",
     "wrapper_exit_code": 1,
     "wrapper_truncate_detect_details": {
+      "binary_sha256_match": true,
+      "event_log_path_match": true,
       "final_hash_match": false,
-      "row_count_match": false
+      "row_count_match": true,
+      "wrapper_version_match": true
     },
-    "wrapper_truncate_detect_verdict": "mismatch_row_count"
+    "wrapper_truncate_detect_verdict": "mismatch_final_hash"
   },
   "failed_checks": [],
+  "hardening_controls": {
+    "binary_sha256_mismatch_manifest": {
+      "allowed_write_roots": [
+        "/home/nira/Research/projext-x",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening"
+      ],
+      "binary_launched": true,
+      "binary_path": "/usr/bin/true",
+      "binary_sha256": "7e419b0d95e2ae12993878ad13ad4b911ce5464c15cde7a6adce2fca7ee22706",
+      "command": [
+        "/usr/bin/true",
+        "--event-log",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl"
+      ],
+      "default_manifest_path": "/home/nira/Research/projext-x/run/artifacts/organic-v0/run_manifests/cycle10-hardening-binary-mismatch.json",
+      "duration_seconds": 0.000729,
+      "end_time_utc": "2026-05-15T00:06:47Z",
+      "event_log_error": "",
+      "event_log_first_event_content_hash": "0000000000000000",
+      "event_log_last_event_content_hash": "0000000000000000",
+      "event_log_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl",
+      "event_log_row_count": 1,
+      "event_log_status": "present",
+      "exit_code": 0,
+      "forwarded_args": [
+        "--event-log",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl"
+      ],
+      "honest_interpretation": "Cycle 10 wrapper-lite anchors event-log row count and the last event_content_hash for current short runtime surfaces. It is not a sandbox, not secure, and not a broader safety solution.",
+      "manifest_out_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/binary-mismatch.json",
+      "negative_space": {
+        "anchor_only": true,
+        "not_alignment_solution": true,
+        "not_full_resource_limit": true,
+        "not_sandboxed": true,
+        "not_secure": true,
+        "not_supply_chain_safety": true,
+        "not_tool_use_safety": true
+      },
+      "output_artifact_path": null,
+      "output_artifact_sha256": null,
+      "preflight_denial_reasons": [],
+      "prior_binary_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "prior_event_log_last_event_content_hash": "0000000000000000",
+      "prior_event_log_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl",
+      "prior_event_log_row_count": 1,
+      "prior_manifest_load_status": "loaded",
+      "prior_manifest_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/prior-binary-mismatch.json",
+      "prior_mismatch_denial": true,
+      "prior_wrapper_version": "cycle10-wrapper-lite-v0",
+      "rejected_event_log_path": null,
+      "rejected_manifest_out_path": null,
+      "rejected_output_artifact_path": null,
+      "run_id": "cycle10-hardening-binary-mismatch",
+      "schema": "project_x.run_manifest.v0",
+      "start_time_utc": "2026-05-15T00:06:47Z",
+      "stderr_tail": "",
+      "stdout_tail": "",
+      "timeout_result": "none",
+      "timeout_seconds": 180,
+      "wrapper_denial": true,
+      "wrapper_denial_reason": "prior manifest mismatch: mismatch_binary_sha256",
+      "wrapper_truncate_detect_details": {
+        "binary_sha256_match": false,
+        "event_log_path_match": true,
+        "final_hash_match": true,
+        "row_count_match": true,
+        "wrapper_version_match": true
+      },
+      "wrapper_truncate_detect_verdict": "mismatch_binary_sha256",
+      "wrapper_version": "cycle10-wrapper-lite-v0"
+    },
+    "event_log_path_mismatch_manifest": {
+      "allowed_write_roots": [
+        "/home/nira/Research/projext-x",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening"
+      ],
+      "binary_launched": true,
+      "binary_path": "/usr/bin/true",
+      "binary_sha256": "7e419b0d95e2ae12993878ad13ad4b911ce5464c15cde7a6adce2fca7ee22706",
+      "command": [
+        "/usr/bin/true",
+        "--event-log",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl"
+      ],
+      "default_manifest_path": "/home/nira/Research/projext-x/run/artifacts/organic-v0/run_manifests/cycle10-hardening-log-path-mismatch.json",
+      "duration_seconds": 0.000817,
+      "end_time_utc": "2026-05-15T00:06:47Z",
+      "event_log_error": "",
+      "event_log_first_event_content_hash": "0000000000000000",
+      "event_log_last_event_content_hash": "0000000000000000",
+      "event_log_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl",
+      "event_log_row_count": 1,
+      "event_log_status": "present",
+      "exit_code": 0,
+      "forwarded_args": [
+        "--event-log",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl"
+      ],
+      "honest_interpretation": "Cycle 10 wrapper-lite anchors event-log row count and the last event_content_hash for current short runtime surfaces. It is not a sandbox, not secure, and not a broader safety solution.",
+      "manifest_out_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/log-path-mismatch.json",
+      "negative_space": {
+        "anchor_only": true,
+        "not_alignment_solution": true,
+        "not_full_resource_limit": true,
+        "not_sandboxed": true,
+        "not_secure": true,
+        "not_supply_chain_safety": true,
+        "not_tool_use_safety": true
+      },
+      "output_artifact_path": null,
+      "output_artifact_sha256": null,
+      "preflight_denial_reasons": [],
+      "prior_binary_sha256": "7e419b0d95e2ae12993878ad13ad4b911ce5464c15cde7a6adce2fca7ee22706",
+      "prior_event_log_last_event_content_hash": "0000000000000000",
+      "prior_event_log_path": "/tmp/project-x-cycle10-intentional-different-log.jsonl",
+      "prior_event_log_row_count": 1,
+      "prior_manifest_load_status": "loaded",
+      "prior_manifest_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/prior-log-path-mismatch.json",
+      "prior_mismatch_denial": true,
+      "prior_wrapper_version": "cycle10-wrapper-lite-v0",
+      "rejected_event_log_path": null,
+      "rejected_manifest_out_path": null,
+      "rejected_output_artifact_path": null,
+      "run_id": "cycle10-hardening-log-path-mismatch",
+      "schema": "project_x.run_manifest.v0",
+      "start_time_utc": "2026-05-15T00:06:47Z",
+      "stderr_tail": "",
+      "stdout_tail": "",
+      "timeout_result": "none",
+      "timeout_seconds": 180,
+      "wrapper_denial": true,
+      "wrapper_denial_reason": "prior manifest mismatch: mismatch_event_log_path",
+      "wrapper_truncate_detect_details": {
+        "binary_sha256_match": true,
+        "event_log_path_match": false,
+        "final_hash_match": true,
+        "row_count_match": true,
+        "wrapper_version_match": true
+      },
+      "wrapper_truncate_detect_verdict": "mismatch_event_log_path",
+      "wrapper_version": "cycle10-wrapper-lite-v0"
+    },
+    "static_baseline_manifest": {
+      "allowed_write_roots": [
+        "/home/nira/Research/projext-x",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening"
+      ],
+      "binary_launched": true,
+      "binary_path": "/usr/bin/true",
+      "binary_sha256": "7e419b0d95e2ae12993878ad13ad4b911ce5464c15cde7a6adce2fca7ee22706",
+      "command": [
+        "/usr/bin/true",
+        "--event-log",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl"
+      ],
+      "default_manifest_path": "/home/nira/Research/projext-x/run/artifacts/organic-v0/run_manifests/cycle10-hardening-static-baseline.json",
+      "duration_seconds": 0.002328,
+      "end_time_utc": "2026-05-15T00:06:47Z",
+      "event_log_error": "",
+      "event_log_first_event_content_hash": "0000000000000000",
+      "event_log_last_event_content_hash": "0000000000000000",
+      "event_log_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl",
+      "event_log_row_count": 1,
+      "event_log_status": "present",
+      "exit_code": 0,
+      "forwarded_args": [
+        "--event-log",
+        "/tmp/cycle10_wrapper.XbU9j1/hardening/static-log.jsonl"
+      ],
+      "honest_interpretation": "Cycle 10 wrapper-lite anchors event-log row count and the last event_content_hash for current short runtime surfaces. It is not a sandbox, not secure, and not a broader safety solution.",
+      "manifest_out_path": "/tmp/cycle10_wrapper.XbU9j1/hardening/baseline.json",
+      "negative_space": {
+        "anchor_only": true,
+        "not_alignment_solution": true,
+        "not_full_resource_limit": true,
+        "not_sandboxed": true,
+        "not_secure": true,
+        "not_supply_chain_safety": true,
+        "not_tool_use_safety": true
+      },
+      "output_artifact_path": null,
+      "output_artifact_sha256": null,
+      "preflight_denial_reasons": [],
+      "prior_binary_sha256": null,
+      "prior_event_log_last_event_content_hash": null,
+      "prior_event_log_path": null,
+      "prior_event_log_row_count": null,
+      "prior_manifest_load_status": "not_checked",
+      "prior_manifest_path": null,
+      "prior_mismatch_denial": false,
+      "prior_wrapper_version": null,
+      "rejected_event_log_path": null,
+      "rejected_manifest_out_path": null,
+      "rejected_output_artifact_path": null,
+      "run_id": "cycle10-hardening-static-baseline",
+      "schema": "project_x.run_manifest.v0",
+      "start_time_utc": "2026-05-15T00:06:47Z",
+      "stderr_tail": "",
+      "stdout_tail": "",
+      "timeout_result": "none",
+      "timeout_seconds": 180,
+      "wrapper_denial": false,
+      "wrapper_denial_reason": "",
+      "wrapper_truncate_detect_details": {
+        "binary_sha256_match": null,
+        "event_log_path_match": null,
+        "final_hash_match": null,
+        "row_count_match": null,
+        "wrapper_version_match": null
+      },
+      "wrapper_truncate_detect_verdict": "not_checked",
+      "wrapper_version": "cycle10-wrapper-lite-v0"
+    }
+  },
   "honest_interpretation": "Cycle 10 closes the current short-runtime external anchor gap by binding a prior manifest's event-log row count and final event_content_hash to the next wrapper run. It does not provide sandbox escape resistance, resource limits, or broader safety guarantees.",
   "native_alone_control": {
-    "artifact_path": "/tmp/cycle10_wrapper.vZlScM/truncate/native-alone.json",
+    "artifact_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/native-alone.json",
     "command": [
       "build/organic_v0",
       "--phase",
@@ -157,13 +404,13 @@
       "--daemon-tick-sleep-ms",
       "0",
       "--policy-tmp-root",
-      "/tmp/cycle10_wrapper.vZlScM/truncate",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate",
       "--event-log",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
       "--out",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/native-alone.json"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/native-alone.json"
     ],
-    "event_log_path": "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
+    "event_log_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
     "event_log_row_count": 96,
     "exit_code": 0,
     "interpretation": "Native daemon-lite can start on a zero-length log and write an internally clean v2 chain. The wrapper rejects the same truncate/restart shape only because it compares against the prior external manifest."
@@ -180,7 +427,7 @@
   "restart_manifest": {
     "allowed_write_roots": [
       "/home/nira/Research/projext-x",
-      "/tmp/cycle10_wrapper.vZlScM/truncate"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate"
     ],
     "binary_launched": true,
     "binary_path": "/home/nira/Research/projext-x/build/organic_v0",
@@ -198,20 +445,20 @@
       "--daemon-tick-sleep-ms",
       "0",
       "--policy-tmp-root",
-      "/tmp/cycle10_wrapper.vZlScM/truncate",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate",
       "--event-log",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
       "--out",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/restart.json"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/restart.json"
     ],
     "default_manifest_path": "/home/nira/Research/projext-x/run/artifacts/organic-v0/run_manifests/cycle10-truncate-restart.json",
-    "duration_seconds": 1.01131,
-    "end_time_utc": "2026-05-14T23:43:22Z",
+    "duration_seconds": 1.015137,
+    "end_time_utc": "2026-05-15T00:06:45Z",
     "event_log_error": "",
-    "event_log_first_event_content_hash": "04f69ce0fb523696",
-    "event_log_last_event_content_hash": "568223249ea73253",
-    "event_log_path": "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
-    "event_log_row_count": 96,
+    "event_log_first_event_content_hash": "0ec85138abf7c11c",
+    "event_log_last_event_content_hash": "46beeed963350e42",
+    "event_log_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
+    "event_log_row_count": 95,
     "event_log_status": "present",
     "exit_code": 0,
     "forwarded_args": [
@@ -226,14 +473,14 @@
       "--daemon-tick-sleep-ms",
       "0",
       "--policy-tmp-root",
-      "/tmp/cycle10_wrapper.vZlScM/truncate",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate",
       "--event-log",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/log.jsonl",
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
       "--out",
-      "/tmp/cycle10_wrapper.vZlScM/truncate/restart.json"
+      "/tmp/cycle10_wrapper.XbU9j1/truncate/restart.json"
     ],
     "honest_interpretation": "Cycle 10 wrapper-lite anchors event-log row count and the last event_content_hash for current short runtime surfaces. It is not a sandbox, not secure, and not a broader safety solution.",
-    "manifest_out_path": "/tmp/cycle10_wrapper.vZlScM/truncate/M2.json",
+    "manifest_out_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/M2.json",
     "negative_space": {
       "anchor_only": true,
       "not_alignment_solution": true,
@@ -243,33 +490,42 @@
       "not_supply_chain_safety": true,
       "not_tool_use_safety": true
     },
-    "output_artifact_path": "/tmp/cycle10_wrapper.vZlScM/truncate/restart.json",
-    "output_artifact_sha256": "9ab5443b4ef9656c2ced1a51a8896ce7828373bc0eb81b4b5fa5911ca1b51a4d",
-    "prior_event_log_last_event_content_hash": "52ef72e92f35da97",
-    "prior_event_log_row_count": 98,
+    "output_artifact_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/restart.json",
+    "output_artifact_sha256": "d006839369a958489a2ac0363fb3d127f3be16b72f40f463e3390a0d6a5abf3f",
+    "preflight_denial_reasons": [],
+    "prior_binary_sha256": "9d57d5d6145b7c8f3abefcb5ac48abe2b28207b017fcb1aef423716e58746409",
+    "prior_event_log_last_event_content_hash": "f32fda75f2ff3794",
+    "prior_event_log_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/log.jsonl",
+    "prior_event_log_row_count": 95,
     "prior_manifest_load_status": "loaded",
-    "prior_manifest_path": "/tmp/cycle10_wrapper.vZlScM/truncate/M1.json",
+    "prior_manifest_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/M1.json",
     "prior_mismatch_denial": true,
+    "prior_wrapper_version": "cycle10-wrapper-lite-v0",
+    "rejected_event_log_path": null,
     "rejected_manifest_out_path": null,
+    "rejected_output_artifact_path": null,
     "run_id": "cycle10-truncate-restart",
     "schema": "project_x.run_manifest.v0",
-    "start_time_utc": "2026-05-14T23:43:21Z",
+    "start_time_utc": "2026-05-15T00:06:44Z",
     "stderr_tail": "",
-    "stdout_tail": "wrote /tmp/cycle10_wrapper.vZlScM/truncate/restart.json\n",
+    "stdout_tail": "wrote /tmp/cycle10_wrapper.XbU9j1/truncate/restart.json\n",
     "timeout_result": "none",
     "timeout_seconds": 180,
     "wrapper_denial": true,
-    "wrapper_denial_reason": "prior manifest mismatch: mismatch_row_count",
+    "wrapper_denial_reason": "prior manifest mismatch: mismatch_final_hash",
     "wrapper_truncate_detect_details": {
+      "binary_sha256_match": true,
+      "event_log_path_match": true,
       "final_hash_match": false,
-      "row_count_match": false
+      "row_count_match": true,
+      "wrapper_version_match": true
     },
-    "wrapper_truncate_detect_verdict": "mismatch_row_count",
+    "wrapper_truncate_detect_verdict": "mismatch_final_hash",
     "wrapper_version": "cycle10-wrapper-lite-v0"
   },
-  "restart_manifest_path": "/tmp/cycle10_wrapper.vZlScM/truncate/M2.json",
+  "restart_manifest_path": "/tmp/cycle10_wrapper.XbU9j1/truncate/M2.json",
   "run_id": "cycle10-wrapper-truncate-test",
   "schema": "project_x.cycle10_wrapper_truncate_test.v0",
-  "test_root": "/tmp/cycle10_wrapper.vZlScM",
-  "timestamp_utc": "2026-05-14T23:43:23Z"
+  "test_root": "/tmp/cycle10_wrapper.XbU9j1",
+  "timestamp_utc": "2026-05-15T00:06:47Z"
 }
