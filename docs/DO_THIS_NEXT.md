@@ -150,6 +150,8 @@ Every implementation cycle must preserve these unless the artifact explicitly di
 - `timeout 180s scripts/verify_cycle13_diagnostics.sh`
 - `timeout 180s scripts/verify_cycle14_neural_text.sh`
 - `timeout 180s scripts/verify_cycle15_recurrent_text.sh`
+- `timeout 180s scripts/verify_cycle16_text_scaling.sh` (Cycle 16 corpus rail; 837k+ checks)
+- `timeout 180s scripts/verify_cycle16_recurrent_train.sh` (Cycle 16 recurrent training pipeline; 22 checks)
 - cycle-6 regression: 30/30, hash `29958f0880e662dc`
 - clean chat rail: 1/5, hash `888b7664126b7f5f`
 - legacy cycle-2 rail: 9/25, hash `3536309de837d3e2`, raw `evt_mem_test_001` output `"milaquart arch6"`
