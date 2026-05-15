@@ -1,0 +1,809 @@
+{
+  "accepted_shards": 9546,
+  "accepted_shards_over_candidate_shards_pct": 19.877147,
+  "all_required_checks_passed": true,
+  "bytes_accepted": 670808,
+  "bytes_accepted_over_bytes_candidate_pct": 12.398531,
+  "bytes_candidate": 5410383,
+  "candidate_shards": 48025,
+  "checks_failed": [],
+  "checks_sample_first_100": [
+    {
+      "detail": "experience/organic-v0/corpus_sources_v0.jsonl: actual=85a20542e6d0aa9fe5aee67ab19b1671a9bd53646e4e780f6a426483c6c95362 baseline=85a20542e6d0aa9fe5aee67ab19b1671a9bd53646e4e780f6a426483c6c95362",
+      "name": "cycle12_baseline_unchanged_corpus_sources_v0.jsonl",
+      "passed": true
+    },
+    {
+      "detail": "experience/organic-v0/corpus_manifest_v0.jsonl: actual=3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74 baseline=3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74",
+      "name": "cycle12_baseline_unchanged_corpus_manifest_v0.jsonl",
+      "passed": true
+    },
+    {
+      "detail": "experience/organic-v0/corpus_label_patterns_v0.jsonl: actual=788cf8ff89b94f6637513f159e8c623ceb7c892a51f7aca4bc7aa78209dd5384 baseline=788cf8ff89b94f6637513f159e8c623ceb7c892a51f7aca4bc7aa78209dd5384",
+      "name": "cycle12_baseline_unchanged_corpus_label_patterns_v0.jsonl",
+      "passed": true
+    },
+    {
+      "detail": "3",
+      "name": "at_least_one_cycle16_source",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_source.v0",
+      "name": "source_1_schema",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "source_1_required_fields",
+      "passed": true
+    },
+    {
+      "detail": "expected_split present",
+      "name": "source_1_no_expected_split",
+      "passed": true
+    },
+    {
+      "detail": "LicenseRef-PD-US",
+      "name": "source_1_public_or_cc0_license",
+      "passed": true
+    },
+    {
+      "detail": "download_if_missing",
+      "name": "source_1_download_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_split_v1_sha256_bucket_80_10_10",
+      "name": "source_1_split_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "source_1_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "cycle16_austen_pride_pg1342",
+      "name": "source_1_unique_source_id",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_austen_pride_pg1342/raw/pg1342.txt",
+      "name": "source_1_raw_gitignored",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_austen_pride_pg1342/raw/pg1342.txt",
+      "name": "source_1_raw_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_source.v0",
+      "name": "source_2_schema",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "source_2_required_fields",
+      "passed": true
+    },
+    {
+      "detail": "expected_split present",
+      "name": "source_2_no_expected_split",
+      "passed": true
+    },
+    {
+      "detail": "LicenseRef-PD-US",
+      "name": "source_2_public_or_cc0_license",
+      "passed": true
+    },
+    {
+      "detail": "download_if_missing",
+      "name": "source_2_download_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_split_v1_sha256_bucket_80_10_10",
+      "name": "source_2_split_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "source_2_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "cycle16_darwin_origin_pg1228",
+      "name": "source_2_unique_source_id",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_darwin_origin_pg1228/raw/pg1228.txt",
+      "name": "source_2_raw_gitignored",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_darwin_origin_pg1228/raw/pg1228.txt",
+      "name": "source_2_raw_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_source.v0",
+      "name": "source_3_schema",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "source_3_required_fields",
+      "passed": true
+    },
+    {
+      "detail": "expected_split present",
+      "name": "source_3_no_expected_split",
+      "passed": true
+    },
+    {
+      "detail": "LicenseRef-PD-US",
+      "name": "source_3_public_or_cc0_license",
+      "passed": true
+    },
+    {
+      "detail": "download_if_missing",
+      "name": "source_3_download_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_split_v1_sha256_bucket_80_10_10",
+      "name": "source_3_split_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "source_3_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "cycle16_shakespeare_sonnets_pg1041",
+      "name": "source_3_unique_source_id",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_shakespeare_sonnets_pg1041/raw/pg1041.txt",
+      "name": "source_3_raw_gitignored",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_shakespeare_sonnets_pg1041/raw/pg1041.txt",
+      "name": "source_3_raw_sha",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "pattern_families_complete",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_1_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_1_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "gutenberg_sentinel_v1",
+      "name": "pattern_1_compiles",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_2_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_2_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "gutenberg_wrapper_v1",
+      "name": "pattern_2_compiles",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_3_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_3_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "metadata_prefix_v1",
+      "name": "pattern_3_compiles",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_4_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_4_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "markdown_heading_v1",
+      "name": "pattern_4_compiles",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_5_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_5_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "html_metadata_tag_v1",
+      "name": "pattern_5_compiles",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_6_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_6_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "qa_marker_v1",
+      "name": "pattern_6_compiles",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_label_pattern.v0",
+      "name": "pattern_7_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "pattern_7_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "byline_v1",
+      "name": "pattern_7_compiles",
+      "passed": true
+    },
+    {
+      "detail": "empty manifest",
+      "name": "manifest_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_required_fields",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_manifest.v0",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle16_austen_pride_pg1342",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_source_known",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_split_v1_sha256_bucket_80_10_10",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_split_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "rejected",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_filter_status",
+      "passed": true
+    },
+    {
+      "detail": "train",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_split",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_austen_pride_pg1342/shards/cycle16_austen_pride_pg1342_shard_00001.txt",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_local_exists",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_austen_pride_pg1342/shards/cycle16_austen_pride_pg1342_shard_00001.txt",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_local_gitignored",
+      "passed": true
+    },
+    {
+      "detail": "c4a8c96fb423e1aef617a466816536cd14a73c6a9ba203a98805ca21ddace415",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_sha256",
+      "passed": true
+    },
+    {
+      "detail": "a764f7828459a280b38094cc8a7501dd273e82bad8ea82022d367c532d0e75ab",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_canonicalization_hash",
+      "passed": true
+    },
+    {
+      "detail": "b2b1618b2756ee9a328a028fdff4e275950a7daa1f450292036cde586db5d439",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_dedup_hash",
+      "passed": true
+    },
+    {
+      "detail": "34",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_split_bucket",
+      "passed": true
+    },
+    {
+      "detail": "train != train",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_deterministic_split",
+      "passed": true
+    },
+    {
+      "detail": "51",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_byte_count",
+      "passed": true
+    },
+    {
+      "detail": "50",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_char_count",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_rejected_reason_present",
+      "passed": true
+    },
+    {
+      "detail": "gutenberg_wrapper_v1",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_label_rejection_pattern_id_known",
+      "passed": true
+    },
+    {
+      "detail": "['gutenberg_wrapper_v1']",
+      "name": "manifest_row_1_cycle16_austen_pride_pg1342_shard_00001_label_rejection_pattern_matches",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_required_fields",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_manifest.v0",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle16_austen_pride_pg1342",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_source_known",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_split_v1_sha256_bucket_80_10_10",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_split_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_filter_version",
+      "passed": true
+    },
+    {
+      "detail": "rejected",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_filter_status",
+      "passed": true
+    },
+    {
+      "detail": "train",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_split",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_austen_pride_pg1342/shards/cycle16_austen_pride_pg1342_shard_00002.txt",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_local_exists",
+      "passed": true
+    },
+    {
+      "detail": "run/corpus/organic-v0/cycle16/cycle16_austen_pride_pg1342/shards/cycle16_austen_pride_pg1342_shard_00002.txt",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_local_gitignored",
+      "passed": true
+    },
+    {
+      "detail": "ff07f3a2fd695d358690cd813b97dc4c2243eeae710c7f99568b5a1fe56a12b1",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_sha256",
+      "passed": true
+    },
+    {
+      "detail": "4c36f384e16b3f2d9de0a8402f9656c67c458a56df2b6470e376fc5179367f21",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_canonicalization_hash",
+      "passed": true
+    },
+    {
+      "detail": "c4d99d8f847dee5524ca296f97fcb1a0114d796e6f1cb7d6f4e86ed4d0d99f8f",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_dedup_hash",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_split_bucket",
+      "passed": true
+    },
+    {
+      "detail": "train != train",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_deterministic_split",
+      "passed": true
+    },
+    {
+      "detail": "70",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_byte_count",
+      "passed": true
+    },
+    {
+      "detail": "69",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_char_count",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_rejected_reason_present",
+      "passed": true
+    },
+    {
+      "detail": "gutenberg_wrapper_v1",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_label_rejection_pattern_id_known",
+      "passed": true
+    },
+    {
+      "detail": "['gutenberg_wrapper_v1']",
+      "name": "manifest_row_2_cycle16_austen_pride_pg1342_shard_00002_label_rejection_pattern_matches",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "manifest_row_3_cycle16_austen_pride_pg1342_shard_00003_required_fields",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_manifest.v0",
+      "name": "manifest_row_3_cycle16_austen_pride_pg1342_shard_00003_schema",
+      "passed": true
+    },
+    {
+      "detail": "cycle16_austen_pride_pg1342",
+      "name": "manifest_row_3_cycle16_austen_pride_pg1342_shard_00003_source_known",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_split_v1_sha256_bucket_80_10_10",
+      "name": "manifest_row_3_cycle16_austen_pride_pg1342_shard_00003_split_policy",
+      "passed": true
+    },
+    {
+      "detail": "cycle12_label_filter_v1",
+      "name": "manifest_row_3_cycle16_austen_pride_pg1342_shard_00003_filter_version",
+      "passed": true
+    }
+  ],
+  "cycle12_baseline_isolation": {
+    "all_baselines_unchanged": true,
+    "baseline_shas": {
+      "experience/organic-v0/corpus_label_patterns_v0.jsonl": "788cf8ff89b94f6637513f159e8c623ceb7c892a51f7aca4bc7aa78209dd5384",
+      "experience/organic-v0/corpus_manifest_v0.jsonl": "3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74",
+      "experience/organic-v0/corpus_sources_v0.jsonl": "85a20542e6d0aa9fe5aee67ab19b1671a9bd53646e4e780f6a426483c6c95362"
+    }
+  },
+  "duplicate_count": 401,
+  "duplicate_rate": 0.00835,
+  "filter_version": "cycle12_label_filter_v1",
+  "honest_interpretation": "Cycle 16 text-scaling verifier proves only deterministic multi-source shard preparation, hashes, split buckets, whole-shard label rejection, cross-source dedup integrity, and Cycle 12B baseline isolation. It does not prove language quality, generalization, or training utility. Neural-train-result checks, generation-batch audits, source-overlap audits, and reproducibility audits land in cycle-3 through cycle-5 extensions of this scaffold.",
+  "manifest_path": "experience/organic-v0/cycle16_corpus_manifest.jsonl",
+  "negative_space": {
+    "not_byte_count_as_progress": true,
+    "not_curated_corpus_as_capability": true,
+    "not_filter_as_quality_judgment": true,
+    "not_internet_clean_data_claim": true,
+    "not_language_quality_validation": true,
+    "not_license_laundering": true,
+    "not_neural_training_validation": true,
+    "not_source_diversity_as_competence": true
+  },
+  "pattern_db_path": "experience/organic-v0/corpus_label_patterns_v0.jsonl",
+  "per_source_counts": {
+    "cycle16_austen_pride_pg1342": {
+      "accepted": 3815,
+      "bytes_accepted": 269086,
+      "bytes_candidate": 2213897,
+      "candidate": 22034,
+      "rejected": 18219
+    },
+    "cycle16_darwin_origin_pg1228": {
+      "accepted": 5340,
+      "bytes_accepted": 383916,
+      "bytes_candidate": 2853526,
+      "candidate": 22219,
+      "rejected": 16879
+    },
+    "cycle16_shakespeare_sonnets_pg1041": {
+      "accepted": 391,
+      "bytes_accepted": 17806,
+      "bytes_candidate": 342960,
+      "candidate": 3772,
+      "rejected": 3381
+    }
+  },
+  "rejected_shards": 38479,
+  "rejection_reason_counts": {
+    "delimiter_policy:non_ascii": 6984,
+    "delimiter_policy:pxstate_observation_delimiter": 19045,
+    "duplicate:cycle16_austen_pride_pg1342_shard_00042": 3,
+    "duplicate:cycle16_austen_pride_pg1342_shard_00667": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_00943": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_01631": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_01662": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_02243": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_02244": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_02455": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_03590": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_04500": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_05359": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_05968": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_07435": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_08324": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_08617": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_08800": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_09026": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_09876": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_10121": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_10508": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_10556": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11592": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11594": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11595": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11604": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11607": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11612": 5,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11623": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11624": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11627": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11630": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11632": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11633": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11635": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11636": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11637": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11639": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11643": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11644": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11647": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11651": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11653": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11655": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11657": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11659": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11661": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11663": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11680": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11681": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11683": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11686": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11688": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11691": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11692": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11694": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11701": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11702": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11717": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11718": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11723": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11725": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11727": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11728": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11729": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11734": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11736": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11737": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11742": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11746": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11755": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11774": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11776": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11778": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11779": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11781": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11782": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11784": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11785": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11787": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11788": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11791": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11792": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11793": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11794": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11796": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11797": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11798": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11807": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11813": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11815": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11817": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11828": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11829": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11832": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11841": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11842": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11843": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11844": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11847": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11848": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11849": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11851": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11852": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11853": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11855": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11857": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11860": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11861": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11863": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11867": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11868": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11875": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11877": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_11882": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_12712": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_12790": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_13247": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_13330": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_13946": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_16408": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_17762": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_17808": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_18380": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_19189": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_19392": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_20279": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_20663": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_20996": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21281": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21406": 1,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21770": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21773": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21803": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21814": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21822": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21824": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21862": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21903": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21919": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21948": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21955": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21962": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21964": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21974": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_21999": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_22001": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_22002": 2,
+    "duplicate:cycle16_austen_pride_pg1342_shard_22030": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00020": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00066": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00068": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00074": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00075": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00079": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00088": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00095": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00099": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00100": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00120": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00133": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00137": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00139": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00142": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00148": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00160": 3,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00164": 3,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00167": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00170": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00171": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00175": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00177": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00178": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00179": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00183": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00184": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00185": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00186": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00187": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00188": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00194": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00197": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00198": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00199": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00204": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00208": 3,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00210": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00212": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00215": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00216": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00227": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00232": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00234": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00239": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00240": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_00241": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_01168": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_01948": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_03579": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_03654": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_04219": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_04530": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_07347": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_07920": 3,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_08810": 3,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_09369": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_11162": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_12728": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_12869": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_12870": 2,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_13691": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15096": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15180": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15195": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15196": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15203": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15221": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15241": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15266": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15267": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15289": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15292": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15300": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15313": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15318": 1,
+    "duplicate:cycle16_darwin_origin_pg1228_shard_15592": 1,
+    "duplicate:cycle16_shakespeare_sonnets_pg1041_shard_00592": 1,
+    "duplicate:cycle16_shakespeare_sonnets_pg1041_shard_00990": 1,
+    "duplicate:cycle16_shakespeare_sonnets_pg1041_shard_01314": 1,
+    "duplicate:cycle16_shakespeare_sonnets_pg1041_shard_01315": 1,
+    "label_pattern:byline_v1": 159,
+    "label_pattern:gutenberg_sentinel_v1": 12,
+    "label_pattern:gutenberg_wrapper_v1": 613,
+    "label_pattern:metadata_prefix_v1": 12,
+    "length_policy:max_320": 2494,
+    "length_policy:min_40": 8759
+  },
+  "schema": "project_x.cycle16_text_scaling_verification.v1",
+  "source_count": 3,
+  "source_db_path": "experience/organic-v0/cycle16_corpus_sources.jsonl",
+  "source_ids": [
+    "cycle16_austen_pride_pg1342",
+    "cycle16_darwin_origin_pg1228",
+    "cycle16_shakespeare_sonnets_pg1041"
+  ],
+  "split_policy_version": "cycle12_split_v1_sha256_bucket_80_10_10",
+  "total_checks": 837173
+}
