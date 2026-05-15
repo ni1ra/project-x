@@ -47,15 +47,35 @@ Honest boundary: cycle 1 ships rail infrastructure + 1 source. It does not prove
 
 Cycle 2 finishes the corpus-prep half of Cycle 16. Substantive code work (native training extension to multi-source manifest) starts cycle 3.
 
-Cycle 1 over-shipped: all 3 source descriptors + full multi-source manifest landed in cycle 1. Cycle 2 work shifts to **verifier scaffolding + REPO_CONTROL upkeep + native training extension prep**.
+**Cycles 1-2 closed. Commits on `phase-v3-safety-boundary`:** `01473d9` (rail open + Austen), `9554f1c` (Darwin + Shakespeare expansion), `03285b2` (verifier scaffold + REPO_CONTROL upkeep + carry-forward rail-set green).
 
-Acceptance gates for godify-cycle 2:
+**Cycle 16 data state:** 3 sources, 48,025 candidate shards, 9,546 accepted, 670,808 accepted bytes (24.5× Cycle 12B baseline). Verifier passes 837,173 checks. Cycle 12B carry-forward bytewise isolated and verifiers still green.
 
-1. Author `scripts/verify_cycle16_text_scaling.sh` (verifier scaffold) — asserts: (a) `cycle16_corpus_sources.jsonl` schema, (b) at least one cycle16 source descriptor, (c) per-manifest-row schema validation against `project_x.corpus_manifest.v0`, (d) source-id known set check, (e) deterministic split-bucket reproducibility from canonicalization hash, (f) per-shard sha256/canonicalization-hash/dedup-hash recomputation, (g) cross-source dedup integrity check.
-2. Add Cycle 16 rows to `docs/REPO_CONTROL.md` (REPO_CONTROL upkeep vow — file + row co-land): `experience/organic-v0/cycle16_corpus_sources.jsonl`, `experience/organic-v0/cycle16_corpus_manifest.jsonl`, `scripts/prepare_cycle16_corpus.sh`, `run/artifacts/organic-v0/cycle16_corpus_prepare.json`, `scripts/verify_cycle16_text_scaling.sh` (when authored).
-3. Begin recon on `native/organic_v0.cpp` `neural-recurrent-text` phase to identify where multi-manifest read (Cycle 12 + Cycle 16) needs to be added. The Cycle 15 training reads from a single corpus_manifest path; Cycle 16 training needs to accept BOTH cycle12 + cycle16 manifests and union accepted-train shards.
-4. Re-run the full carry-forward rail set (`make test` + `verify_cycle9..15_*.sh`) to confirm zero regression introduced by cycle-1 work.
-5. Smart-commit per logical unit; atomic conventional commit body with WHY/HOW/VERIFY.
+## Immediate Next: Cycle 16 godify-cycle 3 (Execute-Raphael — native multi-manifest training extension)
+
+Cycle 3 extends `native/organic_v0.cpp` so the recurrent training reads from BOTH the Cycle 12B manifest AND the Cycle 16 manifest as a combined train corpus. Architecture per cycle-2 recon (#16h):
+
+- **Line 6982** in `native/organic_v0.cpp`: `load_neural_text_shards(const std::string& manifest_path, const std::string& split, int max_train_shards)` — takes a single manifest path.
+- **Call sites**: line 7246 (Cycle 14 `neural-text-quality` phase) and line 7428 (Cycle 15 `neural-recurrent-text` phase) both pass single `args.corpus_manifest`.
+- **Regen phase** (line 7607): `neural_recurrent_regenerate_phase` reads single manifest too.
+
+Acceptance gates for godify-cycle 3:
+
+1. Add `--corpus-manifest-extra` repeatable command-line flag → `args.corpus_manifests_extra` (vector<string>). Existing `--corpus-manifest` flag unchanged (default behavior preserved).
+2. New helper `load_combined_train_shards(primary_manifest, extras_vec, split, max_shards)` that iterates manifests in stable order (primary first, extras in CLI order) and concatenates accepted-train shards. Sums `max_train_shards` across manifests proportional to per-manifest acceptance.
+3. `neural_recurrent_text_phase` calls the combined helper. `neural_recurrent_regenerate_phase` calls it identically so reload produces same shard set.
+4. Persist the combined-manifest provenance in PXNN v2 metadata: record paths + sha256 of each used manifest at training time so verifiers can replay deterministically.
+5. Update `scripts/verify_cycle15_recurrent_text.sh` is NOT touched (it stays single-manifest; cycle 15 baseline preserved). Add new `scripts/verify_cycle16_recurrent_train.sh` that drives `build/organic_v0 --phase neural-recurrent-text --corpus-manifest experience/organic-v0/corpus_manifest_v0.jsonl --corpus-manifest-extra experience/organic-v0/cycle16_corpus_manifest.jsonl ...` and emits `cycle16_recurrent_text_train.json`.
+6. Re-run carry-forward rail set — verify_cycle15 must still pass (single-manifest training unchanged).
+7. Atomic smart-commit with WHY/HOW/VERIFY.
+
+Time budget: cycle 3 likely spans 1-2 godify cycles (~20-40 min) because the native C++ change has to land + compile + smoke-test + carry-forward-confirm + commit.
+
+## Cycle 16 godify-cycles 4-6 (provisional scope)
+
+- **cycle 4**: actually run the Cycle 16 recurrent training. Emit `cycle16_recurrent_text_train.json`, `cycle16_recurrent_text_probe.json`, `cycle16_recurrent_text_holdout.json`. Compare probe NLL vs Cycle 15's 2.24 and holdout NLL vs Cycle 15's 2.25. Apply 5% relative-improvement target. Honest report regardless of result.
+- **cycle 5**: 128-sample regeneration via `--phase neural-recurrent-regenerate` with multi-manifest provenance. Source-overlap audit (nearest-neighbor against combined train corpus). Fresh-process reproducibility audit. `cycle16_best_raw_output.json` (honest 0/128 if 0/128). Manual sample review for 100% correct coherent English. The Hassabis-bar diagnostic FIRES at this cycle.
+- **cycle 6**: docs sync (`A_TO_Z_PLAN.md` PHASE CHANGELOG v3-c16 entry + `dev-cycle-16-text-scaling.md` reflection); REPO_CONTROL rows for any new artifacts; final carry-forward rail rerun; smart-commit + push; END_TIME handoff via `/hand-off` equivalent.
 
 Negative-space block for cycle 2:
 
