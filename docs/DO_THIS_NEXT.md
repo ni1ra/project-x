@@ -39,13 +39,17 @@ e818915 docs: cycle 16 godify-cycle 2 close — rewrite DO_THIS_NEXT for cycle 3
 | Source-overlap near-copies | 0/128 | **0/128** | true generalization |
 | Manual correct-coherent-English samples | **0/128** | **0/128** | **substrate ceiling** |
 
-**Verdict per advisor framing:** char-RNN substrate at hidden=96 trained on ~600 KB combined cross-genre English (Austen + Darwin + Shakespeare) CANNOT produce correct coherent English. Bottleneck = substrate shape, NOT data scale. Probe NLL crushed the 1.90 threshold (1.494), holdout beats unigram (1.476 < 2.95), source-overlap audit returns 0/128 near-copies (the NLL improvement is REAL generalization, not memorization). Manual 128-sample audit returns 0/128 correct. Cycle 17 pivots architecture.
+**Verdict per advisor framing:** char-RNN substrate at hidden=96 trained on ~600 KB combined cross-genre English (Austen + Darwin + Shakespeare) **at this training depth (48 epochs, deliberate Cycle 15 hyperparam match for comparability)** does not produce correct coherent English. Bottleneck = substrate shape (with the depth caveat below), NOT data scale. Probe NLL crushed the 1.90 threshold (1.494), holdout beats unigram (1.476 < 2.95), source-overlap audit returns 0/128 near-copies (the NLL improvement is REAL generalization, not memorization). Manual 128-sample audit returns 0/128 correct.
+
+**Strict-reading caveat (advisor post-run review):** epoch_train_nll fell from 2.273 (epoch 0) to 1.207 (epoch 47) and was still falling — the run did not train to convergence. The advisor's 1.90 threshold was a sufficient-signal gate (probe-NLL ≤ 1.90 means the substrate is using the data), not a converged-model gate. Strict reading: "at this training depth the substrate appears insufficient" rather than "the substrate fundamentally cannot." The cycle 17 architectural pivot is still the right next move because (a) the diagnostic threshold WAS crushed, and (b) extending training depth at the same architecture is the weakest path per §"Cycle 17 architectural pivot" path B. But the strict-reading framing should land in cycle 17's commit body and dev-cycle reflection.
 
 ## Immediate Next: Cycle 17 architectural pivot
 
-**Recommended path (advisor preliminary): A. BPE / subword tokens + existing GRU substrate**
+**FIRST ACTION for cycle 17 — Discord proposal to lain, not silent default.** Per advisor post-run review: path A (BPE) and path C (HDC+neural) ask ORTHOGONAL questions, not "diagnostic + fallback." A asks "is char granularity the bottleneck?"; C asks "is language-first the bottleneck (per manifesto §Concepts Before Language)?" Different questions, different evidence each produces. Choosing A first is a defensible diagnostic but it's a sideways move from the manifesto's stated architecture target — that's a lain decision, NOT mine. Cycle 17's first action is a Discord post proposing the three paths with x/420 scoring per path, naming the default, and waiting for lain to interrupt OR proceed under silence-as-greenlight (remove-from-loop policy, lain 2026-05-07).
 
-Rationale: cheapest architectural diagnostic. If BPE-level recurrent training also produces 0/N correct samples with similar NLL improvement, the architecture-vs-data verdict tightens further and the next pivot is HDC+neural integration (manifesto §Concepts Before Language). If BPE produces ≥1/N correct samples, char-level granularity was the bottleneck and scale-data-more becomes viable. Cost estimate: ~200 LOC native + tokenizer training + vocab serialization.
+**Path A (recommended default if no lain interrupt): BPE / subword tokens + existing GRU substrate**
+
+Rationale: cheapest architectural diagnostic. If BPE-level recurrent training also produces 0/N correct samples with similar NLL improvement, the next pivot is path C. If BPE produces ≥1/N correct samples, char-level granularity was the bottleneck and scale-data-more becomes viable. Cost estimate: ~200 LOC native + tokenizer training + vocab serialization.
 
 **Acceptance gates for Cycle 17 first sub-cycle:**
 
@@ -107,6 +111,11 @@ Total 11 verifier rails + 9 substantive baselines.
 - **Backround training: completed.** No long-running native processes left over from this run.
 - **PXNN v2 state file** at `run/state/organic-v0/snapshots/raphael-local-0001/cycle16-recurrent-text-head.pxnn` (gitignored). Cycle 17 architecture pivot can regenerate from training rail; this file is not load-bearing for cycle 17 work.
 - **Wrapper manifests under** `run/artifacts/organic-v0/run_manifests/` (gitignored per existing .gitignore).
+
+## Cycle 17 housekeeping TODOs (advisor post-run review)
+
+- **Pin canonical artifact sha256 baseline in `scripts/verify_cycle16_recurrent_train.sh`.** Current rail validates the canonical artifact EXISTS and its headline metrics are within range but does NOT verify cycle 17 code edits still produce the same metrics. If cycle 17 modifies recurrent training while the cycle 16 artifact remains untouched on disk, the rail passes regardless. Fix: hardcode the post-cycle-5 `cycle16_recurrent_text_train.json` sha256 as a baseline constant in the rail and compare. One-line change; cycle 17 should land it before substantive code work.
+- **Schema rename:** Cycle 16 training artifact carries `project_x.cycle15_recurrent_text_quality.v0` schema string (cycle 15 string reused because the native artifact writer hardcodes the schema). Cycle 17 housekeeping: bump the schema to `project_x.cycle16_recurrent_text_quality.v0` in `native/organic_v0.cpp` and re-emit the artifact OR add a `cycle_intake_id` field that disambiguates.
 
 ## Known not-blockers / housekeeping
 
