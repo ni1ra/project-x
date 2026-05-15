@@ -56,25 +56,56 @@ Cycle 2 finishes the corpus-prep half of Cycle 16. Substantive code work (native
 - Holdout NLL **1.95334** (Cycle 15 baseline 2.24777 → 13.1% better)
 - The advisor's diagnostic threshold (probe NLL ≤ 1.90) is barely missed at 2 epochs / hidden=64. **Cycle 4 will run 48 epochs hidden=96 (Cycle 15 hyperparams)** to read the full diagnostic.
 
-## Immediate Next: Cycle 16 godify-cycle 4 (Execute-Raphael — full training + diagnostic readout)
+## Cycles 1-4 CLOSED — DIAGNOSTIC RESOLVED
 
-**A full-shape training run launched in background at the end of cycle 3 ON-shift** — `build/organic_v0 --phase neural-recurrent-text --corpus-manifest experience/organic-v0/corpus_manifest_v0.jsonl --corpus-manifest-extra experience/organic-v0/cycle16_corpus_manifest.jsonl --neural-hidden 96 --neural-epochs 48 --scenario-seed 7004 ...` → writes `run/artifacts/organic-v0/cycle16_recurrent_text_train.json` + `run/state/organic-v0/snapshots/raphael-local-0001/cycle16-recurrent-text-head.pxnn` (gitignored runtime substrate). Logs to `/tmp/cycle16_train.log`. Likely 12-25 min runtime; should complete during cycle-3 OFF-shift idle.
+7 commits on `phase-v3-safety-boundary`: `01473d9` `9554f1c` `03285b2` `e818915` `1ab427f` `b28b0ba` `fe46d3a`.
 
-Acceptance gates for godify-cycle 4:
+**The falsifiable diagnostic FIRED cleanly.** Probe NLL **1.494365** (advisor threshold ≤ 1.90; –33.2% relative vs Cycle 15's 2.237254). Holdout NLL **1.475701** (–34.3%). Fresh-process reproducibility 128/128 bit-exact match. **Manual 128-sample audit: 0/128 correct coherent English.** Outputs markedly more coherent than Cycle 15 (real word fragments, short correct phrases visible) but no full sample is grammatical English with a meaningful claim.
 
-1. Verify the background training completed cleanly: `cat /tmp/cycle16_train.log | tail -10` shows `wrote run/artifacts/organic-v0/cycle16_recurrent_text_train.json` and the train.json file exists + parses + `same_process_reload_generations_match: true`.
-2. **Read the diagnostic.** Extract `training.probe_nll`, `training.holdout_nll`, `training.probe_nll_relative_improvement_vs_cycle14_pct`, `training.probe_target_met`, `training.holdout_beats_unigram` from the artifact. Compare to Cycle 15's probe 2.23725 / holdout 2.24777.
-3. **Fresh-process regeneration audit.** Run `build/organic_v0 --phase neural-recurrent-regenerate --load-state run/state/organic-v0/snapshots/raphael-local-0001/cycle16-recurrent-text-head.pxnn --experience-db experience/organic-v0/cycle15_generation_prompts_v0.jsonl --out /tmp/cycle16_regen.json --scenario-seed 7004` and confirm 128/128 samples match the in-process generation batch byte-for-byte.
-4. **Source-overlap audit.** Char 5-gram Jaccard nearest-neighbor + longest-common-substring against the combined accepted-train corpus (Cycle 12 + Cycle 16). Near-copy threshold per Cycle 15 (Jaccard ≥ 0.82, contiguous ≥ 48 chars, or ≥90% of 32+ char output is contiguous train span).
-5. **Manual 128-sample audit.** Read all 128 raw outputs. Honest count of how many are 100% correct coherent English (advisor's diagnostic). If 0/128, say 0/128. If ≥1/128, surface the sample(s) verbatim with prompt context.
-6. Emit `cycle16_recurrent_text_train.json` (auto from training), draft `cycle16_recurrent_text_probe.json` + `cycle16_recurrent_text_holdout.json` + `cycle16_source_overlap_audit.json` + `cycle16_reproducibility_audit.json` + `cycle16_best_raw_output.json` (mirroring Cycle 15's artifact shape per `docs/REPO_CONTROL.md`).
-7. Atomic commit cycle 4 work; if too much, split cycle 4 + 5.
+**Verdict per advisor framing:** char-RNN substrate (hidden=96, single-layer GRU, char-level) IS the architectural ceiling at this corpus scale (~600 KB combined Austen + Darwin + Shakespeare). The bottleneck is substrate shape, NOT data scale. Cycle 17+ pivots architecture.
 
-**Falsifiable diagnostic (cycle 5 / advisor-set):** 
-- **probe NLL ≤ 1.90 AND 0/128 correct** → substrate is the architectural ceiling; cycle 17 pivots to BPE / multi-layer / HDC+neural integration.
-- **probe NLL ≤ 1.90 AND ≥1/128 correct** → data is a significant lever; scale more or pursue HDC-text integration.
-- **probe NLL > 2.20 AND 0/128 correct** → either no data lift OR training bug. Investigate.
-- **probe NLL between 1.90 and 2.20 AND 0/128 correct** → marginal lift. Cycle 17 considers per-character loss breakdown.
+## Immediate Next: Cycle 16 godify-cycle 5 (Execute-Raphael — close cycle 16 + open cycle 17 plan)
+
+Acceptance gates:
+
+1. **Source-overlap audit** (`cycle16_source_overlap_audit.json`): char 5-gram Jaccard nearest-neighbor over the combined 7990 accepted train shards × 128 generation samples; longest-common-substring guard; ≥90% of 32+ char span check. Cycle 15 thresholds (Jaccard ≥0.82 / contiguous ≥48 / span ≥90%). Expected near-copy count: 0 (small NLL improvement + diverse cross-source corpus makes memorization unlikely; if non-zero, surface samples).
+2. **`scripts/verify_cycle16_recurrent_train.sh`** — permanent carry-forward rail that drives the Cycle 16 recurrent training reproducibly and validates outcomes. Same shape as `verify_cycle15_recurrent_text.sh` but with `--corpus-manifest-extra` + diagnostic gate (probe NLL ≤ 1.90 expected; if regresses above, rail fails). Add this rail to the carry-forward list in this file.
+3. **`docs/past_work/cycles/phase_v3_safety_boundary/dev-cycle-16-text-scaling.md`** — full reflection: hypothesis, implementation, evidence, manual audit, honest boundary, audit questions answered, cycle-17 pivot recommendation.
+4. **`docs/A_TO_Z_PLAN.md`** PHASE CHANGELOG: add v3-c16 row with full evidence path list + verdict.
+5. Re-run the full 10-rail carry-forward set including the new `verify_cycle16_recurrent_train.sh` rail. All green.
+6. Atomic commit.
+
+## Cycle 17 architecture pivot — candidate paths (for godify-cycle 6 handoff / next-instance scope)
+
+Three candidate architectures to consider for the cycle-17 manifesto-aligned ship:
+
+**A. BPE / subword tokens + same GRU**
+- Pivot the substrate from char-level to byte-pair-encoding tokens (~256-2048 vocabulary).
+- Existing RecurrentCharNeuralHead becomes RecurrentTokenNeuralHead.
+- Reuses the entire corpus rail; only the tokenizer + vocab + neural head shape change.
+- Cost: tokenizer training + native vocab serialization. ~200 LOC.
+- Hassabis-bar question it answers: is char-level the granularity that's hurting, or is it model capacity?
+
+**B. Multi-layer recurrent / stacked GRU + hidden width scaling**
+- Stack 2-3 GRU layers, scale hidden width to 256-512.
+- Same corpus, same tokenization (chars).
+- Cost: ~50-100 LOC of native, but proportionally more training time.
+- Hassabis-bar question: is single-layer the bottleneck, given the data lift is unambiguous?
+
+**C. HDC + neural integration (manifesto §Concepts Before Language)**
+- Use the existing HDC substrate (cycle 1-7) to encode concept atoms; train a neural head that maps HDC concept activations to text continuations rather than raw char→char.
+- The HDC substrate already supports rule learning (cycle 7B/C/D show 14/14, 16/16 held-out transfer). Coupling concepts to language is the manifesto's actual ask.
+- Cost: significant — needs HDC concept encoder + integration layer + redesigned training loop. ~400-800 LOC + new artifact schemas.
+- Hassabis-bar question: does concept learning before language produce more coherent output than character-level next-prediction?
+
+**Recommendation (preliminary, subject to advisor review at cycle 6):** start with **A (BPE)** in cycle 17 — lowest-cost pivot, fastest diagnostic answer (BPE-RNN producing pseudo-English in 3-7 word units instead of pseudo-character word units is a clear architectural-vs-data signal). If A fires the same 0/N correct sample gate, move to **C (HDC+neural)** as the structural pivot manifesto pushes toward. **B** is the weakest move — same architecture style with more parameters typically just produces longer pseudo-text.
+
+## Cycle 16 godify-cycle 6 (Execute-Raphael — END_TIME handoff)
+
+- Final docs sync if cycle 5 missed anything.
+- Final carry-forward rail rerun for green-state seal.
+- `/hand-off` style next-instance briefing: state of branch, remaining work, recommended cycle-17 architecture, expected next session's first 2 hours of work.
+- Discord END_TIME post with self-impression score for the 4h run, cycle count, commit count, files changed, headlines.
 
 ## Cycle 16 godify-cycles 4-6 (provisional scope)
 
