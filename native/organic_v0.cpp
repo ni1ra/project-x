@@ -2,6 +2,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -110,6 +111,13 @@ struct Config {
   // transfer when the role is present.
   double trace_span_position_gain = 0.5;
   bool use_trace_span_position_features = true;
+  // Cycle-13 mechanical text-quality pressure.
+  // WHAT: when enabled during raw corpus exposure, copied raw_utterance spans learn an
+  // explicit post-copy END feature and generation penalizes character choices that extend
+  // a repeated suffix. This is decoder/generator hygiene, not authored answer content.
+  // NEGATIVE-SPACE: no template text, no semantic parser, no route table, and no subjective
+  // quality score. The only learned target remains the observed raw utterance itself.
+  double repetition_penalty_weight = 0.0;
   // Cycle-5 derived-belief channel.
   // WHAT: pure numeric observation fillers (for example mark:7) activate deterministic
   // role-relative facts such as parity=odd. Those facts are only feature addresses; the
@@ -189,9 +197,33 @@ struct VoicePromptRecord {
 struct ProbeStateRecord {
   std::string schema;
   std::string state_id;
+  std::string parent_state_path;
   std::string state_path;
   std::string source_artifact_path;
   std::string lineage;
+};
+
+struct CorpusShardRecord {
+  std::string schema;
+  std::string source_id;
+  std::string shard_id;
+  std::string local_path;
+  std::string sha256;
+  std::string canonicalization_hash;
+  std::string dedup_hash;
+  std::string encoding;
+  std::string line_separator;
+  int byte_count = 0;
+  int char_count = 0;
+  int line_count = 0;
+  std::string split;
+  int split_bucket = -1;
+  std::string split_policy_version;
+  std::string filter_status;
+  std::string filter_reason;
+  std::string filter_version;
+  std::string retrieval_timestamp_utc;
+  std::string license_spdx_id;
 };
 
 struct ObservationSlot {
@@ -278,6 +310,7 @@ struct GenerationStep {
   std::vector<std::pair<unsigned char, double>> top_chars;
   size_t active_state_feature_count = 0;
   size_t active_slot_copy_count = 0;
+  size_t active_copy_boundary_count = 0;
   // Cycle-3 evidence: true when this step was a learned mode-switch (first emission of a
   // copy span). copy_role records which role-token was selected. Subsequent emissions within
   // the same copy span have is_copy_emit=true and the same copy_role.
@@ -298,6 +331,7 @@ struct Generation {
   // many output chars came from copy-mode emission (vs literal-mode emission).
   size_t segment_mode_switch_count = 0;
   size_t copy_mode_char_count = 0;
+  size_t copy_boundary_feature_count = 0;
 };
 
 struct Weights {
@@ -577,7 +611,9 @@ TextExperienceRecord parse_text_experience_record(const std::string& line) {
 VoicePromptRecord parse_voice_prompt_record(const std::string& line) {
   static const std::vector<std::string> kForbiddenKeys = {
       "\"label\"", "\"labels\"", "\"correction_output\"", "\"expected_output\"",
-      "\"target_output\"", "\"reward\"", "\"score\""};
+      "\"target_output\"", "\"reward\"", "\"score\"", "\"composition\"",
+      "\"topic\"", "\"intent\"", "\"theme\"", "\"expected_filler\"",
+      "\"topic:", "\"intent:", "\"theme:", "\"expected_filler:"};
   for (const auto& key : kForbiddenKeys) {
     if (line.find(key) != std::string::npos) {
       throw std::runtime_error("voice prompt record contains forbidden key " + key);
@@ -594,7 +630,6 @@ VoicePromptRecord parse_voice_prompt_record(const std::string& line) {
     record.observations = {"raw_utterance:" + record.prompt_text};
   }
   record.source = maybe_get_string(line, "source").value_or("cycle11_voice_pressure");
-  if (auto composition = maybe_get_string(line, "composition")) record.composition = *composition;
   return record;
 }
 
@@ -602,9 +637,35 @@ ProbeStateRecord parse_probe_state_record(const std::string& line) {
   ProbeStateRecord record;
   if (auto schema = maybe_get_string(line, "schema")) record.schema = *schema;
   record.state_id = get_string(line, "state_id");
+  record.parent_state_path = maybe_get_string(line, "parent_state_path").value_or("");
   record.state_path = get_string(line, "state_path");
   record.source_artifact_path = maybe_get_string(line, "source_artifact_path").value_or("");
   record.lineage = maybe_get_string(line, "lineage").value_or("");
+  return record;
+}
+
+CorpusShardRecord parse_corpus_shard_record(const std::string& line) {
+  CorpusShardRecord record;
+  if (auto schema = maybe_get_string(line, "schema")) record.schema = *schema;
+  record.source_id = get_string(line, "source_id");
+  record.shard_id = get_string(line, "shard_id");
+  record.local_path = get_string(line, "local_path");
+  record.sha256 = get_string(line, "sha256");
+  record.canonicalization_hash = get_string(line, "canonicalization_hash");
+  record.dedup_hash = get_string(line, "dedup_hash");
+  record.encoding = get_string(line, "encoding");
+  record.line_separator = get_string(line, "line_separator");
+  record.byte_count = get_int(line, "byte_count");
+  record.char_count = get_int(line, "char_count");
+  record.line_count = get_int(line, "line_count");
+  record.split = get_string(line, "split");
+  record.split_bucket = get_int(line, "split_bucket");
+  record.split_policy_version = get_string(line, "split_policy_version");
+  record.filter_status = get_string(line, "filter_status");
+  record.filter_reason = get_string(line, "filter_reason");
+  record.filter_version = get_string(line, "filter_version");
+  record.retrieval_timestamp_utc = get_string(line, "retrieval_timestamp_utc");
+  record.license_spdx_id = get_string(line, "license_spdx_id");
   return record;
 }
 
@@ -1050,6 +1111,18 @@ std::vector<ProbeStateRecord> load_probe_state_records(const std::string& path) 
   return records;
 }
 
+std::vector<CorpusShardRecord> load_corpus_shard_records(const std::string& path) {
+  std::ifstream in(path);
+  if (!in) throw std::runtime_error("cannot open corpus shard manifest: " + path);
+  std::vector<CorpusShardRecord> records;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.empty()) continue;
+    records.push_back(parse_corpus_shard_record(line));
+  }
+  return records;
+}
+
 struct SplitAudit {
   std::map<std::string, int> splits;
   std::map<std::string, std::set<int>> levels_by_domain;
@@ -1327,8 +1400,15 @@ class OrganicBrain {
           // Advance past the copied span; previous becomes the filler's last char so the
           // post-span position scores against the correct transition feature.
           unsigned char last_in_span = static_cast<unsigned char>(target[pos + span - 1]);
+          bool copied_span_reaches_end = (pos + span == target.size());
           pos += span;
           previous = (last_in_span < kAscii) ? last_in_span : previous;
+          if (config_.repetition_penalty_weight > 0.0 && copied_span_reaches_end &&
+              !matched_role.empty()) {
+            connections_[copy_boundary_end_feature_id(matched_role)].value[kEnd] +=
+                trace.reward_scalar * config_.learning_rate * config_.repetition_penalty_weight;
+            ++deltas;
+          }
         } else {
           unsigned char c = static_cast<unsigned char>(target[pos]);
           if (c >= kAscii) { ++pos; continue; }
@@ -1371,6 +1451,17 @@ class OrganicBrain {
     mutation_connection_deltas_.push_back(deltas);
   }
 
+  void expose_raw_utterance(const Event& event) {
+    if (event.input.empty()) throw std::runtime_error("raw corpus exposure requires nonempty input");
+    Event exposure = event;
+    // Self-supervised exposure signal: the raw input is reused as target so learn()
+    // can mutate state without an external label, oracle answer, or scored artifact.
+    exposure.target_output = event.input;
+    exposure.reward = {{"unlabeled_exposure_weight", 1.0}};
+    learn(exposure);
+    if (!traces_.empty()) traces_.back().reward_scalar = 0.0;
+  }
+
   Generation generate(const std::string& input, const std::vector<std::string>& observations) const {
     Generation gen;
     auto query = hdc_.encode_event(input, observations);
@@ -1410,6 +1501,7 @@ class OrganicBrain {
     std::string copy_filler;
     size_t copy_pos = 0;
     std::string copy_role_name;
+    std::string pending_copy_boundary_role;
     for (int pos = 0; pos < config_.max_output_chars; ++pos) {
       if (in_copy_mode) {
         // Copy-mode emission: read the next filler char from the active observation; no
@@ -1432,12 +1524,20 @@ class OrganicBrain {
         ++copy_pos;
         if (copy_pos >= copy_filler.size()) {
           in_copy_mode = false;
+          pending_copy_boundary_role = copy_role_name;
         }
         continue;
       }
 
       auto active = state_features(features, previous, pos);
       add_trace_span_position_features(active, gen.activations, pos);
+      size_t copy_boundary_count = 0;
+      if (config_.repetition_penalty_weight > 0.0 && !pending_copy_boundary_role.empty()) {
+        active.push_back({copy_boundary_end_feature_id(pending_copy_boundary_role), 1.0});
+        ++copy_boundary_count;
+        ++gen.copy_boundary_feature_count;
+        pending_copy_boundary_role.clear();
+      }
       std::array<double, kExtendedActions> scores{};
       bool any = false;
       for (const auto& feature : active) {
@@ -1485,6 +1585,14 @@ class OrganicBrain {
 
       if (!any) break;
 
+      if (config_.repetition_penalty_weight > 0.0) {
+        for (int a = 0; a < kAscii; ++a) {
+          if (scores[a] == 0.0 || a == kEnd) continue;
+          double penalty = repetition_extension_penalty(gen.output, static_cast<unsigned char>(a));
+          if (penalty > 0.0) scores[a] -= penalty;
+        }
+      }
+
       // Argmax over the expanded action space. Tied scores broken by ascending action_id —
       // preserves the legacy "lowest char_id wins on tie" rule for the literal range.
       std::vector<std::pair<int, double>> ranked;
@@ -1507,6 +1615,7 @@ class OrganicBrain {
         end_step.score = 0.0;
         end_step.active_state_feature_count = active.size();
         end_step.active_slot_copy_count = slot_copy_count;
+        end_step.active_copy_boundary_count = copy_boundary_count;
         gen.steps.push_back(end_step);
         break;
       }
@@ -1519,6 +1628,7 @@ class OrganicBrain {
       step.score = chosen_score;
       step.active_state_feature_count = active.size();
       step.active_slot_copy_count = slot_copy_count;
+      step.active_copy_boundary_count = copy_boundary_count;
       // top_chars carries only literal-action contenders for legacy artifact compatibility;
       // mode-switch alternatives surface via is_mode_switch + copy_role on the chosen step.
       for (const auto& r : ranked) {
@@ -1562,9 +1672,11 @@ class OrganicBrain {
         if (copy_filler.size() > 1) {
           in_copy_mode = true;
           copy_pos = 1;
+        } else {
+          pending_copy_boundary_role = copy_role_name;
         }
-        // else: single-char filler; never enter copy_mode; remaining emissions resume in
-        // literal mode at the next iteration.
+        // For multi-char fillers, the boundary is marked when the copy-mode branch emits
+        // the final char. Single-char fillers mark it here.
       }
     }
     gen.state_hash = state_hash();
@@ -1576,6 +1688,14 @@ class OrganicBrain {
 
   uint64_t state_hash() const {
     uint64_t h = fnv1a("organic-v0-state");
+    if (config_.max_output_chars != 48) {
+      h = combine(h, fnv1a("config.max_output_chars"));
+      h = combine(h, static_cast<uint64_t>(config_.max_output_chars));
+    }
+    if (config_.repetition_penalty_weight != 0.0) {
+      h = combine(h, fnv1a("config.repetition_penalty_weight"));
+      h = combine(h, double_bits(config_.repetition_penalty_weight));
+    }
     h = combine(h, static_cast<uint64_t>(traces_.size()));
     h = combine(h, static_cast<uint64_t>(connections_.size()));
     h = combine(h, static_cast<uint64_t>(slot_copy_weights_.size()));
@@ -1697,6 +1817,11 @@ class OrganicBrain {
     config_.max_output_chars = max_output_chars;
   }
 
+  void set_repetition_penalty_weight(double weight) {
+    if (weight < 0.0) throw std::runtime_error("repetition penalty weight must be nonnegative");
+    config_.repetition_penalty_weight = weight;
+  }
+
   // Cycle-8 A0 boundary: prediction is a side substrate for replay priority and confidence.
   // OrganicBrain::generate() must not read outcome_predictor_, prediction errors, or replay
   // priority. Keep outcome prediction separate from output-character scoring.
@@ -1802,6 +1927,7 @@ class OrganicBrain {
         << " slot_pass_gain=" << double_to_hex(config_.slot_pass_gain)
         << " segment_mode_gain=" << double_to_hex(config_.segment_mode_gain)
         << " trace_span_position_gain=" << double_to_hex(config_.trace_span_position_gain)
+        << " repetition_penalty_weight=" << double_to_hex(config_.repetition_penalty_weight)
         << " use_trace_id_feature=" << (config_.use_trace_id_feature ? 1 : 0)
         << " use_slot_pass_through=" << (config_.use_slot_pass_through ? 1 : 0)
         << " use_segment_mode=" << (config_.use_segment_mode ? 1 : 0)
@@ -1974,6 +2100,7 @@ class OrganicBrain {
     config_.symbolic_relation_gain = 5.0;
     config_.grid_spatial_gain = 5.0;
     config_.trace_span_position_gain = 0.0;
+    config_.repetition_penalty_weight = 0.0;
     config_.use_trace_span_position_features = false;
     config_.use_numeric_derived_features = false;
     config_.use_threshold_derived_features = false;
@@ -2008,6 +2135,7 @@ class OrganicBrain {
       else if (k == "slot_pass_gain") config_.slot_pass_gain = hex_to_double(v);
       else if (k == "segment_mode_gain") config_.segment_mode_gain = hex_to_double(v);
       else if (k == "trace_span_position_gain") config_.trace_span_position_gain = hex_to_double(v);
+      else if (k == "repetition_penalty_weight") config_.repetition_penalty_weight = hex_to_double(v);
       else if (k == "use_trace_id_feature") config_.use_trace_id_feature = (v != "0");
       else if (k == "use_slot_pass_through") config_.use_slot_pass_through = (v != "0");
       else if (k == "use_segment_mode") config_.use_segment_mode = (v != "0");
@@ -2258,6 +2386,36 @@ class OrganicBrain {
     uint64_t role_id = hash_pair("span-role", role);
     uint64_t offset_id = combine(fnv1a("span-pos"), static_cast<uint64_t>(span_offset));
     return combine(trace_id, combine(role_id, offset_id));
+  }
+
+  uint64_t copy_boundary_end_feature_id(const std::string& role) const {
+    return hash_pair("copy-boundary-end", role);
+  }
+
+  double repetition_extension_penalty(const std::string& output, unsigned char candidate) const {
+    if (config_.repetition_penalty_weight <= 0.0 || candidate == kEnd) return 0.0;
+    std::string trial = output;
+    trial.push_back(static_cast<char>(candidate));
+    const size_t n = trial.size();
+    for (size_t width = 4; width <= 24 && 2 * width <= n; ++width) {
+      if (trial.compare(n - width, width, trial, n - 2 * width, width) == 0) {
+        return config_.repetition_penalty_weight;
+      }
+    }
+    auto tokens = tokenize(trial);
+    if (tokens.size() >= 6) {
+      for (size_t width = 1; width <= 3 && 2 * width <= tokens.size(); ++width) {
+        bool repeated = true;
+        for (size_t i = 0; i < width; ++i) {
+          if (tokens[tokens.size() - 1 - i] != tokens[tokens.size() - 1 - width - i]) {
+            repeated = false;
+            break;
+          }
+        }
+        if (repeated) return config_.repetition_penalty_weight;
+      }
+    }
+    return 0.0;
   }
 
   const Trace* trace_by_event_id(const std::string& event_id) const {
@@ -2992,6 +3150,7 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
         << ", \"score\": " << std::fixed << std::setprecision(6) << step.score << std::defaultfloat
         << ", \"active_state_feature_count\": " << step.active_state_feature_count
         << ", \"active_slot_copy_count\": " << step.active_slot_copy_count
+        << ", \"active_copy_boundary_count\": " << step.active_copy_boundary_count
         // CYCLE-3.5: segment-mode evidence fields are exported so eval artifacts can audit
         // when the brain entered copy mode and which observation role drove the copy. These
         // fields were tracked on GenerationStep since cycle 3 but were never serialized.
@@ -3010,6 +3169,9 @@ void write_generation_evidence(std::ostream& out, const Generation& gen) {
   out << "], \"connection_feature_count\": " << gen.connection_feature_count
       << ", \"connection_nonzero_count\": " << gen.connection_nonzero_count
       << ", \"slot_copy_link_count\": " << gen.slot_copy_link_count
+      << ", \"segment_mode_switch_count\": " << gen.segment_mode_switch_count
+      << ", \"copy_mode_char_count\": " << gen.copy_mode_char_count
+      << ", \"copy_boundary_feature_count\": " << gen.copy_boundary_feature_count
       << ", \"state_hash\": " << q(hex64(gen.state_hash)) << "}";
 }
 
@@ -3038,6 +3200,7 @@ void write_config(std::ostream& out, const Config& config) {
       << ", \"slot_pass_gain\": " << config.slot_pass_gain
       << ", \"segment_mode_gain\": " << config.segment_mode_gain
       << ", \"trace_span_position_gain\": " << config.trace_span_position_gain
+      << ", \"repetition_penalty_weight\": " << config.repetition_penalty_weight
       << ", \"use_trace_id_feature\": " << (config.use_trace_id_feature ? "true" : "false")
       << ", \"use_slot_pass_through\": " << (config.use_slot_pass_through ? "true" : "false")
       << ", \"use_segment_mode\": " << (config.use_segment_mode ? "true" : "false")
@@ -3509,6 +3672,14 @@ struct Args {
   std::string rule_family = "all";
   std::string experience_db = "experience/organic-v0/text_experience_seed_v0.jsonl";
   std::string state_manifest;
+  std::string corpus_manifest = "experience/organic-v0/corpus_manifest_v0.jsonl";
+  // Cycle 16: additional manifests appended (in argv order) onto the primary
+  // corpus_manifest for combined neural training. Empty by default so every
+  // existing single-manifest invocation (Cycle 14/15 rails, all default
+  // training paths) keeps bit-exact behavior. Only the recurrent text phase
+  // consumes this; regenerate, the cycle-2 corpus prep, and the exposure
+  // rails all stay single-manifest.
+  std::vector<std::string> corpus_manifests_extra;
   std::string transcript_out;
   uint64_t scenario_seed = 7001;
   uint64_t random_baseline_seed = 8801;
@@ -3521,6 +3692,14 @@ struct Args {
   int checkpoint_interval_ticks = 100;
   int internal_timeout_seconds = 180;
   int generation_max_output_chars = 0;
+  int corpus_exposure_max_shards = 4;
+  int neural_epochs = 8;
+  int neural_context = 16;
+  int neural_hidden = 64;
+  int neural_max_train_shards = 0;
+  int neural_max_output_chars = 160;
+  int neural_min_output_chars = 32;
+  int neural_top_k = 16;
   int policy_max_wake_commands = 1024;
   int policy_max_sleep_ticks = 100000;
   int policy_max_replay_candidates = 10000;
@@ -3529,6 +3708,9 @@ struct Args {
   int policy_max_file_writes = 250000;
   double feedback_strength = 2.0;
   double replay_min_sequence_ratio = 1.0;
+  double reward_repetition_penalty = 0.0;
+  double neural_learning_rate = 0.025;
+  double neural_temperature = 0.85;
   std::string policy_tmp_root;
   bool ablate_trace_id = false;
   bool ablate_numeric_derived = false;
@@ -3542,6 +3724,8 @@ struct Args {
   bool ablate_text_replay_audit = false;
   bool derive_raw_text_spans = false;
   bool ablate_raw_text_spans = false;
+  bool ablate_corpus_learning = false;
+  bool ablate_content_filter = false;
   bool unsafe_disable_policy = false;
 };
 
@@ -3582,6 +3766,14 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--rule-family") args.rule_family = need_value(key);
     else if (key == "--experience-db") args.experience_db = need_value(key);
     else if (key == "--state-manifest") args.state_manifest = need_value(key);
+    else if (key == "--corpus-manifest") args.corpus_manifest = need_value(key);
+    // Cycle 16: --corpus-manifest-extra is repeatable. Each occurrence
+    // appends one additional manifest path to the combined recurrent
+    // training corpus, in argv order. Stable order = deterministic train
+    // shard sequence under fixed scenario_seed.
+    else if (key == "--corpus-manifest-extra") {
+      args.corpus_manifests_extra.push_back(need_value(key));
+    }
     else if (key == "--transcript-out") args.transcript_out = need_value(key);
     else if (key == "--scenario-seed") args.scenario_seed = std::stoull(need_value(key));
     else if (key == "--random-baseline-seed") args.random_baseline_seed = std::stoull(need_value(key));
@@ -3598,6 +3790,30 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--generation-max-output-chars") {
       args.generation_max_output_chars = parse_nonnegative_int_flag(key, need_value(key));
     }
+    else if (key == "--corpus-exposure-max-shards") {
+      args.corpus_exposure_max_shards = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-epochs") {
+      args.neural_epochs = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-context") {
+      args.neural_context = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-hidden") {
+      args.neural_hidden = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-max-train-shards") {
+      args.neural_max_train_shards = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-max-output-chars") {
+      args.neural_max_output_chars = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-min-output-chars") {
+      args.neural_min_output_chars = parse_nonnegative_int_flag(key, need_value(key));
+    }
+    else if (key == "--neural-top-k") {
+      args.neural_top_k = parse_nonnegative_int_flag(key, need_value(key));
+    }
     else if (key == "--policy-max-wake-commands") args.policy_max_wake_commands = std::stoi(need_value(key));
     else if (key == "--policy-max-sleep-ticks") args.policy_max_sleep_ticks = std::stoi(need_value(key));
     else if (key == "--policy-max-replay-candidates") args.policy_max_replay_candidates = std::stoi(need_value(key));
@@ -3607,6 +3823,14 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--policy-tmp-root") args.policy_tmp_root = need_value(key);
     else if (key == "--feedback-strength") args.feedback_strength = std::stod(need_value(key));
     else if (key == "--replay-threshold") args.replay_min_sequence_ratio = std::stod(need_value(key));
+    else if (key == "--neural-learning-rate") args.neural_learning_rate = std::stod(need_value(key));
+    else if (key == "--neural-temperature") args.neural_temperature = std::stod(need_value(key));
+    else if (key == "--reward-repetition-penalty") {
+      args.reward_repetition_penalty = std::stod(need_value(key));
+      if (args.reward_repetition_penalty < 0.0) {
+        throw std::runtime_error("--reward-repetition-penalty must be nonnegative");
+      }
+    }
     else if (key == "--ablate-trace-id") args.ablate_trace_id = true;
     else if (key == "--ablate-numeric-derived") args.ablate_numeric_derived = true;
     else if (key == "--ablate-threshold-derived") args.ablate_threshold_derived = true;
@@ -3621,6 +3845,8 @@ Args parse_args(int argc, char** argv) {
     else if (key == "--ablate-text-replay-audit") args.ablate_text_replay_audit = true;
     else if (key == "--derive-raw-text-spans") args.derive_raw_text_spans = true;
     else if (key == "--ablate-raw-text-spans") args.ablate_raw_text_spans = true;
+    else if (key == "--ablate-corpus-learning") args.ablate_corpus_learning = true;
+    else if (key == "--ablate-content-filter") args.ablate_content_filter = true;
     else if (key == "--unsafe-disable-policy") args.unsafe_disable_policy = true;
     else throw std::runtime_error("unknown argument: " + key);
   }
@@ -4197,6 +4423,64 @@ void append_event_log_v2(const std::string& log_path, RuntimePolicy& policy,
   log << line << "\n";
   log.flush();
   policy.set_event_log_prev_hash(log_path, content_hash);
+}
+
+std::string last_content_hash_or_genesis(const std::string& log_path) {
+  std::ifstream in(log_path);
+  if (!in) return "GENESIS";
+  std::string last = "GENESIS";
+  std::string line;
+  while (std::getline(in, line)) {
+    if (trim_copy(line).empty()) continue;
+    auto hash = maybe_get_string(line, "event_content_hash");
+    if (hash.has_value()) last = *hash;
+  }
+  return last;
+}
+
+void append_corpus_exposure_event_log_line(const std::string& log_path,
+                                           const std::string& run_id,
+                                           const std::string& organism_id,
+                                           const std::string& step_id,
+                                           const Event& event,
+                                           const std::string& source_path,
+                                           bool learning_applied,
+                                           uint64_t state_before_hash,
+                                           uint64_t state_after_hash) {
+  if (log_path.empty()) return;
+  ensure_parent_dir(log_path);
+  std::string prev_hash = last_content_hash_or_genesis(log_path);
+  std::string log_event_id = event_log_id(next_event_log_ordinal(log_path));
+  std::ostringstream core;
+  core << "{\"schema\":\"project_x.corpus_exposure_event.v1\""
+       << ",\"event_id\":" << q(log_event_id)
+       << ",\"run_id\":" << q(run_id)
+       << ",\"organism_id\":" << q(organism_id)
+       << ",\"step_id\":" << q(step_id)
+       << ",\"timestamp_utc\":" << q(timestamp_utc())
+       << ",\"phase\":\"learn\""
+       << ",\"source\":{\"source_kind\":\"cycle12_corpus_shard\""
+       << ",\"source_path\":" << q(source_path)
+       << ",\"source_event_id\":" << q(event.event_id) << "}"
+       << ",\"input\":{\"text\":" << q(event.input) << ",\"observations\":[";
+  for (size_t i = 0; i < event.observations.size(); ++i) {
+    if (i) core << ",";
+    core << q(event.observations[i]);
+  }
+  core << "]}"
+       << ",\"learning_applied\":" << (learning_applied ? "true" : "false")
+       << ",\"state_before_hash\":" << q(hex64(state_before_hash))
+       << ",\"state_after_hash\":" << q(hex64(state_after_hash))
+       << ",\"prev_event_content_hash\":" << q(prev_hash)
+       << ",\"backend\":{\"runtime\":\"native_cpp20\",\"gpu_backend\":\"not_used_in_organic_v0\"}}";
+  std::string core_text = core.str();
+  std::string content_hash = event_log_v2_content_hash_for_core(core_text);
+  std::string line = core_text.substr(0, core_text.size() - 1) +
+                     ",\"event_content_hash\":" + q(content_hash) + "}";
+  std::ofstream log(log_path, std::ios::app);
+  if (!log) throw std::runtime_error("cannot open corpus exposure event log: " + log_path);
+  log << line << "\n";
+  log.flush();
 }
 
 OutcomeTarget target_from_generation(const Event& event, const std::string& raw_output) {
@@ -5260,6 +5544,24 @@ void policy_self_test_phase(const Args& args, const std::string& command) {
 
 void write_string_array_json(std::ostream& out, const std::vector<std::string>& values);
 
+std::string read_corpus_shard_text(const std::string& path, bool require_observation_safe = true) {
+  std::ifstream in(path);
+  if (!in) throw std::runtime_error("cannot open corpus shard: " + path);
+  std::ostringstream buffer;
+  buffer << in.rdbuf();
+  std::string text = buffer.str();
+  if (!text.empty() && text.back() == '\n') text.pop_back();
+  if (!text.empty() && text.back() == '\r') text.pop_back();
+  if (text.empty()) throw std::runtime_error("empty corpus shard: " + path);
+  for (unsigned char c : text) {
+    if (require_observation_safe && (c == '\n' || c == '\r' || c == '|' || c == ',')) {
+      throw std::runtime_error("corpus shard is not PXSTATE observation-safe: " + path);
+    }
+    if (c > 126) throw std::runtime_error("corpus shard contains non-ascii byte: " + path);
+  }
+  return text;
+}
+
 void write_quote_probe_transcript_header(std::ostream& out, const Args& args,
                                          const std::string& transcript_path) {
   out << "# Cycle 11 Voice Pressure Transcript\n\n";
@@ -5272,8 +5574,60 @@ void write_quote_probe_transcript_header(std::ostream& out, const Args& args,
                                                : std::string("loaded-state default"))
       << "\n\n";
   out << "This transcript preserves raw organic-v0 generation from loaded persisted states. "
-      << "The prompts have no labels, corrections, expected outputs, or semantic scoring.\n\n";
+      << "The prompts have raw utterance observations only and no labels, corrections, expected outputs, or semantic scoring.\n\n";
   out << "Transcript path: `" << transcript_path << "`\n";
+}
+
+void state_config_copy_phase(const Args& args) {
+  if (args.load_state.empty()) throw std::runtime_error("state-config-copy requires --load-state");
+  if (args.save_state.empty()) throw std::runtime_error("state-config-copy requires --save-state");
+  if (args.generation_max_output_chars <= 0) {
+    throw std::runtime_error("state-config-copy requires positive --generation-max-output-chars");
+  }
+
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  load_state_checked(brain, args.load_state);
+  uint64_t parent_hash = brain.state_hash();
+  int parent_max_output_chars = brain.config().max_output_chars;
+  brain.set_max_output_chars(args.generation_max_output_chars);
+  uint64_t child_hash = brain.state_hash();
+
+  ensure_parent_dir(args.save_state);
+  {
+    std::ofstream state_out(args.save_state);
+    if (!state_out) throw std::runtime_error("cannot write capped state: " + args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+  }
+
+  OrganicBrain reloaded(config);
+  load_state_checked(reloaded, args.save_state);
+  if (reloaded.config().max_output_chars != args.generation_max_output_chars) {
+    throw std::runtime_error("capped state reload lost max_output_chars");
+  }
+  if (reloaded.state_hash() != child_hash) {
+    throw std::runtime_error("capped state reload hash mismatch");
+  }
+
+  if (!args.out.empty()) {
+    ensure_parent_dir(args.out);
+    std::ofstream out(args.out);
+    if (!out) throw std::runtime_error("cannot open state-config-copy artifact: " + args.out);
+    out << "{\n";
+    out << "  \"schema\": \"project_x.state_config_copy.v0\",\n";
+    out << "  \"run_id\": " << q(args.run_id.empty() ? "state-config-copy" : args.run_id) << ",\n";
+    out << "  \"loaded_state_path\": " << q(args.load_state) << ",\n";
+    out << "  \"saved_state_path\": " << q(args.save_state) << ",\n";
+    out << "  \"parent_max_output_chars\": " << parent_max_output_chars << ",\n";
+    out << "  \"child_max_output_chars\": " << args.generation_max_output_chars << ",\n";
+    out << "  \"parent_state_hash\": " << q(hex64(parent_hash)) << ",\n";
+    out << "  \"child_state_hash\": " << q(hex64(child_hash)) << ",\n";
+    out << "  \"hash_changed\": " << (parent_hash != child_hash ? "true" : "false") << ",\n";
+    out << "  \"honest_interpretation\": \"Copies a loaded PXSTATE with only CONFIG max_output_chars changed, then reloads the child to prove the cap is durable. This is a probe-state configuration change, not new learned voice capability.\"\n";
+    out << "}\n";
+  }
+  std::cout << "wrote " << args.save_state << "\n";
 }
 
 void quote_probe_phase(const Args& args, const std::string& command) {
@@ -5320,7 +5674,7 @@ void quote_probe_phase(const Args& args, const std::string& command) {
   bool all_generations_state_unchanged = true;
 
   out << "{\n";
-  out << "  \"schema\": \"project_x.quote_per_state_cycle11.v0\",\n";
+  out << "  \"schema\": \"project_x.quote_per_state_cycle11.v1\",\n";
   out << "  \"run_id\": " << q(run_id) << ",\n";
   out << "  \"timestamp\": " << q(ts) << ",\n";
   out << "  \"phase\": \"quote-probe\",\n";
@@ -5329,11 +5683,11 @@ void quote_probe_phase(const Args& args, const std::string& command) {
   out << "  \"state_manifest_path\": " << q(args.state_manifest) << ",\n";
   out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
   out << "  \"event_log_path\": " << (args.event_log.empty() ? "null" : q(args.event_log)) << ",\n";
-  out << "  \"generation_budget\": {\"legacy_max_output_chars\": 48, \"runtime_max_output_chars\": "
+  out << "  \"generation_budget\": {\"legacy_max_output_chars\": 48, \"required_persisted_max_output_chars\": 160, \"runtime_max_output_chars\": "
       << (args.generation_max_output_chars > 0 ? args.generation_max_output_chars : 0)
       << ", \"runtime_override_applied\": "
       << (args.generation_max_output_chars > 0 ? "true" : "false")
-      << ", \"loaded_state_hash_excludes_generation_cap\": true},\n";
+      << ", \"loaded_state_config_required\": true, \"loaded_state_hash_includes_nonlegacy_generation_cap\": true},\n";
   out << "  \"raw_text_span_sense\": {\"enabled\": "
       << (args.derive_raw_text_spans && !args.ablate_raw_text_spans ? "true" : "false")
       << ", \"derive_flag\": " << (args.derive_raw_text_spans ? "true" : "false")
@@ -5343,10 +5697,11 @@ void quote_probe_phase(const Args& args, const std::string& command) {
       << "\"expected_outputs_present\": false, \"semantic_quality_scoring\": false},\n";
   out << "  \"a0_boundary\": {\"generator_predictor_blind\": true, "
       << "\"evidence\": \"OrganicBrain::generate remains separate from predict_outcome; verify_cycle11_voice_pressure.sh checks the generate() body for predictor tokens.\"},\n";
-  out << "  \"negative_space\": {\"not_philosophy\": true, \"not_fluent_chat\": true, "
-      << "\"not_semantic_understanding\": true, \"not_a0_improvement\": true, "
-      << "\"not_sandbox_or_security\": true, \"not_template_generation\": true, "
-      << "\"not_pretrained_model\": true},\n";
+  out << "  \"audit_status\": \"ungraded; rubric-pending for GPT/lain audit\",\n";
+  out << "  \"negative_space\": {\"not_fluency_claim\": true, \"not_philosophy_claim\": true, "
+      << "\"not_chat_capability\": true, \"not_semantic_quality_claim\": true, "
+      << "\"not_ui_layer\": true, \"not_pretrained_route\": true, \"not_template_route\": true, "
+      << "\"not_a0_improvement\": true, \"not_sandbox_or_security\": true},\n";
   out << "  \"states\": [\n";
 
   for (size_t si = 0; si < states.size(); ++si) {
@@ -5364,10 +5719,14 @@ void quote_probe_phase(const Args& args, const std::string& command) {
       brain.set_max_output_chars(args.generation_max_output_chars);
     }
     int active_max_output_chars = brain.config().max_output_chars;
+    if (args.generation_max_output_chars <= 0 && loaded_max_output_chars != 160) {
+      throw std::runtime_error("quote-probe requires persisted max_output_chars=160 when no runtime override is used: " + state.state_path);
+    }
     BrainStateStats state_stats = capture_state_stats(brain);
 
     if (si) out << ",\n";
     out << "    {\"state_id\": " << q(state.state_id)
+        << ", \"parent_state_path\": " << (state.parent_state_path.empty() ? "null" : q(state.parent_state_path))
         << ", \"state_path\": " << q(state.state_path)
         << ", \"source_artifact_path\": " << q(state.source_artifact_path)
         << ", \"lineage\": " << q(state.lineage)
@@ -5422,6 +5781,7 @@ void quote_probe_phase(const Args& args, const std::string& command) {
           << ", \"raw_generated_output\": " << q(gen.output)
           << ", \"output_char_count\": " << gen.output.size()
           << ", \"exceeds_legacy_48_char_cap\": " << (exceeds_legacy ? "true" : "false")
+          << ", \"audit_status\": \"ungraded; rubric-pending for GPT/lain audit\""
           << ", \"state_hash_before\": " << q(hex64(before_hash))
           << ", \"state_hash_after\": " << q(hex64(after_hash))
           << ", \"state_unchanged\": " << (state_unchanged ? "true" : "false")
@@ -5459,14 +5819,1885 @@ void quote_probe_phase(const Args& args, const std::string& command) {
       << (outputs_exceeding_legacy_cap > 0 ? "true" : "false")
       << ", \"honest_note\": "
       << q(outputs_exceeding_legacy_cap > 0
-               ? "At least one raw output crossed the old 48-character cap under the runtime generation budget."
-               : "The runtime budget was raised, but current learned state still ended outputs at or before the old 48-character cap.")
+               ? "At least one raw output crossed the old 48-character cap under the persisted generation budget."
+               : "The persisted generation budget was raised, but current learned state still ended outputs at or before the old 48-character cap.")
       << "},\n";
-  out << "  \"honest_interpretation\": \"Cycle 11 quote-probe loads persisted organic-v0 states and asks unlabeled raw prompts under a runtime-only longer generation cap. Outputs are raw and unscored; nonempty text proves only that learned state emitted characters, not philosophy, semantic understanding, fluent chat, or A0 improvement.\"\n";
+  out << "  \"honest_interpretation\": \"Cycle 11 quote-probe loads persisted organic-v0 states whose PXSTATE CONFIG carries max_output_chars=160, then asks raw-utterance-only prompts. Outputs are raw and unscored; nonempty text proves only that learned state emitted characters, not philosophy, semantic understanding, fluent chat, or A0 improvement.\"\n";
   out << "}\n";
 
   if (!all_state_hash_self_checks) throw std::runtime_error("quote-probe state hash self-check failed");
   if (!all_generations_state_unchanged) throw std::runtime_error("quote-probe generation mutated state");
+  std::cout << "wrote " << args.out << "\n";
+}
+
+struct CorpusExposureHistory {
+  CorpusShardRecord shard;
+  std::string raw_text;
+  uint64_t state_before = 0;
+  uint64_t state_after = 0;
+  bool learning_applied = false;
+};
+
+void corpus_exposure_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("corpus-exposure requires --out");
+  if (args.load_state.empty()) throw std::runtime_error("corpus-exposure requires --load-state");
+  if (args.save_state.empty()) throw std::runtime_error("corpus-exposure requires --save-state");
+  if (args.corpus_manifest.empty()) throw std::runtime_error("corpus-exposure requires --corpus-manifest");
+
+  std::string run_id = args.run_id.empty() ? "cycle12-corpus-exposure" : args.run_id;
+  Config config;
+  apply_ablations(config, args);
+  OrganicBrain brain(config);
+  load_state_checked(brain, args.load_state);
+  uint64_t loaded_parent_hash = brain.state_hash();
+  if (args.reward_repetition_penalty > 0.0) {
+    brain.set_repetition_penalty_weight(args.reward_repetition_penalty);
+  }
+  uint64_t parent_hash = brain.state_hash();
+  BrainStateStats parent_stats = capture_state_stats(brain);
+
+  auto shards = load_corpus_shard_records(args.corpus_manifest);
+  int candidate_shards = static_cast<int>(shards.size());
+  int accepted_shards = 0;
+  int rejected_shards = 0;
+  int duplicate_count = 0;
+  int64_t bytes_candidate = 0;
+  int64_t bytes_accepted = 0;
+  std::map<std::string, int> rejection_reason_counts;
+  std::vector<CorpusShardRecord> selected;
+  for (const auto& shard : shards) {
+    bytes_candidate += shard.byte_count;
+    if (shard.filter_status == "accepted") {
+      ++accepted_shards;
+      bytes_accepted += shard.byte_count;
+    } else if (shard.filter_status == "rejected") {
+      ++rejected_shards;
+      rejection_reason_counts[shard.filter_reason] += 1;
+      if (shard.filter_reason.rfind("duplicate:", 0) == 0) ++duplicate_count;
+    }
+    bool train_split = shard.split == "train";
+    bool filter_pass = shard.filter_status == "accepted" || args.ablate_content_filter;
+    if (train_split && filter_pass) selected.push_back(shard);
+  }
+  if (selected.empty()) throw std::runtime_error("corpus-exposure found no train shards");
+  if (args.corpus_exposure_max_shards > 0 &&
+      selected.size() > static_cast<size_t>(args.corpus_exposure_max_shards)) {
+    selected.resize(static_cast<size_t>(args.corpus_exposure_max_shards));
+  }
+
+  if (!args.event_log.empty()) {
+    ensure_parent_dir(args.event_log);
+    std::ofstream(args.event_log, std::ios::trunc).close();
+  }
+
+  std::vector<CorpusExposureHistory> history;
+  for (const auto& shard : selected) {
+    bool learned = !args.ablate_corpus_learning;
+    std::string raw_text = read_corpus_shard_text(shard.local_path, learned);
+    Event event;
+    event.event_id = "cycle12_" + shard.shard_id;
+    event.episode_id = run_id;
+    event.split = "train";
+    event.domain = "corpus_exposure";
+    event.level = 0;
+    event.input = raw_text;
+    event.observations = {"raw_utterance:" + raw_text};
+    event.source = "cycle12_one_source_corpus";
+    event.composition = "raw_utterance_only";
+    uint64_t before_hash = brain.state_hash();
+    if (learned) {
+      brain.expose_raw_utterance(event);
+    }
+    uint64_t after_hash = brain.state_hash();
+    append_corpus_exposure_event_log_line(args.event_log, run_id, args.organism_id,
+                                          shard.shard_id, event, shard.local_path,
+                                          learned, before_hash, after_hash);
+    history.push_back({shard, raw_text, before_hash, after_hash, learned});
+  }
+
+  uint64_t child_hash = brain.state_hash();
+  BrainStateStats child_stats = capture_state_stats(brain);
+  ensure_parent_dir(args.save_state);
+  {
+    std::ofstream state_out(args.save_state);
+    if (!state_out) throw std::runtime_error("cannot write corpus exposure child state: " + args.save_state);
+    brain.serialize_state(state_out, args.organism_id);
+  }
+  OrganicBrain reloaded(config);
+  load_state_checked(reloaded, args.save_state);
+  uint64_t reload_hash = reloaded.state_hash();
+  bool reload_bit_exact = reload_hash == child_hash;
+  if (!reload_bit_exact) throw std::runtime_error("corpus exposure child reload hash mismatch");
+
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  if (!out) throw std::runtime_error("cannot open corpus exposure artifact: " + args.out);
+  std::string ts = timestamp_utc();
+  out << "{\n";
+  out << "  \"schema\": \"project_x.corpus_exposure_cycle12.v1\",\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(ts) << ",\n";
+  out << "  \"phase\": \"corpus-exposure\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"corpus_manifest_path\": " << q(args.corpus_manifest) << ",\n";
+  out << "  \"loaded_state_path\": " << q(args.load_state) << ",\n";
+  out << "  \"saved_state_path\": " << q(args.save_state) << ",\n";
+  out << "  \"event_log_path\": " << (args.event_log.empty() ? "null" : q(args.event_log)) << ",\n";
+  out << "  \"loaded_parent_state_hash\": " << q(hex64(loaded_parent_hash)) << ",\n";
+  out << "  \"candidate_shards\": " << candidate_shards << ",\n";
+  out << "  \"accepted_shards\": " << accepted_shards << ",\n";
+  out << "  \"rejected_shards\": " << rejected_shards << ",\n";
+  out << "  \"accepted_shards_over_candidate_shards_pct\": " << std::fixed << std::setprecision(6)
+      << (candidate_shards ? 100.0 * static_cast<double>(accepted_shards) / static_cast<double>(candidate_shards) : 0.0)
+      << ",\n";
+  out << "  \"bytes_candidate\": " << bytes_candidate << ",\n";
+  out << "  \"bytes_accepted\": " << bytes_accepted << ",\n";
+  out << "  \"bytes_accepted_over_bytes_candidate_pct\": "
+      << (bytes_candidate ? 100.0 * static_cast<double>(bytes_accepted) / static_cast<double>(bytes_candidate) : 0.0)
+      << ",\n";
+  out << std::defaultfloat;
+  out << "  \"duplicate_count\": " << duplicate_count << ",\n";
+  out << "  \"duplicate_rate\": " << std::fixed << std::setprecision(6)
+      << (candidate_shards ? static_cast<double>(duplicate_count) / static_cast<double>(candidate_shards) : 0.0)
+      << std::defaultfloat << ",\n";
+  out << "  \"rejection_reason_counts\": {";
+  bool first_reason = true;
+  for (const auto& [reason, count] : rejection_reason_counts) {
+    if (!first_reason) out << ", ";
+    out << q(reason) << ": " << count;
+    first_reason = false;
+  }
+  out << "},\n";
+  out << "  \"exposure_config\": {\"selected_train_shards\": " << history.size()
+      << ", \"max_selected_train_shards\": " << args.corpus_exposure_max_shards
+      << ", \"raw_utterance_only\": true, \"content_filter_enabled\": "
+      << (args.ablate_content_filter ? "false" : "true")
+      << ", \"reward_repetition_penalty\": " << args.reward_repetition_penalty << "},\n";
+  out << "  \"ablation\": {\"corpus_learning_disabled\": "
+      << (args.ablate_corpus_learning ? "true" : "false")
+      << ", \"content_filter_disabled\": " << (args.ablate_content_filter ? "true" : "false")
+      << "},\n";
+  out << "  \"parent_state_hash\": " << q(hex64(parent_hash)) << ",\n";
+  out << "  \"child_state_hash\": " << q(hex64(child_hash)) << ",\n";
+  out << "  \"reload_state_hash\": " << q(hex64(reload_hash)) << ",\n";
+  out << "  \"child_state_hash_changed_from_parent\": "
+      << (child_hash != parent_hash ? "true" : "false") << ",\n";
+  out << "  \"child_reload_bit_exact\": " << (reload_bit_exact ? "true" : "false") << ",\n";
+  out << "  \"parent_model_state\": "; write_state_stats(out, parent_stats); out << ",\n";
+  out << "  \"child_model_state\": "; write_state_stats(out, child_stats); out << ",\n";
+  out << "  \"state_growth\": "; write_state_growth(out, parent_stats, child_stats); out << ",\n";
+  out << "  \"exposure_history\": [\n";
+  for (size_t i = 0; i < history.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& item = history[i];
+    out << "    {\"source_id\": " << q(item.shard.source_id)
+        << ", \"shard_id\": " << q(item.shard.shard_id)
+        << ", \"local_path\": " << q(item.shard.local_path)
+        << ", \"sha256\": " << q(item.shard.sha256)
+        << ", \"canonicalization_hash\": " << q(item.shard.canonicalization_hash)
+        << ", \"split\": " << q(item.shard.split)
+        << ", \"split_bucket\": " << item.shard.split_bucket
+        << ", \"filter_status\": " << q(item.shard.filter_status)
+        << ", \"raw_utterance_char_count\": " << item.raw_text.size()
+        << ", \"observations\": ";
+    write_string_array_json(out, std::vector<std::string>{"raw_utterance:" + item.raw_text});
+    out << ", \"learning_applied\": " << (item.learning_applied ? "true" : "false")
+        << ", \"state_before_hash\": " << q(hex64(item.state_before))
+        << ", \"state_after_hash\": " << q(hex64(item.state_after))
+        << ", \"state_changed\": " << (item.state_before != item.state_after ? "true" : "false")
+        << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"negative_space\": {"
+      << "\"not_fluency_claim\": true, "
+      << "\"not_philosophy_claim\": true, "
+      << "\"not_chat_capability\": true, "
+      << "\"not_semantic_quality_claim\": true, "
+      << "\"not_ui_layer\": true, "
+      << "\"not_pretrained_route\": true, "
+      << "\"not_template_route\": true, "
+      << "\"not_tokenizer_route\": true, "
+      << "\"not_pretrained_encoder_route\": true, "
+      << "\"not_a0_improvement\": true, "
+      << "\"not_sandbox_or_security\": true, "
+      << "\"not_benchmark_ladder_advance\": true, "
+      << "\"not_an_alignment_or_safety_claim\": true, "
+      << "\"not_license_laundering\": true, "
+      << "\"not_curated_corpus_as_capability\": true, "
+      << "\"not_byte_count_as_progress\": true, "
+      << "\"not_dedup_as_understanding\": true, "
+      << "\"not_filter_as_quality_judgment\": true, "
+      << "\"not_source_diversity_as_competence\": true, "
+      << "\"not_internet_clean_data_claim\": true, "
+      << "\"not_state_growth_as_understanding\": true, "
+      << "\"not_author_voice_imitation_claim\": true, "
+      << "\"not_curator_intelligence_claim\": true},\n";
+  out << "  \"honest_interpretation\": \"Cycle 12B corpus exposure loads one capped Cycle 11 state, ingests accepted train shards as raw_utterance-only unlabeled exposure, saves a child state, and reloads it. This proves only persisted state mutation from manifest-backed raw exposure. It does not prove language quality.\"\n";
+  out << "}\n";
+
+  if (!args.ablate_corpus_learning && child_hash == parent_hash) {
+    throw std::runtime_error("corpus exposure did not change child state hash");
+  }
+  if (args.ablate_corpus_learning && child_hash != parent_hash) {
+    throw std::runtime_error("corpus-learning ablation changed state hash");
+  }
+  std::cout << "wrote " << args.out << "\n";
+}
+
+constexpr int kNeuralFirstChar = 32;
+constexpr int kNeuralLastChar = 126;
+constexpr int kNeuralTextVocab = (kNeuralLastChar - kNeuralFirstChar + 1) + 1;
+constexpr int kNeuralEnd = kNeuralTextVocab - 1;
+
+struct NeuralTextShard {
+  CorpusShardRecord shard;
+  std::string text;
+};
+
+struct NeuralGenerationStep {
+  int position = 0;
+  int chosen = kNeuralEnd;
+  double probability = 0.0;
+  bool repeat_penalty_applied = false;
+};
+
+struct NeuralGeneration {
+  std::string output;
+  bool ended_with_end = false;
+  int repeat_penalty_count = 0;
+  std::vector<NeuralGenerationStep> steps;
+};
+
+std::string neural_normalize_text(const std::string& text) {
+  std::string out;
+  bool prev_space = true;
+  for (unsigned char raw : text) {
+    unsigned char c = raw;
+    if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+    if (c >= 'A' && c <= 'Z') c = static_cast<unsigned char>(c - 'A' + 'a');
+    if (c < kNeuralFirstChar || c > kNeuralLastChar) continue;
+    if (c == ' ') {
+      if (!prev_space) out.push_back(' ');
+      prev_space = true;
+    } else {
+      out.push_back(static_cast<char>(c));
+      prev_space = false;
+    }
+  }
+  while (!out.empty() && out.back() == ' ') out.pop_back();
+  return out;
+}
+
+int neural_char_index(unsigned char c) {
+  if (c < kNeuralFirstChar || c > kNeuralLastChar) return kNeuralEnd;
+  return static_cast<int>(c) - kNeuralFirstChar;
+}
+
+char neural_index_char(int idx) {
+  if (idx < 0 || idx >= kNeuralEnd) return '?';
+  return static_cast<char>(idx + kNeuralFirstChar);
+}
+
+std::string neural_index_label(int idx) {
+  if (idx == kNeuralEnd) return "<END>";
+  return std::string(1, neural_index_char(idx));
+}
+
+std::vector<int> neural_targets_for_text(const std::string& text) {
+  std::vector<int> out;
+  for (unsigned char c : text) {
+    int idx = neural_char_index(c);
+    if (idx != kNeuralEnd) out.push_back(idx);
+  }
+  out.push_back(kNeuralEnd);
+  return out;
+}
+
+bool neural_repetition_loop(const std::string& text) {
+  std::string compact;
+  bool prev_space = true;
+  for (unsigned char raw : text) {
+    unsigned char c = raw;
+    if (c >= 'A' && c <= 'Z') c = static_cast<unsigned char>(c - 'A' + 'a');
+    if (std::isspace(c)) c = ' ';
+    if (c == ' ') {
+      if (!prev_space) compact.push_back(' ');
+      prev_space = true;
+    } else {
+      compact.push_back(static_cast<char>(c));
+      prev_space = false;
+    }
+  }
+  while (!compact.empty() && compact.back() == ' ') compact.pop_back();
+  size_t n = compact.size();
+  for (size_t width = 4; width <= 32 && 3 * width <= n; ++width) {
+    if (compact.compare(n - width, width, compact, n - 2 * width, width) == 0 &&
+        compact.compare(n - width, width, compact, n - 3 * width, width) == 0) {
+      return true;
+    }
+  }
+  if (n >= 80) {
+    std::map<std::string, int> counts;
+    std::istringstream in(compact);
+    std::string tok;
+    while (in >> tok) {
+      if (tok.size() >= 4) counts[tok] += 1;
+    }
+    for (const auto& item : counts) {
+      if (item.second >= 5) return true;
+    }
+  }
+  return false;
+}
+
+bool neural_would_extend_loop(const std::string& output, int candidate) {
+  if (candidate == kNeuralEnd) return false;
+  std::string trial = output;
+  trial.push_back(neural_index_char(candidate));
+  return neural_repetition_loop(trial);
+}
+
+int neural_lcp(const std::string& a, const std::string& b) {
+  size_t n = std::min(a.size(), b.size());
+  size_t i = 0;
+  while (i < n && a[i] == b[i]) ++i;
+  return static_cast<int>(i);
+}
+
+uint64_t neural_file_hash_words(const std::string& path) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in) throw std::runtime_error("cannot open neural state for hash: " + path);
+  uint64_t h = fnv1a("cycle14-neural-file");
+  char buffer[4096];
+  while (in.read(buffer, sizeof(buffer)) || in.gcount() > 0) {
+    std::streamsize got = in.gcount();
+    for (std::streamsize i = 0; i < got; ++i) {
+      h ^= static_cast<unsigned char>(buffer[i]);
+      h *= 1099511628211ull;
+    }
+  }
+  return h;
+}
+
+struct TinyCharNeuralHead {
+  int context = 16;
+  int hidden = 64;
+  uint64_t seed = 1414213562ull;
+  std::vector<double> w1;
+  std::vector<double> b1;
+  std::vector<double> w2;
+  std::vector<double> b2;
+
+  TinyCharNeuralHead() = default;
+
+  TinyCharNeuralHead(int context_, int hidden_, uint64_t seed_)
+      : context(context_), hidden(hidden_), seed(seed_) {
+    if (context <= 0 || hidden <= 0) throw std::runtime_error("neural context/hidden must be positive");
+    w1.resize(static_cast<size_t>(context) * kNeuralTextVocab * hidden);
+    b1.assign(hidden, 0.0);
+    w2.resize(static_cast<size_t>(hidden) * kNeuralTextVocab);
+    b2.assign(kNeuralTextVocab, 0.0);
+    uint64_t s = combine(seed, fnv1a("tiny-char-neural-head"));
+    auto init = [&]() {
+      s = mix64(s);
+      double unit = static_cast<double>((s >> 11) & ((1ull << 53) - 1)) /
+                    static_cast<double>(1ull << 53);
+      return (unit * 2.0 - 1.0) * 0.025;
+    };
+    for (double& v : w1) v = init();
+    for (double& v : w2) v = init();
+  }
+
+  size_t w1_index(int pos, int idx, int h) const {
+    return (static_cast<size_t>(pos) * kNeuralTextVocab + static_cast<size_t>(idx)) *
+           static_cast<size_t>(hidden) + static_cast<size_t>(h);
+  }
+
+  size_t w2_index(int h, int idx) const {
+    return static_cast<size_t>(h) * kNeuralTextVocab + static_cast<size_t>(idx);
+  }
+
+  std::vector<double> probabilities(const std::vector<int>& ctx) const {
+    if (static_cast<int>(ctx.size()) != context) throw std::runtime_error("neural context size mismatch");
+    std::vector<double> hid(hidden, 0.0);
+    for (int h = 0; h < hidden; ++h) hid[h] = b1[h];
+    for (int pos = 0; pos < context; ++pos) {
+      int idx = ctx[pos];
+      if (idx < 0 || idx >= kNeuralTextVocab) idx = kNeuralEnd;
+      for (int h = 0; h < hidden; ++h) hid[h] += w1[w1_index(pos, idx, h)];
+    }
+    for (double& v : hid) v = std::tanh(v);
+    std::vector<double> logits(kNeuralTextVocab, 0.0);
+    for (int v = 0; v < kNeuralTextVocab; ++v) logits[v] = b2[v];
+    for (int h = 0; h < hidden; ++h) {
+      double hv = hid[h];
+      for (int v = 0; v < kNeuralTextVocab; ++v) logits[v] += hv * w2[w2_index(h, v)];
+    }
+    double max_logit = *std::max_element(logits.begin(), logits.end());
+    double sum = 0.0;
+    for (double& v : logits) {
+      v = std::exp(v - max_logit);
+      sum += v;
+    }
+    if (sum <= 0.0 || !std::isfinite(sum)) throw std::runtime_error("neural softmax underflow");
+    for (double& v : logits) v /= sum;
+    return logits;
+  }
+
+  double train_step(std::vector<int>& ctx, int target, double lr) {
+    std::vector<double> pre(hidden, 0.0);
+    for (int h = 0; h < hidden; ++h) pre[h] = b1[h];
+    for (int pos = 0; pos < context; ++pos) {
+      int idx = ctx[pos];
+      if (idx < 0 || idx >= kNeuralTextVocab) idx = kNeuralEnd;
+      for (int h = 0; h < hidden; ++h) pre[h] += w1[w1_index(pos, idx, h)];
+    }
+    std::vector<double> hid(hidden, 0.0);
+    for (int h = 0; h < hidden; ++h) hid[h] = std::tanh(pre[h]);
+    std::vector<double> logits(kNeuralTextVocab, 0.0);
+    for (int v = 0; v < kNeuralTextVocab; ++v) logits[v] = b2[v];
+    for (int h = 0; h < hidden; ++h) {
+      for (int v = 0; v < kNeuralTextVocab; ++v) logits[v] += hid[h] * w2[w2_index(h, v)];
+    }
+    double max_logit = *std::max_element(logits.begin(), logits.end());
+    double sum = 0.0;
+    for (double& v : logits) {
+      v = std::exp(v - max_logit);
+      sum += v;
+    }
+    for (double& v : logits) v /= sum;
+    double prob = std::max(1e-12, logits[target]);
+    double loss = -std::log(prob);
+    logits[target] -= 1.0;
+
+    std::vector<double> grad_h(hidden, 0.0);
+    for (int h = 0; h < hidden; ++h) {
+      for (int v = 0; v < kNeuralTextVocab; ++v) {
+        grad_h[h] += logits[v] * w2[w2_index(h, v)];
+      }
+    }
+    for (int h = 0; h < hidden; ++h) {
+      for (int v = 0; v < kNeuralTextVocab; ++v) {
+        w2[w2_index(h, v)] -= lr * logits[v] * hid[h];
+      }
+    }
+    for (int v = 0; v < kNeuralTextVocab; ++v) b2[v] -= lr * logits[v];
+
+    for (int h = 0; h < hidden; ++h) {
+      double dz = grad_h[h] * (1.0 - hid[h] * hid[h]);
+      b1[h] -= lr * dz;
+      for (int pos = 0; pos < context; ++pos) {
+        int idx = ctx[pos];
+        if (idx < 0 || idx >= kNeuralTextVocab) idx = kNeuralEnd;
+        w1[w1_index(pos, idx, h)] -= lr * dz;
+      }
+    }
+    std::rotate(ctx.begin(), ctx.begin() + 1, ctx.end());
+    ctx.back() = target;
+    return loss;
+  }
+
+  double nll_for_text(const std::string& text) const {
+    std::vector<int> ctx(context, kNeuralEnd);
+    auto targets = neural_targets_for_text(text);
+    double loss = 0.0;
+    for (int target : targets) {
+      auto probs = probabilities(ctx);
+      loss += -std::log(std::max(1e-12, probs[target]));
+      std::rotate(ctx.begin(), ctx.begin() + 1, ctx.end());
+      ctx.back() = target;
+    }
+    return loss / static_cast<double>(std::max<size_t>(1, targets.size()));
+  }
+
+  NeuralGeneration generate(const std::string& prompt, int max_chars, int min_chars,
+                            double temperature, uint64_t run_seed) const {
+    if (max_chars <= 0) throw std::runtime_error("neural max output chars must be positive");
+    if (temperature <= 0.0) throw std::runtime_error("neural temperature must be positive");
+    std::vector<int> ctx(context, kNeuralEnd);
+    std::string normalized_prompt = neural_normalize_text(prompt);
+    for (unsigned char c : normalized_prompt) {
+      int idx = neural_char_index(c);
+      if (idx == kNeuralEnd) continue;
+      std::rotate(ctx.begin(), ctx.begin() + 1, ctx.end());
+      ctx.back() = idx;
+    }
+
+    NeuralGeneration gen;
+    uint64_t rng = combine(run_seed, fnv1a(normalized_prompt));
+    for (int pos = 0; pos < max_chars; ++pos) {
+      auto probs = probabilities(ctx);
+      std::vector<std::pair<int, double>> ranked;
+      ranked.reserve(kNeuralTextVocab);
+      for (int idx = 0; idx < kNeuralTextVocab; ++idx) {
+        double p = probs[idx];
+        if (idx == kNeuralEnd && static_cast<int>(gen.output.size()) < min_chars) p = 0.0;
+        if (idx != kNeuralEnd && neural_would_extend_loop(gen.output, idx)) p *= 0.05;
+        if (p > 0.0) ranked.push_back({idx, p});
+      }
+      if (ranked.empty()) break;
+      std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) {
+        if (a.second != b.second) return a.second > b.second;
+        return a.first < b.first;
+      });
+      if (ranked.size() > 10) ranked.resize(10);
+      double total = 0.0;
+      for (auto& item : ranked) {
+        item.second = std::pow(item.second, 1.0 / temperature);
+        total += item.second;
+      }
+      rng = mix64(rng);
+      double r = (static_cast<double>((rng >> 11) & ((1ull << 53) - 1)) /
+                  static_cast<double>(1ull << 53)) * total;
+      int chosen = ranked.back().first;
+      double chosen_weight = ranked.back().second;
+      double acc = 0.0;
+      for (const auto& item : ranked) {
+        acc += item.second;
+        if (r <= acc) {
+          chosen = item.first;
+          chosen_weight = item.second;
+          break;
+        }
+      }
+      bool penalty = chosen != kNeuralEnd && neural_would_extend_loop(gen.output, chosen);
+      if (penalty) ++gen.repeat_penalty_count;
+      gen.steps.push_back({pos, chosen, total > 0.0 ? chosen_weight / total : 0.0, penalty});
+      if (chosen == kNeuralEnd) {
+        gen.ended_with_end = true;
+        break;
+      }
+      gen.output.push_back(neural_index_char(chosen));
+      std::rotate(ctx.begin(), ctx.begin() + 1, ctx.end());
+      ctx.back() = chosen;
+    }
+    return gen;
+  }
+
+  uint64_t state_hash() const {
+    uint64_t h = fnv1a("tiny-char-neural-head-v0");
+    h = combine(h, static_cast<uint64_t>(context));
+    h = combine(h, static_cast<uint64_t>(hidden));
+    h = combine(h, seed);
+    auto walk = [&](const std::vector<double>& values) {
+      h = combine(h, static_cast<uint64_t>(values.size()));
+      for (double v : values) h = combine(h, double_bits(v));
+    };
+    walk(w1);
+    walk(b1);
+    walk(w2);
+    walk(b2);
+    return h;
+  }
+
+  void save(const std::string& path) const {
+    ensure_parent_dir(path);
+    std::ofstream out(path);
+    if (!out) throw std::runtime_error("cannot write neural state: " + path);
+    out << "PXNN_V1\n";
+    out << "CONTEXT " << context << "\n";
+    out << "HIDDEN " << hidden << "\n";
+    out << "VOCAB " << kNeuralTextVocab << "\n";
+    out << "SEED " << seed << "\n";
+    auto write_vec = [&](const std::string& name, const std::vector<double>& values) {
+      out << name << ' ' << values.size();
+      for (double v : values) out << ' ' << double_to_hex(v);
+      out << "\n";
+    };
+    write_vec("W1", w1);
+    write_vec("B1", b1);
+    write_vec("W2", w2);
+    write_vec("B2", b2);
+    out << "STATE_HASH " << hex64(state_hash()) << "\n";
+  }
+
+  static TinyCharNeuralHead load(const std::string& path) {
+    std::ifstream in(path);
+    if (!in) throw std::runtime_error("cannot load neural state: " + path);
+    std::string magic;
+    in >> magic;
+    if (magic != "PXNN_V1") throw std::runtime_error("bad neural state magic: " + path);
+    TinyCharNeuralHead model;
+    std::string key;
+    uint64_t expected_hash = 0;
+    auto read_vec = [&](std::vector<double>& values) {
+      size_t count = 0;
+      in >> count;
+      values.resize(count);
+      std::string token;
+      for (size_t i = 0; i < count; ++i) {
+        in >> token;
+        values[i] = hex_to_double(token);
+      }
+    };
+    while (in >> key) {
+      if (key == "CONTEXT") in >> model.context;
+      else if (key == "HIDDEN") in >> model.hidden;
+      else if (key == "VOCAB") {
+        int vocab = 0;
+        in >> vocab;
+        if (vocab != kNeuralTextVocab) throw std::runtime_error("neural vocab mismatch");
+      } else if (key == "SEED") in >> model.seed;
+      else if (key == "W1") read_vec(model.w1);
+      else if (key == "B1") read_vec(model.b1);
+      else if (key == "W2") read_vec(model.w2);
+      else if (key == "B2") {
+        read_vec(model.b2);
+      } else if (key == "STATE_HASH") {
+        std::string token;
+        in >> token;
+        expected_hash = std::stoull(token, nullptr, 16);
+      } else {
+        throw std::runtime_error("unknown neural state key: " + key);
+      }
+    }
+    if (model.context <= 0 || model.hidden <= 0) throw std::runtime_error("invalid neural dimensions");
+    if (model.w1.size() != static_cast<size_t>(model.context) * kNeuralTextVocab * model.hidden) {
+      throw std::runtime_error("neural W1 shape mismatch");
+    }
+    if (model.b1.size() != static_cast<size_t>(model.hidden) ||
+        model.w2.size() != static_cast<size_t>(model.hidden) * kNeuralTextVocab ||
+        model.b2.size() != static_cast<size_t>(kNeuralTextVocab)) {
+      throw std::runtime_error("neural parameter shape mismatch");
+    }
+    if (expected_hash && model.state_hash() != expected_hash) {
+      throw std::runtime_error("neural state hash mismatch");
+    }
+    return model;
+  }
+};
+
+double neural_sigmoid(double x) {
+  if (x >= 0.0) {
+    double z = std::exp(-x);
+    return 1.0 / (1.0 + z);
+  }
+  double z = std::exp(x);
+  return z / (1.0 + z);
+}
+
+struct RecurrentStepCache {
+  int input = kNeuralEnd;
+  int target = kNeuralEnd;
+  std::vector<double> h_prev;
+  std::vector<double> z;
+  std::vector<double> r;
+  std::vector<double> n;
+  std::vector<double> h;
+  std::vector<double> probs;
+};
+
+struct RecurrentGrad {
+  std::vector<double> wx_z;
+  std::vector<double> wx_r;
+  std::vector<double> wx_n;
+  std::vector<double> u_z;
+  std::vector<double> u_r;
+  std::vector<double> u_n;
+  std::vector<double> b_z;
+  std::vector<double> b_r;
+  std::vector<double> b_n;
+  std::vector<double> w_out;
+  std::vector<double> b_out;
+
+  RecurrentGrad() = default;
+
+  RecurrentGrad(int hidden) {
+    wx_z.assign(static_cast<size_t>(kNeuralTextVocab) * hidden, 0.0);
+    wx_r.assign(static_cast<size_t>(kNeuralTextVocab) * hidden, 0.0);
+    wx_n.assign(static_cast<size_t>(kNeuralTextVocab) * hidden, 0.0);
+    u_z.assign(static_cast<size_t>(hidden) * hidden, 0.0);
+    u_r.assign(static_cast<size_t>(hidden) * hidden, 0.0);
+    u_n.assign(static_cast<size_t>(hidden) * hidden, 0.0);
+    b_z.assign(hidden, 0.0);
+    b_r.assign(hidden, 0.0);
+    b_n.assign(hidden, 0.0);
+    w_out.assign(static_cast<size_t>(hidden) * kNeuralTextVocab, 0.0);
+    b_out.assign(kNeuralTextVocab, 0.0);
+  }
+
+  double l2_norm() const {
+    double total = 0.0;
+    auto walk = [&](const std::vector<double>& values) {
+      for (double v : values) total += v * v;
+    };
+    walk(wx_z);
+    walk(wx_r);
+    walk(wx_n);
+    walk(u_z);
+    walk(u_r);
+    walk(u_n);
+    walk(b_z);
+    walk(b_r);
+    walk(b_n);
+    walk(w_out);
+    walk(b_out);
+    return std::sqrt(total);
+  }
+};
+
+struct NeuralSamplerSetting {
+  std::string setting_id;
+  double temperature = 1.0;
+  int top_k = 16;
+  uint64_t seed_offset = 0;
+};
+
+std::vector<NeuralSamplerSetting> cycle15_sampler_settings() {
+  return {
+      {"cycle15_t070_k08", 0.70, 8, 101},
+      {"cycle15_t085_k12", 0.85, 12, 202},
+      {"cycle15_t100_k16", 1.00, 16, 303},
+      {"cycle15_t115_k24", 1.15, 24, 404},
+  };
+}
+
+uint64_t neural_generation_seed(uint64_t scenario_seed,
+                                const std::string& prompt_id,
+                                const NeuralSamplerSetting& setting) {
+  uint64_t h = combine(scenario_seed, fnv1a("cycle15-generation-seed"));
+  h = combine(h, fnv1a(prompt_id));
+  h = combine(h, fnv1a(setting.setting_id));
+  h = combine(h, setting.seed_offset);
+  return h;
+}
+
+struct RecurrentCharNeuralHead {
+  int hidden = 64;
+  uint64_t seed = 2718281828ull;
+  std::vector<double> wx_z;
+  std::vector<double> wx_r;
+  std::vector<double> wx_n;
+  std::vector<double> u_z;
+  std::vector<double> u_r;
+  std::vector<double> u_n;
+  std::vector<double> b_z;
+  std::vector<double> b_r;
+  std::vector<double> b_n;
+  std::vector<double> w_out;
+  std::vector<double> b_out;
+
+  RecurrentCharNeuralHead() = default;
+
+  RecurrentCharNeuralHead(int hidden_, uint64_t seed_)
+      : hidden(hidden_), seed(seed_) {
+    if (hidden <= 0) throw std::runtime_error("recurrent hidden must be positive");
+    wx_z.resize(static_cast<size_t>(kNeuralTextVocab) * hidden);
+    wx_r.resize(static_cast<size_t>(kNeuralTextVocab) * hidden);
+    wx_n.resize(static_cast<size_t>(kNeuralTextVocab) * hidden);
+    u_z.resize(static_cast<size_t>(hidden) * hidden);
+    u_r.resize(static_cast<size_t>(hidden) * hidden);
+    u_n.resize(static_cast<size_t>(hidden) * hidden);
+    b_z.assign(hidden, 0.0);
+    b_r.assign(hidden, 0.0);
+    b_n.assign(hidden, 0.0);
+    w_out.resize(static_cast<size_t>(hidden) * kNeuralTextVocab);
+    b_out.assign(kNeuralTextVocab, 0.0);
+
+    uint64_t s = combine(seed, fnv1a("cycle15-recurrent-gru-char-head"));
+    auto unit = [&]() {
+      s = mix64(s);
+      return static_cast<double>((s >> 11) & ((1ull << 53) - 1)) /
+             static_cast<double>(1ull << 53);
+    };
+    auto init = [&](double scale) {
+      return (unit() * 2.0 - 1.0) * scale;
+    };
+    double input_scale = 0.08;
+    double recurrent_scale = hidden > 0 ? 0.08 / std::sqrt(static_cast<double>(hidden)) : 0.01;
+    double output_scale = hidden > 0 ? 0.08 / std::sqrt(static_cast<double>(hidden)) : 0.01;
+    for (double& v : wx_z) v = init(input_scale);
+    for (double& v : wx_r) v = init(input_scale);
+    for (double& v : wx_n) v = init(input_scale);
+    for (double& v : u_z) v = init(recurrent_scale);
+    for (double& v : u_r) v = init(recurrent_scale);
+    for (double& v : u_n) v = init(recurrent_scale);
+    for (double& v : w_out) v = init(output_scale);
+    for (double& v : b_z) v = 0.5;
+  }
+
+  size_t wx_index(int idx, int h) const {
+    return static_cast<size_t>(idx) * hidden + static_cast<size_t>(h);
+  }
+
+  size_t u_index(int h, int prev) const {
+    return static_cast<size_t>(h) * hidden + static_cast<size_t>(prev);
+  }
+
+  size_t out_index(int h, int idx) const {
+    return static_cast<size_t>(h) * kNeuralTextVocab + static_cast<size_t>(idx);
+  }
+
+  std::vector<double> probabilities_from_hidden(const std::vector<double>& h_state) const {
+    if (static_cast<int>(h_state.size()) != hidden) {
+      throw std::runtime_error("recurrent output hidden state size mismatch");
+    }
+    std::vector<double> probs(kNeuralTextVocab, 0.0);
+    for (int v = 0; v < kNeuralTextVocab; ++v) probs[v] = b_out[v];
+    for (int h = 0; h < hidden; ++h) {
+      double hv = h_state[h];
+      for (int v = 0; v < kNeuralTextVocab; ++v) {
+        probs[v] += hv * w_out[out_index(h, v)];
+      }
+    }
+    double max_logit = *std::max_element(probs.begin(), probs.end());
+    double sum = 0.0;
+    for (double& v : probs) {
+      v = std::exp(v - max_logit);
+      sum += v;
+    }
+    if (sum <= 0.0 || !std::isfinite(sum)) throw std::runtime_error("recurrent softmax underflow");
+    for (double& v : probs) v /= sum;
+    return probs;
+  }
+
+  RecurrentStepCache forward_step(int input,
+                                  int target,
+                                  const std::vector<double>& h_prev) const {
+    if (static_cast<int>(h_prev.size()) != hidden) {
+      throw std::runtime_error("recurrent hidden state size mismatch");
+    }
+    if (input < 0 || input >= kNeuralTextVocab) input = kNeuralEnd;
+    RecurrentStepCache step;
+    step.input = input;
+    step.target = target;
+    step.h_prev = h_prev;
+    step.z.assign(hidden, 0.0);
+    step.r.assign(hidden, 0.0);
+    step.n.assign(hidden, 0.0);
+    step.h.assign(hidden, 0.0);
+    step.probs.assign(kNeuralTextVocab, 0.0);
+
+    for (int h = 0; h < hidden; ++h) {
+      double z_pre = b_z[h] + wx_z[wx_index(input, h)];
+      double r_pre = b_r[h] + wx_r[wx_index(input, h)];
+      for (int j = 0; j < hidden; ++j) {
+        z_pre += u_z[u_index(h, j)] * h_prev[j];
+        r_pre += u_r[u_index(h, j)] * h_prev[j];
+      }
+      step.z[h] = neural_sigmoid(z_pre);
+      step.r[h] = neural_sigmoid(r_pre);
+    }
+    for (int h = 0; h < hidden; ++h) {
+      double n_pre = b_n[h] + wx_n[wx_index(input, h)];
+      for (int j = 0; j < hidden; ++j) {
+        n_pre += u_n[u_index(h, j)] * (step.r[j] * h_prev[j]);
+      }
+      step.n[h] = std::tanh(n_pre);
+      step.h[h] = (1.0 - step.z[h]) * step.n[h] + step.z[h] * h_prev[h];
+    }
+    step.probs = probabilities_from_hidden(step.h);
+    return step;
+  }
+
+  std::vector<double> next_hidden(int input, const std::vector<double>& h_prev) const {
+    return forward_step(input, kNeuralEnd, h_prev).h;
+  }
+
+  double train_on_text(const std::string& text, double lr) {
+    auto targets = neural_targets_for_text(text);
+    if (targets.empty()) return 0.0;
+    std::vector<RecurrentStepCache> steps;
+    steps.reserve(targets.size());
+    std::vector<double> h_prev(hidden, 0.0);
+    double loss = 0.0;
+    for (size_t t = 0; t < targets.size(); ++t) {
+      int input = (t == 0) ? kNeuralEnd : targets[t - 1];
+      auto step = forward_step(input, targets[t], h_prev);
+      loss += -std::log(std::max(1e-12, step.probs[targets[t]]));
+      h_prev = step.h;
+      steps.push_back(std::move(step));
+    }
+
+    RecurrentGrad grad(hidden);
+    std::vector<double> dh_next(hidden, 0.0);
+    for (int t = static_cast<int>(steps.size()) - 1; t >= 0; --t) {
+      const auto& step = steps[static_cast<size_t>(t)];
+      std::vector<double> dlogits = step.probs;
+      dlogits[step.target] -= 1.0;
+
+      std::vector<double> dh(hidden, 0.0);
+      for (int h = 0; h < hidden; ++h) {
+        double total = dh_next[h];
+        for (int v = 0; v < kNeuralTextVocab; ++v) {
+          total += dlogits[v] * w_out[out_index(h, v)];
+          grad.w_out[out_index(h, v)] += dlogits[v] * step.h[h];
+        }
+        dh[h] = total;
+      }
+      for (int v = 0; v < kNeuralTextVocab; ++v) grad.b_out[v] += dlogits[v];
+
+      std::vector<double> dz_pre(hidden, 0.0);
+      std::vector<double> dr_pre(hidden, 0.0);
+      std::vector<double> dn_pre(hidden, 0.0);
+      std::vector<double> dh_prev(hidden, 0.0);
+      std::vector<double> dr(hidden, 0.0);
+
+      for (int h = 0; h < hidden; ++h) {
+        double dn = dh[h] * (1.0 - step.z[h]);
+        double dz = dh[h] * (step.h_prev[h] - step.n[h]);
+        dh_prev[h] += dh[h] * step.z[h];
+        dn_pre[h] = dn * (1.0 - step.n[h] * step.n[h]);
+        dz_pre[h] = dz * step.z[h] * (1.0 - step.z[h]);
+      }
+
+      for (int j = 0; j < hidden; ++j) {
+        double from_n = 0.0;
+        for (int h = 0; h < hidden; ++h) {
+          from_n += dn_pre[h] * u_n[u_index(h, j)];
+        }
+        dr[j] += from_n * step.h_prev[j];
+        dh_prev[j] += from_n * step.r[j];
+      }
+      for (int h = 0; h < hidden; ++h) {
+        dr_pre[h] = dr[h] * step.r[h] * (1.0 - step.r[h]);
+      }
+      for (int j = 0; j < hidden; ++j) {
+        for (int h = 0; h < hidden; ++h) {
+          dh_prev[j] += dz_pre[h] * u_z[u_index(h, j)];
+          dh_prev[j] += dr_pre[h] * u_r[u_index(h, j)];
+        }
+      }
+
+      int input = step.input;
+      for (int h = 0; h < hidden; ++h) {
+        grad.wx_z[wx_index(input, h)] += dz_pre[h];
+        grad.wx_r[wx_index(input, h)] += dr_pre[h];
+        grad.wx_n[wx_index(input, h)] += dn_pre[h];
+        grad.b_z[h] += dz_pre[h];
+        grad.b_r[h] += dr_pre[h];
+        grad.b_n[h] += dn_pre[h];
+        for (int j = 0; j < hidden; ++j) {
+          grad.u_z[u_index(h, j)] += dz_pre[h] * step.h_prev[j];
+          grad.u_r[u_index(h, j)] += dr_pre[h] * step.h_prev[j];
+          grad.u_n[u_index(h, j)] += dn_pre[h] * (step.r[j] * step.h_prev[j]);
+        }
+      }
+      dh_next = std::move(dh_prev);
+    }
+
+    double norm = grad.l2_norm();
+    double scale = 1.0;
+    constexpr double kClipNorm = 5.0;
+    if (norm > kClipNorm && norm > 0.0) scale = kClipNorm / norm;
+    auto apply = [&](std::vector<double>& weights, const std::vector<double>& g) {
+      for (size_t i = 0; i < weights.size(); ++i) weights[i] -= lr * scale * g[i];
+    };
+    apply(wx_z, grad.wx_z);
+    apply(wx_r, grad.wx_r);
+    apply(wx_n, grad.wx_n);
+    apply(u_z, grad.u_z);
+    apply(u_r, grad.u_r);
+    apply(u_n, grad.u_n);
+    apply(b_z, grad.b_z);
+    apply(b_r, grad.b_r);
+    apply(b_n, grad.b_n);
+    apply(w_out, grad.w_out);
+    apply(b_out, grad.b_out);
+    return loss / static_cast<double>(std::max<size_t>(1, targets.size()));
+  }
+
+  double nll_for_text(const std::string& text) const {
+    auto targets = neural_targets_for_text(text);
+    std::vector<double> h_prev(hidden, 0.0);
+    double loss = 0.0;
+    for (size_t t = 0; t < targets.size(); ++t) {
+      int input = (t == 0) ? kNeuralEnd : targets[t - 1];
+      auto step = forward_step(input, targets[t], h_prev);
+      loss += -std::log(std::max(1e-12, step.probs[targets[t]]));
+      h_prev = step.h;
+    }
+    return loss / static_cast<double>(std::max<size_t>(1, targets.size()));
+  }
+
+  NeuralGeneration generate(const std::string& prompt, int max_chars, int min_chars,
+                            double temperature, int top_k, uint64_t run_seed) const {
+    if (max_chars <= 0) throw std::runtime_error("recurrent max output chars must be positive");
+    if (temperature <= 0.0) throw std::runtime_error("recurrent temperature must be positive");
+    std::vector<double> h(hidden, 0.0);
+    std::string normalized_prompt = neural_normalize_text(prompt);
+    for (unsigned char c : normalized_prompt) {
+      int idx = neural_char_index(c);
+      if (idx == kNeuralEnd) continue;
+      h = next_hidden(idx, h);
+    }
+    if (normalized_prompt.empty()) h = next_hidden(kNeuralEnd, h);
+
+    NeuralGeneration gen;
+    uint64_t rng = combine(run_seed, fnv1a(normalized_prompt));
+    for (int pos = 0; pos < max_chars; ++pos) {
+      auto probs = probabilities_from_hidden(h);
+      std::vector<std::pair<int, double>> ranked;
+      ranked.reserve(kNeuralTextVocab);
+      for (int idx = 0; idx < kNeuralTextVocab; ++idx) {
+        double p = probs[idx];
+        if (idx == kNeuralEnd && static_cast<int>(gen.output.size()) < min_chars) p = 0.0;
+        if (idx != kNeuralEnd && neural_would_extend_loop(gen.output, idx)) p *= 0.05;
+        if (p > 0.0) ranked.push_back({idx, p});
+      }
+      if (ranked.empty()) break;
+      std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) {
+        if (a.second != b.second) return a.second > b.second;
+        return a.first < b.first;
+      });
+      if (top_k > 0 && static_cast<int>(ranked.size()) > top_k) {
+        ranked.resize(static_cast<size_t>(top_k));
+      }
+      double total = 0.0;
+      for (auto& item : ranked) {
+        item.second = std::pow(item.second, 1.0 / temperature);
+        total += item.second;
+      }
+      rng = mix64(rng);
+      double r = (static_cast<double>((rng >> 11) & ((1ull << 53) - 1)) /
+                  static_cast<double>(1ull << 53)) * total;
+      int chosen = ranked.back().first;
+      double chosen_weight = ranked.back().second;
+      double acc = 0.0;
+      for (const auto& item : ranked) {
+        acc += item.second;
+        if (r <= acc) {
+          chosen = item.first;
+          chosen_weight = item.second;
+          break;
+        }
+      }
+      bool penalty = chosen != kNeuralEnd && neural_would_extend_loop(gen.output, chosen);
+      if (penalty) ++gen.repeat_penalty_count;
+      gen.steps.push_back({pos, chosen, total > 0.0 ? chosen_weight / total : 0.0, penalty});
+      if (chosen == kNeuralEnd) {
+        gen.ended_with_end = true;
+        break;
+      }
+      gen.output.push_back(neural_index_char(chosen));
+      h = next_hidden(chosen, h);
+    }
+    return gen;
+  }
+
+  uint64_t state_hash() const {
+    uint64_t h = fnv1a("cycle15-recurrent-gru-char-head-v1");
+    h = combine(h, static_cast<uint64_t>(hidden));
+    h = combine(h, seed);
+    auto walk = [&](const std::vector<double>& values) {
+      h = combine(h, static_cast<uint64_t>(values.size()));
+      for (double v : values) h = combine(h, double_bits(v));
+    };
+    walk(wx_z);
+    walk(wx_r);
+    walk(wx_n);
+    walk(u_z);
+    walk(u_r);
+    walk(u_n);
+    walk(b_z);
+    walk(b_r);
+    walk(b_n);
+    walk(w_out);
+    walk(b_out);
+    return h;
+  }
+
+  void save(const std::string& path) const {
+    ensure_parent_dir(path);
+    std::ofstream out(path);
+    if (!out) throw std::runtime_error("cannot write recurrent neural state: " + path);
+    out << "PXNN_V2\n";
+    out << "ARCH RECURRENT_GRU_CHAR_V1\n";
+    out << "HIDDEN " << hidden << "\n";
+    out << "VOCAB " << kNeuralTextVocab << "\n";
+    out << "SEED " << seed << "\n";
+    auto write_vec = [&](const std::string& name, const std::vector<double>& values) {
+      out << name << ' ' << values.size();
+      for (double v : values) out << ' ' << double_to_hex(v);
+      out << "\n";
+    };
+    write_vec("WX_Z", wx_z);
+    write_vec("WX_R", wx_r);
+    write_vec("WX_N", wx_n);
+    write_vec("U_Z", u_z);
+    write_vec("U_R", u_r);
+    write_vec("U_N", u_n);
+    write_vec("B_Z", b_z);
+    write_vec("B_R", b_r);
+    write_vec("B_N", b_n);
+    write_vec("W_OUT", w_out);
+    write_vec("B_OUT", b_out);
+    out << "STATE_HASH " << hex64(state_hash()) << "\n";
+  }
+
+  static RecurrentCharNeuralHead load(const std::string& path) {
+    std::ifstream in(path);
+    if (!in) throw std::runtime_error("cannot load recurrent neural state: " + path);
+    std::string magic;
+    in >> magic;
+    if (magic != "PXNN_V2") throw std::runtime_error("bad recurrent neural state magic: " + path);
+    RecurrentCharNeuralHead model;
+    std::string key;
+    uint64_t expected_hash = 0;
+    auto read_vec = [&](std::vector<double>& values) {
+      size_t count = 0;
+      in >> count;
+      values.resize(count);
+      std::string token;
+      for (size_t i = 0; i < count; ++i) {
+        in >> token;
+        values[i] = hex_to_double(token);
+      }
+    };
+    while (in >> key) {
+      if (key == "ARCH") {
+        std::string arch;
+        in >> arch;
+        if (arch != "RECURRENT_GRU_CHAR_V1") throw std::runtime_error("bad recurrent arch");
+      } else if (key == "HIDDEN") in >> model.hidden;
+      else if (key == "VOCAB") {
+        int vocab = 0;
+        in >> vocab;
+        if (vocab != kNeuralTextVocab) throw std::runtime_error("recurrent vocab mismatch");
+      } else if (key == "SEED") in >> model.seed;
+      else if (key == "WX_Z") read_vec(model.wx_z);
+      else if (key == "WX_R") read_vec(model.wx_r);
+      else if (key == "WX_N") read_vec(model.wx_n);
+      else if (key == "U_Z") read_vec(model.u_z);
+      else if (key == "U_R") read_vec(model.u_r);
+      else if (key == "U_N") read_vec(model.u_n);
+      else if (key == "B_Z") read_vec(model.b_z);
+      else if (key == "B_R") read_vec(model.b_r);
+      else if (key == "B_N") read_vec(model.b_n);
+      else if (key == "W_OUT") read_vec(model.w_out);
+      else if (key == "B_OUT") read_vec(model.b_out);
+      else if (key == "STATE_HASH") {
+        std::string token;
+        in >> token;
+        expected_hash = std::stoull(token, nullptr, 16);
+      } else {
+        throw std::runtime_error("unknown recurrent neural state key: " + key);
+      }
+    }
+    if (model.hidden <= 0) throw std::runtime_error("invalid recurrent hidden size");
+    size_t vh = static_cast<size_t>(kNeuralTextVocab) * model.hidden;
+    size_t hh = static_cast<size_t>(model.hidden) * model.hidden;
+    size_t hv = static_cast<size_t>(model.hidden) * kNeuralTextVocab;
+    if (model.wx_z.size() != vh || model.wx_r.size() != vh || model.wx_n.size() != vh ||
+        model.u_z.size() != hh || model.u_r.size() != hh || model.u_n.size() != hh ||
+        model.b_z.size() != static_cast<size_t>(model.hidden) ||
+        model.b_r.size() != static_cast<size_t>(model.hidden) ||
+        model.b_n.size() != static_cast<size_t>(model.hidden) ||
+        model.w_out.size() != hv || model.b_out.size() != static_cast<size_t>(kNeuralTextVocab)) {
+      throw std::runtime_error("recurrent neural parameter shape mismatch");
+    }
+    if (expected_hash && model.state_hash() != expected_hash) {
+      throw std::runtime_error("recurrent neural state hash mismatch");
+    }
+    return model;
+  }
+};
+
+std::vector<NeuralTextShard> load_neural_text_shards(const std::string& manifest_path,
+                                                     const std::string& split,
+                                                     int max_train_shards) {
+  auto rows = load_corpus_shard_records(manifest_path);
+  std::vector<NeuralTextShard> out;
+  for (const auto& row : rows) {
+    if (row.filter_status != "accepted" || row.split != split) continue;
+    if (split == "train" && max_train_shards > 0 &&
+        static_cast<int>(out.size()) >= max_train_shards) break;
+    std::string text = neural_normalize_text(read_corpus_shard_text(row.local_path));
+    if (!text.empty()) out.push_back({row, text});
+  }
+  if (out.empty()) throw std::runtime_error("no accepted " + split + " neural text shards");
+  return out;
+}
+
+// Cycle 16 multi-manifest training: load accepted shards from a primary
+// manifest plus any extras (Cycle 16 prep produces a separate manifest from
+// Cycle 12B so each cycle's carry-forward verifier stays isolated). Per-
+// manifest max_train_shards is disabled inside this helper; the combined
+// cap is applied AFTER concatenation so the cap means "total combined
+// train shards" rather than "cap per manifest" — that keeps the flag's
+// existing semantics intact for single-manifest callers (extras_vec
+// empty short-circuits to the primary-only path with the cap applied
+// inline).
+std::vector<NeuralTextShard> load_neural_text_shards_combined(
+    const std::string& primary_manifest,
+    const std::vector<std::string>& extra_manifests,
+    const std::string& split,
+    int max_train_shards) {
+  if (extra_manifests.empty()) {
+    // Single-manifest path: bit-exact match to pre-cycle-16 behavior so
+    // Cycle 14/15 rails and any other single-manifest call paths keep
+    // identical accepted-train shard sequence and state hash.
+    return load_neural_text_shards(primary_manifest, split, max_train_shards);
+  }
+  std::vector<NeuralTextShard> out;
+  // Primary first, extras in argv order. Internal cap of 0 disables the
+  // per-manifest cap so cross-manifest order is preserved before the
+  // combined cap fires.
+  auto primary = load_neural_text_shards(primary_manifest, split, 0);
+  for (auto& shard : primary) out.push_back(std::move(shard));
+  for (const auto& manifest_path : extra_manifests) {
+    auto extra = load_neural_text_shards(manifest_path, split, 0);
+    for (auto& shard : extra) out.push_back(std::move(shard));
+  }
+  if (split == "train" && max_train_shards > 0 &&
+      static_cast<int>(out.size()) > max_train_shards) {
+    out.resize(static_cast<size_t>(max_train_shards));
+  }
+  if (out.empty()) {
+    throw std::runtime_error(
+        "no accepted " + split + " neural text shards across combined manifests");
+  }
+  return out;
+}
+
+double unigram_nll(const std::vector<NeuralTextShard>& train,
+                   const std::vector<NeuralTextShard>& eval) {
+  std::array<double, kNeuralTextVocab> counts{};
+  counts.fill(1.0);
+  double total = static_cast<double>(kNeuralTextVocab);
+  for (const auto& shard : train) {
+    for (int idx : neural_targets_for_text(shard.text)) {
+      counts[idx] += 1.0;
+      total += 1.0;
+    }
+  }
+  double loss = 0.0;
+  size_t n = 0;
+  for (const auto& shard : eval) {
+    for (int idx : neural_targets_for_text(shard.text)) {
+      loss += -std::log(counts[idx] / total);
+      ++n;
+    }
+  }
+  return loss / static_cast<double>(std::max<size_t>(1, n));
+}
+
+double neural_dataset_nll(const TinyCharNeuralHead& model,
+                          const std::vector<NeuralTextShard>& shards) {
+  double total = 0.0;
+  size_t n = 0;
+  for (const auto& shard : shards) {
+    auto targets = neural_targets_for_text(shard.text);
+    total += model.nll_for_text(shard.text) * static_cast<double>(targets.size());
+    n += targets.size();
+  }
+  return total / static_cast<double>(std::max<size_t>(1, n));
+}
+
+double neural_dataset_nll(const RecurrentCharNeuralHead& model,
+                          const std::vector<NeuralTextShard>& shards) {
+  double total = 0.0;
+  size_t n = 0;
+  for (const auto& shard : shards) {
+    auto targets = neural_targets_for_text(shard.text);
+    total += model.nll_for_text(shard.text) * static_cast<double>(targets.size());
+    n += targets.size();
+  }
+  return total / static_cast<double>(std::max<size_t>(1, n));
+}
+
+uint64_t neural_dataset_hash(const std::vector<NeuralTextShard>& train,
+                             const std::vector<NeuralTextShard>& probe,
+                             const std::vector<NeuralTextShard>& holdout) {
+  uint64_t h = fnv1a("cycle15-neural-dataset-hash-v0");
+  auto walk = [&](const std::string& split, const std::vector<NeuralTextShard>& shards) {
+    h = combine(h, fnv1a(split));
+    h = combine(h, static_cast<uint64_t>(shards.size()));
+    for (const auto& shard : shards) {
+      h = combine(h, fnv1a(shard.shard.shard_id));
+      h = combine(h, fnv1a(shard.shard.sha256));
+      h = combine(h, fnv1a(shard.shard.canonicalization_hash));
+    }
+  };
+  walk("train", train);
+  walk("probe", probe);
+  walk("holdout", holdout);
+  return h;
+}
+
+uint64_t neural_prompt_store_hash(const std::vector<VoicePromptRecord>& prompts) {
+  uint64_t h = fnv1a("cycle15-neural-prompt-store-hash-v0");
+  h = combine(h, static_cast<uint64_t>(prompts.size()));
+  for (const auto& prompt : prompts) {
+    h = combine(h, fnv1a(prompt.prompt_id));
+    h = combine(h, fnv1a(prompt.prompt_text));
+    h = combine(h, fnv1a(prompt.source));
+  }
+  return h;
+}
+
+struct Cycle15Sample {
+  std::string sample_id;
+  VoicePromptRecord prompt;
+  NeuralSamplerSetting setting;
+  uint64_t generation_seed = 0;
+  NeuralGeneration generation;
+};
+
+void write_neural_generation_steps(std::ostream& out, const NeuralGeneration& gen);
+
+std::vector<Cycle15Sample> cycle15_generate_batch(const RecurrentCharNeuralHead& model,
+                                                  const std::vector<VoicePromptRecord>& prompts,
+                                                  const Args& args) {
+  auto settings = cycle15_sampler_settings();
+  std::vector<Cycle15Sample> samples;
+  samples.reserve(prompts.size() * settings.size());
+  size_t sample_index = 0;
+  for (const auto& prompt : prompts) {
+    for (const auto& setting : settings) {
+      uint64_t seed = neural_generation_seed(args.scenario_seed, prompt.prompt_id, setting);
+      std::ostringstream sid;
+      sid << "cycle15_sample_" << std::setw(4) << std::setfill('0') << sample_index;
+      Cycle15Sample sample;
+      sample.sample_id = sid.str();
+      sample.prompt = prompt;
+      sample.setting = setting;
+      sample.generation_seed = seed;
+      sample.generation = model.generate(prompt.prompt_text, args.neural_max_output_chars,
+                                         args.neural_min_output_chars, setting.temperature,
+                                         setting.top_k, seed);
+      samples.push_back(std::move(sample));
+      ++sample_index;
+    }
+  }
+  return samples;
+}
+
+void write_cycle15_samples_json(std::ostream& out, const std::vector<Cycle15Sample>& samples) {
+  out << "[\n";
+  for (size_t i = 0; i < samples.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& sample = samples[i];
+    const auto& gen = sample.generation;
+    std::string normalized_prompt = neural_normalize_text(sample.prompt.prompt_text);
+    out << "    {\"sample_id\": " << q(sample.sample_id)
+        << ", \"prompt_id\": " << q(sample.prompt.prompt_id)
+        << ", \"prompt_text\": " << q(sample.prompt.prompt_text)
+        << ", \"prompt_source\": " << q(sample.prompt.source)
+        << ", \"conditioning_mode\": \"prompt_context_only_no_answer_template\""
+        << ", \"sampler\": {\"setting_id\": " << q(sample.setting.setting_id)
+        << ", \"temperature\": " << std::fixed << std::setprecision(2) << sample.setting.temperature
+        << std::defaultfloat
+        << ", \"top_k\": " << sample.setting.top_k
+        << ", \"seed\": " << sample.generation_seed << "}"
+        << ", \"raw_generated_output\": " << q(gen.output)
+        << ", \"output_char_count\": " << gen.output.size()
+        << ", \"ended_with_end\": " << (gen.ended_with_end ? "true" : "false")
+        << ", \"repetition_loop\": " << (neural_repetition_loop(gen.output) ? "true" : "false")
+        << ", \"prompt_echo_prefix_chars\": " << neural_lcp(gen.output, normalized_prompt)
+        << ", \"distinct_char_count\": " << std::set<char>(gen.output.begin(), gen.output.end()).size()
+        << ", \"repeat_penalty_count\": " << gen.repeat_penalty_count
+        << ", \"raw_output_fnv1a64\": " << q(hex64(fnv1a(gen.output)))
+        << ", \"generation_steps\": ";
+    write_neural_generation_steps(out, gen);
+    out << "}";
+  }
+  out << "\n  ]";
+}
+
+void write_cycle15_transcript(const std::string& path,
+                              const std::vector<Cycle15Sample>& samples) {
+  ensure_parent_dir(path);
+  std::ofstream out(path);
+  if (!out) throw std::runtime_error("cannot write cycle15 transcript: " + path);
+  out << "# Cycle 15 Recurrent Text Transcript\n\n";
+  out << "Generated: " << timestamp_utc() << "\n\n";
+  out << "Every block below is raw output from the saved-parameter recurrent text head. ";
+  out << "No block is edited, repaired, truncated, or polished before audit.\n\n";
+  for (const auto& sample : samples) {
+    out << "## " << sample.sample_id << "\n\n";
+    out << "- prompt_id: `" << sample.prompt.prompt_id << "`\n";
+    out << "- prompt: `" << sample.prompt.prompt_text << "`\n";
+    out << "- sampler: temperature=" << std::fixed << std::setprecision(2)
+        << sample.setting.temperature << std::defaultfloat
+        << ", top_k=" << sample.setting.top_k
+        << ", seed=" << sample.generation_seed << "\n\n";
+    out << "```text\n" << sample.generation.output << "\n```\n\n";
+  }
+}
+
+struct Cycle15BatchMetrics {
+  int sample_count = 0;
+  int prompt_count = 0;
+  int sampler_setting_count = 0;
+  int nonempty_count = 0;
+  int repetition_loop_count = 0;
+  int prompt_echo_count = 0;
+  int ended_with_end_count = 0;
+  int printable_output_count = 0;
+  int repeat_penalty_count = 0;
+};
+
+Cycle15BatchMetrics cycle15_batch_metrics(const std::vector<Cycle15Sample>& samples,
+                                          int prompt_count,
+                                          int setting_count) {
+  Cycle15BatchMetrics metrics;
+  metrics.sample_count = static_cast<int>(samples.size());
+  metrics.prompt_count = prompt_count;
+  metrics.sampler_setting_count = setting_count;
+  for (const auto& sample : samples) {
+    const auto& gen = sample.generation;
+    if (!gen.output.empty()) ++metrics.nonempty_count;
+    if (neural_repetition_loop(gen.output)) ++metrics.repetition_loop_count;
+    std::string normalized_prompt = neural_normalize_text(sample.prompt.prompt_text);
+    if (gen.output == normalized_prompt || gen.output.rfind(normalized_prompt, 0) == 0) {
+      ++metrics.prompt_echo_count;
+    }
+    if (gen.ended_with_end) ++metrics.ended_with_end_count;
+    bool printable = true;
+    for (unsigned char c : gen.output) {
+      if (c < kNeuralFirstChar || c > kNeuralLastChar) printable = false;
+    }
+    if (printable) ++metrics.printable_output_count;
+    metrics.repeat_penalty_count += gen.repeat_penalty_count;
+  }
+  return metrics;
+}
+
+void write_neural_generation_steps(std::ostream& out, const NeuralGeneration& gen) {
+  out << "[";
+  for (size_t i = 0; i < gen.steps.size(); ++i) {
+    if (i) out << ", ";
+    const auto& step = gen.steps[i];
+    out << "{\"position\": " << step.position
+        << ", \"chosen\": " << q(neural_index_label(step.chosen))
+        << ", \"probability\": " << std::fixed << std::setprecision(8) << step.probability
+        << std::defaultfloat
+        << ", \"repeat_penalty_applied\": " << (step.repeat_penalty_applied ? "true" : "false")
+        << "}";
+  }
+  out << "]";
+}
+
+void write_neural_transcript(const std::string& path,
+                             const std::vector<VoicePromptRecord>& prompts,
+                             const std::vector<NeuralGeneration>& generations) {
+  ensure_parent_dir(path);
+  std::ofstream out(path);
+  if (!out) throw std::runtime_error("cannot write neural transcript: " + path);
+  out << "# Cycle 14 Neural Text Transcript\n\n";
+  out << "Generated: " << timestamp_utc() << "\n\n";
+  out << "Raw outputs are continuations from a locally trained native char-level neural head. ";
+  out << "They are not semantic answers or polished responses.\n\n";
+  for (size_t i = 0; i < prompts.size(); ++i) {
+    out << "## " << prompts[i].prompt_id << "\n\n";
+    out << "Prompt: `" << prompts[i].prompt_text << "`\n\n";
+    out << "Output:\n\n";
+    out << "```text\n" << display_output(generations[i].output) << "\n```\n\n";
+  }
+}
+
+void neural_text_quality_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("neural-text-quality requires --out");
+  if (args.save_state.empty()) throw std::runtime_error("neural-text-quality requires --save-state");
+  if (args.neural_context <= 0 || args.neural_hidden <= 0) {
+    throw std::runtime_error("neural context/hidden must be positive");
+  }
+  if (args.neural_epochs <= 0) throw std::runtime_error("neural epochs must be positive");
+  if (args.neural_learning_rate <= 0.0) throw std::runtime_error("neural learning rate must be positive");
+  if (args.neural_temperature <= 0.0) throw std::runtime_error("neural temperature must be positive");
+
+  std::string run_id = args.run_id.empty() ? "cycle14-neural-text-quality" : args.run_id;
+  auto train = load_neural_text_shards(args.corpus_manifest, "train", args.neural_max_train_shards);
+  auto probe = load_neural_text_shards(args.corpus_manifest, "probe", 0);
+  TinyCharNeuralHead model(args.neural_context, args.neural_hidden,
+                           combine(args.scenario_seed, fnv1a("cycle14-neural-text-head-v0")));
+
+  std::vector<double> epoch_train_nll;
+  size_t train_targets = 0;
+  for (const auto& shard : train) train_targets += neural_targets_for_text(shard.text).size();
+  for (int epoch = 0; epoch < args.neural_epochs; ++epoch) {
+    double loss = 0.0;
+    size_t n = 0;
+    for (const auto& shard : train) {
+      std::vector<int> ctx(model.context, kNeuralEnd);
+      for (int target : neural_targets_for_text(shard.text)) {
+        loss += model.train_step(ctx, target, args.neural_learning_rate);
+        ++n;
+      }
+    }
+    epoch_train_nll.push_back(loss / static_cast<double>(std::max<size_t>(1, n)));
+  }
+
+  double final_train_nll = neural_dataset_nll(model, train);
+  double probe_nll = neural_dataset_nll(model, probe);
+  double unigram_probe = unigram_nll(train, probe);
+  double improvement_pct = unigram_probe > 0.0
+                               ? 100.0 * (unigram_probe - probe_nll) / unigram_probe
+                               : 0.0;
+  uint64_t model_hash = model.state_hash();
+  model.save(args.save_state);
+  uint64_t file_hash = neural_file_hash_words(args.save_state);
+  TinyCharNeuralHead reloaded = TinyCharNeuralHead::load(args.save_state);
+  uint64_t reload_hash = reloaded.state_hash();
+
+  auto prompts = load_voice_prompt_records(args.experience_db);
+  std::vector<NeuralGeneration> generations;
+  std::vector<NeuralGeneration> reload_generations;
+  int nonempty_count = 0;
+  int repetition_loop_count = 0;
+  int prompt_echo_count = 0;
+  int ended_count = 0;
+  int printable_count = 0;
+  int total_repeat_penalties = 0;
+  for (const auto& prompt : prompts) {
+    auto gen = model.generate(prompt.prompt_text, args.neural_max_output_chars,
+                              args.neural_min_output_chars, args.neural_temperature,
+                              combine(args.scenario_seed, fnv1a(prompt.prompt_id)));
+    auto reload_gen = reloaded.generate(prompt.prompt_text, args.neural_max_output_chars,
+                                        args.neural_min_output_chars, args.neural_temperature,
+                                        combine(args.scenario_seed, fnv1a(prompt.prompt_id)));
+    if (!gen.output.empty()) ++nonempty_count;
+    if (neural_repetition_loop(gen.output)) ++repetition_loop_count;
+    if (gen.output == neural_normalize_text(prompt.prompt_text) ||
+        gen.output.rfind(neural_normalize_text(prompt.prompt_text), 0) == 0) {
+      ++prompt_echo_count;
+    }
+    if (gen.ended_with_end) ++ended_count;
+    bool printable = true;
+    for (unsigned char c : gen.output) {
+      if (c < kNeuralFirstChar || c > kNeuralLastChar) printable = false;
+    }
+    if (printable) ++printable_count;
+    total_repeat_penalties += gen.repeat_penalty_count;
+    generations.push_back(std::move(gen));
+    reload_generations.push_back(std::move(reload_gen));
+  }
+  bool reload_generations_match = true;
+  for (size_t i = 0; i < generations.size(); ++i) {
+    if (generations[i].output != reload_generations[i].output ||
+        generations[i].ended_with_end != reload_generations[i].ended_with_end) {
+      reload_generations_match = false;
+    }
+  }
+  std::string transcript_path = args.transcript_out.empty()
+                                    ? std::string("run/artifacts/organic-v0/cycle14_neural_text_transcript.md")
+                                    : args.transcript_out;
+  write_neural_transcript(transcript_path, prompts, generations);
+
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  if (!out) throw std::runtime_error("cannot write neural text artifact: " + args.out);
+  out << "{\n";
+  out << "  \"schema\": \"project_x.cycle14_neural_text_quality.v0\",\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(timestamp_utc()) << ",\n";
+  out << "  \"phase\": \"neural-text-quality\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"corpus_manifest_path\": " << q(args.corpus_manifest) << ",\n";
+  out << "  \"prompt_db_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
+  out << "  \"saved_neural_state_path\": " << q(args.save_state) << ",\n";
+  out << "  \"neural_state_hash\": " << q(hex64(model_hash)) << ",\n";
+  out << "  \"neural_state_file_hash\": " << q(hex64(file_hash)) << ",\n";
+  out << "  \"reload_state_hash\": " << q(hex64(reload_hash)) << ",\n";
+  out << "  \"reload_hash_match\": " << (model_hash == reload_hash ? "true" : "false") << ",\n";
+  out << "  \"reload_generations_match\": " << (reload_generations_match ? "true" : "false") << ",\n";
+  out << "  \"model_config\": {\"context\": " << model.context
+      << ", \"hidden\": " << model.hidden
+      << ", \"vocab\": " << kNeuralTextVocab
+      << ", \"scenario_seed\": " << args.scenario_seed
+      << ", \"epochs\": " << args.neural_epochs
+      << ", \"learning_rate\": " << args.neural_learning_rate
+      << ", \"temperature\": " << args.neural_temperature
+      << ", \"max_output_chars\": " << args.neural_max_output_chars
+      << ", \"min_output_chars\": " << args.neural_min_output_chars
+      << ", \"max_train_shards\": " << args.neural_max_train_shards << "},\n";
+  size_t train_chars = 0;
+  for (const auto& shard : train) train_chars += shard.text.size();
+  size_t probe_chars = 0;
+  for (const auto& shard : probe) probe_chars += shard.text.size();
+  out << "  \"dataset\": {\"train_shards\": " << train.size()
+      << ", \"probe_shards\": " << probe.size()
+      << ", \"train_chars\": " << train_chars
+      << ", \"probe_chars\": " << probe_chars
+      << ", \"train_targets\": " << train_targets << "},\n";
+  out << "  \"training\": {\"epoch_train_nll\": [";
+  for (size_t i = 0; i < epoch_train_nll.size(); ++i) {
+    if (i) out << ", ";
+    out << std::fixed << std::setprecision(8) << epoch_train_nll[i] << std::defaultfloat;
+  }
+  out << "], \"final_train_nll\": " << std::fixed << std::setprecision(8) << final_train_nll
+      << ", \"probe_nll\": " << probe_nll
+      << ", \"unigram_probe_nll\": " << unigram_probe
+      << ", \"probe_nll_improvement_over_unigram_pct\": " << improvement_pct
+      << std::defaultfloat << "},\n";
+  out << "  \"quote_metrics\": {\"prompt_count\": " << prompts.size()
+      << ", \"nonempty_count\": " << nonempty_count
+      << ", \"repetition_loop_count\": " << repetition_loop_count
+      << ", \"prompt_echo_count\": " << prompt_echo_count
+      << ", \"ended_with_end_count\": " << ended_count
+      << ", \"printable_output_count\": " << printable_count
+      << ", \"repeat_penalty_count\": " << total_repeat_penalties << "},\n";
+  out << "  \"quote_outputs\": [\n";
+  for (size_t i = 0; i < prompts.size(); ++i) {
+    if (i) out << ",\n";
+    const auto& prompt = prompts[i];
+    const auto& gen = generations[i];
+    std::string normalized_prompt = neural_normalize_text(prompt.prompt_text);
+    out << "    {\"prompt_id\": " << q(prompt.prompt_id)
+        << ", \"prompt_text\": " << q(prompt.prompt_text)
+        << ", \"conditioning_mode\": \"prompt_context_only_no_answer_template\""
+        << ", \"raw_generated_output\": " << q(gen.output)
+        << ", \"output_char_count\": " << gen.output.size()
+        << ", \"ended_with_end\": " << (gen.ended_with_end ? "true" : "false")
+        << ", \"repetition_loop\": " << (neural_repetition_loop(gen.output) ? "true" : "false")
+        << ", \"prompt_echo_prefix_chars\": " << neural_lcp(gen.output, normalized_prompt)
+        << ", \"distinct_char_count\": " << std::set<char>(gen.output.begin(), gen.output.end()).size()
+        << ", \"repeat_penalty_count\": " << gen.repeat_penalty_count
+        << ", \"generation_steps\": ";
+    write_neural_generation_steps(out, gen);
+    out << "}";
+  }
+  out << "\n  ],\n";
+  out << "  \"negative_space\": {"
+      << "\"not_template_generation\": true, "
+      << "\"not_pretrained_model\": true, "
+      << "\"not_hosted_model_call\": true, "
+      << "\"not_rag_or_retrieval_answer\": true, "
+      << "\"not_semantic_parser\": true, "
+      << "\"not_response_polish\": true, "
+      << "\"not_subjective_quality_score\": true, "
+      << "\"not_philosophy_claim\": true, "
+      << "\"not_understanding_claim\": true, "
+      << "\"not_chat_solved_claim\": true, "
+      << "\"not_alignment_or_safety_claim\": true},\n";
+  out << "  \"honest_interpretation\": \"Cycle 14 trains a tiny native char-level neural decoder on accepted train shards only, persists and reloads its weights, and compares held-out probe loss to a unigram baseline. Quote outputs are raw continuations from learned local weights, not semantic answers.\"\n";
+  out << "}\n";
+  if (model_hash != reload_hash || !reload_generations_match) {
+    throw std::runtime_error("neural reload verification failed");
+  }
+  std::cout << "wrote " << args.out << "\n";
+}
+
+void neural_recurrent_text_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("neural-recurrent-text requires --out");
+  if (args.save_state.empty()) throw std::runtime_error("neural-recurrent-text requires --save-state");
+  if (args.neural_hidden <= 0) throw std::runtime_error("recurrent hidden must be positive");
+  if (args.neural_epochs <= 0) throw std::runtime_error("recurrent epochs must be positive");
+  if (args.neural_learning_rate <= 0.0) throw std::runtime_error("recurrent learning rate must be positive");
+  if (args.neural_max_output_chars <= 0) throw std::runtime_error("recurrent max output chars must be positive");
+  if (args.experience_db.empty()) throw std::runtime_error("neural-recurrent-text requires --experience-db");
+
+  std::string run_id = args.run_id.empty() ? "cycle15-recurrent-text" : args.run_id;
+  // Cycle 16: combined-manifest read. extras_vec empty short-circuits to the
+  // single-manifest code path so Cycle 15 carry-forward semantics are
+  // bit-exact; non-empty extras concatenates accepted shards in argv order.
+  auto train = load_neural_text_shards_combined(
+      args.corpus_manifest, args.corpus_manifests_extra, "train",
+      args.neural_max_train_shards);
+  auto probe = load_neural_text_shards_combined(
+      args.corpus_manifest, args.corpus_manifests_extra, "probe", 0);
+  auto holdout = load_neural_text_shards_combined(
+      args.corpus_manifest, args.corpus_manifests_extra, "holdout", 0);
+  RecurrentCharNeuralHead model(args.neural_hidden,
+                                combine(args.scenario_seed, fnv1a("cycle15-recurrent-text-head-v1")));
+
+  std::vector<double> epoch_train_nll;
+  size_t train_targets = 0;
+  for (const auto& shard : train) train_targets += neural_targets_for_text(shard.text).size();
+  for (int epoch = 0; epoch < args.neural_epochs; ++epoch) {
+    double loss = 0.0;
+    size_t n = 0;
+    for (const auto& shard : train) {
+      size_t targets = neural_targets_for_text(shard.text).size();
+      loss += model.train_on_text(shard.text, args.neural_learning_rate) *
+              static_cast<double>(targets);
+      n += targets;
+    }
+    epoch_train_nll.push_back(loss / static_cast<double>(std::max<size_t>(1, n)));
+  }
+
+  double final_train_nll = neural_dataset_nll(model, train);
+  double probe_nll = neural_dataset_nll(model, probe);
+  double holdout_nll = neural_dataset_nll(model, holdout);
+  double unigram_probe = unigram_nll(train, probe);
+  double unigram_holdout = unigram_nll(train, holdout);
+  constexpr double kCycle14ProbeNll = 2.55547228;
+  constexpr double kRequiredRelativeImprovement = 5.0;
+  double required_probe_nll = kCycle14ProbeNll * (1.0 - kRequiredRelativeImprovement / 100.0);
+  double probe_relative_improvement =
+      100.0 * (kCycle14ProbeNll - probe_nll) / kCycle14ProbeNll;
+  bool probe_target_met = probe_nll <= required_probe_nll;
+  bool holdout_beats_unigram = holdout_nll < unigram_holdout;
+
+  uint64_t dataset_hash = neural_dataset_hash(train, probe, holdout);
+  uint64_t model_hash = model.state_hash();
+  model.save(args.save_state);
+  uint64_t file_hash = neural_file_hash_words(args.save_state);
+  RecurrentCharNeuralHead reloaded = RecurrentCharNeuralHead::load(args.save_state);
+  uint64_t reload_hash = reloaded.state_hash();
+  if (model_hash != reload_hash) throw std::runtime_error("recurrent reload hash mismatch");
+
+  auto prompts = load_voice_prompt_records(args.experience_db);
+  int cycle11_prompt_count = 0;
+  for (const auto& prompt : prompts) {
+    if (prompt.prompt_id.rfind("c11p_", 0) == 0) ++cycle11_prompt_count;
+  }
+  if (cycle11_prompt_count < 12 || prompts.size() < 32) {
+    throw std::runtime_error("cycle15 prompt store must include 12 Cycle 11 prompts plus at least 20 broader prompts");
+  }
+  auto samples = cycle15_generate_batch(model, prompts, args);
+  if (samples.size() < 100) throw std::runtime_error("cycle15 generation batch must contain at least 100 samples");
+  auto reloaded_samples = cycle15_generate_batch(reloaded, prompts, args);
+  bool same_process_reload_generations_match = true;
+  for (size_t i = 0; i < samples.size(); ++i) {
+    if (samples[i].generation.output != reloaded_samples[i].generation.output ||
+        samples[i].generation.ended_with_end != reloaded_samples[i].generation.ended_with_end) {
+      same_process_reload_generations_match = false;
+    }
+  }
+  if (!same_process_reload_generations_match) {
+    throw std::runtime_error("same-process recurrent reload generation mismatch");
+  }
+
+  std::string transcript_path = args.transcript_out.empty()
+                                    ? std::string("run/artifacts/organic-v0/cycle15_recurrent_text_transcript.md")
+                                    : args.transcript_out;
+  write_cycle15_transcript(transcript_path, samples);
+  Cycle15BatchMetrics batch = cycle15_batch_metrics(
+      samples, static_cast<int>(prompts.size()), static_cast<int>(cycle15_sampler_settings().size()));
+
+  size_t train_chars = 0;
+  for (const auto& shard : train) train_chars += shard.text.size();
+  size_t probe_chars = 0;
+  for (const auto& shard : probe) probe_chars += shard.text.size();
+  size_t holdout_chars = 0;
+  for (const auto& shard : holdout) holdout_chars += shard.text.size();
+
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  if (!out) throw std::runtime_error("cannot write recurrent neural text artifact: " + args.out);
+  out << "{\n";
+  out << "  \"schema\": \"project_x.cycle15_recurrent_text_quality.v0\",\n";
+  out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"timestamp\": " << q(timestamp_utc()) << ",\n";
+  out << "  \"phase\": \"neural-recurrent-text\",\n";
+  out << "  \"hypothesis\": \"A deterministic native GRU-style recurrent character head should lower held-out NLL by carrying trainable state across full shards instead of using only a fixed local window.\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"corpus_manifest_path\": " << q(args.corpus_manifest) << ",\n";
+  // Cycle 16 multi-manifest provenance: emit the extra-manifests list so
+  // any verifier / regen / audit can know which manifests participated in
+  // training. Empty list -> single-manifest run (Cycle 15 behavior).
+  out << "  \"corpus_manifests_extra\": [";
+  for (size_t i = 0; i < args.corpus_manifests_extra.size(); ++i) {
+    if (i) out << ", ";
+    out << q(args.corpus_manifests_extra[i]);
+  }
+  out << "],\n";
+  out << "  \"corpus_manifest_count\": " << (1 + args.corpus_manifests_extra.size()) << ",\n";
+  out << "  \"prompt_store_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"transcript_path\": " << q(transcript_path) << ",\n";
+  out << "  \"saved_neural_state_path\": " << q(args.save_state) << ",\n";
+  out << "  \"neural_state_schema\": \"PXNN_V2\",\n";
+  out << "  \"neural_state_hash\": " << q(hex64(model_hash)) << ",\n";
+  out << "  \"neural_state_file_hash\": " << q(hex64(file_hash)) << ",\n";
+  out << "  \"reload_state_hash\": " << q(hex64(reload_hash)) << ",\n";
+  out << "  \"reload_hash_match\": " << (model_hash == reload_hash ? "true" : "false") << ",\n";
+  out << "  \"same_process_reload_generations_match\": " << (same_process_reload_generations_match ? "true" : "false") << ",\n";
+  out << "  \"dataset_hash\": " << q(hex64(dataset_hash)) << ",\n";
+  out << "  \"prompt_store_hash\": " << q(hex64(neural_prompt_store_hash(prompts))) << ",\n";
+  out << "  \"model_config\": {\"architecture\": \"RECURRENT_GRU_CHAR_V1\""
+      << ", \"hidden\": " << model.hidden
+      << ", \"vocab\": " << kNeuralTextVocab
+      << ", \"scenario_seed\": " << args.scenario_seed
+      << ", \"epochs\": " << args.neural_epochs
+      << ", \"learning_rate\": " << args.neural_learning_rate
+      << ", \"max_output_chars\": " << args.neural_max_output_chars
+      << ", \"min_output_chars\": " << args.neural_min_output_chars
+      << ", \"max_train_shards\": " << args.neural_max_train_shards << "},\n";
+  out << "  \"dataset\": {\"train_shards\": " << train.size()
+      << ", \"probe_shards\": " << probe.size()
+      << ", \"holdout_shards\": " << holdout.size()
+      << ", \"train_chars\": " << train_chars
+      << ", \"probe_chars\": " << probe_chars
+      << ", \"holdout_chars\": " << holdout_chars
+      << ", \"train_targets\": " << train_targets
+      << ", \"training_split_rule\": \"accepted train shards only\"},\n";
+  out << "  \"training\": {\"epoch_train_nll\": [";
+  for (size_t i = 0; i < epoch_train_nll.size(); ++i) {
+    if (i) out << ", ";
+    out << std::fixed << std::setprecision(8) << epoch_train_nll[i] << std::defaultfloat;
+  }
+  out << "], \"final_train_nll\": " << std::fixed << std::setprecision(8) << final_train_nll
+      << ", \"probe_nll\": " << probe_nll
+      << ", \"holdout_nll\": " << holdout_nll
+      << ", \"unigram_probe_nll\": " << unigram_probe
+      << ", \"unigram_holdout_nll\": " << unigram_holdout
+      << ", \"cycle14_probe_nll_target\": " << kCycle14ProbeNll
+      << ", \"required_probe_nll_for_5pct_relative_improvement\": " << required_probe_nll
+      << ", \"probe_nll_relative_improvement_vs_cycle14_pct\": " << probe_relative_improvement
+      << ", \"probe_target_met\": " << (probe_target_met ? "true" : "false")
+      << ", \"holdout_beats_unigram\": " << (holdout_beats_unigram ? "true" : "false")
+      << ", \"architecture_verdict\": "
+      << q(probe_target_met ? "accepted_probe_target_met" : "rejected_probe_target_miss")
+      << std::defaultfloat << "},\n";
+  out << "  \"generation_batch_metrics\": {\"sample_count\": " << batch.sample_count
+      << ", \"prompt_count\": " << batch.prompt_count
+      << ", \"cycle11_prompt_count\": " << cycle11_prompt_count
+      << ", \"sampler_setting_count\": " << batch.sampler_setting_count
+      << ", \"nonempty_count\": " << batch.nonempty_count
+      << ", \"repetition_loop_count\": " << batch.repetition_loop_count
+      << ", \"prompt_echo_count\": " << batch.prompt_echo_count
+      << ", \"ended_with_end_count\": " << batch.ended_with_end_count
+      << ", \"printable_output_count\": " << batch.printable_output_count
+      << ", \"repeat_penalty_count\": " << batch.repeat_penalty_count << "},\n";
+  out << "  \"generation_batch\": ";
+  write_cycle15_samples_json(out, samples);
+  out << ",\n";
+  out << "  \"audit_artifact_paths\": {"
+      << "\"source_overlap\": \"run/artifacts/organic-v0/cycle15_source_overlap_audit.json\", "
+      << "\"reproducibility\": \"run/artifacts/organic-v0/cycle15_reproducibility_audit.json\", "
+      << "\"best_raw_output\": \"run/artifacts/organic-v0/cycle15_best_raw_output.json\"},\n";
+  out << "  \"substrate_gate_claims\": {"
+      << "\"emitted_by_project_x_trainable_parameters\": true, "
+      << "\"no_pretrained_model\": true, "
+      << "\"no_hosted_model\": true, "
+      << "\"no_rag_or_retrieval_fragment_assembly\": true, "
+      << "\"no_template_or_route_table_or_semantic_parser\": true, "
+      << "\"no_response_polish_layer\": true, "
+      << "\"pxnn_v2_state_hash_logged\": true, "
+      << "\"generation_vocab_sampler_seed_logged\": true},\n";
+  out << "  \"negative_space\": {"
+      << "\"not_template_generation\": true, "
+      << "\"not_pretrained_model\": true, "
+      << "\"not_hosted_model_call\": true, "
+      << "\"not_rag_or_retrieval_answer\": true, "
+      << "\"not_semantic_parser\": true, "
+      << "\"not_response_polish\": true, "
+      << "\"not_subjective_quality_score\": true, "
+      << "\"not_philosophy_claim\": true, "
+      << "\"not_understanding_claim\": true, "
+      << "\"not_chat_solved_claim\": true, "
+      << "\"not_alignment_or_safety_claim\": true, "
+      << "\"not_hassabis_bar_claim\": true},\n";
+  out << "  \"honest_interpretation\": \"Cycle 15 trains and persists a deterministic native recurrent character model. The metric target is diagnostic only; sample quality is decided only by raw generation, source-overlap, reproducibility, and manual output-gate audit.\"\n";
+  out << "}\n";
+  std::cout << "wrote " << args.out << "\n";
+}
+
+void neural_recurrent_regenerate_phase(const Args& args, const std::string& command) {
+  if (args.out.empty()) throw std::runtime_error("neural-recurrent-regenerate requires --out");
+  if (args.load_state.empty()) throw std::runtime_error("neural-recurrent-regenerate requires --load-state");
+  if (args.experience_db.empty()) throw std::runtime_error("neural-recurrent-regenerate requires --experience-db");
+  RecurrentCharNeuralHead model = RecurrentCharNeuralHead::load(args.load_state);
+  auto prompts = load_voice_prompt_records(args.experience_db);
+  auto samples = cycle15_generate_batch(model, prompts, args);
+  ensure_parent_dir(args.out);
+  std::ofstream out(args.out);
+  if (!out) throw std::runtime_error("cannot write recurrent regeneration artifact: " + args.out);
+  out << "{\n";
+  out << "  \"schema\": \"project_x.cycle15_recurrent_regeneration.v0\",\n";
+  out << "  \"timestamp\": " << q(timestamp_utc()) << ",\n";
+  out << "  \"phase\": \"neural-recurrent-regenerate\",\n";
+  out << "  \"command\": " << q(command) << ",\n";
+  out << "  \"loaded_neural_state_path\": " << q(args.load_state) << ",\n";
+  out << "  \"loaded_neural_state_hash\": " << q(hex64(model.state_hash())) << ",\n";
+  out << "  \"prompt_store_path\": " << q(args.experience_db) << ",\n";
+  out << "  \"scenario_seed\": " << args.scenario_seed << ",\n";
+  out << "  \"generation_batch\": ";
+  write_cycle15_samples_json(out, samples);
+  out << "\n}\n";
   std::cout << "wrote " << args.out << "\n";
 }
 
@@ -7697,6 +9928,26 @@ int main(int argc, char** argv) {
     }
     if (args.phase == "quote-probe") {
       px::quote_probe_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "corpus-exposure") {
+      px::corpus_exposure_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "neural-text-quality") {
+      px::neural_text_quality_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "neural-recurrent-text") {
+      px::neural_recurrent_text_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "neural-recurrent-regenerate") {
+      px::neural_recurrent_regenerate_phase(args, command);
+      return 0;
+    }
+    if (args.phase == "state-config-copy") {
+      px::state_config_copy_phase(args);
       return 0;
     }
     if (args.phase == "sleep-wake" || args.phase == "daemon-lite") {
