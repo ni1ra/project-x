@@ -32,6 +32,10 @@ Out of scope until the path is selected:
 
 ## Checklist
 
+- [ ] CI hygiene precondition
+  - [x] Confirm Cycle 2 workflow exists on `main` and runs on push.
+  - [x] Upgrade `actions/checkout` from v4 to v6 after the first main run warned about Node 20 deprecation.
+  - [ ] Confirm the Node 24 checkout follow-up PR and main-push checks pass.
 - [ ] Decision setup
   - [ ] Re-read Phase 4 candidate paths A/B/C.
   - [ ] Compare expected learning signal, implementation cost, and evidence quality.
@@ -56,6 +60,7 @@ Required before implementation starts:
 ## Evidence Log
 
 - 2026-06-12: Cycle 2 added and proved GitHub Actions quick checks on PR #15 before this cycle opened.
+- 2026-06-12: PR #15 merged to `main`; push workflow run `27434563140` passed in 26s and exposed a Node 20 deprecation warning from `actions/checkout@v4`. GitHub API reported latest `actions/checkout` release `v6.0.3`, so the follow-up uses the `v6` major tag.
 
 ## Open Risks
 
