@@ -1,0 +1,448 @@
+{
+  "artifact_paths": {
+    "cycle12_child_quote": "run/artifacts/organic-v0/quote_per_state_cycle12_child.json",
+    "cycle12_exposure": "run/artifacts/organic-v0/cycle12_corpus_exposure.json",
+    "cycle12_parent_quote": "run/artifacts/organic-v0/quote_per_state_cycle12_parent.json",
+    "cycle13_diagnostics": "run/artifacts/organic-v0/cycle13_quote_delta_diagnostics.json",
+    "cycle13_filter_ablation": "run/artifacts/organic-v0/cycle13_content_filter_ablation.json",
+    "cycle13_no_rewrite": "run/artifacts/organic-v0/cycle13_corpus_no_rewrite_verification.json",
+    "cycle13_repetition": "run/artifacts/organic-v0/cycle13_repetition_fix.json",
+    "cycle13_repetition_quote": "run/artifacts/organic-v0/quote_per_state_cycle13_repetition_child.json"
+  },
+  "changed_prompt_count": 11,
+  "changed_prompt_ids": [
+    "c11p_001",
+    "c11p_002",
+    "c11p_003",
+    "c11p_004",
+    "c11p_005",
+    "c11p_006",
+    "c11p_007",
+    "c11p_009",
+    "c11p_010",
+    "c11p_011",
+    "c11p_012"
+  ],
+  "content_filter_ablation": {
+    "selected_filter_statuses": [
+      "rejected",
+      "rejected",
+      "rejected",
+      "rejected"
+    ],
+    "selected_train_shards": 4,
+    "state_unchanged": true
+  },
+  "cycle13_title": "Cycle 13: Quote-Delta Diagnostics + Mechanical Repetition-Loop Suppression",
+  "honest_interpretation": "Cycle 13 localizes Cycle 12B quote changes to prompt-local corpus trace activation and tests one mechanical generator hygiene pressure. The repetition child reduces max-cap repetition loops by learning a post-copy END feature and applying a suffix-loop penalty. It mostly stops after copying the raw prompt, so this is not semantic answer quality.",
+  "metrics": {
+    "cycle12_child_max_cap_hits": 10,
+    "cycle12_child_repetition_loop_count": 10,
+    "cycle13_copy_boundary_driver_prompt_count": 9,
+    "cycle13_repetition_child_end_count": 11,
+    "cycle13_repetition_child_max_cap_hits": 1,
+    "cycle13_repetition_child_nonrepetitive_count": 11,
+    "cycle13_repetition_child_repetition_loop_count": 1
+  },
+  "negative_space": {
+    "driver_means_surface_mechanical_correlate_not_semantic_cause": true,
+    "not_chat_or_alignment_claim": true,
+    "not_language_quality_claim": true,
+    "not_pretrained_or_template_route": true,
+    "not_understanding_claim": true
+  },
+  "per_prompt": [
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 17,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 32,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_001",
+      "raw_outputs": {
+        "cycle12_child": "what does arin remember carryinges caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "what does arin remember carrying"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 17,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 32,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_002",
+      "raw_outputs": {
+        "cycle12_child": "what does sora remember carryinges caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries",
+        "cycle12_parent": "by",
+        "cycle13_repetition_child": "what does sora remember carrying"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00032"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00032"
+      ],
+      "cycle13_distinct_char_count": 16,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 1,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 31,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_003",
+      "raw_outputs": {
+        "cycle12_child": "where does luma wait when quietfes caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "where does luma wait when quiet"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00032"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00032"
+      ],
+      "cycle13_distinct_char_count": 16,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 36,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_004",
+      "raw_outputs": {
+        "cycle12_child": "where does arin wait before choosingles caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries c",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "where does arin wait before choosing"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 17,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 34,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_005",
+      "raw_outputs": {
+        "cycle12_child": "what does navi carry when learningaries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries c",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "what does navi carry when learning"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 14,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 1,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 36,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_006",
+      "raw_outputs": {
+        "cycle12_child": "where does mira wait after a mistakes caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries car",
+        "cycle12_parent": "hies carries carrrries ",
+        "cycle13_repetition_child": "where does mira wait after a mistake"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00035"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": false,
+      "cycle12_child_output_char_count": 23,
+      "cycle12_child_repetition_loop": false,
+      "cycle13_copy_boundary_feature_count": 0,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00035"
+      ],
+      "cycle13_distinct_char_count": 7,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 23,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation"
+      ],
+      "prompt_id": "c11p_007",
+      "raw_outputs": {
+        "cycle12_child": "arie carries caries car",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "arie carries caries car"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00035"
+      ],
+      "cycle12_child_differs_from_parent": false,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 0,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00035"
+      ],
+      "cycle13_distinct_char_count": 7,
+      "cycle13_dominant_token_count": 14,
+      "cycle13_ended_with_end": false,
+      "cycle13_longest_repeated_char_run": 4,
+      "cycle13_max_cap_hit": true,
+      "cycle13_output_char_count": 160,
+      "cycle13_repetition_loop": true,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "residual_no_copy_boundary_loop"
+      ],
+      "prompt_id": "c11p_008",
+      "raw_outputs": {
+        "cycle12_child": "s ca carries carrrries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries cari",
+        "cycle12_parent": "s ca carries carrrries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries cari",
+        "cycle13_repetition_child": "s ca carries carrrries caries carries caries caries carries caries caries caries carries caries caries caries carries caries caries caries carries caries caries"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": false,
+      "cycle12_child_output_char_count": 23,
+      "cycle12_child_repetition_loop": false,
+      "cycle13_copy_boundary_feature_count": 0,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 10,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 23,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation"
+      ],
+      "prompt_id": "c11p_009",
+      "raw_outputs": {
+        "cycle12_child": "luma carries caries car",
+        "cycle12_parent": "luma carries carrrries ",
+        "cycle13_repetition_child": "luma carries caries car"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 18,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 38,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_010",
+      "raw_outputs": {
+        "cycle12_child": "carry navi basalt prism while learning; caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries c",
+        "cycle12_parent": "arie carries carries ca",
+        "cycle13_repetition_child": "carry navi basalt prism while learning"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00035"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00029",
+        "cycle12_cycle12_poe_usher_pg932_shard_00035"
+      ],
+      "cycle13_distinct_char_count": 15,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 2,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 39,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_011",
+      "raw_outputs": {
+        "cycle12_child": "what remains after the prism is carried caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries c",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "what remains after the prism is carried"
+      }
+    },
+    {
+      "cycle12_child_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00032",
+        "cycle12_cycle12_poe_usher_pg932_shard_00037",
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle12_child_differs_from_parent": true,
+      "cycle12_child_max_cap_hit": true,
+      "cycle12_child_output_char_count": 160,
+      "cycle12_child_repetition_loop": true,
+      "cycle13_copy_boundary_feature_count": 1,
+      "cycle13_corpus_trace_ids": [
+        "cycle12_cycle12_poe_usher_pg932_shard_00032",
+        "cycle12_cycle12_poe_usher_pg932_shard_00037",
+        "cycle12_cycle12_poe_usher_pg932_shard_00029"
+      ],
+      "cycle13_distinct_char_count": 14,
+      "cycle13_dominant_token_count": 1,
+      "cycle13_ended_with_end": true,
+      "cycle13_longest_repeated_char_run": 1,
+      "cycle13_max_cap_hit": false,
+      "cycle13_output_char_count": 41,
+      "cycle13_repetition_loop": false,
+      "mechanical_driver": [
+        "cycle12_corpus_trace_activation",
+        "copy_boundary_end_feature",
+        "repetition_loop_suppressed",
+        "max_cap_hit_removed"
+      ],
+      "prompt_id": "c11p_012",
+      "raw_outputs": {
+        "cycle12_child": "what changes after waiting at the archives caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries caries carie",
+        "cycle12_parent": "arie carries carrrries ",
+        "cycle13_repetition_child": "what changes after waiting at the archive"
+      }
+    }
+  ],
+  "schema": "project_x.cycle13_quote_delta_diagnostics.v0",
+  "unchanged_prompt_count": 1
+}

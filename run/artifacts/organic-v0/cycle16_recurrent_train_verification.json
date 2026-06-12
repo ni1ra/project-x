@@ -1,0 +1,146 @@
+{
+  "all_required_checks_passed": true,
+  "canonical_artifact_path": "run/artifacts/organic-v0/cycle16_recurrent_text_train.json",
+  "canonical_artifact_sha256": "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e",
+  "checks": [
+    {
+      "detail": "experience/organic-v0/corpus_manifest_v0.jsonl",
+      "name": "smoke_corpus_manifest_path",
+      "passed": true
+    },
+    {
+      "detail": "cycle16-recurrent-train-rail-smoke",
+      "name": "smoke_cycle_intake_id_recorded",
+      "passed": true
+    },
+    {
+      "detail": "['experience/organic-v0/cycle16_corpus_manifest.jsonl']",
+      "name": "smoke_corpus_manifests_extra_recorded",
+      "passed": true
+    },
+    {
+      "detail": "2",
+      "name": "smoke_corpus_manifest_count_two",
+      "passed": true
+    },
+    {
+      "detail": "train_shards=7990",
+      "name": "smoke_train_shards_above_cycle15_baseline",
+      "passed": true
+    },
+    {
+      "detail": "train_chars=552098",
+      "name": "smoke_train_chars_above_cycle15_baseline",
+      "passed": true
+    },
+    {
+      "detail": "966",
+      "name": "smoke_probe_shards_present",
+      "passed": true
+    },
+    {
+      "detail": "1002",
+      "name": "smoke_holdout_shards_present",
+      "passed": true
+    },
+    {
+      "detail": "True",
+      "name": "smoke_reload_hash_match",
+      "passed": true
+    },
+    {
+      "detail": "True",
+      "name": "smoke_same_process_reload_generations_match",
+      "passed": true
+    },
+    {
+      "detail": "True",
+      "name": "smoke_holdout_beats_unigram",
+      "passed": true
+    },
+    {
+      "detail": "2683f1e7eca6c279",
+      "name": "smoke_neural_state_hash_present",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle16_recurrent_text_train.json",
+      "name": "canonical_full_training_artifact_present",
+      "passed": true
+    },
+    {
+      "detail": "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e",
+      "name": "canonical_artifact_sha256_pinned",
+      "passed": true
+    },
+    {
+      "detail": "cycle16-recurrent-text",
+      "name": "canonical_artifact_cycle_intake_id",
+      "passed": true
+    },
+    {
+      "detail": "['experience/organic-v0/cycle16_corpus_manifest.jsonl']",
+      "name": "canonical_artifact_has_corpus_manifests_extra",
+      "passed": true
+    },
+    {
+      "detail": "train_shards=7990",
+      "name": "canonical_artifact_records_full_train_shards",
+      "passed": true
+    },
+    {
+      "detail": "True",
+      "name": "canonical_artifact_probe_target_met",
+      "passed": true
+    },
+    {
+      "detail": "1.49436513",
+      "name": "canonical_artifact_probe_nll_below_advisor_threshold",
+      "passed": true
+    },
+    {
+      "detail": "True",
+      "name": "canonical_artifact_holdout_beats_unigram",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle16_reproducibility_audit.json",
+      "name": "reproducibility_audit_present",
+      "passed": true
+    },
+    {
+      "detail": "True",
+      "name": "reproducibility_audit_all_match",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle16_source_overlap_audit.json",
+      "name": "source_overlap_audit_present",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "source_overlap_zero_near_copies",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle16_best_raw_output.json",
+      "name": "best_raw_output_audit_present",
+      "passed": true
+    }
+  ],
+  "expected_canonical_artifact_sha256": "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e",
+  "honest_interpretation": "Cycle 16 recurrent training rail proves the multi-manifest pipeline is intact, the smoke training reads both cycle 12 and cycle 16 manifests, PXNN v2 persistence round-trips, and the canonical full-training artifact still exists with probe NLL below the advisor's 1.90 threshold. It does not retrain the full Cycle 16 result; that artifact is the anchored evidence.",
+  "negative_space": {
+    "not_alignment_or_safety_claim": true,
+    "not_retrains_full_cycle16": true,
+    "not_validates_chat": true,
+    "not_validates_language_quality": true,
+    "not_validates_understanding": true
+  },
+  "rail_mode": "smoke_4epoch_hidden48",
+  "rail_purpose": "Permanent carry-forward rail for Cycle 16 multi-manifest training pipeline. Validates the combined-manifest read path, persistence round-trip, and the canonical full-training artifact metrics \u2014 but does NOT retrain at full Cycle 16 hyperparams (48 epochs / hidden 96 on 7990 shards) because that exceeds the 180s carry-forward budget. The full training artifact is anchored at run/artifacts/organic-v0/cycle16_recurrent_text_train.json and this rail confirms its presence + headline metrics.",
+  "schema": "project_x.cycle16_recurrent_train_verification.v0",
+  "smoke_train_artifact_path": "/tmp/cycle16-recurrent-train-rail-1242815/smoke_train.json",
+  "total_checks": 25
+}

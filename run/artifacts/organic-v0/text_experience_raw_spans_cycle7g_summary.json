@@ -1,0 +1,116 @@
+{
+  "cycle": "7G",
+  "date": "2026-05-14",
+  "claim": "raw-text token span sense for text experience",
+  "evidence_paths": {
+    "all_on": "run/artifacts/organic-v0/text_experience_raw_spans_cycle7g.json",
+    "from_disk": "run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_from_disk_probe.json",
+    "ablation": "run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_ablation.json",
+    "transcript": "run/artifacts/organic-v0/text_experience_raw_spans_cycle7g_transcript.md",
+    "typed_reference": "run/artifacts/organic-v0/text_experience_cycle7e_summary.json"
+  },
+  "metrics": {
+    "raw_span_all_on": {
+      "train_before": {
+        "count": 4,
+        "exact": 2,
+        "exact_rate": 0.500000,
+        "mean_sequence_ratio": 0.694194
+      },
+      "train_after": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "raw_span_from_disk": {
+      "probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "raw_span_ablation": {
+      "train_before": {
+        "count": 4,
+        "exact": 0,
+        "exact_rate": 0.000000,
+        "mean_sequence_ratio": 0.426131
+      },
+      "train_after": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "probe": {
+        "count": 4,
+        "exact": 0,
+        "exact_rate": 0.000000,
+        "mean_sequence_ratio": 0.579181
+      }
+    },
+    "typed_reference": {
+      "train_before": {
+        "count": 6,
+        "exact": 1,
+        "exact_rate": 0.166667,
+        "mean_sequence_ratio": 0.698660
+      },
+      "train_after": {
+        "count": 6,
+        "exact": 4,
+        "exact_rate": 0.666667,
+        "mean_sequence_ratio": 0.921498
+      },
+      "probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    }
+  },
+  "model_hashes": {
+    "all_on": "16c29f604e814f58",
+    "from_disk": "16c29f604e814f58",
+    "ablation": "0229fbe5c96d5c3e"
+  },
+  "raw_text_span_sense": {
+    "all_on": {
+      "enabled": true,
+      "derive_flag": true,
+      "ablation_flag": false,
+      "max_span_tokens": 8,
+      "max_span_len": 3
+    },
+    "from_disk": {
+      "enabled": true,
+      "derive_flag": true,
+      "ablation_flag": false,
+      "max_span_tokens": 8,
+      "max_span_len": 3
+    },
+    "ablation": {
+      "enabled": false,
+      "derive_flag": true,
+      "ablation_flag": true,
+      "max_span_tokens": 8,
+      "max_span_len": 3
+    }
+  },
+  "checks": {
+    "from_disk_probe_and_hash_diff_clean": true,
+    "ablation_probe_degraded": true,
+    "raw_span_reaches_typed_probe_rate": true
+  },
+  "counter_claim": "Does not prove semantic parsing, fluent chat, broad reasoning, or beyond-human capability; raw spans are generic copyable chunks, not intent labels."
+}

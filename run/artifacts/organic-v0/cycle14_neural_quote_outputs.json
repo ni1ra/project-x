@@ -1,0 +1,7355 @@
+{
+  "all_required_checks_passed": true,
+  "honest_interpretation": "Raw continuations from a locally trained native neural char head. They are not answer-quality or understanding claims.",
+  "quote_metrics": {
+    "ended_with_end_count": 10,
+    "nonempty_count": 12,
+    "printable_output_count": 12,
+    "prompt_count": 12,
+    "prompt_echo_count": 0,
+    "repeat_penalty_count": 0,
+    "repetition_loop_count": 0
+  },
+  "quote_outputs": [
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 19,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": "e",
+          "position": 0,
+          "probability": 0.0368671,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 1,
+          "probability": 0.56077708,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 2,
+          "probability": 0.71758915,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 3,
+          "probability": 0.39140156,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 4,
+          "probability": 0.45882463,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 5,
+          "probability": 0.77389338,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 6,
+          "probability": 0.06246144,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 7,
+          "probability": 0.55097808,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 8,
+          "probability": 0.01490456,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 9,
+          "probability": 0.33086069,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 10,
+          "probability": 0.43025642,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 11,
+          "probability": 0.2717331,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 12,
+          "probability": 0.05282147,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 13,
+          "probability": 0.95248638,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 14,
+          "probability": 0.98690314,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 15,
+          "probability": 0.91641879,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 16,
+          "probability": 0.58739641,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 17,
+          "probability": 0.42063091,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 18,
+          "probability": 0.67836974,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 19,
+          "probability": 0.31328321,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 20,
+          "probability": 0.11173877,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 21,
+          "probability": 0.13850485,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 22,
+          "probability": 0.84925576,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 23,
+          "probability": 0.31439451,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 24,
+          "probability": 0.1242455,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 25,
+          "probability": 0.13765941,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 26,
+          "probability": 0.00337969,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 27,
+          "probability": 0.03381415,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 28,
+          "probability": 0.81788718,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 29,
+          "probability": 0.232498,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 30,
+          "probability": 0.02442317,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "k",
+          "position": 31,
+          "probability": 0.6367128,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 32,
+          "probability": 0.8839026,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 33,
+          "probability": 0.21248856,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 34,
+          "probability": 0.27372485,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 35,
+          "probability": 0.25106912,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 36,
+          "probability": 0.04529273,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 37,
+          "probability": 0.27646953,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 38,
+          "probability": 0.22257509,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 39,
+          "probability": 0.69593726,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 40,
+          "probability": 0.05816483,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 41,
+          "probability": 0.70571192,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 42,
+          "probability": 0.41008065,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 43,
+          "probability": 0.67954981,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 44,
+          "probability": 0.07434558,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 45,
+          "probability": 0.93714776,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 46,
+          "probability": 0.37763163,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 47,
+          "probability": 0.58455778,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 48,
+          "probability": 0.94238332,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 49,
+          "probability": 0.82717949,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 50,
+          "probability": 0.94196109,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 51,
+          "probability": 0.04877756,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 52,
+          "probability": 0.21428322,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 53,
+          "probability": 0.78011116,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 54,
+          "probability": 0.52601314,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 55,
+          "probability": 0.14015701,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 56,
+          "probability": 0.17691069,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 57,
+          "probability": 0.258066,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 58,
+          "probability": 0.84653661,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 59,
+          "probability": 0.94637508,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 60,
+          "probability": 0.0082208,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 61,
+          "probability": 0.32530113,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 62,
+          "probability": 0.62148084,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 63,
+          "probability": 0.05771881,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 64,
+          "probability": 0.1968993,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 65,
+          "probability": 0.19083035,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 66,
+          "probability": 0.54574087,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 67,
+          "probability": 0.34653719,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 68,
+          "probability": 0.79782734,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 69,
+          "probability": 0.17708939,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 70,
+          "probability": 0.57324947,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 70,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_001",
+      "prompt_text": "what does arin remember carrying",
+      "raw_generated_output": "eledt thour of a felenstatr wolk nool ance we with houpditiot. cearis.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 21,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": "t",
+          "position": 0,
+          "probability": 0.03411664,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 1,
+          "probability": 0.05947372,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 2,
+          "probability": 0.17732354,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 3,
+          "probability": 0.95922739,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 4,
+          "probability": 0.88346004,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 5,
+          "probability": 0.25842666,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 6,
+          "probability": 0.44805361,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 7,
+          "probability": 0.6823286,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 8,
+          "probability": 0.39974197,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 9,
+          "probability": 0.21213275,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 10,
+          "probability": 0.28962619,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 11,
+          "probability": 0.94645819,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 12,
+          "probability": 0.53734033,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 13,
+          "probability": 0.496914,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 14,
+          "probability": 0.2073207,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 15,
+          "probability": 0.88750821,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 16,
+          "probability": 0.42775773,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 17,
+          "probability": 0.46039961,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 18,
+          "probability": 0.91558229,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 19,
+          "probability": 0.53337819,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 20,
+          "probability": 0.27552029,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 21,
+          "probability": 0.79632641,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 22,
+          "probability": 0.24411324,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 23,
+          "probability": 0.32966535,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 24,
+          "probability": 0.01650749,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 25,
+          "probability": 0.80280877,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 26,
+          "probability": 0.17742771,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 27,
+          "probability": 0.36689145,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 28,
+          "probability": 0.66482136,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 29,
+          "probability": 0.92588413,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 30,
+          "probability": 0.44779213,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 31,
+          "probability": 0.67008634,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 32,
+          "probability": 0.50368062,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 33,
+          "probability": 0.62322552,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 34,
+          "probability": 0.18709853,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 35,
+          "probability": 0.99813285,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 36,
+          "probability": 0.26659117,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 37,
+          "probability": 0.19228948,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 38,
+          "probability": 0.31373171,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 39,
+          "probability": 0.5262123,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 40,
+          "probability": 0.10138232,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 41,
+          "probability": 0.41767934,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 42,
+          "probability": 0.41945187,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 43,
+          "probability": 0.97105088,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 44,
+          "probability": 0.00918373,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 45,
+          "probability": 0.80411802,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 46,
+          "probability": 0.2304904,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 47,
+          "probability": 0.0902748,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 48,
+          "probability": 0.20032099,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 49,
+          "probability": 0.93400367,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 50,
+          "probability": 0.43243283,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 51,
+          "probability": 0.02601408,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 52,
+          "probability": 0.79141357,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 53,
+          "probability": 0.7698134,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 54,
+          "probability": 0.65643405,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 55,
+          "probability": 0.36350459,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 56,
+          "probability": 0.99071338,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 57,
+          "probability": 0.3017049,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 58,
+          "probability": 0.17052331,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 59,
+          "probability": 0.60999145,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 60,
+          "probability": 0.93990891,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 61,
+          "probability": 0.00762939,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 62,
+          "probability": 0.65583291,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 63,
+          "probability": 0.0335653,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 64,
+          "probability": 0.76074505,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 65,
+          "probability": 0.85365482,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 66,
+          "probability": 0.02826847,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 67,
+          "probability": 0.43729778,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 68,
+          "probability": 0.47440773,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 69,
+          "probability": 0.56137639,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 70,
+          "probability": 0.92713965,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 71,
+          "probability": 0.34739486,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 72,
+          "probability": 0.79285704,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 73,
+          "probability": 0.56387265,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 74,
+          "probability": 0.92403007,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 75,
+          "probability": 0.1180729,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 76,
+          "probability": 0.61497184,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 77,
+          "probability": 0.91942355,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 78,
+          "probability": 0.9507047,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 79,
+          "probability": 0.28027115,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 80,
+          "probability": 0.8431751,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 81,
+          "probability": 0.43660229,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 82,
+          "probability": 0.50740152,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 83,
+          "probability": 0.28473165,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 84,
+          "probability": 0.92434658,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 85,
+          "probability": 0.33141266,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 86,
+          "probability": 0.79074654,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 87,
+          "probability": 0.31404548,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 88,
+          "probability": 0.65897368,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "1",
+          "position": 89,
+          "probability": 0.00220984,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 90,
+          "probability": 0.66581989,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 91,
+          "probability": 0.65722935,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 92,
+          "probability": 0.0088943,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 93,
+          "probability": 0.4392005,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 94,
+          "probability": 0.90765211,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 95,
+          "probability": 0.05539482,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 96,
+          "probability": 0.9843536,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 97,
+          "probability": 0.67919609,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 98,
+          "probability": 0.95660138,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 99,
+          "probability": 0.86562671,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 100,
+          "probability": 0.09042418,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 101,
+          "probability": 0.55202874,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 102,
+          "probability": 0.53759815,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 103,
+          "probability": 0.84943502,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 104,
+          "probability": 0.13309812,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 105,
+          "probability": 0.00313504,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 106,
+          "probability": 0.06239442,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 107,
+          "probability": 0.02652779,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 107,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_002",
+      "prompt_text": "what does sora remember carrying",
+      "raw_generated_output": "t be pand do frith i pawains wash rectatsen low thablech wof phos sealling and parilions 1ofaliont wrephimy",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 20,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": "s",
+          "position": 0,
+          "probability": 0.52048827,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 1,
+          "probability": 0.20407432,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 2,
+          "probability": 0.59747595,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 3,
+          "probability": 0.96017051,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 4,
+          "probability": 0.10931122,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 5,
+          "probability": 0.84971489,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 6,
+          "probability": 0.40432313,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 7,
+          "probability": 0.84105304,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 8,
+          "probability": 0.70092411,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 9,
+          "probability": 0.72386443,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 10,
+          "probability": 0.45495782,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 11,
+          "probability": 0.90398216,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 12,
+          "probability": 0.28254625,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 13,
+          "probability": 0.06777493,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 14,
+          "probability": 0.04009442,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 15,
+          "probability": 0.87432793,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 16,
+          "probability": 0.89351165,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 17,
+          "probability": 0.37754967,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 18,
+          "probability": 0.84487469,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 19,
+          "probability": 0.99097473,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 20,
+          "probability": 0.25375844,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 21,
+          "probability": 0.1992586,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 22,
+          "probability": 0.36773491,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 23,
+          "probability": 0.56144825,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 24,
+          "probability": 0.12691334,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 25,
+          "probability": 0.46500724,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 26,
+          "probability": 0.94768984,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 27,
+          "probability": 0.88215253,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 28,
+          "probability": 0.55268907,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 29,
+          "probability": 0.82913567,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 30,
+          "probability": 0.21620568,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 31,
+          "probability": 0.31175479,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 32,
+          "probability": 0.82036618,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 33,
+          "probability": 0.04760288,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 34,
+          "probability": 0.08405749,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 35,
+          "probability": 0.01231905,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 36,
+          "probability": 0.22320748,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 37,
+          "probability": 0.83013613,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 38,
+          "probability": 0.79161041,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 39,
+          "probability": 0.12276661,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 40,
+          "probability": 0.30957893,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 41,
+          "probability": 0.22392136,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 42,
+          "probability": 0.28094759,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 43,
+          "probability": 0.00207611,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 44,
+          "probability": 0.40694358,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 45,
+          "probability": 0.5996011,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 46,
+          "probability": 0.04134828,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 47,
+          "probability": 0.21781874,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 48,
+          "probability": 0.018892,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 49,
+          "probability": 0.50767817,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 50,
+          "probability": 0.93543623,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 51,
+          "probability": 0.61728299,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 52,
+          "probability": 0.87854369,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 53,
+          "probability": 0.36054065,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 54,
+          "probability": 0.79189507,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 55,
+          "probability": 0.73587473,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 56,
+          "probability": 0.89508658,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 57,
+          "probability": 0.45468525,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 58,
+          "probability": 0.00846702,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 59,
+          "probability": 0.21357026,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 60,
+          "probability": 0.87024223,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 61,
+          "probability": 0.02120356,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 62,
+          "probability": 0.84201837,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 63,
+          "probability": 0.45390914,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 64,
+          "probability": 0.07645312,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 65,
+          "probability": 0.07805936,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 66,
+          "probability": 0.13463798,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 67,
+          "probability": 0.81198845,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 68,
+          "probability": 0.50543823,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 69,
+          "probability": 0.01251154,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 70,
+          "probability": 0.86053996,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 71,
+          "probability": 0.93760458,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 72,
+          "probability": 0.80231841,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 73,
+          "probability": 0.22433914,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 74,
+          "probability": 0.58296491,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 75,
+          "probability": 0.28747961,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 76,
+          "probability": 0.82931183,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 77,
+          "probability": 0.36162879,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 78,
+          "probability": 0.34059082,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 79,
+          "probability": 0.98301617,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 80,
+          "probability": 0.06019492,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 81,
+          "probability": 0.42309779,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 82,
+          "probability": 0.60933397,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 83,
+          "probability": 0.06974897,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 84,
+          "probability": 0.09965229,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 85,
+          "probability": 0.82462449,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 86,
+          "probability": 0.97067603,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 87,
+          "probability": 0.03279969,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 88,
+          "probability": 0.57747268,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 89,
+          "probability": 0.94012865,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 90,
+          "probability": 0.20078181,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 91,
+          "probability": 0.01289382,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 92,
+          "probability": 0.93900617,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 93,
+          "probability": 0.90942772,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 94,
+          "probability": 0.22710533,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 95,
+          "probability": 0.50139647,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 96,
+          "probability": 0.77979464,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 97,
+          "probability": 0.02180918,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 98,
+          "probability": 0.70692131,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 99,
+          "probability": 0.07988047,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 100,
+          "probability": 0.18271122,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 101,
+          "probability": 0.05023797,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 102,
+          "probability": 0.42488267,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 103,
+          "probability": 0.18153789,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 104,
+          "probability": 0.28910868,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 105,
+          "probability": 0.21565014,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 106,
+          "probability": 0.1313721,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 107,
+          "probability": 0.65311211,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 108,
+          "probability": 0.35020703,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 109,
+          "probability": 0.10962143,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 110,
+          "probability": 0.39061971,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 111,
+          "probability": 0.63339991,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 112,
+          "probability": 0.98222581,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 113,
+          "probability": 0.02594625,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 113,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_003",
+      "prompt_text": "where does luma wait when quiet",
+      "raw_generated_output": "sit con any woy. in pay chall it sndacityoralini had fectessid wall with any pertaculy in phe or metsuprasitution",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 20,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": "s",
+          "position": 0,
+          "probability": 0.01092826,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 1,
+          "probability": 0.9386057,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 2,
+          "probability": 0.46527648,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 3,
+          "probability": 0.39108515,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 4,
+          "probability": 0.46268703,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 5,
+          "probability": 0.20665676,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 6,
+          "probability": 0.08787667,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 7,
+          "probability": 0.83346164,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 8,
+          "probability": 0.07975462,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 9,
+          "probability": 0.91393494,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 10,
+          "probability": 0.73375149,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 11,
+          "probability": 0.96912374,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 12,
+          "probability": 0.07219469,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 13,
+          "probability": 0.65475442,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 14,
+          "probability": 0.17579547,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 15,
+          "probability": 0.4075188,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 16,
+          "probability": 0.35397335,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 17,
+          "probability": 0.15983165,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 18,
+          "probability": 0.55774179,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 19,
+          "probability": 0.31939563,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 20,
+          "probability": 0.07541312,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 21,
+          "probability": 0.31509336,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 22,
+          "probability": 0.38887445,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 23,
+          "probability": 0.23103899,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 24,
+          "probability": 0.06416156,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 25,
+          "probability": 0.09790751,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 26,
+          "probability": 0.52410268,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 27,
+          "probability": 0.15365555,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 28,
+          "probability": 0.37527392,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 29,
+          "probability": 0.22712474,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 30,
+          "probability": 0.36703338,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 31,
+          "probability": 0.92056729,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 32,
+          "probability": 0.21103634,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 33,
+          "probability": 0.22732556,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 34,
+          "probability": 0.98794746,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 35,
+          "probability": 0.5481809,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 36,
+          "probability": 0.85442849,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 37,
+          "probability": 0.00189088,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 38,
+          "probability": 0.56489307,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 39,
+          "probability": 0.36766436,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 40,
+          "probability": 0.27187862,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 41,
+          "probability": 0.13906319,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 42,
+          "probability": 0.10110046,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 43,
+          "probability": 0.05168148,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 44,
+          "probability": 0.35200969,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 45,
+          "probability": 0.28632726,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 46,
+          "probability": 0.20095842,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 47,
+          "probability": 0.29981603,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 48,
+          "probability": 0.32962163,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 49,
+          "probability": 0.43885424,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 50,
+          "probability": 0.18200003,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 51,
+          "probability": 0.53146044,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 52,
+          "probability": 0.48833684,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 53,
+          "probability": 0.91047205,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 54,
+          "probability": 0.57606073,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 55,
+          "probability": 0.0459012,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 56,
+          "probability": 0.07942522,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 57,
+          "probability": 0.98973225,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 58,
+          "probability": 0.8765055,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "-",
+          "position": 59,
+          "probability": 0.02348707,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 60,
+          "probability": 0.47508592,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 61,
+          "probability": 0.66111452,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 61,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_004",
+      "prompt_text": "where does arin wait before choosing",
+      "raw_generated_output": "s whter the act alicgusenf.. ee me wanchar hituepa didinat.-.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 18,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": " ",
+          "position": 0,
+          "probability": 0.98179213,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 1,
+          "probability": 0.63389242,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 2,
+          "probability": 0.32082596,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 3,
+          "probability": 0.47746779,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 4,
+          "probability": 0.94003553,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 5,
+          "probability": 0.28715125,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 6,
+          "probability": 0.03234553,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 7,
+          "probability": 0.01193324,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 8,
+          "probability": 0.20574303,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 9,
+          "probability": 0.84162948,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 10,
+          "probability": 0.22479945,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 11,
+          "probability": 0.04977912,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 12,
+          "probability": 0.30684613,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 13,
+          "probability": 0.76033026,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 14,
+          "probability": 0.9993875,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 15,
+          "probability": 0.09551422,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 16,
+          "probability": 0.14563187,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 17,
+          "probability": 0.23954929,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 18,
+          "probability": 0.50147795,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 19,
+          "probability": 0.36390141,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 20,
+          "probability": 0.09172307,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 21,
+          "probability": 0.60117767,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 22,
+          "probability": 0.97738115,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 23,
+          "probability": 0.42463621,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 24,
+          "probability": 0.11415878,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 25,
+          "probability": 0.58686018,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 26,
+          "probability": 0.89374258,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 27,
+          "probability": 0.50126251,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 28,
+          "probability": 0.53080539,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 29,
+          "probability": 0.59252235,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 30,
+          "probability": 0.41572829,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 31,
+          "probability": 0.7315767,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 32,
+          "probability": 0.72162356,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 33,
+          "probability": 0.50748529,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 34,
+          "probability": 0.4767776,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 35,
+          "probability": 0.05746356,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 36,
+          "probability": 0.99780663,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 37,
+          "probability": 0.97539632,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 38,
+          "probability": 0.04742172,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 39,
+          "probability": 0.71006857,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 40,
+          "probability": 0.51000348,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 41,
+          "probability": 0.13627028,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 42,
+          "probability": 0.06388192,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 43,
+          "probability": 0.1542579,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 44,
+          "probability": 0.92969197,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 45,
+          "probability": 0.74334888,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 46,
+          "probability": 0.5122389,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 47,
+          "probability": 0.80423219,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 48,
+          "probability": 0.1351331,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 49,
+          "probability": 0.58650284,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 50,
+          "probability": 0.54029622,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 51,
+          "probability": 0.3818773,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 52,
+          "probability": 0.59354721,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 53,
+          "probability": 0.15261859,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 54,
+          "probability": 0.25695232,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 55,
+          "probability": 0.06031148,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 56,
+          "probability": 0.16222056,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 57,
+          "probability": 0.27052341,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 58,
+          "probability": 0.80068476,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 59,
+          "probability": 0.82488927,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 60,
+          "probability": 0.20543861,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 61,
+          "probability": 0.79843578,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 62,
+          "probability": 0.90033494,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 63,
+          "probability": 0.30848632,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 64,
+          "probability": 0.83738041,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 65,
+          "probability": 0.55908618,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 66,
+          "probability": 0.56260824,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 67,
+          "probability": 0.50773955,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 68,
+          "probability": 0.94986961,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 69,
+          "probability": 0.56390298,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 70,
+          "probability": 0.99490422,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 71,
+          "probability": 0.22412343,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 72,
+          "probability": 0.24074394,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 73,
+          "probability": 0.75722766,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 74,
+          "probability": 0.18384945,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 74,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_005",
+      "prompt_text": "what does navi carry when learning",
+      "raw_generated_output": " act pelite of whit in agrechacime of cteers watron. peece act waith thate",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 20,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": "n",
+          "position": 0,
+          "probability": 0.10112434,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 1,
+          "probability": 0.820143,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 2,
+          "probability": 0.93831399,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 3,
+          "probability": 0.0621692,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 4,
+          "probability": 0.48349185,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 5,
+          "probability": 0.66090161,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 6,
+          "probability": 0.69290629,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 7,
+          "probability": 0.11834073,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 8,
+          "probability": 0.29031219,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 9,
+          "probability": 0.3517122,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 10,
+          "probability": 0.40912938,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 11,
+          "probability": 0.73835568,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 12,
+          "probability": 0.44030875,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 13,
+          "probability": 0.70781208,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 14,
+          "probability": 0.02649709,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 15,
+          "probability": 0.12613253,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 16,
+          "probability": 0.80166849,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 17,
+          "probability": 0.23531884,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 18,
+          "probability": 0.99901365,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 19,
+          "probability": 0.62258331,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 20,
+          "probability": 0.82736986,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 21,
+          "probability": 0.67332685,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 22,
+          "probability": 0.67025916,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 23,
+          "probability": 0.14931565,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 24,
+          "probability": 0.84187806,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 25,
+          "probability": 0.20932962,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 26,
+          "probability": 0.763258,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 27,
+          "probability": 0.77680055,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 28,
+          "probability": 0.87798107,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 29,
+          "probability": 0.49799464,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 30,
+          "probability": 0.77196482,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 31,
+          "probability": 0.55945599,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 32,
+          "probability": 0.11105434,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 33,
+          "probability": 0.56820106,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 34,
+          "probability": 0.049154,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 35,
+          "probability": 0.07931945,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 36,
+          "probability": 0.94171879,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 37,
+          "probability": 0.1508768,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 38,
+          "probability": 0.96263447,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 39,
+          "probability": 0.37300969,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 40,
+          "probability": 0.93602874,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 41,
+          "probability": 0.9322013,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 42,
+          "probability": 0.16346368,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 43,
+          "probability": 0.49007079,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 44,
+          "probability": 0.89010861,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 45,
+          "probability": 0.13307218,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 46,
+          "probability": 0.16380768,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 47,
+          "probability": 0.09112297,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 48,
+          "probability": 0.39119202,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 49,
+          "probability": 0.84993196,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 50,
+          "probability": 0.81836933,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 50,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_006",
+      "prompt_text": "where does mira wait after a mistake",
+      "raw_generated_output": "n wath roughision. comyenith s wralith of pee was.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 18,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": " ",
+          "position": 0,
+          "probability": 0.89642389,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 1,
+          "probability": 0.2293151,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 2,
+          "probability": 0.46407464,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 3,
+          "probability": 0.86093968,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 4,
+          "probability": 0.38375429,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 5,
+          "probability": 0.50082162,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 6,
+          "probability": 0.0914133,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 7,
+          "probability": 0.73328214,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 8,
+          "probability": 0.64067268,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 9,
+          "probability": 0.02146213,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 10,
+          "probability": 0.69070217,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 11,
+          "probability": 0.66364929,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 12,
+          "probability": 0.09947244,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 13,
+          "probability": 0.97428182,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 14,
+          "probability": 0.80808547,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 15,
+          "probability": 0.0951588,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 16,
+          "probability": 0.95346521,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 17,
+          "probability": 0.50885956,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 18,
+          "probability": 0.83501373,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 19,
+          "probability": 0.08712375,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 20,
+          "probability": 0.56594692,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 21,
+          "probability": 0.16380506,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 22,
+          "probability": 0.59296912,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 23,
+          "probability": 0.51411425,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 24,
+          "probability": 0.04862917,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 25,
+          "probability": 0.86299736,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 26,
+          "probability": 0.77866291,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 27,
+          "probability": 0.17563671,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 28,
+          "probability": 0.85121169,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 29,
+          "probability": 0.48359926,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 30,
+          "probability": 0.7426816,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 31,
+          "probability": 0.82085582,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 32,
+          "probability": 0.11549231,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 33,
+          "probability": 0.23905465,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 34,
+          "probability": 0.79292383,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 35,
+          "probability": 0.80979724,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 36,
+          "probability": 0.49105607,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 37,
+          "probability": 0.6364681,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 38,
+          "probability": 0.03375585,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 39,
+          "probability": 0.57389638,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 40,
+          "probability": 0.87716516,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 41,
+          "probability": 0.75505564,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 42,
+          "probability": 0.81394579,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 43,
+          "probability": 0.83758108,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 44,
+          "probability": 0.46015856,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 45,
+          "probability": 0.47800971,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 46,
+          "probability": 0.88379654,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 47,
+          "probability": 0.96247428,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 48,
+          "probability": 0.4358051,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 49,
+          "probability": 0.79581511,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 50,
+          "probability": 0.07822391,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 51,
+          "probability": 0.13937047,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 52,
+          "probability": 0.35194451,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 53,
+          "probability": 0.51373073,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 54,
+          "probability": 0.21402444,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 55,
+          "probability": 0.13265967,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 56,
+          "probability": 0.89151786,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 57,
+          "probability": 0.46599321,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 58,
+          "probability": 0.46009612,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 59,
+          "probability": 0.30449426,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 60,
+          "probability": 0.08120486,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 61,
+          "probability": 0.2424305,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 62,
+          "probability": 0.00597941,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 63,
+          "probability": 0.90034554,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 64,
+          "probability": 0.97875161,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 65,
+          "probability": 0.55463329,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 66,
+          "probability": 0.93900422,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 67,
+          "probability": 0.09747183,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 68,
+          "probability": 0.03133142,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 69,
+          "probability": 0.45294729,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 70,
+          "probability": 0.4402291,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 71,
+          "probability": 0.417549,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 72,
+          "probability": 0.15600083,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 73,
+          "probability": 0.00719138,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 74,
+          "probability": 0.90941259,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 75,
+          "probability": 0.80010569,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 76,
+          "probability": 0.21533897,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 77,
+          "probability": 0.37203596,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 78,
+          "probability": 0.11552356,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 79,
+          "probability": 0.92055233,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 80,
+          "probability": 0.33218403,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 81,
+          "probability": 0.73103981,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 82,
+          "probability": 0.83594329,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 83,
+          "probability": 0.08286253,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 84,
+          "probability": 0.61877319,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 85,
+          "probability": 0.8972372,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 85,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_007",
+      "prompt_text": "carry arin copper key and remember",
+      "raw_generated_output": " of chis licatien avilitate we hid seaclint was leting we cainot co saithat dere was.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 23,
+      "ended_with_end": false,
+      "generation_steps": [
+        {
+          "chosen": "n",
+          "position": 0,
+          "probability": 0.03616205,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 1,
+          "probability": 0.78069579,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 2,
+          "probability": 0.45978705,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 3,
+          "probability": 0.99543273,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 4,
+          "probability": 0.20157807,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 5,
+          "probability": 0.76222826,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 6,
+          "probability": 0.93619072,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 7,
+          "probability": 0.21091969,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 8,
+          "probability": 0.14761364,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 9,
+          "probability": 0.64769132,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 10,
+          "probability": 0.44450566,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 11,
+          "probability": 0.27499745,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 12,
+          "probability": 0.34075456,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 13,
+          "probability": 0.85014466,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 14,
+          "probability": 0.51842129,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 15,
+          "probability": 0.61776906,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 16,
+          "probability": 0.08992385,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 17,
+          "probability": 0.88600842,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 18,
+          "probability": 0.52358403,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 19,
+          "probability": 0.15312534,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 20,
+          "probability": 0.84400782,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 21,
+          "probability": 0.69130282,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 22,
+          "probability": 0.20369136,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 23,
+          "probability": 0.20598462,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 24,
+          "probability": 0.11618419,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 25,
+          "probability": 0.56839138,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 26,
+          "probability": 0.70241299,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 27,
+          "probability": 0.86264691,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 28,
+          "probability": 0.00365803,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 29,
+          "probability": 0.30387801,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 30,
+          "probability": 0.29406939,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 31,
+          "probability": 0.99957717,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 32,
+          "probability": 0.736363,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 33,
+          "probability": 0.48190287,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 34,
+          "probability": 0.85822945,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 35,
+          "probability": 0.13574479,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 36,
+          "probability": 0.45280963,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 37,
+          "probability": 0.84072154,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 38,
+          "probability": 0.2920916,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 39,
+          "probability": 0.5222716,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 40,
+          "probability": 0.0034868,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 41,
+          "probability": 0.72381021,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 42,
+          "probability": 0.05404482,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 43,
+          "probability": 0.05565561,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 44,
+          "probability": 0.94554636,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 45,
+          "probability": 0.59263844,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 46,
+          "probability": 0.76323838,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 47,
+          "probability": 0.99450019,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 48,
+          "probability": 0.48403384,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 49,
+          "probability": 0.48886806,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "k",
+          "position": 50,
+          "probability": 0.46832431,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 51,
+          "probability": 0.6118258,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 52,
+          "probability": 0.89731039,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 53,
+          "probability": 0.22832,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 54,
+          "probability": 0.32274405,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 55,
+          "probability": 0.83450777,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 56,
+          "probability": 0.58756982,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 57,
+          "probability": 0.9261085,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 58,
+          "probability": 0.57676469,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 59,
+          "probability": 0.70400876,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 60,
+          "probability": 0.27223081,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 61,
+          "probability": 0.11018974,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 62,
+          "probability": 0.65739117,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 63,
+          "probability": 0.49293553,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 64,
+          "probability": 0.44178237,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 65,
+          "probability": 0.11624473,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 66,
+          "probability": 0.43036226,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 67,
+          "probability": 0.70330408,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 68,
+          "probability": 0.94102977,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 69,
+          "probability": 0.22778241,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 70,
+          "probability": 0.99353444,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 71,
+          "probability": 0.76436738,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 72,
+          "probability": 0.672864,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 73,
+          "probability": 0.27227017,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 74,
+          "probability": 0.97307766,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 75,
+          "probability": 0.99017499,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 76,
+          "probability": 0.44868587,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 77,
+          "probability": 0.68257469,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 78,
+          "probability": 0.16262899,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 79,
+          "probability": 0.26317362,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 80,
+          "probability": 0.25947744,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 81,
+          "probability": 0.19011116,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 82,
+          "probability": 0.24828114,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 83,
+          "probability": 0.78135326,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 84,
+          "probability": 0.18712966,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 85,
+          "probability": 0.00902541,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 86,
+          "probability": 0.01013691,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 87,
+          "probability": 0.32819604,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 88,
+          "probability": 0.75085735,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 89,
+          "probability": 0.43505036,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 90,
+          "probability": 0.18474515,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 91,
+          "probability": 0.07321683,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 92,
+          "probability": 0.99225855,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 93,
+          "probability": 0.1202278,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 94,
+          "probability": 0.80116619,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 95,
+          "probability": 0.50114196,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 96,
+          "probability": 0.91538015,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 97,
+          "probability": 0.04356982,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 98,
+          "probability": 0.78145503,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 99,
+          "probability": 0.06222108,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 100,
+          "probability": 0.30254083,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 101,
+          "probability": 0.93839476,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 102,
+          "probability": 0.02588008,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 103,
+          "probability": 0.74845093,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 104,
+          "probability": 0.26830168,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 105,
+          "probability": 0.27288367,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 106,
+          "probability": 0.44476853,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 107,
+          "probability": 0.42936934,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 108,
+          "probability": 0.07497275,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 109,
+          "probability": 0.89767213,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 110,
+          "probability": 0.4371097,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 111,
+          "probability": 0.65719222,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 112,
+          "probability": 0.50468506,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 113,
+          "probability": 0.02768742,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 114,
+          "probability": 0.10522275,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 115,
+          "probability": 0.70496291,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 116,
+          "probability": 0.77213144,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 117,
+          "probability": 0.04945241,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 118,
+          "probability": 0.14060905,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 119,
+          "probability": 0.46820614,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 120,
+          "probability": 0.68839465,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 121,
+          "probability": 0.1072159,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 122,
+          "probability": 0.86466395,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 123,
+          "probability": 0.61474938,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 124,
+          "probability": 0.12197634,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 125,
+          "probability": 0.81688764,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 126,
+          "probability": 0.99123939,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 127,
+          "probability": 0.07298679,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 128,
+          "probability": 0.03471729,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 129,
+          "probability": 0.47565277,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 130,
+          "probability": 0.70497297,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 131,
+          "probability": 0.17779922,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 132,
+          "probability": 0.37681829,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 133,
+          "probability": 0.67602825,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 134,
+          "probability": 0.13145776,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 135,
+          "probability": 0.77200269,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 136,
+          "probability": 0.91936858,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 137,
+          "probability": 0.66975012,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 138,
+          "probability": 0.06102784,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 139,
+          "probability": 0.41561959,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 140,
+          "probability": 0.4151553,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 141,
+          "probability": 0.03862704,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 142,
+          "probability": 0.04661677,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 143,
+          "probability": 0.23636729,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 144,
+          "probability": 0.94117209,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 145,
+          "probability": 0.1724773,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 146,
+          "probability": 0.12984449,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 147,
+          "probability": 0.01154679,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 148,
+          "probability": 0.22398843,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 149,
+          "probability": 0.71099378,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 150,
+          "probability": 0.69400424,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 151,
+          "probability": 0.95639204,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 152,
+          "probability": 0.17876903,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 153,
+          "probability": 0.31327666,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 154,
+          "probability": 0.95984303,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 155,
+          "probability": 0.63890456,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 156,
+          "probability": 0.44656885,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 157,
+          "probability": 0.98487877,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 158,
+          "probability": 0.40026009,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 159,
+          "probability": 0.76840253,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 160,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_008",
+      "prompt_text": "carry sora ivory compass and choose",
+      "raw_generated_output": "nts wo donact init do wablitus. we parviphat it likse for waids.acitye wall whinn werflaco hat initgeds pof ref lant orchisned fulins for licapy li has whald no",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 22,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": "s",
+          "position": 0,
+          "probability": 0.54604609,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 1,
+          "probability": 0.8565624,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 2,
+          "probability": 0.35260012,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 3,
+          "probability": 0.93852845,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 4,
+          "probability": 0.74187927,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 5,
+          "probability": 0.00276525,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 6,
+          "probability": 0.02068355,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 7,
+          "probability": 0.64225958,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 8,
+          "probability": 0.35261369,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 9,
+          "probability": 0.70836504,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 10,
+          "probability": 0.00323958,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 11,
+          "probability": 0.12895054,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 12,
+          "probability": 0.88561771,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 13,
+          "probability": 0.82727898,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 14,
+          "probability": 0.24694088,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 15,
+          "probability": 0.365596,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 16,
+          "probability": 0.05622016,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 17,
+          "probability": 0.25129509,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 18,
+          "probability": 0.22352739,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 19,
+          "probability": 0.78568913,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 20,
+          "probability": 0.07896453,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 21,
+          "probability": 0.99671485,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 22,
+          "probability": 0.45974713,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 23,
+          "probability": 0.50221338,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 24,
+          "probability": 0.14100827,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 25,
+          "probability": 0.25008292,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 26,
+          "probability": 0.95000514,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 27,
+          "probability": 0.21032782,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 28,
+          "probability": 0.30881951,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 29,
+          "probability": 0.15880785,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 30,
+          "probability": 0.04416301,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 31,
+          "probability": 0.53971075,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 32,
+          "probability": 0.16005983,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 33,
+          "probability": 0.78067341,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 34,
+          "probability": 0.48608913,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 35,
+          "probability": 0.371234,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 36,
+          "probability": 0.02284723,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 37,
+          "probability": 0.5426108,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 38,
+          "probability": 0.01362814,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 39,
+          "probability": 0.92975414,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 40,
+          "probability": 0.29275555,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 41,
+          "probability": 0.25771874,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 42,
+          "probability": 0.69640183,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 43,
+          "probability": 0.93825851,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 44,
+          "probability": 0.09887125,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 45,
+          "probability": 0.12593297,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 46,
+          "probability": 0.06925783,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 47,
+          "probability": 0.33449208,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 48,
+          "probability": 0.44426287,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 49,
+          "probability": 0.11039555,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 50,
+          "probability": 0.40504753,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 51,
+          "probability": 0.53597306,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 52,
+          "probability": 0.9701546,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 53,
+          "probability": 0.60735597,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 54,
+          "probability": 0.61994251,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 55,
+          "probability": 0.76411258,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 56,
+          "probability": 0.68926817,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 57,
+          "probability": 0.7529393,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 58,
+          "probability": 0.35297534,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 59,
+          "probability": 0.84020762,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 60,
+          "probability": 0.98534033,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 61,
+          "probability": 0.07119537,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 62,
+          "probability": 0.12724531,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 63,
+          "probability": 0.28037487,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 64,
+          "probability": 0.60328673,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 65,
+          "probability": 0.75260367,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 66,
+          "probability": 0.4897344,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 67,
+          "probability": 0.702043,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 68,
+          "probability": 0.28903134,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 69,
+          "probability": 0.10847558,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 70,
+          "probability": 0.14819115,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 71,
+          "probability": 0.78687585,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 72,
+          "probability": 0.64315509,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 73,
+          "probability": 0.97408577,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 74,
+          "probability": 0.86428944,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 75,
+          "probability": 0.11898114,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 76,
+          "probability": 0.04855921,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 77,
+          "probability": 0.34277157,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 78,
+          "probability": 0.75212848,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 79,
+          "probability": 0.18928661,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "x",
+          "position": 80,
+          "probability": 0.38031542,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 81,
+          "probability": 0.93606004,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 82,
+          "probability": 0.02823457,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 83,
+          "probability": 0.27724286,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 84,
+          "probability": 0.56827907,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 85,
+          "probability": 0.10150408,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 86,
+          "probability": 0.44045191,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 87,
+          "probability": 0.97602465,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 88,
+          "probability": 0.99641124,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 89,
+          "probability": 0.540763,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 90,
+          "probability": 0.50430966,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "k",
+          "position": 91,
+          "probability": 0.05696089,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 92,
+          "probability": 0.77755589,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 93,
+          "probability": 0.5380084,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 94,
+          "probability": 0.5205791,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 95,
+          "probability": 0.14706918,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 96,
+          "probability": 0.82608021,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 97,
+          "probability": 0.22683006,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 98,
+          "probability": 0.49275427,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 99,
+          "probability": 0.02226424,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 100,
+          "probability": 0.97361892,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 101,
+          "probability": 0.06568119,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 102,
+          "probability": 0.72583853,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 103,
+          "probability": 0.53513612,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 104,
+          "probability": 0.29862019,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 105,
+          "probability": 0.8457985,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "k",
+          "position": 106,
+          "probability": 0.31958354,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 107,
+          "probability": 0.97198892,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 108,
+          "probability": 0.04344135,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 109,
+          "probability": 0.79850223,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 110,
+          "probability": 0.45478995,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 111,
+          "probability": 0.0795698,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 112,
+          "probability": 0.84588819,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 112,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_009",
+      "prompt_text": "carry luma amber lens through quiet",
+      "raw_generated_output": "s wo nethece fo dovadisted it tes wiace tat fely.ath ye whichalid wat the fuon excres of ank wishaty lewalk bre.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 22,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": " ",
+          "position": 0,
+          "probability": 0.6815949,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 1,
+          "probability": 0.12994745,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 2,
+          "probability": 0.98870913,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 3,
+          "probability": 0.51935179,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 4,
+          "probability": 0.99567071,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 5,
+          "probability": 0.48234699,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 6,
+          "probability": 0.30856317,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 7,
+          "probability": 0.57486195,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 8,
+          "probability": 0.10764586,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 9,
+          "probability": 0.31055416,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 10,
+          "probability": 0.75827612,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 11,
+          "probability": 0.24087993,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 12,
+          "probability": 0.67601132,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 13,
+          "probability": 0.02363946,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 14,
+          "probability": 0.81632037,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 15,
+          "probability": 0.23622308,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 16,
+          "probability": 0.33443184,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 17,
+          "probability": 0.41038254,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 18,
+          "probability": 0.89249399,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 19,
+          "probability": 0.35022767,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 20,
+          "probability": 0.60503763,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 21,
+          "probability": 0.4986193,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 22,
+          "probability": 0.21046493,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 23,
+          "probability": 0.96058578,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 24,
+          "probability": 0.99899955,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 25,
+          "probability": 0.03947532,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 26,
+          "probability": 0.05143252,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 27,
+          "probability": 0.62341355,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 28,
+          "probability": 0.07603535,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 29,
+          "probability": 0.26932996,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 30,
+          "probability": 0.98115329,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 31,
+          "probability": 0.88714298,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 32,
+          "probability": 0.08517159,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 33,
+          "probability": 0.45860152,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 34,
+          "probability": 0.32925402,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 35,
+          "probability": 0.04878878,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 36,
+          "probability": 0.91658092,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 37,
+          "probability": 0.09191749,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 38,
+          "probability": 0.11663303,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 39,
+          "probability": 0.33608794,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 40,
+          "probability": 0.61411738,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 41,
+          "probability": 0.28570478,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 42,
+          "probability": 0.6603561,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 43,
+          "probability": 0.98278024,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 44,
+          "probability": 0.9746107,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 45,
+          "probability": 0.92453183,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 46,
+          "probability": 0.56736839,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 47,
+          "probability": 0.76542905,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 48,
+          "probability": 0.6458542,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 49,
+          "probability": 0.72724797,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 50,
+          "probability": 0.71356419,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 51,
+          "probability": 0.84128486,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 52,
+          "probability": 0.99604972,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 53,
+          "probability": 0.36769481,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 54,
+          "probability": 0.60236669,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 55,
+          "probability": 0.5032552,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 56,
+          "probability": 0.66796205,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 57,
+          "probability": 0.9863459,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 58,
+          "probability": 0.85285138,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 59,
+          "probability": 0.3913729,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 60,
+          "probability": 0.03193108,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "k",
+          "position": 61,
+          "probability": 0.05931312,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 62,
+          "probability": 0.27427094,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 63,
+          "probability": 0.65578144,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 64,
+          "probability": 0.00890924,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 65,
+          "probability": 0.68453656,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 66,
+          "probability": 0.97200613,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 67,
+          "probability": 0.10899888,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 68,
+          "probability": 0.68214295,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 69,
+          "probability": 0.9264113,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 70,
+          "probability": 0.02741987,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 71,
+          "probability": 0.58405096,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 72,
+          "probability": 0.08297196,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 73,
+          "probability": 0.95370508,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 74,
+          "probability": 0.14516507,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 75,
+          "probability": 0.03112814,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 76,
+          "probability": 0.72916323,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 77,
+          "probability": 0.13645853,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 78,
+          "probability": 0.01880287,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 79,
+          "probability": 0.77567456,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 80,
+          "probability": 0.3993188,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 81,
+          "probability": 0.51725382,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 82,
+          "probability": 0.40469109,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 83,
+          "probability": 0.83941196,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 84,
+          "probability": 0.859325,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 85,
+          "probability": 0.11479704,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 86,
+          "probability": 0.91393917,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 87,
+          "probability": 0.9009053,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 88,
+          "probability": 0.76298083,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 89,
+          "probability": 0.52649392,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 90,
+          "probability": 0.12297239,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 91,
+          "probability": 0.96227294,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 92,
+          "probability": 0.86773946,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 93,
+          "probability": 0.96427235,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 94,
+          "probability": 0.87414218,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 95,
+          "probability": 0.21895165,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 96,
+          "probability": 0.46493592,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 97,
+          "probability": 0.11395821,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 98,
+          "probability": 0.43786415,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 99,
+          "probability": 0.62505789,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 100,
+          "probability": 0.10193051,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 101,
+          "probability": 0.75659574,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 102,
+          "probability": 0.56501296,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 103,
+          "probability": 0.25615707,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 104,
+          "probability": 0.84957146,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 105,
+          "probability": 0.91861034,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 106,
+          "probability": 0.92543724,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 107,
+          "probability": 0.98977523,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 108,
+          "probability": 0.70295708,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 109,
+          "probability": 0.43458593,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 110,
+          "probability": 0.08502079,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 111,
+          "probability": 0.95485164,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 112,
+          "probability": 0.34367912,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 113,
+          "probability": 0.14827024,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 114,
+          "probability": 0.54988071,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 115,
+          "probability": 0.20954444,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 116,
+          "probability": 0.81717352,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 117,
+          "probability": 0.2853693,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 118,
+          "probability": 0.23448962,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 119,
+          "probability": 0.95814164,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 120,
+          "probability": 0.87444895,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 121,
+          "probability": 0.78566823,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 122,
+          "probability": 0.05088946,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 123,
+          "probability": 0.23577337,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 124,
+          "probability": 0.95264035,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 125,
+          "probability": 0.63333416,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 126,
+          "probability": 0.39248928,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 127,
+          "probability": 0.82533239,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 128,
+          "probability": 0.16031829,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 129,
+          "probability": 0.17488384,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 130,
+          "probability": 0.11737115,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 131,
+          "probability": 0.61468505,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 132,
+          "probability": 0.1182043,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 133,
+          "probability": 0.03563688,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 134,
+          "probability": 0.98460958,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 135,
+          "probability": 0.86135107,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 136,
+          "probability": 0.12034832,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 137,
+          "probability": 0.62432336,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 138,
+          "probability": 0.14332207,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 139,
+          "probability": 0.92536348,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 139,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_010",
+      "prompt_text": "carry navi basalt prism while learning",
+      "raw_generated_output": " the leditain. had wited ova in locteims and wath in which ark withis nof pusacced wall wes an i belactation wf we whith hif as so f these.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 17,
+      "ended_with_end": true,
+      "generation_steps": [
+        {
+          "chosen": " ",
+          "position": 0,
+          "probability": 0.98804438,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 1,
+          "probability": 0.08261952,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 2,
+          "probability": 0.01238926,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 3,
+          "probability": 0.31191039,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 4,
+          "probability": 0.75807955,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 5,
+          "probability": 0.00721297,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 6,
+          "probability": 0.14926798,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 7,
+          "probability": 0.75581711,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 8,
+          "probability": 0.5791258,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 9,
+          "probability": 0.00929823,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 10,
+          "probability": 0.93976777,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 11,
+          "probability": 0.07052096,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 12,
+          "probability": 0.10579756,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 13,
+          "probability": 0.10616034,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 14,
+          "probability": 0.98575893,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 15,
+          "probability": 0.78715687,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 16,
+          "probability": 0.86596312,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 17,
+          "probability": 0.11855117,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 18,
+          "probability": 0.95003011,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 19,
+          "probability": 0.30175505,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 20,
+          "probability": 0.46348074,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 21,
+          "probability": 0.17949772,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 22,
+          "probability": 0.95727241,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 23,
+          "probability": 0.07731773,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 24,
+          "probability": 0.18271498,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "x",
+          "position": 25,
+          "probability": 0.01211109,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 26,
+          "probability": 0.56117155,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 27,
+          "probability": 0.47744617,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 28,
+          "probability": 0.35177272,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 29,
+          "probability": 0.05245685,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 30,
+          "probability": 0.03751709,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 31,
+          "probability": 0.07036997,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 32,
+          "probability": 0.15839487,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 33,
+          "probability": 0.61198776,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 34,
+          "probability": 0.02393323,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 35,
+          "probability": 0.66939971,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 36,
+          "probability": 0.96228211,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 37,
+          "probability": 0.12636655,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 38,
+          "probability": 0.68806583,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 39,
+          "probability": 0.35383661,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 40,
+          "probability": 0.83074429,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 41,
+          "probability": 0.05500057,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 42,
+          "probability": 0.13618204,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 43,
+          "probability": 0.83271448,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 44,
+          "probability": 0.94709935,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 45,
+          "probability": 0.10439797,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 46,
+          "probability": 0.22923622,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 47,
+          "probability": 0.19556673,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 48,
+          "probability": 0.11789811,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 49,
+          "probability": 0.89188736,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 50,
+          "probability": 0.44994374,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 51,
+          "probability": 0.74690669,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 52,
+          "probability": 0.98195186,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 53,
+          "probability": 0.26112884,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "<END>",
+          "position": 54,
+          "probability": 0.55241128,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 54,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_011",
+      "prompt_text": "what remains after the prism is carried",
+      "raw_generated_output": " ell comyrition ar abe nexclet ob ut and ditiribition.",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    },
+    {
+      "conditioning_mode": "prompt_context_only_no_answer_template",
+      "distinct_char_count": 25,
+      "ended_with_end": false,
+      "generation_steps": [
+        {
+          "chosen": "d",
+          "position": 0,
+          "probability": 0.58785623,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 1,
+          "probability": 0.0386188,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 2,
+          "probability": 0.390263,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 3,
+          "probability": 0.96868902,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 4,
+          "probability": 0.12894814,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 5,
+          "probability": 0.59509778,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 6,
+          "probability": 0.45263624,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 7,
+          "probability": 0.04600401,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 8,
+          "probability": 0.01958457,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 9,
+          "probability": 0.87546913,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 10,
+          "probability": 0.20826386,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 11,
+          "probability": 0.33570594,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 12,
+          "probability": 0.56189681,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 13,
+          "probability": 0.96906727,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 14,
+          "probability": 0.27491794,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 15,
+          "probability": 0.57260661,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 16,
+          "probability": 0.96803597,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 17,
+          "probability": 0.05138308,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 18,
+          "probability": 0.53568584,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 19,
+          "probability": 0.89350806,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 20,
+          "probability": 0.99730252,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 21,
+          "probability": 0.19232697,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 22,
+          "probability": 0.4941694,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 23,
+          "probability": 0.05894965,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 24,
+          "probability": 0.88783443,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 25,
+          "probability": 0.17195757,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 26,
+          "probability": 0.60140264,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 27,
+          "probability": 0.82177224,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 28,
+          "probability": 0.24445246,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "g",
+          "position": 29,
+          "probability": 0.92927191,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 30,
+          "probability": 0.67031604,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 31,
+          "probability": 0.43659333,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 32,
+          "probability": 0.75211238,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 33,
+          "probability": 0.07692522,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 34,
+          "probability": 0.12264898,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 35,
+          "probability": 0.17710979,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 36,
+          "probability": 0.45808042,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 37,
+          "probability": 0.57929916,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 38,
+          "probability": 0.2543484,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 39,
+          "probability": 0.83526143,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 40,
+          "probability": 0.20296156,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 41,
+          "probability": 0.32520513,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 42,
+          "probability": 0.04883635,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 43,
+          "probability": 0.4757065,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 44,
+          "probability": 0.92696704,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 45,
+          "probability": 0.74513145,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 46,
+          "probability": 0.0742563,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 47,
+          "probability": 0.96644084,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 48,
+          "probability": 0.08295224,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 49,
+          "probability": 0.37219055,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 50,
+          "probability": 0.19313568,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 51,
+          "probability": 0.38996855,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 52,
+          "probability": 0.13387017,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 53,
+          "probability": 0.24480084,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": ".",
+          "position": 54,
+          "probability": 0.77581358,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "-",
+          "position": 55,
+          "probability": 0.00654278,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "k",
+          "position": 56,
+          "probability": 0.01709513,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 57,
+          "probability": 0.1717133,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 58,
+          "probability": 0.32849787,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 59,
+          "probability": 0.86655301,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 60,
+          "probability": 0.22755728,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 61,
+          "probability": 0.81876943,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 62,
+          "probability": 0.53958617,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 63,
+          "probability": 0.97796049,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 64,
+          "probability": 0.24965445,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "h",
+          "position": 65,
+          "probability": 0.78694957,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 66,
+          "probability": 0.66615143,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 67,
+          "probability": 0.66306947,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 68,
+          "probability": 0.73077267,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 69,
+          "probability": 0.76384685,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 70,
+          "probability": 0.75803167,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "y",
+          "position": 71,
+          "probability": 0.27293138,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 72,
+          "probability": 0.25300261,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 73,
+          "probability": 0.16164501,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 74,
+          "probability": 0.94494268,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 75,
+          "probability": 0.20340867,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 76,
+          "probability": 0.66573107,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 77,
+          "probability": 0.62925888,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 78,
+          "probability": 0.12609891,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 79,
+          "probability": 0.29071343,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 80,
+          "probability": 0.03170908,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 81,
+          "probability": 0.67071895,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 82,
+          "probability": 0.71559415,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "b",
+          "position": 83,
+          "probability": 0.09236372,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 84,
+          "probability": 0.84953229,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 85,
+          "probability": 0.11482513,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 86,
+          "probability": 0.66692497,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 87,
+          "probability": 0.0631059,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 88,
+          "probability": 0.70762852,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 89,
+          "probability": 0.37260378,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 90,
+          "probability": 0.99935608,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 91,
+          "probability": 0.3678682,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 92,
+          "probability": 0.34103179,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 93,
+          "probability": 0.99455222,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 94,
+          "probability": 0.32191364,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 95,
+          "probability": 0.93103305,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 96,
+          "probability": 0.15285795,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 97,
+          "probability": 0.94439809,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 98,
+          "probability": 0.57724157,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 99,
+          "probability": 0.40293058,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "u",
+          "position": 100,
+          "probability": 0.28382961,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 101,
+          "probability": 0.21999224,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "v",
+          "position": 102,
+          "probability": 0.05610609,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 103,
+          "probability": 0.68991634,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "l",
+          "position": 104,
+          "probability": 0.07498882,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 105,
+          "probability": 0.86965056,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 106,
+          "probability": 0.12064461,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 107,
+          "probability": 0.2857896,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 108,
+          "probability": 0.13747492,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "w",
+          "position": 109,
+          "probability": 0.83054636,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 110,
+          "probability": 0.49265452,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "r",
+          "position": 111,
+          "probability": 0.58351812,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 112,
+          "probability": 0.00240301,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 113,
+          "probability": 0.69149998,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 114,
+          "probability": 0.37432464,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 115,
+          "probability": 0.03662509,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 116,
+          "probability": 0.55769706,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 117,
+          "probability": 0.17581896,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 118,
+          "probability": 0.92697406,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 119,
+          "probability": 0.05942939,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 120,
+          "probability": 0.9829992,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 121,
+          "probability": 0.22343538,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 122,
+          "probability": 0.12404973,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 123,
+          "probability": 0.31282688,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 124,
+          "probability": 0.10982645,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 125,
+          "probability": 0.41611519,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 126,
+          "probability": 0.37024688,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 127,
+          "probability": 0.13871602,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "m",
+          "position": 128,
+          "probability": 0.0169574,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 129,
+          "probability": 0.24352746,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 130,
+          "probability": 0.16761806,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 131,
+          "probability": 0.84788576,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 132,
+          "probability": 0.50984485,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 133,
+          "probability": 0.99763321,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 134,
+          "probability": 0.54525179,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 135,
+          "probability": 0.81505973,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 136,
+          "probability": 0.58341251,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 137,
+          "probability": 0.38801211,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 138,
+          "probability": 0.86588001,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 139,
+          "probability": 0.48922141,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "i",
+          "position": 140,
+          "probability": 0.68796974,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 141,
+          "probability": 0.49769236,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 142,
+          "probability": 0.692595,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 143,
+          "probability": 0.62753317,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "s",
+          "position": 144,
+          "probability": 0.08613942,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 145,
+          "probability": 0.88391427,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "a",
+          "position": 146,
+          "probability": 0.20719783,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "n",
+          "position": 147,
+          "probability": 0.74644615,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 148,
+          "probability": 0.16285095,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 149,
+          "probability": 0.89690005,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "p",
+          "position": 150,
+          "probability": 0.29113495,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 151,
+          "probability": 0.12490724,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": " ",
+          "position": 152,
+          "probability": 0.45427044,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "f",
+          "position": 153,
+          "probability": 0.04713489,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "o",
+          "position": 154,
+          "probability": 0.67299434,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "c",
+          "position": 155,
+          "probability": 0.17838347,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "t",
+          "position": 156,
+          "probability": 0.52707063,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 157,
+          "probability": 0.73429222,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "d",
+          "position": 158,
+          "probability": 0.75379775,
+          "repeat_penalty_applied": false
+        },
+        {
+          "chosen": "e",
+          "position": 159,
+          "probability": 0.02027391,
+          "repeat_penalty_applied": false
+        }
+      ],
+      "output_char_count": 160,
+      "prompt_echo_prefix_chars": 0,
+      "prompt_id": "c11p_012",
+      "prompt_text": "what changes after waiting at the archive",
+      "raw_generated_output": "ded waicd withit the feveiving remple compriant se low.-ken i pathis waye was life bef mentiont reccuivali dewarcatais co dacteem not costationts and po foctede",
+      "repeat_penalty_count": 0,
+      "repetition_loop": false
+    }
+  ],
+  "schema": "project_x.cycle14_neural_quote_outputs.v0",
+  "source_artifact_path": "run/artifacts/organic-v0/cycle14_neural_text_train.json"
+}

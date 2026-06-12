@@ -1,0 +1,522 @@
+{
+  "acceptance_gates": {
+    "gate1_quote_delta_diagnostics": true,
+    "gate2_content_filter_ablation": true,
+    "gate3_manifest_no_rewrite_temp_rail": true,
+    "gate4_trace_and_delta_localization": true,
+    "gate5_repetition_loop_suppression": true,
+    "gate6_carry_forward_negative_space": true
+  },
+  "all_acceptance_gates_passed": true,
+  "all_required_checks_passed": true,
+  "artifact_paths": {
+    "cycle12_child_quote": "run/artifacts/organic-v0/quote_per_state_cycle12_child.json",
+    "cycle12_exposure": "run/artifacts/organic-v0/cycle12_corpus_exposure.json",
+    "cycle12_parent_quote": "run/artifacts/organic-v0/quote_per_state_cycle12_parent.json",
+    "cycle13_diagnostics": "run/artifacts/organic-v0/cycle13_quote_delta_diagnostics.json",
+    "cycle13_filter_ablation": "run/artifacts/organic-v0/cycle13_content_filter_ablation.json",
+    "cycle13_no_rewrite": "run/artifacts/organic-v0/cycle13_corpus_no_rewrite_verification.json",
+    "cycle13_repetition": "run/artifacts/organic-v0/cycle13_repetition_fix.json",
+    "cycle13_repetition_quote": "run/artifacts/organic-v0/quote_per_state_cycle13_repetition_child.json"
+  },
+  "checks": [
+    {
+      "detail": "1",
+      "name": "single_state_cycle12-quote-parent",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_001_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_002_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_003_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_004_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_005_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_006_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_007_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_008_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_009_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_010_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_011_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_012_read_only",
+      "passed": true
+    },
+    {
+      "detail": "1",
+      "name": "single_state_cycle12-quote-child",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_001_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_002_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_003_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_004_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_005_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_006_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_007_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_008_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_009_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_010_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_011_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_012_read_only",
+      "passed": true
+    },
+    {
+      "detail": "1",
+      "name": "single_state_cycle13-repetition-quote",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_001_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_002_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_003_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_004_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_005_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_006_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_007_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_008_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_009_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_010_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_011_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13-repetition-quote_c11p_012_read_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "prompt_sets_match",
+      "passed": true
+    },
+    {
+      "detail": "['c11p_001', 'c11p_002', 'c11p_003', 'c11p_004', 'c11p_005', 'c11p_006', 'c11p_007', 'c11p_009', 'c11p_010', 'c11p_011', 'c11p_012']",
+      "name": "cycle12_changed_prompt_count_exact",
+      "passed": true
+    },
+    {
+      "detail": "['c11p_008']",
+      "name": "cycle12_unchanged_prompt_count_exact",
+      "passed": true
+    },
+    {
+      "detail": "{'selected_train_shards': 4, 'max_selected_train_shards': 4, 'raw_utterance_only': True, 'content_filter_enabled': True, 'reward_repetition_penalty': 16}",
+      "name": "cycle13_repetition_weight_recorded",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13_repetition_parent_hash_configured",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13_repetition_child_changed",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13_repetition_reload_exact",
+      "passed": true
+    },
+    {
+      "detail": "{'selected_train_shards': 4, 'max_selected_train_shards': 4, 'raw_utterance_only': True, 'content_filter_enabled': True, 'reward_repetition_penalty': 16}",
+      "name": "cycle13_repetition_selected_shards",
+      "passed": true
+    },
+    {
+      "detail": "10 -> 1",
+      "name": "cycle13_max_cap_reduced",
+      "passed": true
+    },
+    {
+      "detail": "10 -> 1",
+      "name": "cycle13_loop_count_reduced",
+      "passed": true
+    },
+    {
+      "detail": "11",
+      "name": "cycle13_end_count",
+      "passed": true
+    },
+    {
+      "detail": "11",
+      "name": "cycle13_nonrepetitive_count",
+      "passed": true
+    },
+    {
+      "detail": "9",
+      "name": "cycle13_copy_boundary_driver_count",
+      "passed": true
+    },
+    {
+      "detail": "{'corpus_learning_disabled': True, 'content_filter_disabled': True}",
+      "name": "filter_ablation_learning_disabled",
+      "passed": true
+    },
+    {
+      "detail": "{'corpus_learning_disabled': True, 'content_filter_disabled': True}",
+      "name": "filter_ablation_filter_disabled",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_state_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "{'selected_train_shards': 4, 'max_selected_train_shards': 4, 'raw_utterance_only': True, 'content_filter_enabled': False, 'reward_repetition_penalty': 0}",
+      "name": "filter_ablation_selected_shards",
+      "passed": true
+    },
+    {
+      "detail": "rejected",
+      "name": "filter_ablation_1_selected_rejected",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_1_learning_off",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_1_state_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "rejected",
+      "name": "filter_ablation_2_selected_rejected",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_2_learning_off",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_2_state_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "rejected",
+      "name": "filter_ablation_3_selected_rejected",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_3_learning_off",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_3_state_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "rejected",
+      "name": "filter_ablation_4_selected_rejected",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_4_learning_off",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "filter_ablation_4_state_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "{'all_required_checks_passed': True, 'honest_interpretation': 'The no-rewrite rail is tested against a mutated /tmp manifest through CYCLE13_TEST_MANIFEST_PATH. The real manifest is not mutated or restored.', 'mutation_detected': True, 'prepare_exit_code': 1, 'real_manifest_path': 'experience/organic-v0/corpus_manifest_v0.jsonl', 'real_manifest_sha256_after': '3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74', 'real_manifest_sha256_before': '3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74', 'real_manifest_unchanged': True, 'schema': 'project_x.cycle13_corpus_no_rewrite_verification.v0', 'stderr_path': '/tmp/project-x-cycle13-diagnostics/no_rewrite.stderr', 'stderr_tail': \"manifest row would be silently mutated: ('cycle12_poe_usher_pg932', 'cycle12_poe_usher_pg932_shard_00001'); create a new shard row/source id for new bytes\\n\", 'stdout_path': '/tmp/project-x-cycle13-diagnostics/no_rewrite.stdout', 'stdout_tail': '', 'temp_manifest_path': '/tmp/project-x-cycle13-diagnostics/cycle13-mutated-manifest.jsonl'}",
+      "name": "no_rewrite_test_passed",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "cycle13_repetition_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13_repetition_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "cycle13_repetition_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "cycle13_repetition_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "4",
+      "name": "cycle13_repetition_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "74035e0865dcc800d7d50c6ee0b182289144f29833d65002a5fe1bc03660ea7d",
+      "name": "cycle13_repetition_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "cycle13_repetition_quote_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13_repetition_quote_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "cycle13_repetition_quote_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "cycle13_repetition_quote_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "12",
+      "name": "cycle13_repetition_quote_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "41b8cdbdf4b82de1594395441ecb19950ac5bdeb222baa4b5c9cb78e21cd1c6f",
+      "name": "cycle13_repetition_quote_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "cycle13_filter_ablation_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle13_filter_ablation_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "cycle13_filter_ablation_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "cycle13_filter_ablation_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "4",
+      "name": "cycle13_filter_ablation_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "6d990d715f2a92a1bee1e848a09e86095d1252c8b9693143ebb47489155f1a04",
+      "name": "cycle13_filter_ablation_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "repetition_negative_space_complete",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "filter_ablation_negative_space_complete",
+      "passed": true
+    },
+    {
+      "detail": "outcome_predictor_",
+      "name": "a0_blind_generate_no_outcome_predictor_",
+      "passed": true
+    },
+    {
+      "detail": "predict_outcome(",
+      "name": "a0_blind_generate_no_predict_outcome(",
+      "passed": true
+    },
+    {
+      "detail": "prediction_error",
+      "name": "a0_blind_generate_no_prediction_error",
+      "passed": true
+    },
+    {
+      "detail": "select_replay_candidate",
+      "name": "a0_blind_generate_no_select_replay_candidate",
+      "passed": true
+    },
+    {
+      "detail": "replay_policy",
+      "name": "a0_blind_generate_no_replay_policy",
+      "passed": true
+    }
+  ],
+  "cycle13_title": "Cycle 13: Quote-Delta Diagnostics + Mechanical Repetition-Loop Suppression",
+  "honest_interpretation": "Cycle 13 localizes Cycle 12B quote changes to prompt-local corpus trace activation and tests one mechanical generator hygiene pressure. The repetition child reduces max-cap repetition loops by learning a post-copy END feature and applying a suffix-loop penalty. It mostly stops after copying the raw prompt, so this is not semantic answer quality.",
+  "metrics": {
+    "cycle12_child_max_cap_hits": 10,
+    "cycle12_child_repetition_loop_count": 10,
+    "cycle13_copy_boundary_driver_prompt_count": 9,
+    "cycle13_repetition_child_end_count": 11,
+    "cycle13_repetition_child_max_cap_hits": 1,
+    "cycle13_repetition_child_nonrepetitive_count": 11,
+    "cycle13_repetition_child_repetition_loop_count": 1
+  },
+  "negative_space": {
+    "driver_means_surface_mechanical_correlate_not_semantic_cause": true,
+    "not_chat_or_alignment_claim": true,
+    "not_language_quality_claim": true,
+    "not_pretrained_or_template_route": true,
+    "not_understanding_claim": true
+  },
+  "schema": "project_x.cycle13_verification.v0",
+  "state_hashes": {
+    "cycle12_child": "54af4a1dc7c51495",
+    "cycle12_loaded_parent": "4602e2258cd639a0",
+    "cycle12_parent": "4602e2258cd639a0",
+    "cycle13_content_filter_ablation_child": "4602e2258cd639a0",
+    "cycle13_repetition_child": "d9c22370ccc8bdf9",
+    "cycle13_repetition_loaded_parent": "4602e2258cd639a0",
+    "cycle13_repetition_parent": "272d42cbe15ddbdc"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "accepted_shards": 412,
+  "accepted_shards_over_candidate_shards_pct": 25.338253,
+  "bytes_accepted": 27371,
+  "bytes_accepted_over_bytes_candidate_pct": 15.223872,
+  "bytes_candidate": 179790,
+  "candidate_shards": 1626,
+  "duplicate_count": 2,
+  "duplicate_rate": 0.00123,
+  "filter_version": "cycle12_label_filter_v1",
+  "honest_interpretation": "Cycle 12 corpus preparation creates deterministic source-backed shards and whole-shard label rejections only. It does not claim language quality or capability.",
+  "manifest_path": "experience/organic-v0/corpus_manifest_v0.jsonl",
+  "negative_space": {
+    "not_byte_count_as_progress": true,
+    "not_curated_corpus_as_capability": true,
+    "not_filter_as_quality_judgment": true,
+    "not_license_laundering": true,
+    "not_source_diversity_as_competence": true
+  },
+  "pattern_db_path": "experience/organic-v0/corpus_label_patterns_v0.jsonl",
+  "raw_source_path": "run/corpus/organic-v0/cycle12/cycle12_poe_usher_pg932/raw/pg932.txt",
+  "raw_source_sha256": "9842d8877c59e6e94912c4a05380f117caa3cc03ab74212ab8a57a071a6d6351",
+  "rejected_shards": 1214,
+  "rejection_reason_counts": {
+    "delimiter_policy:non_ascii": 36,
+    "delimiter_policy:pxstate_observation_delimiter": 624,
+    "duplicate:cycle12_poe_usher_pg932_shard_00158": 1,
+    "duplicate:cycle12_poe_usher_pg932_shard_00763": 1,
+    "label_pattern:byline_v1": 8,
+    "label_pattern:gutenberg_sentinel_v1": 4,
+    "label_pattern:gutenberg_wrapper_v1": 205,
+    "label_pattern:metadata_prefix_v1": 4,
+    "length_policy:max_320": 70,
+    "length_policy:min_40": 261
+  },
+  "schema": "project_x.cycle12_corpus_prepare.v1",
+  "source_db_path": "experience/organic-v0/corpus_sources_v0.jsonl",
+  "source_id": "cycle12_poe_usher_pg932",
+  "split_policy_version": "cycle12_split_v1_sha256_bucket_80_10_10"
+}

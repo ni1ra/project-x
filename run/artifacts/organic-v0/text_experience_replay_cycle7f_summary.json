@@ -1,0 +1,196 @@
+{
+  "cycle": "7F",
+  "date": "2026-05-14",
+  "claim": "text-experience replay with self-audited acceptance",
+  "evidence_paths": {
+    "all_on": "run/artifacts/organic-v0/text_experience_replay_cycle7f.json",
+    "from_disk": "run/artifacts/organic-v0/text_experience_replay_cycle7f_from_disk_probe.json",
+    "replay_disabled": "run/artifacts/organic-v0/text_experience_replay_cycle7f_replay_disabled.json",
+    "audit_ablation": "run/artifacts/organic-v0/text_experience_replay_cycle7f_audit_ablation.json",
+    "transcript": "run/artifacts/organic-v0/text_experience_replay_cycle7f_transcript.md"
+  },
+  "metrics": {
+    "all_on": {
+      "first_pass_train_before": {
+        "count": 6,
+        "exact": 1,
+        "exact_rate": 0.166667,
+        "mean_sequence_ratio": 0.698660
+      },
+      "first_pass_train_after": {
+        "count": 6,
+        "exact": 4,
+        "exact_rate": 0.666667,
+        "mean_sequence_ratio": 0.921498
+      },
+      "pre_replay_probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "replay_before": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "replay_after": {
+        "count": 4,
+        "exact": 2,
+        "exact_rate": 0.500000,
+        "mean_sequence_ratio": 0.934783
+      },
+      "post_replay_train": {
+        "count": 6,
+        "exact": 6,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "post_replay_probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "from_disk": {
+      "post_replay_probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "replay_disabled": {
+      "first_pass_train_before": {
+        "count": 6,
+        "exact": 1,
+        "exact_rate": 0.166667,
+        "mean_sequence_ratio": 0.698660
+      },
+      "first_pass_train_after": {
+        "count": 6,
+        "exact": 4,
+        "exact_rate": 0.666667,
+        "mean_sequence_ratio": 0.921498
+      },
+      "pre_replay_probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "replay_before": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "replay_after": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "post_replay_train": {
+        "count": 6,
+        "exact": 6,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "post_replay_probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      }
+    },
+    "audit_ablation": {
+      "first_pass_train_before": {
+        "count": 6,
+        "exact": 1,
+        "exact_rate": 0.166667,
+        "mean_sequence_ratio": 0.698660
+      },
+      "first_pass_train_after": {
+        "count": 6,
+        "exact": 4,
+        "exact_rate": 0.666667,
+        "mean_sequence_ratio": 0.921498
+      },
+      "pre_replay_probe": {
+        "count": 4,
+        "exact": 4,
+        "exact_rate": 1.000000,
+        "mean_sequence_ratio": 1.000000
+      },
+      "replay_before": {
+        "count": 4,
+        "exact": 3,
+        "exact_rate": 0.750000,
+        "mean_sequence_ratio": 0.967391
+      },
+      "replay_after": {
+        "count": 4,
+        "exact": 3,
+        "exact_rate": 0.750000,
+        "mean_sequence_ratio": 0.967391
+      },
+      "post_replay_train": {
+        "count": 6,
+        "exact": 4,
+        "exact_rate": 0.666667,
+        "mean_sequence_ratio": 0.898699
+      },
+      "post_replay_probe": {
+        "count": 4,
+        "exact": 1,
+        "exact_rate": 0.250000,
+        "mean_sequence_ratio": 0.725978
+      }
+    }
+  },
+  "model_hashes": {
+    "all_on": "89fc3a01a35451e9",
+    "from_disk": "89fc3a01a35451e9",
+    "replay_disabled": "be0fc781039a2038",
+    "audit_ablation": "f6dfaabe5eda3d11"
+  },
+  "replay_policy": {
+    "selector": "not_exact_after_first_pass_or_below_sequence_threshold",
+    "replay_passes": 2,
+    "min_sequence_ratio": 1,
+    "selected_count": 2
+  },
+  "replay_state_growth": {
+    "all_on": {
+      "trace_count_delta": 1,
+      "connection_feature_count_delta": 0,
+      "connection_nonzero_count_delta": 0,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    },
+    "replay_disabled": {
+      "trace_count_delta": 0,
+      "connection_feature_count_delta": 0,
+      "connection_nonzero_count_delta": 0,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    },
+    "audit_ablation": {
+      "trace_count_delta": 4,
+      "connection_feature_count_delta": 0,
+      "connection_nonzero_count_delta": 0,
+      "slot_copy_link_count_delta": 0,
+      "learned_char_count_delta": 0
+    }
+  },
+  "checks": {
+    "from_disk_probe_and_hash_diff_clean": true,
+    "replay_preserved_probe": true,
+    "replay_disabled_zero_growth": true,
+    "audit_ablation_degrades_probe": true
+  },
+  "counter_claim": "Does not prove fluent chat, broad reasoning, autonomous replay strategy, or beyond-human capability."
+}

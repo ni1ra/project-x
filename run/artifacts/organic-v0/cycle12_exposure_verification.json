@@ -1,0 +1,1169 @@
+{
+  "accepted_shards": 412,
+  "accepted_shards_over_candidate_shards_pct": 25.338253,
+  "all_required_checks_passed": true,
+  "artifact_paths": {
+    "ablation": "run/artifacts/organic-v0/cycle12_corpus_exposure_ablation.json",
+    "child_quote": "run/artifacts/organic-v0/quote_per_state_cycle12_child.json",
+    "corpus_verification": "run/artifacts/organic-v0/cycle12_corpus_verification.json",
+    "exposure": "run/artifacts/organic-v0/cycle12_corpus_exposure.json",
+    "exposure_wrapper": "run/artifacts/organic-v0/cycle12_corpus_exposure_wrapper_manifest.json",
+    "parent_quote": "run/artifacts/organic-v0/quote_per_state_cycle12_parent.json"
+  },
+  "bytes_accepted": 27371,
+  "bytes_accepted_over_bytes_candidate_pct": 15.223872,
+  "bytes_candidate": 179790,
+  "candidate_shards": 1626,
+  "changed_prompt_ids": [
+    "c11p_001",
+    "c11p_002",
+    "c11p_003",
+    "c11p_004",
+    "c11p_005",
+    "c11p_006",
+    "c11p_007",
+    "c11p_009",
+    "c11p_010",
+    "c11p_011",
+    "c11p_012"
+  ],
+  "changed_quote_prompt_count": 11,
+  "checks": [
+    {
+      "detail": "project_x.corpus_exposure_cycle12.v1",
+      "name": "exposure_schema",
+      "passed": true
+    },
+    {
+      "detail": "project_x.corpus_exposure_cycle12.v1",
+      "name": "ablation_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "parent_child_hash_differs",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "reload_matches_child",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_hash_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_reload_bit_exact",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_reload_bit_exact",
+      "passed": true
+    },
+    {
+      "detail": "4",
+      "name": "exposure_selected_shards",
+      "passed": true
+    },
+    {
+      "detail": "4",
+      "name": "ablation_selected_shards",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_1_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_1_changed",
+      "passed": true
+    },
+    {
+      "detail": "accepted",
+      "name": "exposure_history_1_accepted",
+      "passed": true
+    },
+    {
+      "detail": "['raw_utterance:pervaded my spirit. I say insufferable; for the feeling was']",
+      "name": "exposure_history_1_raw_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_2_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_2_changed",
+      "passed": true
+    },
+    {
+      "detail": "accepted",
+      "name": "exposure_history_2_accepted",
+      "passed": true
+    },
+    {
+      "detail": "['raw_utterance:natural images of the desolate or terrible. I looked upon the']",
+      "name": "exposure_history_2_raw_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_3_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_3_changed",
+      "passed": true
+    },
+    {
+      "detail": "accepted",
+      "name": "exposure_history_3_accepted",
+      "passed": true
+    },
+    {
+      "detail": "['raw_utterance:eye-like windows--upon a few rank sedges--and upon a few white']",
+      "name": "exposure_history_3_raw_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_4_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_history_4_changed",
+      "passed": true
+    },
+    {
+      "detail": "accepted",
+      "name": "exposure_history_4_accepted",
+      "passed": true
+    },
+    {
+      "detail": "['raw_utterance:can compare to no earthly sensation more properly than to the']",
+      "name": "exposure_history_4_raw_only",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_1_not_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_1_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_2_not_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_2_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_3_not_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_3_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_4_not_learned",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_history_4_unchanged",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "exposure_no_label_or_score_fields",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "ablation_no_label_or_score_fields",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "exposure_negative_space_complete",
+      "passed": true
+    },
+    {
+      "detail": "1",
+      "name": "single_state_cycle12-quote-parent",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_001_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_001_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_001_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_001_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_001_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_001_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_002_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_002_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_002_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_002_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_002_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_002_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_003_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_003_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_003_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_003_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_003_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_003_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_004_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_004_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_004_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_004_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_004_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_004_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_005_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_005_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_005_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_005_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_005_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_005_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_006_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_006_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_006_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_006_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_006_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_006_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_007_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_007_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_007_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_007_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_007_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_007_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_008_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_008_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_008_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_008_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_008_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_008_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_009_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_009_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_009_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_009_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_009_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_009_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_010_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_010_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_010_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_010_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_010_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_010_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_011_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_011_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_011_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_011_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_011_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_011_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-parent_c11p_012_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-parent_c11p_012_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-parent_c11p_012_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-parent_c11p_012_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-parent_c11p_012_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-parent_c11p_012_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "1",
+      "name": "single_state_cycle12-quote-child",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_001_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_001_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_001_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_001_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_001_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_001_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_002_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_002_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_002_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_002_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_002_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_002_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_003_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_003_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_003_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_003_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_003_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_003_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_004_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_004_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_004_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_004_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_004_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_004_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_005_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_005_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_005_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_005_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_005_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_005_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_006_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_006_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_006_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_006_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_006_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_006_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_007_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_007_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_007_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_007_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_007_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_007_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_008_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_008_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_008_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_008_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_008_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_008_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_009_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_009_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_009_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_009_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_009_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_009_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_010_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_010_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_010_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_010_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_010_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_010_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_011_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_011_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_011_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_011_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_011_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_011_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "cycle12-quote-child_c11p_012_generation_read_only",
+      "passed": true
+    },
+    {
+      "detail": "self_score",
+      "name": "cycle12-quote-child_c11p_012_no_self_score",
+      "passed": true
+    },
+    {
+      "detail": "self_grade",
+      "name": "cycle12-quote-child_c11p_012_no_self_grade",
+      "passed": true
+    },
+    {
+      "detail": "semantic_score",
+      "name": "cycle12-quote-child_c11p_012_no_semantic_score",
+      "passed": true
+    },
+    {
+      "detail": "quality_score",
+      "name": "cycle12-quote-child_c11p_012_no_quality_score",
+      "passed": true
+    },
+    {
+      "detail": "subjective_score",
+      "name": "cycle12-quote-child_c11p_012_no_subjective_score",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "quote_prompt_sets_match",
+      "passed": true
+    },
+    {
+      "detail": "11",
+      "name": "changed_quote_prompt_count_positive",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "parent_quote_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "parent_quote_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "parent_quote_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "parent_quote_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "12",
+      "name": "parent_quote_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "23c3811563df2813762a550ac51acb8e7a4a42c02126be61d9f722a36a37d9fd",
+      "name": "parent_quote_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "child_quote_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "child_quote_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "child_quote_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "child_quote_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "12",
+      "name": "child_quote_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "49a972ae0242f8d94571ca71e8116c06e0f38ae8e2d28833d4ef0f9eba420954",
+      "name": "child_quote_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "exposure_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "exposure_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "exposure_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "exposure_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "4",
+      "name": "exposure_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "d6f2cc676c336dc4ba90589aa11952c74344464ea1e1ea80cb921bf1c3e26922",
+      "name": "exposure_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "ablation_wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "ablation_wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "ablation_wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "present",
+      "name": "ablation_wrapper_event_log_present",
+      "passed": true
+    },
+    {
+      "detail": "4",
+      "name": "ablation_wrapper_event_row_count",
+      "passed": true
+    },
+    {
+      "detail": "3c1375462a2318ce083d73b94e14773075fc53e5f0bb0b80b8524d71e3acf391",
+      "name": "ablation_wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "outcome_predictor_",
+      "name": "a0_blind_generate_no_outcome_predictor_",
+      "passed": true
+    },
+    {
+      "detail": "outcome_predictor_",
+      "name": "a0_blind_exposure_no_outcome_predictor_",
+      "passed": true
+    },
+    {
+      "detail": "predict_outcome(",
+      "name": "a0_blind_generate_no_predict_outcome(",
+      "passed": true
+    },
+    {
+      "detail": "predict_outcome(",
+      "name": "a0_blind_exposure_no_predict_outcome(",
+      "passed": true
+    },
+    {
+      "detail": "prediction_error",
+      "name": "a0_blind_generate_no_prediction_error",
+      "passed": true
+    },
+    {
+      "detail": "prediction_error",
+      "name": "a0_blind_exposure_no_prediction_error",
+      "passed": true
+    },
+    {
+      "detail": "select_replay_candidate",
+      "name": "a0_blind_generate_no_select_replay_candidate",
+      "passed": true
+    },
+    {
+      "detail": "select_replay_candidate",
+      "name": "a0_blind_exposure_no_select_replay_candidate",
+      "passed": true
+    },
+    {
+      "detail": "replay_policy",
+      "name": "a0_blind_generate_no_replay_policy",
+      "passed": true
+    },
+    {
+      "detail": "replay_policy",
+      "name": "a0_blind_exposure_no_replay_policy",
+      "passed": true
+    }
+  ],
+  "child_state_hash": "54af4a1dc7c51495",
+  "duplicate_count": 2,
+  "duplicate_rate": 0.00123,
+  "honest_interpretation": "Cycle 12B proves only that one-source manifest-backed unlabeled corpus exposure can mutate persisted state, reload bit-exactly, and mechanically change raw quote-probe output. It does not prove language quality.",
+  "negative_space": {
+    "not_a0_improvement": true,
+    "not_an_alignment_or_safety_claim": true,
+    "not_author_voice_imitation_claim": true,
+    "not_benchmark_ladder_advance": true,
+    "not_byte_count_as_progress": true,
+    "not_chat_capability": true,
+    "not_curated_corpus_as_capability": true,
+    "not_curator_intelligence_claim": true,
+    "not_dedup_as_understanding": true,
+    "not_filter_as_quality_judgment": true,
+    "not_fluency_claim": true,
+    "not_internet_clean_data_claim": true,
+    "not_license_laundering": true,
+    "not_philosophy_claim": true,
+    "not_pretrained_encoder_route": true,
+    "not_pretrained_route": true,
+    "not_sandbox_or_security": true,
+    "not_semantic_quality_claim": true,
+    "not_source_diversity_as_competence": true,
+    "not_state_growth_as_understanding": true,
+    "not_template_route": true,
+    "not_tokenizer_route": true,
+    "not_ui_layer": true
+  },
+  "parent_state_hash": "4602e2258cd639a0",
+  "rejected_shards": 1214,
+  "rejection_reason_counts": {
+    "delimiter_policy:non_ascii": 36,
+    "delimiter_policy:pxstate_observation_delimiter": 624,
+    "duplicate:cycle12_poe_usher_pg932_shard_00158": 1,
+    "duplicate:cycle12_poe_usher_pg932_shard_00763": 1,
+    "label_pattern:byline_v1": 8,
+    "label_pattern:gutenberg_sentinel_v1": 4,
+    "label_pattern:gutenberg_wrapper_v1": 205,
+    "label_pattern:metadata_prefix_v1": 4,
+    "length_policy:max_320": 70,
+    "length_policy:min_40": 261
+  },
+  "reload_state_hash": "54af4a1dc7c51495",
+  "schema": "project_x.cycle12_exposure_verification.v1",
+  "unchanged_quote_prompt_count": 1
+}

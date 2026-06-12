@@ -1,0 +1,122 @@
+{
+  "cycle": "v3-c16",
+  "fail_count": 128,
+  "falsifiable_diagnostic_outcome": {
+    "correct_samples_count": 0,
+    "next_step_for_cycle_17": "pivot architecture (BPE / multi-layer / HDC+neural integration per manifesto Concepts Before Language)",
+    "probe_nll": 1.49436513,
+    "probe_nll_threshold_advisor": 1.9,
+    "probe_nll_under_threshold": true,
+    "verdict": "substrate_is_architectural_ceiling_at_this_corpus_scale"
+  },
+  "gate_verdict": "zero_pass",
+  "honest_interpretation": "Cycle 16 multi-source training (24.5x baseline data) produces markedly more coherent character output than Cycle 15 \u2014 many real English words and short correct fragments appear \u2014 but zero samples form a complete grammatical English sentence with a meaningful claim. Probe NLL crushed advisor diagnostic threshold (1.494 vs 1.90), and sample audit returns 0/128. This is the falsifiable answer the diagnostic was designed to produce: the char-RNN substrate is the architectural ceiling at this corpus scale, not the data.",
+  "manual_audit_method": "human read of all 128 raw_generated_output strings; correct English = grammatical sentence with semantically meaningful claim/description; partial real-word phrases do not count.",
+  "negative_space": {
+    "not_alignment_or_safety_claim": true,
+    "not_chat_capability": true,
+    "not_data_scale_failure_claim": true,
+    "not_hassabis_bar_pass": true,
+    "not_language_quality": true,
+    "not_philosophy": true,
+    "not_semantic_understanding": true
+  },
+  "no_sample_text_quoted_as_passing": true,
+  "notable_partial_correct_phrases": [
+    "do not have",
+    "have been",
+    "he was not",
+    "i should change",
+    "i will",
+    "she has done",
+    "should not",
+    "we do not have",
+    "would probably"
+  ],
+  "pass_count": 0,
+  "samples_containing_notable_real_phrases": [
+    {
+      "output_char_count": 43,
+      "prompt_id": "c11p_003",
+      "prompt_text": "where does luma wait when quiet",
+      "raw_generated_output": "ed what i will be of my gives to my occult.",
+      "sample_id": "cycle15_sample_0009",
+      "sampler": "cycle15_t085_k12"
+    },
+    {
+      "output_char_count": 35,
+      "prompt_id": "c11p_004",
+      "prompt_text": "where does arin wait before choosing",
+      "raw_generated_output": " to mr. we do not have blew mounter",
+      "sample_id": "cycle15_sample_0014",
+      "sampler": "cycle15_t100_k16"
+    },
+    {
+      "output_char_count": 90,
+      "prompt_id": "c11p_006",
+      "prompt_text": "where does mira wait after a mistake",
+      "raw_generated_output": " beaves prais and moun stands is sund truth at lualticu. is would probably birth whethirn;",
+      "sample_id": "cycle15_sample_0023",
+      "sampler": "cycle15_t115_k24"
+    },
+    {
+      "output_char_count": 160,
+      "prompt_id": "c11p_008",
+      "prompt_text": "carry sora ivory compass and choose",
+      "raw_generated_output": " with simile have been since to stans thou should then in a large what i bedo that thy bear species in less gives the continued by such my my most painted to a ",
+      "sample_id": "cycle15_sample_0028",
+      "sampler": "cycle15_t070_k08"
+    },
+    {
+      "output_char_count": 160,
+      "prompt_id": "c11p_010",
+      "prompt_text": "carry navi basalt prism while learning",
+      "raw_generated_output": " memard beauty of most pair have been fordenty how no deave their beingstly in any specking it had extreosed may have hasted by frame state where we have thee p",
+      "sample_id": "cycle15_sample_0037",
+      "sampler": "cycle15_t085_k12"
+    },
+    {
+      "output_char_count": 92,
+      "prompt_id": "c15p_013",
+      "prompt_text": "what is a memory after it changes",
+      "raw_generated_output": " and but that new strwit. you do not have been when coper find toud is form differ may swald",
+      "sample_id": "cycle15_sample_0050",
+      "sampler": "cycle15_t100_k16"
+    },
+    {
+      "output_char_count": 34,
+      "prompt_id": "c15p_015",
+      "prompt_text": "why does a promise matter when nobody sees it",
+      "raw_generated_output": " have been the perfect must sudde.",
+      "sample_id": "cycle15_sample_0056",
+      "sampler": "cycle15_t070_k08"
+    },
+    {
+      "output_char_count": 56,
+      "prompt_id": "c15p_017",
+      "prompt_text": "write a plain description of a candle in a hall",
+      "raw_generated_output": " all darcy. but through may have been railly did praise;",
+      "sample_id": "cycle15_sample_0066",
+      "sampler": "cycle15_t100_k16"
+    },
+    {
+      "output_char_count": 107,
+      "prompt_id": "c15p_018",
+      "prompt_text": "what does fear do to a careful thought",
+      "raw_generated_output": ". no breal i have and farctunt; i will two nutry both friend between averains what all preser from existmen",
+      "sample_id": "cycle15_sample_0071",
+      "sampler": "cycle15_t115_k24"
+    },
+    {
+      "output_char_count": 49,
+      "prompt_id": "c15p_020",
+      "prompt_text": "describe an old house without naming its owner",
+      "raw_generated_output": " rarios whose insting all hiving i should change.",
+      "sample_id": "cycle15_sample_0079",
+      "sampler": "cycle15_t115_k24"
+    }
+  ],
+  "samples_passing_correct_coherent_english_gate": 0,
+  "schema": "project_x.cycle16_best_raw_output.v0",
+  "total_samples_audited": 128
+}

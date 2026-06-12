@@ -1,0 +1,19 @@
+{
+  "command": "/home/nira/Research/projext-x/build/organic_v0 --phase neural-recurrent-text --mode test --run-id cycle15-recurrent-text --scenario-seed 7105 --corpus-manifest experience/organic-v0/corpus_manifest_v0.jsonl --experience-db experience/organic-v0/cycle15_generation_prompts_v0.jsonl --save-state run/state/organic-v0/snapshots/raphael-local-0001/cycle15-recurrent-text-head.pxnn --out run/artifacts/organic-v0/cycle15_recurrent_text_train.json --transcript-out run/artifacts/organic-v0/cycle15_recurrent_text_transcript.md --neural-epochs 48 --neural-hidden 96 --neural-learning-rate 0.008 --neural-max-output-chars 160 --neural-min-output-chars 32",
+  "dataset_hash": "14e7fd0536ae2340",
+  "manual_audit": {
+    "auditor": "Codex",
+    "criterion": "100% correct English plus a nontrivial coherent claim, description, argument, or structure; no cleanup or truncation allowed.",
+    "samples_reviewed": 128,
+    "verdict": "No sample passed the Output Gate. The best raw outputs remain pseudo-English rather than correct coherent English."
+  },
+  "model_hash": "121b59aa98ac0f16",
+  "passed_candidate_count": 0,
+  "passed_candidates": [],
+  "plain_language_verdict": "No sample passed both gates; continue building. Metrics improved, but the sample bar did not fire.",
+  "reproducibility_audit_pointer": "run/artifacts/organic-v0/cycle15_reproducibility_audit.json",
+  "run_id": "cycle15-recurrent-text",
+  "schema": "project_x.cycle15_best_raw_output.v0",
+  "source_artifact_path": "run/artifacts/organic-v0/cycle15_recurrent_text_train.json",
+  "source_overlap_audit_pointer": "run/artifacts/organic-v0/cycle15_source_overlap_audit.json"
+}

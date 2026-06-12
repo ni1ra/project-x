@@ -1,0 +1,188 @@
+{
+  "acceptance_gates": {
+    "gate10_best_raw_output_honest_zero_pass": true,
+    "gate1_working_recurrent_substrate": true,
+    "gate2_pxnn_v2_reload": true,
+    "gate3_train_probe_holdout_split": true,
+    "gate4_probe_target": true,
+    "gate5_holdout_artifact": true,
+    "gate6_generation_batch": true,
+    "gate7_source_overlap_audit": true,
+    "gate8_fresh_process_reproducibility": true,
+    "gate9_hidden_handcoding_audit": true
+  },
+  "all_acceptance_gates_passed": true,
+  "all_required_checks_passed": true,
+  "artifact_paths": {
+    "best_raw_output": "run/artifacts/organic-v0/cycle15_best_raw_output.json",
+    "generation_batch": "run/artifacts/organic-v0/cycle15_recurrent_generation_batch.json",
+    "holdout": "run/artifacts/organic-v0/cycle15_recurrent_text_holdout.json",
+    "probe": "run/artifacts/organic-v0/cycle15_recurrent_text_probe.json",
+    "reproducibility_audit": "run/artifacts/organic-v0/cycle15_reproducibility_audit.json",
+    "source_overlap_audit": "run/artifacts/organic-v0/cycle15_source_overlap_audit.json",
+    "state": "run/state/organic-v0/snapshots/raphael-local-0001/cycle15-recurrent-text-head.pxnn",
+    "train": "run/artifacts/organic-v0/cycle15_recurrent_text_train.json",
+    "transcript": "run/artifacts/organic-v0/cycle15_recurrent_text_transcript.md",
+    "wrapper": "run/artifacts/organic-v0/cycle15_recurrent_text_wrapper_manifest.json"
+  },
+  "audit_questions": {
+    "are_failures_preserved_verbatim": "Yes. The transcript and generation batch preserve all 128 raw outputs.",
+    "are_reusable_representations_forming_or_memorizing": "Loss generalizes to probe and holdout, and source-overlap audit is recorded; this is evidence against pure memorization but not proof of reusable semantic representation.",
+    "did_any_hand_coded_concept_tool_route_enter_answer_path": "No Cycle 15 answer path uses route tables, templates, semantic parsers, RAG, hosted models, or response polish.",
+    "did_any_sample_pass_both_substrate_and_output_gates": "No.",
+    "did_data_curation_remain_legal_reproducible_manifest_backed": "Yes. Cycle 15 stayed on the Cycle 12B one-source manifest rail.",
+    "did_generated_text_improve_mechanically_without_polish": "Mechanically yes on loss and raw character continuity; manually audited English coherence did not pass.",
+    "did_information_pass_through_trainable_parameters": "Yes. Outputs come from a trained PXNN v2 recurrent GRU character head.",
+    "did_probe_and_holdout_loss_improve": "Probe improved versus Cycle 14 by the required relative threshold; holdout beats unigram. Cycle 14 had no holdout artifact, so holdout is not compared to Cycle 14."
+  },
+  "checks": [
+    {
+      "detail": "",
+      "name": "artifact_schema",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "f5a46320cb0b531784983eed46c04d838fb3561d7edb5d43648e5373ab840f40",
+      "name": "wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "pxnn_v2",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "reload_hash_match",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "same_process_reload_generations_match",
+      "passed": true
+    },
+    {
+      "detail": "{'train_shards': 319, 'probe_shards': 39, 'holdout_shards': 54, 'train_chars': 20882, 'probe_chars': 2550, 'holdout_chars': 3527, 'train_targets': 21201, 'training_split_rule': 'accepted train shards only'}",
+      "name": "train_uses_all_accepted_train_shards",
+      "passed": true
+    },
+    {
+      "detail": "{'train_shards': 319, 'probe_shards': 39, 'holdout_shards': 54, 'train_chars': 20882, 'probe_chars': 2550, 'holdout_chars': 3527, 'train_targets': 21201, 'training_split_rule': 'accepted train shards only'}",
+      "name": "probe_uses_all_accepted_probe_shards",
+      "passed": true
+    },
+    {
+      "detail": "{'train_shards': 319, 'probe_shards': 39, 'holdout_shards': 54, 'train_chars': 20882, 'probe_chars': 2550, 'holdout_chars': 3527, 'train_targets': 21201, 'training_split_rule': 'accepted train shards only'}",
+      "name": "holdout_uses_all_accepted_holdout_shards",
+      "passed": true
+    },
+    {
+      "detail": "[3.42761239, 3.00610822, 2.99211669, 2.98060053, 2.96132633, 2.92525886, 2.87152769, 2.80375327, 2.73337413, 2.6762208, 2.63216196, 2.597582, 2.57019912, 2.54741075, 2.52788454, 2.5108761, 2.4955425, 2.48135421, 2.46821395, 2.45612631, 2.44493619, 2.43437927, 2.42420956, 2.41424102, 2.40433841, 2.39440187, 2.38435847, 2.37416246, 2.3638041, 2.35332289, 2.34281407, 2.33241358, 2.32225746, 2.31243546, 2.30296897, 2.2938224, 2.2849315, 2.27622936, 2.26766155, 2.25919063, 2.25079524, 2.2424679, 2.23421302, 2.22604467, 2.21798322, 2.21005108, 2.20226819, 2.19464869]",
+      "name": "train_loss_decreases",
+      "passed": true
+    },
+    {
+      "detail": "{'epoch_train_nll': [3.42761239, 3.00610822, 2.99211669, 2.98060053, 2.96132633, 2.92525886, 2.87152769, 2.80375327, 2.73337413, 2.6762208, 2.63216196, 2.597582, 2.57019912, 2.54741075, 2.52788454, 2.5108761, 2.4955425, 2.48135421, 2.46821395, 2.45612631, 2.44493619, 2.43437927, 2.42420956, 2.41424102, 2.40433841, 2.39440187, 2.38435847, 2.37416246, 2.3638041, 2.35332289, 2.34281407, 2.33241358, 2.32225746, 2.31243546, 2.30296897, 2.2938224, 2.2849315, 2.27622936, 2.26766155, 2.25919063, 2.25079524, 2.2424679, 2.23421302, 2.22604467, 2.21798322, 2.21005108, 2.20226819, 2.19464869], 'final_train_nll': 2.19043794, 'probe_nll': 2.23725425, 'holdout_nll': 2.24776522, 'unigram_probe_nll': 2.98239746, 'unigram_holdout_nll': 2.99608265, 'cycle14_probe_nll_target': 2.55547228, 'required_probe_nll_for_5pct_relative_improvement': 2.42769867, 'probe_nll_relative_improvement_vs_cycle14_pct': 12.45241552, 'probe_target_met': True, 'holdout_beats_unigram': True, 'architecture_verdict': 'accepted_probe_target_met'}",
+      "name": "probe_beats_cycle14_target_by_5pct",
+      "passed": true
+    },
+    {
+      "detail": "{'epoch_train_nll': [3.42761239, 3.00610822, 2.99211669, 2.98060053, 2.96132633, 2.92525886, 2.87152769, 2.80375327, 2.73337413, 2.6762208, 2.63216196, 2.597582, 2.57019912, 2.54741075, 2.52788454, 2.5108761, 2.4955425, 2.48135421, 2.46821395, 2.45612631, 2.44493619, 2.43437927, 2.42420956, 2.41424102, 2.40433841, 2.39440187, 2.38435847, 2.37416246, 2.3638041, 2.35332289, 2.34281407, 2.33241358, 2.32225746, 2.31243546, 2.30296897, 2.2938224, 2.2849315, 2.27622936, 2.26766155, 2.25919063, 2.25079524, 2.2424679, 2.23421302, 2.22604467, 2.21798322, 2.21005108, 2.20226819, 2.19464869], 'final_train_nll': 2.19043794, 'probe_nll': 2.23725425, 'holdout_nll': 2.24776522, 'unigram_probe_nll': 2.98239746, 'unigram_holdout_nll': 2.99608265, 'cycle14_probe_nll_target': 2.55547228, 'required_probe_nll_for_5pct_relative_improvement': 2.42769867, 'probe_nll_relative_improvement_vs_cycle14_pct': 12.45241552, 'probe_target_met': True, 'holdout_beats_unigram': True, 'architecture_verdict': 'accepted_probe_target_met'}",
+      "name": "holdout_beats_unigram",
+      "passed": true
+    },
+    {
+      "detail": "{'sample_count': 128, 'prompt_count': 32, 'cycle11_prompt_count': 12, 'sampler_setting_count': 4, 'nonempty_count': 128, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 80, 'printable_output_count': 128, 'repeat_penalty_count': 0}",
+      "name": "generation_batch_size",
+      "passed": true
+    },
+    {
+      "detail": "{'sample_count': 128, 'prompt_count': 32, 'cycle11_prompt_count': 12, 'sampler_setting_count': 4, 'nonempty_count': 128, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 80, 'printable_output_count': 128, 'repeat_penalty_count': 0}",
+      "name": "prompt_store_shape",
+      "passed": true
+    },
+    {
+      "detail": "128",
+      "name": "all_samples_preserved",
+      "passed": true
+    },
+    {
+      "detail": "{'sample_count': 128, 'prompt_count': 32, 'cycle11_prompt_count': 12, 'sampler_setting_count': 4, 'nonempty_count': 128, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 80, 'printable_output_count': 128, 'repeat_penalty_count': 0}",
+      "name": "samples_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "{'sample_count': 128, 'prompt_count': 32, 'cycle11_prompt_count': 12, 'sampler_setting_count': 4, 'nonempty_count': 128, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 80, 'printable_output_count': 128, 'repeat_penalty_count': 0}",
+      "name": "samples_printable",
+      "passed": true
+    },
+    {
+      "detail": "{'sample_count': 128, 'prompt_count': 32, 'cycle11_prompt_count': 12, 'sampler_setting_count': 4, 'nonempty_count': 128, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 80, 'printable_output_count': 128, 'repeat_penalty_count': 0}",
+      "name": "no_prompt_echoes",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "negative_space_complete",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "no_oracle_or_quality_fields",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "fresh_process_regeneration_all_samples",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle15_source_overlap_audit.json",
+      "name": "source_overlap_audit_written",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle15_reproducibility_audit.json",
+      "name": "reproducibility_audit_written",
+      "passed": true
+    },
+    {
+      "detail": "/home/nira/Research/projext-x/run/artifacts/organic-v0/cycle15_best_raw_output.json",
+      "name": "best_raw_output_written",
+      "passed": true
+    }
+  ],
+  "cycle15_title": "Cycle 15: Native Recurrent Neural Text Head v1",
+  "honest_boundary": {
+    "did_not_prove": "This cycle does not prove: language quality in the product sense, semantic understanding, fluent chat, philosophy, A0 usefulness, alignment, AGI safety, sandbox escape resistance, broader tool-use safety, supply-chain safety, resource limiting, author imitation, curated-corpus competence, meaningful answers, or that any sample passes a Hassabis-stop-and-stare bar. Loss improvement alone is not the bar. The sample is the bar; if no sample passed, the cycle ships its substrate and says so.",
+    "hassabis_bar_sentence": "No raw sample passed the Hassabis bar; the best outputs are still pseudo-English.",
+    "proved": "A deterministic native recurrent PXNN v2 text substrate trains on accepted train shards only, reloads bit-exactly, regenerates bit-exactly in a fresh process, and improves diagnostic probe/holdout metrics."
+  },
+  "metrics": {
+    "final_train_nll": 2.19043794,
+    "fresh_process_repro_mismatch_count": 0,
+    "generation_sample_count": 128,
+    "holdout_nll": 2.24776522,
+    "passed_raw_output_candidate_count": 0,
+    "probe_nll": 2.23725425,
+    "probe_nll_relative_improvement_vs_cycle14_pct": 12.45241552,
+    "source_overlap_near_copy_count": 0,
+    "unigram_holdout_nll": 2.99608265
+  },
+  "schema": "project_x.cycle15_recurrent_text_verification.v0"
+}
