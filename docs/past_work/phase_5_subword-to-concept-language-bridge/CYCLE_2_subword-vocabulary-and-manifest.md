@@ -3,7 +3,7 @@
 Date opened: 2026-06-12
 Phase: `docs/PHASE_5_subword-to-concept-language-bridge.md`
 Branch: `codex/project-x-phase5-cycle2`
-Status: active
+Status: complete; archived after PR #18 green GitHub Actions
 
 ## Objective
 
@@ -51,7 +51,7 @@ Out of scope:
   - [x] Update Phase 5 Workstream 2 checkboxes only where machine evidence exists.
   - [x] Add REPO_CONTROL rows for every new tracked script, experience artifact, and run artifact.
   - [x] Confirm exactly one root phase and cycle.
-- [ ] Gates
+- [x] Gates
   - [x] `make clean test`
   - [x] `python3 -m py_compile scripts/run_organic_wrapper.py scripts/test_run_organic_wrapper_policy.py`
   - [x] `python3 scripts/test_run_organic_wrapper_policy.py`
@@ -61,7 +61,7 @@ Out of scope:
   - [x] `git diff --check -- . ':(exclude)run/artifacts/**'`
   - [x] staged diff review
   - [x] high-risk secret-pattern scan
-  - [ ] GitHub Actions `quick native/runtime checks` passes on PR to `main`
+  - [x] GitHub Actions `quick native/runtime checks` passes on PR to `main`
 
 ## Required Artifact Schemas
 
@@ -85,6 +85,7 @@ Any future language claim belongs to Cycle 3 or later and must include raw gener
 - 2026-06-12: `bash scripts/verify_phase5_cycle2_bpe.sh` passed with `all_required_checks_passed:true` and `532,436` mechanical checks.
 - 2026-06-12: `make clean test`, wrapper py_compile, wrapper policy regression, `bash scripts/verify_cycle16_recurrent_train.sh`, Cycle 2 prepare/verify, and `git diff --check -- . ':(exclude)run/artifacts/**'` all passed locally in WSL.
 - 2026-06-12: Staged diff review completed; high-risk credential pattern scan over new scripts, artifacts, and docs returned no hits.
+- 2026-06-12: PR #18 `https://github.com/ni1ra/project-x/pull/18` passed GitHub Actions `quick native/runtime checks` on run `27444373529`, job `81125798008`.
 
 ## Open Risks
 
