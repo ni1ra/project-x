@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick-checks:
+    name: quick native/runtime checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CXXFLAGS: -std=c++20 -O2 -Wall -Wextra -pedantic
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        run: |
+          g++ --version
+          python3 --version
+          make --version
+
+      - name: Docs control surfaces
+        run: |
+          test -f docs/MANIFESTO.md
+          test -f docs/REPO_CONTROL.md
+          test "$(find docs -maxdepth 1 -name 'PHASE_*.md' | wc -l)" -eq 1
+          test "$(find docs -maxdepth 1 -name 'CYCLE_*.md' | wc -l)" -eq 1
+
+      - name: Build and native smoke
+        run: make clean test
+
+      - name: Wrapper policy regression
+        run: |
+          python3 -m py_compile scripts/run_organic_wrapper.py scripts/test_run_organic_wrapper_policy.py
+          python3 scripts/test_run_organic_wrapper_policy.py

@@ -3,7 +3,7 @@
 Date opened: 2026-06-12
 Phase: `docs/PHASE_4_language-architecture-pivot.md`
 Branch: `phase-v3-safety-boundary`
-Status: active
+Status: archived after PR #14 merged to `main`
 
 ## Objective
 
@@ -49,9 +49,9 @@ Out of scope for this cycle:
   - [x] Record active docs pointers and branch state in `REPO_CONTROL`.
   - [x] Verify git/GitHub identity immediately before commit and push.
   - [x] Stage only intentional files.
-  - [ ] Commit as `andreashoug <andreashoug@gmail.com>`.
-  - [ ] Push branch to origin with upstream.
-  - [ ] Open PR to `main`.
+  - [x] Commit as `andreashoug <andreashoug@gmail.com>`.
+  - [x] Push branch to origin with upstream.
+  - [x] Open PR to `main`.
 - [ ] Wrapper policy hardening
   - [x] Validate default wrapper manifest path against allowed write roots.
   - [x] Add fast denial test for temp-only allowed root without `--manifest-out`.
@@ -62,9 +62,9 @@ Out of scope for this cycle:
 - [ ] Audit and merge
   - [x] Review final diff.
   - [x] Run required gates.
-  - [ ] Merge PR to `main`.
-  - [ ] Confirm `main` contains the merge.
-  - [ ] Archive this cycle and open Cycle 2.
+  - [x] Merge PR to `main`.
+  - [x] Confirm `main` contains the merge.
+  - [x] Archive this cycle and open Cycle 2.
 
 ## Verification Gates
 
@@ -93,9 +93,8 @@ Required before merge:
 - 2026-06-12: `timeout 240s scripts/verify_cycle10_wrapper.sh` passed after regenerating historical `/tmp/cycle2.pxstate` and `/tmp/organic_v0_cycle5_fixture.jsonl`; output reported `all_required_checks_passed:true`.
 - 2026-06-12: Full carry-forward set from `docs/DO_THIS_NEXT.md` passed: `make test`, Cycle 9, Cycle 10, Cycle 11, Cycle 12 corpus/exposure, Cycle 13 diagnostics, Cycle 14, Cycle 15, Cycle 16 text scaling, and Cycle 16 recurrent train. Notable outputs: Cycle 11 `checks:711`, Cycle 12 corpus `checks:28536`, Cycle 13 `checks:94`, Cycle 14 `checks:71`, Cycle 16 text scaling `checks:837173`, Cycle 16 recurrent `total_checks:25`.
 - 2026-06-12: Staged secret scan found no key/token material. `git diff --cached --check` flags preserved generated-output whitespace in Cycle 14/15 transcript artifacts only; code/docs check is clean.
+- 2026-06-12: PR #14 (`phase-v3-safety-boundary`) merged to `main`; main confirmed at merge commit `6900c6dc1df3e9090a49296c09783bd2f7a1749f`.
 
 ## Open Risks
 
-- Branch is local-only at cycle open; no remote PR exists yet.
-- No `.github/` workflows were found, so PR-flow currently depends on local gates unless workflows are added.
-- Dirty tree includes substantial pre-existing Cycle 11-15 artifacts. They must be reviewed before staging; broad `git add .` would be a small administrative murder.
+- GitHub Actions were absent during Cycle 1 and are being addressed in Cycle 2.
