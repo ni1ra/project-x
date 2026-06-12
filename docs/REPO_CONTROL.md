@@ -8,8 +8,8 @@ Status: every tracked source/test/script/non-docs artifact owns a row here, one-
 | Surface | Path | Note |
 |---|---|---|
 | Manifesto | `docs/MANIFESTO.md` | long-term non-negotiables |
-| Active phase | `docs/PHASE_4_language-architecture-pivot.md` | opens the post-v3 language architecture pivot |
-| Active cycle | `docs/CYCLE_3_architecture-path-selection.md` | choose the first post-Cycle-16 language substrate implementation path |
+| Active phase | `docs/PHASE_5_subword-to-concept-language-bridge.md` | serious post-Cycle-16 push: test subword granularity, then bridge toward concept-grounded language |
+| Active cycle | `docs/CYCLE_1_subword-bridge-contracts.md` | repair Phase 4 drift and define implementation-ready Phase 5 contracts before substrate coding |
 | Legacy plan | `docs/A_TO_Z_PLAN.md` | historical v2/v3 plan and changelog; fold forward, then demote |
 | Pickup note | `docs/DO_THIS_NEXT.md` | Cycle 16 handoff; fold forward, then demote |
 
@@ -17,16 +17,16 @@ Status: every tracked source/test/script/non-docs artifact owns a row here, one-
 
 | Item | State |
 |---|---|
-| Current branch | `main` after PR #15 merge; next implementation branch TBD |
+| Current branch | `codex/project-x-phase5-plan` for Phase 5 planning PR; expected active branch is `main` after merge |
 | Remote | `origin https://github.com/ni1ra/project-x.git` |
-| Upstream | PR #15 branch tracks `origin/codex/project-x-gh-actions`; Cycle 3 branch TBD |
-| Open PRs at cycle open | PR #15 (`codex/project-x-gh-actions` -> `main`) green before final docs commit |
+| Upstream | branch to push as `origin/codex/project-x-phase5-plan`; PR to `main` |
+| Open PRs at cycle open | none for Phase 5 planning; recent PR #16 merged before this phase opened |
 | GitHub Actions | `.github/workflows/ci.yml`; required quick check runs on PRs to `main` and pushes to `main`; checkout uses `actions/checkout@v6` for current Node runtime compatibility |
-| Merge policy this session | lain authorized PR creation, merge to `main`, and production/testable proof once gates are green |
+| Merge policy this session | PR-based; ask `merge to main?` at the green-CI gate unless lain explicitly authorizes merge in-thread |
 | Identity gate | commits/pushes must run as `andreashoug <andreashoug@gmail.com>` with GitHub active account `ni1ra` |
 | Last full local gate | 2026-06-12: `make test` + Cycle 9/10/11/12/13/14/15/16 verifier set passed in WSL |
 | CI gate note | CI intentionally runs only fresh-runner-safe quick gates. Full Cycle 9-16 historical carry-forward remains local/manual until local-only fixtures and ignored corpus/runtime caches are made runner-safe |
-| Last GitHub Actions gate | 2026-06-12: PR #15 check `quick native/runtime checks` passed on run `27434519241`, job `81092958310`; main push run `27434563140`, job `81093109015`, also passed |
+| Last GitHub Actions gate | 2026-06-12: PR #16 check `quick native/runtime checks` passed on run `27434657384`, job `81093431107`; final main push run `27434705825`, job `81093591777`, also passed at `ab6ca30acb31b172af69400458df352c41368d09` |
 
 ## Rule
 
