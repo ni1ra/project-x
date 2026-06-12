@@ -31,7 +31,7 @@ cd "$ROOT"
 # checks, source-overlap audits, and reproducibility audits — adding rows
 # to the same artifact under additional check categories.
 
-timeout 180s scripts/prepare_cycle16_corpus.sh > /tmp/cycle16-prepare.out
+timeout 180s bash scripts/prepare_cycle16_corpus.sh > /tmp/cycle16-prepare.out
 
 python3 - <<'PY'
 import hashlib
