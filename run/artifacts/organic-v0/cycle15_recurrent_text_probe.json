@@ -1,0 +1,10 @@
+{
+  "cycle14_probe_nll_target": 2.55547228,
+  "honest_interpretation": "Diagnostic held-out probe loss only. This is not a language-quality or understanding claim.",
+  "probe_nll": 2.23725425,
+  "probe_nll_relative_improvement_vs_cycle14_pct": 12.45241552,
+  "probe_target_met": true,
+  "required_probe_nll_for_5pct_relative_improvement": 2.42769867,
+  "schema": "project_x.cycle15_recurrent_text_probe.v0",
+  "source_artifact_path": "run/artifacts/organic-v0/cycle15_recurrent_text_train.json"
+}

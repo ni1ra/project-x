@@ -114,8 +114,8 @@ Total 11 verifier rails + 9 substantive baselines.
 
 ## Cycle 17 housekeeping TODOs (advisor post-run review)
 
-- **Pin canonical artifact sha256 baseline in `scripts/verify_cycle16_recurrent_train.sh`.** Current rail validates the canonical artifact EXISTS and its headline metrics are within range but does NOT verify cycle 17 code edits still produce the same metrics. If cycle 17 modifies recurrent training while the cycle 16 artifact remains untouched on disk, the rail passes regardless. Fix: hardcode the post-cycle-5 `cycle16_recurrent_text_train.json` sha256 as a baseline constant in the rail and compare. One-line change; cycle 17 should land it before substantive code work.
-- **Schema rename:** Cycle 16 training artifact carries `project_x.cycle15_recurrent_text_quality.v0` schema string (cycle 15 string reused because the native artifact writer hardcodes the schema). Cycle 17 housekeeping: bump the schema to `project_x.cycle16_recurrent_text_quality.v0` in `native/organic_v0.cpp` and re-emit the artifact OR add a `cycle_intake_id` field that disambiguates.
+- **Pin canonical artifact sha256 baseline in `scripts/verify_cycle16_recurrent_train.sh`.** Status 2026-06-12: landed in Cycle 1 docs-os intake with expected sha256 `44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e`; hardened rail passed with `all_required_checks_passed:true`, `total_checks:25`.
+- **Schema rename / disambiguation:** Status 2026-06-12: chose the lightweight disambiguation path. Recurrent-text artifacts now emit `cycle_intake_id`; the canonical Cycle 16 training artifact carries `cycle_intake_id:"cycle16-recurrent-text"` while retaining the legacy schema string for compatibility.
 
 ## Known not-blockers / housekeeping
 

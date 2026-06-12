@@ -1,11 +1,16 @@
 {
   "all_required_checks_passed": true,
   "canonical_artifact_path": "run/artifacts/organic-v0/cycle16_recurrent_text_train.json",
-  "canonical_artifact_sha256": "63cd851d42088c8567bc99beacde3a650a26a84f696d8378c48d8c310d09febb",
+  "canonical_artifact_sha256": "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e",
   "checks": [
     {
       "detail": "experience/organic-v0/corpus_manifest_v0.jsonl",
       "name": "smoke_corpus_manifest_path",
+      "passed": true
+    },
+    {
+      "detail": "cycle16-recurrent-train-rail-smoke",
+      "name": "smoke_cycle_intake_id_recorded",
       "passed": true
     },
     {
@@ -64,6 +69,16 @@
       "passed": true
     },
     {
+      "detail": "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e",
+      "name": "canonical_artifact_sha256_pinned",
+      "passed": true
+    },
+    {
+      "detail": "cycle16-recurrent-text",
+      "name": "canonical_artifact_cycle_intake_id",
+      "passed": true
+    },
+    {
       "detail": "['experience/organic-v0/cycle16_corpus_manifest.jsonl']",
       "name": "canonical_artifact_has_corpus_manifests_extra",
       "passed": true
@@ -114,6 +129,7 @@
       "passed": true
     }
   ],
+  "expected_canonical_artifact_sha256": "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e",
   "honest_interpretation": "Cycle 16 recurrent training rail proves the multi-manifest pipeline is intact, the smoke training reads both cycle 12 and cycle 16 manifests, PXNN v2 persistence round-trips, and the canonical full-training artifact still exists with probe NLL below the advisor's 1.90 threshold. It does not retrain the full Cycle 16 result; that artifact is the anchored evidence.",
   "negative_space": {
     "not_alignment_or_safety_claim": true,
@@ -125,6 +141,6 @@
   "rail_mode": "smoke_4epoch_hidden48",
   "rail_purpose": "Permanent carry-forward rail for Cycle 16 multi-manifest training pipeline. Validates the combined-manifest read path, persistence round-trip, and the canonical full-training artifact metrics \u2014 but does NOT retrain at full Cycle 16 hyperparams (48 epochs / hidden 96 on 7990 shards) because that exceeds the 180s carry-forward budget. The full training artifact is anchored at run/artifacts/organic-v0/cycle16_recurrent_text_train.json and this rail confirms its presence + headline metrics.",
   "schema": "project_x.cycle16_recurrent_train_verification.v0",
-  "smoke_train_artifact_path": "/tmp/cycle16-recurrent-train-rail-2404932/smoke_train.json",
-  "total_checks": 22
+  "smoke_train_artifact_path": "/tmp/cycle16-recurrent-train-rail-1242815/smoke_train.json",
+  "total_checks": 25
 }

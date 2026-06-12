@@ -9,8 +9,8 @@ Implementation/evidence commit: `9c78379`
 Cycle 11 opened the voice-pressure lane after Cycle 10.5 hardened the wrapper. The goal was not to teach philosophy yet. The goal was to make longer raw generation from persisted learned states auditable:
 
 - load real saved organic-v0 states
-- ask unlabeled reflective/raw prompts
-- raise output budget at runtime without mutating old state snapshots
+- ask raw-utterance-only reflective prompts with no typed theme/topic/intent/composition hints
+- write capped probe-child snapshots whose PXSTATE `CONFIG` persists `max_output_chars=160`
 - preserve raw outputs, including bad repetitions
 - bind the run to a v2 event log and wrapper manifest
 - verify only mechanical claims
@@ -18,9 +18,9 @@ Cycle 11 opened the voice-pressure lane after Cycle 10.5 hardened the wrapper. T
 ## What Changed
 
 - Added native `--phase quote-probe`.
-- Added `--generation-max-output-chars`, applied after state load for quote-probe runs.
-- Added unlabeled prompt DB: `experience/organic-v0/philosophy_prompts_v0.jsonl`.
-- Added probe-state manifest: `experience/organic-v0/cycle11_probe_states_v0.jsonl`.
+- Added `--phase state-config-copy` to copy loaded states with persisted nonlegacy generation cap.
+- Added strict raw prompt DB: `experience/organic-v0/philosophy_prompts_v0.jsonl`.
+- Added probe-state manifest with parent + capped-child paths: `experience/organic-v0/cycle11_probe_states_v0.jsonl`.
 - Added wrapper-backed verification harness: `scripts/verify_cycle11_voice_pressure.sh`.
 - Added Cycle 11 schemas to `docs/artifacts/PERSISTENCE_SCHEMA.md` and file rows to `docs/REPO_CONTROL.md`.
 
@@ -37,14 +37,14 @@ The quote-probe uses the same `OrganicBrain::generate()` path as prior text rail
 Headline mechanical results:
 
 - 5 persisted states loaded.
-- 12 unlabeled prompts used.
+- 12 raw-utterance-only prompts used.
 - 60 raw generations produced.
 - 60/60 outputs nonempty.
-- 4 outputs exceeded the old 48-character cap under `--generation-max-output-chars 160`.
+- 2 outputs exceeded the old 48-character cap from loaded states whose PXSTATE `CONFIG` persists `max_output_chars=160`.
 - All loaded state hashes self-checked.
 - All generation calls left state unchanged.
 - Wrapper manifest recorded event-log row count 60 and output artifact SHA.
-- Verification artifact passed 282/282 checks.
+- Verification artifact passed 711/711 checks, including soft-label rejection, persisted-cap checks, negative-space checks, and self-grade firewall checks.
 
 ## Verification
 
@@ -72,6 +72,6 @@ The first detached verification failed because `scripts/verify_cycle11_voice_pre
 
 ## Honest Boundary
 
-Cycle 11 proves raw generated text can be produced from loaded learned states under a larger runtime budget and externally receipted by the wrapper. It does not prove philosophy, semantic understanding, fluent chat, A0 usefulness, alignment, AGI safety, sandbox escape resistance, broader tool-use safety, supply-chain safety, or resource limiting.
+Cycle 11 proves raw generated text can be produced from loaded learned states whose persisted PXSTATE config carries the larger generation budget, and that the run can be externally receipted by the wrapper. It does not prove philosophy, semantic understanding, fluent chat, A0 usefulness, alignment, AGI safety, sandbox escape resistance, broader tool-use safety, supply-chain safety, or resource limiting.
 
 The best next cycle is not UI and not full sandbox. It is Cycle 12 voice learning pressure: let unlabeled reflective exposure mutate a child state, reload it, and compare before/after quote artifacts without adding labels, templates, or subjective quality scores.

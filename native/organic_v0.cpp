@@ -7557,6 +7557,11 @@ void neural_recurrent_text_phase(const Args& args, const std::string& command) {
   write_cycle15_transcript(transcript_path, samples);
   Cycle15BatchMetrics batch = cycle15_batch_metrics(
       samples, static_cast<int>(prompts.size()), static_cast<int>(cycle15_sampler_settings().size()));
+  const std::string cycle_intake_id = args.run_id.empty()
+                                          ? (args.corpus_manifests_extra.empty()
+                                                 ? std::string("single-manifest-recurrent-text")
+                                                 : std::string("multi-manifest-recurrent-text"))
+                                          : args.run_id;
 
   size_t train_chars = 0;
   for (const auto& shard : train) train_chars += shard.text.size();
@@ -7571,6 +7576,7 @@ void neural_recurrent_text_phase(const Args& args, const std::string& command) {
   out << "{\n";
   out << "  \"schema\": \"project_x.cycle15_recurrent_text_quality.v0\",\n";
   out << "  \"run_id\": " << q(run_id) << ",\n";
+  out << "  \"cycle_intake_id\": " << q(cycle_intake_id) << ",\n";
   out << "  \"timestamp\": " << q(timestamp_utc()) << ",\n";
   out << "  \"phase\": \"neural-recurrent-text\",\n";
   out << "  \"hypothesis\": \"A deterministic native GRU-style recurrent character head should lower held-out NLL by carrying trainable state across full shards instead of using only a fixed local window.\",\n";

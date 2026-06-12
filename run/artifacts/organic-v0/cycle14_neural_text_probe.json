@@ -1,0 +1,29 @@
+{
+  "all_required_checks_passed": true,
+  "dataset": {
+    "probe_chars": 2550,
+    "probe_shards": 39,
+    "train_chars": 20882,
+    "train_shards": 319,
+    "train_targets": 21201
+  },
+  "honest_interpretation": "Held-out probe loss evidence only. This is not semantic quality scoring.",
+  "schema": "project_x.cycle14_neural_text_probe.v0",
+  "source_artifact_path": "run/artifacts/organic-v0/cycle14_neural_text_train.json",
+  "training": {
+    "epoch_train_nll": [
+      2.61088753,
+      2.26325353,
+      2.12147543,
+      2.02012262,
+      1.93849393,
+      1.86688391,
+      1.8013341,
+      1.74037677
+    ],
+    "final_train_nll": 1.67267234,
+    "probe_nll": 2.55547228,
+    "probe_nll_improvement_over_unigram_pct": 14.31483179,
+    "unigram_probe_nll": 2.98239746
+  }
+}

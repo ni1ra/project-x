@@ -342,8 +342,8 @@
   "failed_checks": [],
   "honest_interpretation": "Fresh post-Cycle-9 carry-forward rerun over the listed substrate rails. This verifies bit-exact hashes and expected held-out/probe/ablation scores for those rails only. In-process policy enforcement; wrapper-level sandbox is a future cycle. This does not solve alignment, AGI safety, sandbox escape resistance, or broader tool-use safety. It also does not prove A0 predictor usefulness or one-hour policy-scale endurance.",
   "legacy_input_copies_sha256": {
-    "/tmp/cycle9_carry_forward.iFTdno/legacy_inputs/cycle2.pxstate": "ec9e1dca35f96b0f087d50867eff8c7ae3e3d8a6aa65f639fed52a4f9c37a247",
-    "/tmp/cycle9_carry_forward.iFTdno/legacy_inputs/organic_v0_cycle5_fixture.jsonl": "4a83dd989cd23a691219fc83ef118b0cfb43a35436b9b6887cb259c4989793e7"
+    "/tmp/cycle9_carry_forward.3J924K/legacy_inputs/cycle2.pxstate": "679a5425ab65f4004de99192a39c7de82df5466ba5db81f1843ae364ec7ebd6e",
+    "/tmp/cycle9_carry_forward.3J924K/legacy_inputs/organic_v0_cycle5_fixture.jsonl": "4a83dd989cd23a691219fc83ef118b0cfb43a35436b9b6887cb259c4989793e7"
   },
   "negative_space": {
     "not_alignment": true,
@@ -355,7 +355,7 @@
   },
   "rails": {
     "clean_chat": {
-      "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/eval_live_chat_v0_manifesto_from_v2c7_chat.json",
+      "artifact": "/tmp/cycle9_carry_forward.3J924K/out/eval_live_chat_v0_manifesto_from_v2c7_chat.json",
       "model_state_hash": "888b7664126b7f5f",
       "overall": {
         "cold_exact_rate": 0.0,
@@ -366,7 +366,7 @@
       }
     },
     "cycle6_regression": {
-      "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/eval_cycle6_relations_all_on.json",
+      "artifact": "/tmp/cycle9_carry_forward.3J924K/out/eval_cycle6_relations_all_on.json",
       "model_state_hash": "29958f0880e662dc",
       "overall": {
         "cold_exact_rate": 0.0,
@@ -378,7 +378,7 @@
     },
     "cycle7b_numeric_interactive": {
       "7001": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_hidden_rule_cycle7b_seed7001.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_hidden_rule_cycle7b_seed7001.json",
         "model_state_hash": "879b7e4f6295fc12",
         "scorecard": {
           "count": 21,
@@ -393,7 +393,7 @@
         }
       },
       "7002": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_hidden_rule_cycle7b_seed7002.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_hidden_rule_cycle7b_seed7002.json",
         "model_state_hash": "030516a10354131a",
         "scorecard": {
           "count": 21,
@@ -410,7 +410,7 @@
     },
     "cycle7c_symbolic_interactive": {
       "7101": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_seed7101.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_symbolic_rule_cycle7c_seed7101.json",
         "from_disk_probe": {
           "count": 8,
           "exact": 8,
@@ -434,7 +434,7 @@
           "support_exact": 0,
           "support_exact_rate": 0.0
         },
-        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_probe_seed7101.json",
+        "probe_artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_symbolic_rule_cycle7c_probe_seed7101.json",
         "probe_model_state_hash": "0bb1b59f651f32eb",
         "scorecard": {
           "count": 32,
@@ -449,7 +449,7 @@
         }
       },
       "7102": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_seed7102.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_symbolic_rule_cycle7c_seed7102.json",
         "from_disk_probe": {
           "count": 8,
           "exact": 8,
@@ -473,7 +473,7 @@
           "support_exact": 0,
           "support_exact_rate": 0.0
         },
-        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_symbolic_rule_cycle7c_probe_seed7102.json",
+        "probe_artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_symbolic_rule_cycle7c_probe_seed7102.json",
         "probe_model_state_hash": "5bc8e066bf1ba522",
         "scorecard": {
           "count": 32,
@@ -490,7 +490,7 @@
     },
     "cycle7d_grid_interactive": {
       "7201": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_seed7201.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_grid_rule_cycle7d_seed7201.json",
         "from_disk_probe": {
           "count": 8,
           "exact": 8,
@@ -514,7 +514,7 @@
           "support_exact": 0,
           "support_exact_rate": 0.0
         },
-        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_probe_seed7201.json",
+        "probe_artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_grid_rule_cycle7d_probe_seed7201.json",
         "probe_model_state_hash": "93032ff81f0bc258",
         "scorecard": {
           "count": 32,
@@ -529,7 +529,7 @@
         }
       },
       "7202": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_seed7202.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_grid_rule_cycle7d_seed7202.json",
         "from_disk_probe": {
           "count": 8,
           "exact": 8,
@@ -553,7 +553,7 @@
           "support_exact": 0,
           "support_exact_rate": 0.0
         },
-        "probe_artifact": "/tmp/cycle9_carry_forward.iFTdno/out/interactive_grid_rule_cycle7d_probe_seed7202.json",
+        "probe_artifact": "/tmp/cycle9_carry_forward.3J924K/out/interactive_grid_rule_cycle7d_probe_seed7202.json",
         "probe_model_state_hash": "ba359ad133fe4d3a",
         "scorecard": {
           "count": 32,
@@ -570,7 +570,7 @@
     },
     "cycle7e_text": {
       "all_on": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_cycle7e.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_cycle7e.json",
         "model_state_hash": "be0fc781039a2038",
         "summary_metrics": {
           "probe": {
@@ -594,7 +594,7 @@
         }
       },
       "from_disk": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_cycle7e_from_disk_probe.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_cycle7e_from_disk_probe.json",
         "model_state_hash": "be0fc781039a2038",
         "summary_metrics": {
           "probe": {
@@ -606,7 +606,7 @@
         }
       },
       "learning_disabled_ablation": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_cycle7e_ablate_learning.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_cycle7e_ablate_learning.json",
         "model_state_hash": "29958f0880e662dc",
         "state_growth": {
           "connection_feature_count_delta": 0,
@@ -641,7 +641,7 @@
     },
     "cycle7f_replay": {
       "all_on": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_replay_cycle7f.json",
         "model_state_hash": "89fc3a01a35451e9",
         "summary_metrics": {
           "first_pass_train_after": {
@@ -689,7 +689,7 @@
         }
       },
       "audit_ablation": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f_audit_ablation.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_replay_cycle7f_audit_ablation.json",
         "model_state_hash": "f6dfaabe5eda3d11",
         "summary_metrics": {
           "first_pass_train_after": {
@@ -737,7 +737,7 @@
         }
       },
       "from_disk": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f_from_disk_probe.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_replay_cycle7f_from_disk_probe.json",
         "model_state_hash": "89fc3a01a35451e9",
         "summary_metrics": {
           "probe": {
@@ -749,7 +749,7 @@
         }
       },
       "replay_disabled": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_replay_cycle7f_replay_disabled.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_replay_cycle7f_replay_disabled.json",
         "model_state_hash": "be0fc781039a2038",
         "replay_state_growth": {
           "connection_feature_count_delta": 0,
@@ -808,7 +808,7 @@
     },
     "cycle7g_raw_spans": {
       "all_on": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_raw_spans_cycle7g.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_raw_spans_cycle7g.json",
         "model_state_hash": "16c29f604e814f58",
         "summary_metrics": {
           "probe": {
@@ -832,7 +832,7 @@
         }
       },
       "from_disk": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_raw_spans_cycle7g_from_disk_probe.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_raw_spans_cycle7g_from_disk_probe.json",
         "model_state_hash": "16c29f604e814f58",
         "summary_metrics": {
           "probe": {
@@ -844,7 +844,7 @@
         }
       },
       "raw_span_ablation": {
-        "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/text_experience_raw_spans_cycle7g_ablation.json",
+        "artifact": "/tmp/cycle9_carry_forward.3J924K/out/text_experience_raw_spans_cycle7g_ablation.json",
         "model_state_hash": "0229fbe5c96d5c3e",
         "summary_metrics": {
           "probe": {
@@ -869,7 +869,7 @@
       }
     },
     "legacy_cycle2_cycle5": {
-      "artifact": "/tmp/cycle9_carry_forward.iFTdno/out/eval_cycle6_legacy_cycle2_cycle5_fixture.json",
+      "artifact": "/tmp/cycle9_carry_forward.3J924K/out/eval_cycle6_legacy_cycle2_cycle5_fixture.json",
       "evt_mem_test_001_raw": "milaquart arch6",
       "model_state_hash": "3536309de837d3e2",
       "overall": {
@@ -881,8 +881,8 @@
       }
     }
   },
-  "run_id": "cycle9-carry-forward-iFTdno",
-  "run_root": "/tmp/cycle9_carry_forward.iFTdno",
+  "run_id": "cycle9-carry-forward-3J924K",
+  "run_root": "/tmp/cycle9_carry_forward.3J924K",
   "schema": "project_x.cycle9_carry_forward_verification.v1",
   "timeout_per_command": "180s"
 }

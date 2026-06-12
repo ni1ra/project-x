@@ -1,0 +1,16 @@
+{
+  "all_required_checks_passed": true,
+  "honest_interpretation": "The no-rewrite rail is tested against a mutated /tmp manifest through CYCLE13_TEST_MANIFEST_PATH. The real manifest is not mutated or restored.",
+  "mutation_detected": true,
+  "prepare_exit_code": 1,
+  "real_manifest_path": "experience/organic-v0/corpus_manifest_v0.jsonl",
+  "real_manifest_sha256_after": "3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74",
+  "real_manifest_sha256_before": "3f6ba71383834905f87c2e9ee97d2841053197eff73c41ab1691561a462c0f74",
+  "real_manifest_unchanged": true,
+  "schema": "project_x.cycle13_corpus_no_rewrite_verification.v0",
+  "stderr_path": "/tmp/project-x-cycle13-diagnostics/no_rewrite.stderr",
+  "stderr_tail": "manifest row would be silently mutated: ('cycle12_poe_usher_pg932', 'cycle12_poe_usher_pg932_shard_00001'); create a new shard row/source id for new bytes\n",
+  "stdout_path": "/tmp/project-x-cycle13-diagnostics/no_rewrite.stdout",
+  "stdout_tail": "",
+  "temp_manifest_path": "/tmp/project-x-cycle13-diagnostics/cycle13-mutated-manifest.jsonl"
+}

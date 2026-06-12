@@ -1,9 +1,21 @@
 {
-  "schema": "project_x.cycle11_voice_pressure_verification.v0",
+  "schema": "project_x.cycle11_voice_pressure_verification.v1",
   "artifact_path": "run/artifacts/organic-v0/quote_per_state_cycle11.json",
   "wrapper_manifest_path": "run/artifacts/organic-v0/cycle11_voice_pressure_manifest.json",
   "event_log_path": "run/artifacts/organic-v0/cycle11_voice_pressure_event_log.jsonl",
   "prompt_db_path": "experience/organic-v0/philosophy_prompts_v0.jsonl",
+  "state_manifest_path": "experience/organic-v0/cycle11_probe_states_v0.jsonl",
+  "negative_space": {
+    "not_a0_improvement": true,
+    "not_chat_capability": true,
+    "not_fluency_claim": true,
+    "not_philosophy_claim": true,
+    "not_pretrained_route": true,
+    "not_sandbox_or_security": true,
+    "not_semantic_quality_claim": true,
+    "not_template_route": true,
+    "not_ui_layer": true
+  },
   "checks": [
     {
       "name": "prompt_1_unlabeled",
@@ -11,9 +23,39 @@
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_1_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_1_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_1_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
       "name": "prompt_2_unlabeled",
       "passed": true,
       "detail": "forbidden keys: []"
+    },
+    {
+      "name": "prompt_2_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_2_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_2_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
     },
     {
       "name": "prompt_3_unlabeled",
@@ -21,9 +63,39 @@
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_3_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_3_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_3_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
       "name": "prompt_4_unlabeled",
       "passed": true,
       "detail": "forbidden keys: []"
+    },
+    {
+      "name": "prompt_4_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_4_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_4_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
     },
     {
       "name": "prompt_5_unlabeled",
@@ -31,9 +103,39 @@
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_5_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_5_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_5_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
       "name": "prompt_6_unlabeled",
       "passed": true,
       "detail": "forbidden keys: []"
+    },
+    {
+      "name": "prompt_6_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_6_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_6_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
     },
     {
       "name": "prompt_7_unlabeled",
@@ -41,9 +143,39 @@
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_7_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_7_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_7_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
       "name": "prompt_8_unlabeled",
       "passed": true,
       "detail": "forbidden keys: []"
+    },
+    {
+      "name": "prompt_8_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_8_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_8_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
     },
     {
       "name": "prompt_9_unlabeled",
@@ -51,9 +183,39 @@
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_9_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_9_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_9_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
       "name": "prompt_10_unlabeled",
       "passed": true,
       "detail": "forbidden keys: []"
+    },
+    {
+      "name": "prompt_10_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_10_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_10_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
     },
     {
       "name": "prompt_11_unlabeled",
@@ -61,14 +223,144 @@
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_11_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_11_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_11_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
       "name": "prompt_12_unlabeled",
       "passed": true,
       "detail": "forbidden keys: []"
     },
     {
+      "name": "prompt_12_allowed_keys_only",
+      "passed": true,
+      "detail": "unexpected keys: []"
+    },
+    {
+      "name": "prompt_12_raw_observations_only",
+      "passed": true,
+      "detail": "label-shaped observations: []"
+    },
+    {
+      "name": "prompt_12_schema_v1",
+      "passed": true,
+      "detail": "project_x.philosophy_prompt.v1"
+    },
+    {
+      "name": "probe_state_1_schema_v1",
+      "passed": true,
+      "detail": "project_x.cycle11_probe_state.v1"
+    },
+    {
+      "name": "probe_state_1_parent_cap_legacy",
+      "passed": true,
+      "detail": "48"
+    },
+    {
+      "name": "probe_state_1_child_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "probe_state_1_cap_changes_state_hash",
+      "passed": true,
+      "detail": "29958f0880e662dc -> 749e3dc9ecb0f651"
+    },
+    {
+      "name": "probe_state_2_schema_v1",
+      "passed": true,
+      "detail": "project_x.cycle11_probe_state.v1"
+    },
+    {
+      "name": "probe_state_2_parent_cap_legacy",
+      "passed": true,
+      "detail": "48"
+    },
+    {
+      "name": "probe_state_2_child_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "probe_state_2_cap_changes_state_hash",
+      "passed": true,
+      "detail": "888b7664126b7f5f -> 5491c57c3d51addd"
+    },
+    {
+      "name": "probe_state_3_schema_v1",
+      "passed": true,
+      "detail": "project_x.cycle11_probe_state.v1"
+    },
+    {
+      "name": "probe_state_3_parent_cap_legacy",
+      "passed": true,
+      "detail": "48"
+    },
+    {
+      "name": "probe_state_3_child_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "probe_state_3_cap_changes_state_hash",
+      "passed": true,
+      "detail": "be0fc781039a2038 -> a831a77a8bf4f6d4"
+    },
+    {
+      "name": "probe_state_4_schema_v1",
+      "passed": true,
+      "detail": "project_x.cycle11_probe_state.v1"
+    },
+    {
+      "name": "probe_state_4_parent_cap_legacy",
+      "passed": true,
+      "detail": "48"
+    },
+    {
+      "name": "probe_state_4_child_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "probe_state_4_cap_changes_state_hash",
+      "passed": true,
+      "detail": "89fc3a01a35451e9 -> 1bbb4dab855b55e7"
+    },
+    {
+      "name": "probe_state_5_schema_v1",
+      "passed": true,
+      "detail": "project_x.cycle11_probe_state.v1"
+    },
+    {
+      "name": "probe_state_5_parent_cap_legacy",
+      "passed": true,
+      "detail": "48"
+    },
+    {
+      "name": "probe_state_5_child_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "probe_state_5_cap_changes_state_hash",
+      "passed": true,
+      "detail": "16c29f604e814f58 -> 4602e2258cd639a0"
+    },
+    {
       "name": "artifact_schema",
       "passed": true,
-      "detail": "project_x.quote_per_state_cycle11.v0"
+      "detail": "project_x.quote_per_state_cycle11.v1"
     },
     {
       "name": "state_count",
@@ -86,9 +378,14 @@
       "detail": "60"
     },
     {
-      "name": "runtime_budget_override",
+      "name": "runtime_budget_not_override",
       "passed": true,
-      "detail": "{'legacy_max_output_chars': 48, 'runtime_max_output_chars': 160, 'runtime_override_applied': True, 'loaded_state_hash_excludes_generation_cap': True}"
+      "detail": "{'legacy_max_output_chars': 48, 'required_persisted_max_output_chars': 160, 'runtime_max_output_chars': 0, 'runtime_override_applied': False, 'loaded_state_config_required': True, 'loaded_state_hash_includes_nonlegacy_generation_cap': True}"
+    },
+    {
+      "name": "persisted_budget_required",
+      "passed": true,
+      "detail": "{'legacy_max_output_chars': 48, 'required_persisted_max_output_chars': 160, 'runtime_max_output_chars': 0, 'runtime_override_applied': False, 'loaded_state_config_required': True, 'loaded_state_hash_includes_nonlegacy_generation_cap': True}"
     },
     {
       "name": "no_expected_outputs",
@@ -101,14 +398,24 @@
       "detail": "{'generation': False, 'correction_after_generation': False, 'expected_outputs_present': False, 'semantic_quality_scoring': False}"
     },
     {
+      "name": "audit_status_ungraded",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "negative_space_complete",
+      "passed": true,
+      "detail": "missing/false: []"
+    },
+    {
       "name": "state_hash_self_checks",
       "passed": true,
-      "detail": "{'state_count': 5, 'prompt_count': 12, 'generation_count': 60, 'nonempty_output_count': 60, 'max_output_char_count': 160, 'outputs_exceeding_legacy_48_char_cap': 4, 'all_state_hash_self_checks': True, 'all_generations_state_unchanged': True}"
+      "detail": "{'state_count': 5, 'prompt_count': 12, 'generation_count': 60, 'nonempty_output_count': 60, 'max_output_char_count': 160, 'outputs_exceeding_legacy_48_char_cap': 2, 'all_state_hash_self_checks': True, 'all_generations_state_unchanged': True}"
     },
     {
       "name": "generation_read_only",
       "passed": true,
-      "detail": "{'state_count': 5, 'prompt_count': 12, 'generation_count': 60, 'nonempty_output_count': 60, 'max_output_char_count': 160, 'outputs_exceeding_legacy_48_char_cap': 4, 'all_state_hash_self_checks': True, 'all_generations_state_unchanged': True}"
+      "detail": "{'state_count': 5, 'prompt_count': 12, 'generation_count': 60, 'nonempty_output_count': 60, 'max_output_char_count': 160, 'outputs_exceeding_legacy_48_char_cap': 2, 'all_state_hash_self_checks': True, 'all_generations_state_unchanged': True}"
     },
     {
       "name": "nonempty_outputs",
@@ -118,632 +425,2482 @@
     {
       "name": "longer_than_legacy_cap",
       "passed": true,
-      "detail": "{'at_least_one_output_exceeded_legacy_cap': True, 'honest_note': 'At least one raw output crossed the old 48-character cap under the runtime generation budget.'}"
+      "detail": "{'at_least_one_output_exceeded_legacy_cap': True, 'honest_note': 'At least one raw output crossed the old 48-character cap under the persisted generation budget.'}"
     },
     {
-      "name": "v2c6_parent_hash_self_check",
+      "name": "v2c6_parent_cap160_hash_self_check",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "v2c6_parent_c11p_001_state_unchanged",
+      "name": "v2c6_parent_cap160_loaded_cap_persisted",
       "passed": true,
-      "detail": ""
+      "detail": "160"
     },
     {
-      "name": "v2c6_parent_c11p_001_state_hash_link",
+      "name": "v2c6_parent_cap160_active_cap_from_disk",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "160"
     },
     {
-      "name": "v2c6_parent_c11p_002_state_unchanged",
-      "passed": true,
-      "detail": ""
-    },
-    {
-      "name": "v2c6_parent_c11p_002_state_hash_link",
-      "passed": true,
-      "detail": "29958f0880e662dc"
-    },
-    {
-      "name": "v2c6_parent_c11p_003_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_001_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "v2c6_parent_c11p_003_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_001_state_hash_link",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "v2c6_parent_c11p_004_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_001_audit_status",
       "passed": true,
-      "detail": ""
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "v2c6_parent_c11p_004_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_001_no_self_score",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "self_score"
     },
     {
-      "name": "v2c6_parent_c11p_005_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_001_no_self_grade",
       "passed": true,
-      "detail": ""
+      "detail": "self_grade"
     },
     {
-      "name": "v2c6_parent_c11p_005_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_001_no_semantic_score",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "semantic_score"
     },
     {
-      "name": "v2c6_parent_c11p_006_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_001_no_quality_score",
       "passed": true,
-      "detail": ""
+      "detail": "quality_score"
     },
     {
-      "name": "v2c6_parent_c11p_006_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_001_no_subjective_score",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "subjective_score"
     },
     {
-      "name": "v2c6_parent_c11p_007_state_unchanged",
-      "passed": true,
-      "detail": ""
-    },
-    {
-      "name": "v2c6_parent_c11p_007_state_hash_link",
-      "passed": true,
-      "detail": "29958f0880e662dc"
-    },
-    {
-      "name": "v2c6_parent_c11p_008_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_002_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "v2c6_parent_c11p_008_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_002_state_hash_link",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "v2c6_parent_c11p_009_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_002_audit_status",
       "passed": true,
-      "detail": ""
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "v2c6_parent_c11p_009_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_002_no_self_score",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "self_score"
     },
     {
-      "name": "v2c6_parent_c11p_010_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_002_no_self_grade",
       "passed": true,
-      "detail": ""
+      "detail": "self_grade"
     },
     {
-      "name": "v2c6_parent_c11p_010_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_002_no_semantic_score",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "semantic_score"
     },
     {
-      "name": "v2c6_parent_c11p_011_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_002_no_quality_score",
       "passed": true,
-      "detail": ""
+      "detail": "quality_score"
     },
     {
-      "name": "v2c6_parent_c11p_011_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_002_no_subjective_score",
       "passed": true,
-      "detail": "29958f0880e662dc"
+      "detail": "subjective_score"
     },
     {
-      "name": "v2c6_parent_c11p_012_state_unchanged",
-      "passed": true,
-      "detail": ""
-    },
-    {
-      "name": "v2c6_parent_c11p_012_state_hash_link",
-      "passed": true,
-      "detail": "29958f0880e662dc"
-    },
-    {
-      "name": "v2c7_chat_child_hash_self_check",
-      "passed": true,
-      "detail": "888b7664126b7f5f"
-    },
-    {
-      "name": "v2c7_chat_child_c11p_001_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_003_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "v2c7_chat_child_c11p_001_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_003_state_hash_link",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "v2c7_chat_child_c11p_002_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_003_audit_status",
       "passed": true,
-      "detail": ""
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "v2c7_chat_child_c11p_002_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_003_no_self_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "self_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_003_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_003_no_self_grade",
       "passed": true,
-      "detail": ""
+      "detail": "self_grade"
     },
     {
-      "name": "v2c7_chat_child_c11p_003_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_003_no_semantic_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "semantic_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_004_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_003_no_quality_score",
       "passed": true,
-      "detail": ""
+      "detail": "quality_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_004_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_003_no_subjective_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "subjective_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_005_state_unchanged",
-      "passed": true,
-      "detail": ""
-    },
-    {
-      "name": "v2c7_chat_child_c11p_005_state_hash_link",
-      "passed": true,
-      "detail": "888b7664126b7f5f"
-    },
-    {
-      "name": "v2c7_chat_child_c11p_006_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_004_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "v2c7_chat_child_c11p_006_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_004_state_hash_link",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "v2c7_chat_child_c11p_007_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_004_audit_status",
       "passed": true,
-      "detail": ""
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "v2c7_chat_child_c11p_007_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_004_no_self_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "self_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_008_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_004_no_self_grade",
       "passed": true,
-      "detail": ""
+      "detail": "self_grade"
     },
     {
-      "name": "v2c7_chat_child_c11p_008_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_004_no_semantic_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "semantic_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_009_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_004_no_quality_score",
       "passed": true,
-      "detail": ""
+      "detail": "quality_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_009_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_004_no_subjective_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "subjective_score"
     },
     {
-      "name": "v2c7_chat_child_c11p_010_state_unchanged",
-      "passed": true,
-      "detail": ""
-    },
-    {
-      "name": "v2c7_chat_child_c11p_010_state_hash_link",
-      "passed": true,
-      "detail": "888b7664126b7f5f"
-    },
-    {
-      "name": "v2c7_chat_child_c11p_011_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_005_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "v2c7_chat_child_c11p_011_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_005_state_hash_link",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "v2c7_chat_child_c11p_012_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_005_audit_status",
       "passed": true,
-      "detail": ""
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "v2c7_chat_child_c11p_012_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_005_no_self_score",
       "passed": true,
-      "detail": "888b7664126b7f5f"
+      "detail": "self_score"
     },
     {
-      "name": "cycle7e_text_child_hash_self_check",
+      "name": "v2c6_parent_cap160_c11p_005_no_self_grade",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "self_grade"
     },
     {
-      "name": "cycle7e_text_child_c11p_001_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_005_no_semantic_score",
       "passed": true,
-      "detail": ""
+      "detail": "semantic_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_001_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_005_no_quality_score",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "quality_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_002_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_005_no_subjective_score",
       "passed": true,
-      "detail": ""
+      "detail": "subjective_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_002_state_hash_link",
-      "passed": true,
-      "detail": "be0fc781039a2038"
-    },
-    {
-      "name": "cycle7e_text_child_c11p_003_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_006_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7e_text_child_c11p_003_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_006_state_hash_link",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7e_text_child_c11p_004_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_006_audit_status",
       "passed": true,
-      "detail": ""
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "cycle7e_text_child_c11p_004_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_006_no_self_score",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "self_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_005_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_006_no_self_grade",
       "passed": true,
-      "detail": ""
+      "detail": "self_grade"
     },
     {
-      "name": "cycle7e_text_child_c11p_005_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_006_no_semantic_score",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "semantic_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_006_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_006_no_quality_score",
       "passed": true,
-      "detail": ""
+      "detail": "quality_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_006_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_006_no_subjective_score",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "subjective_score"
     },
     {
-      "name": "cycle7e_text_child_c11p_007_state_unchanged",
-      "passed": true,
-      "detail": ""
-    },
-    {
-      "name": "cycle7e_text_child_c11p_007_state_hash_link",
-      "passed": true,
-      "detail": "be0fc781039a2038"
-    },
-    {
-      "name": "cycle7e_text_child_c11p_008_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_007_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7e_text_child_c11p_008_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_007_state_hash_link",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7e_text_child_c11p_009_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_007_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_007_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_007_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_007_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_007_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_007_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_008_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7e_text_child_c11p_009_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_008_state_hash_link",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7e_text_child_c11p_010_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_008_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_008_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_008_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_008_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_008_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_008_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_009_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7e_text_child_c11p_010_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_009_state_hash_link",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7e_text_child_c11p_011_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_009_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_009_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_009_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_009_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_009_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_009_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_010_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7e_text_child_c11p_011_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_010_state_hash_link",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7e_text_child_c11p_012_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_010_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_010_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_010_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_010_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_010_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_010_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_011_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7e_text_child_c11p_012_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_011_state_hash_link",
       "passed": true,
-      "detail": "be0fc781039a2038"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7f_replay_child_hash_self_check",
+      "name": "v2c6_parent_cap160_c11p_011_audit_status",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "cycle7f_replay_child_c11p_001_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_011_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_011_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_011_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_011_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_011_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_012_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_001_state_hash_link",
+      "name": "v2c6_parent_cap160_c11p_012_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "749e3dc9ecb0f651"
     },
     {
-      "name": "cycle7f_replay_child_c11p_002_state_unchanged",
+      "name": "v2c6_parent_cap160_c11p_012_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_012_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_012_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_012_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_012_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c6_parent_cap160_c11p_012_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_hash_self_check",
+      "passed": true,
+      "detail": "5491c57c3d51addd"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_loaded_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_active_cap_from_disk",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_001_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_002_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_001_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_003_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_001_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_001_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_001_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_001_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_001_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_001_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_002_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_003_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_002_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_004_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_002_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_002_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_002_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_002_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_002_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_002_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_003_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_004_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_003_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_005_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_003_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_003_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_003_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_003_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_003_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_003_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_004_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_005_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_004_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_006_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_004_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_004_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_004_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_004_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_004_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_004_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_005_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_006_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_005_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_007_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_005_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_005_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_005_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_005_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_005_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_005_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_006_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_007_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_006_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_008_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_006_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_006_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_006_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_006_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_006_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_006_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_007_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_008_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_007_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_009_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_007_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_007_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_007_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_007_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_007_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_007_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_008_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_009_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_008_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_010_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_008_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_008_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_008_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_008_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_008_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_008_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_009_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_010_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_009_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_011_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_009_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_009_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_009_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_009_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_009_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_009_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_010_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_011_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_010_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7f_replay_child_c11p_012_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_010_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_010_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_010_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_010_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_010_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_010_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_011_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7f_replay_child_c11p_012_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_011_state_hash_link",
       "passed": true,
-      "detail": "89fc3a01a35451e9"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7g_raw_span_child_hash_self_check",
+      "name": "v2c7_chat_child_cap160_c11p_011_audit_status",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_001_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_011_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_011_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_011_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_011_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_011_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_012_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_001_state_hash_link",
+      "name": "v2c7_chat_child_cap160_c11p_012_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "5491c57c3d51addd"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_002_state_unchanged",
+      "name": "v2c7_chat_child_cap160_c11p_012_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_012_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_012_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_012_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_012_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "v2c7_chat_child_cap160_c11p_012_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_hash_self_check",
+      "passed": true,
+      "detail": "a831a77a8bf4f6d4"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_loaded_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_active_cap_from_disk",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_001_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_002_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_001_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_003_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_001_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_001_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_001_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_001_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_001_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_001_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_002_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_003_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_002_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_004_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_002_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_002_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_002_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_002_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_002_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_002_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_003_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_004_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_003_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_005_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_003_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_003_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_003_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_003_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_003_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_003_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_004_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_005_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_004_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_006_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_004_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_004_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_004_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_004_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_004_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_004_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_005_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_006_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_005_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_007_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_005_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_005_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_005_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_005_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_005_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_005_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_006_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_007_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_006_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_008_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_006_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_006_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_006_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_006_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_006_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_006_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_007_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_008_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_007_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_009_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_007_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_007_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_007_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_007_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_007_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_007_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_008_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_009_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_008_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_010_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_008_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_008_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_008_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_008_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_008_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_008_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_009_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_010_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_009_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_011_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_009_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_009_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_009_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_009_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_009_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_009_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_010_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_011_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_010_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_012_state_unchanged",
+      "name": "cycle7e_text_child_cap160_c11p_010_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_010_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_010_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_010_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_010_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_010_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_state_unchanged",
       "passed": true,
       "detail": ""
     },
     {
-      "name": "cycle7g_raw_span_child_c11p_012_state_hash_link",
+      "name": "cycle7e_text_child_cap160_c11p_011_state_hash_link",
       "passed": true,
-      "detail": "16c29f604e814f58"
+      "detail": "a831a77a8bf4f6d4"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_011_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_state_hash_link",
+      "passed": true,
+      "detail": "a831a77a8bf4f6d4"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7e_text_child_cap160_c11p_012_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_hash_self_check",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_loaded_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_active_cap_from_disk",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_001_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_002_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_003_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_004_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_005_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_006_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_007_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_008_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_009_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_010_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_011_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_state_hash_link",
+      "passed": true,
+      "detail": "1bbb4dab855b55e7"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7f_replay_child_cap160_c11p_012_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_hash_self_check",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_loaded_cap_persisted",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_active_cap_from_disk",
+      "passed": true,
+      "detail": "160"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_001_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_002_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_003_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_004_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_005_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_006_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_007_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_008_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_009_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_010_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_011_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_state_unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_state_hash_link",
+      "passed": true,
+      "detail": "4602e2258cd639a0"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_audit_status",
+      "passed": true,
+      "detail": "ungraded; rubric-pending for GPT/lain audit"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_no_self_score",
+      "passed": true,
+      "detail": "self_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_no_self_grade",
+      "passed": true,
+      "detail": "self_grade"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_no_semantic_score",
+      "passed": true,
+      "detail": "semantic_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_no_quality_score",
+      "passed": true,
+      "detail": "quality_score"
+    },
+    {
+      "name": "cycle7g_raw_span_child_cap160_c11p_012_no_subjective_score",
+      "passed": true,
+      "detail": "subjective_score"
     },
     {
       "name": "event_log_row_count",
@@ -768,7 +2925,7 @@
     {
       "name": "event_log_2_prev_chain",
       "passed": true,
-      "detail": "503cd4a50a78a17e"
+      "detail": "62acf61c5163884c"
     },
     {
       "name": "event_log_3_schema",
@@ -778,7 +2935,7 @@
     {
       "name": "event_log_3_prev_chain",
       "passed": true,
-      "detail": "5fa5ff41eab775c1"
+      "detail": "04d19cf14079f817"
     },
     {
       "name": "event_log_4_schema",
@@ -788,7 +2945,7 @@
     {
       "name": "event_log_4_prev_chain",
       "passed": true,
-      "detail": "cc8f550d437b2e66"
+      "detail": "0b658c2d4a34bb3b"
     },
     {
       "name": "event_log_5_schema",
@@ -798,7 +2955,7 @@
     {
       "name": "event_log_5_prev_chain",
       "passed": true,
-      "detail": "a57b06d10a28164f"
+      "detail": "5dfcaea5f19e894c"
     },
     {
       "name": "event_log_6_schema",
@@ -808,7 +2965,7 @@
     {
       "name": "event_log_6_prev_chain",
       "passed": true,
-      "detail": "0c0b5ae52dbe9b6f"
+      "detail": "4a490a5c2d01baf0"
     },
     {
       "name": "event_log_7_schema",
@@ -818,7 +2975,7 @@
     {
       "name": "event_log_7_prev_chain",
       "passed": true,
-      "detail": "010f90eb78a6c60c"
+      "detail": "b5d1f258def70b51"
     },
     {
       "name": "event_log_8_schema",
@@ -828,7 +2985,7 @@
     {
       "name": "event_log_8_prev_chain",
       "passed": true,
-      "detail": "3aadbdc98a7da080"
+      "detail": "697ee9895c9fe42c"
     },
     {
       "name": "event_log_9_schema",
@@ -838,7 +2995,7 @@
     {
       "name": "event_log_9_prev_chain",
       "passed": true,
-      "detail": "178b1e366170e26a"
+      "detail": "b0137a034fe7af32"
     },
     {
       "name": "event_log_10_schema",
@@ -848,7 +3005,7 @@
     {
       "name": "event_log_10_prev_chain",
       "passed": true,
-      "detail": "ac553503faf2adfd"
+      "detail": "26b95bfc8e8b6d57"
     },
     {
       "name": "event_log_11_schema",
@@ -858,7 +3015,7 @@
     {
       "name": "event_log_11_prev_chain",
       "passed": true,
-      "detail": "8c7321ab35e47afa"
+      "detail": "914170e2d147316a"
     },
     {
       "name": "event_log_12_schema",
@@ -868,7 +3025,7 @@
     {
       "name": "event_log_12_prev_chain",
       "passed": true,
-      "detail": "295ac1f139dfd2f2"
+      "detail": "f99dc322df6dcdef"
     },
     {
       "name": "event_log_13_schema",
@@ -878,7 +3035,7 @@
     {
       "name": "event_log_13_prev_chain",
       "passed": true,
-      "detail": "ef3cfedcb43501c6"
+      "detail": "ba1104eafc6b03b7"
     },
     {
       "name": "event_log_14_schema",
@@ -888,7 +3045,7 @@
     {
       "name": "event_log_14_prev_chain",
       "passed": true,
-      "detail": "a8ec69ba515d9785"
+      "detail": "edf35899a52ab1e3"
     },
     {
       "name": "event_log_15_schema",
@@ -898,7 +3055,7 @@
     {
       "name": "event_log_15_prev_chain",
       "passed": true,
-      "detail": "41da1d820a74ecb0"
+      "detail": "27b9b7770d144f80"
     },
     {
       "name": "event_log_16_schema",
@@ -908,7 +3065,7 @@
     {
       "name": "event_log_16_prev_chain",
       "passed": true,
-      "detail": "1c760c61ce999835"
+      "detail": "9d38555ccd6e6731"
     },
     {
       "name": "event_log_17_schema",
@@ -918,7 +3075,7 @@
     {
       "name": "event_log_17_prev_chain",
       "passed": true,
-      "detail": "30a49eff475aa158"
+      "detail": "dd8263c1ed0f2cdd"
     },
     {
       "name": "event_log_18_schema",
@@ -928,7 +3085,7 @@
     {
       "name": "event_log_18_prev_chain",
       "passed": true,
-      "detail": "f3e7684806ca84cc"
+      "detail": "9f687cc1c0087b5a"
     },
     {
       "name": "event_log_19_schema",
@@ -938,7 +3095,7 @@
     {
       "name": "event_log_19_prev_chain",
       "passed": true,
-      "detail": "b1ad3cf1a8eb74c4"
+      "detail": "692f8849cf4c5551"
     },
     {
       "name": "event_log_20_schema",
@@ -948,7 +3105,7 @@
     {
       "name": "event_log_20_prev_chain",
       "passed": true,
-      "detail": "70bd7915173bcb95"
+      "detail": "06b6baf5f5f5302b"
     },
     {
       "name": "event_log_21_schema",
@@ -958,7 +3115,7 @@
     {
       "name": "event_log_21_prev_chain",
       "passed": true,
-      "detail": "e2ad85df7e74aeab"
+      "detail": "1d397788f6bbb496"
     },
     {
       "name": "event_log_22_schema",
@@ -968,7 +3125,7 @@
     {
       "name": "event_log_22_prev_chain",
       "passed": true,
-      "detail": "158b0ccbd2da0219"
+      "detail": "66adc2ea307a29f3"
     },
     {
       "name": "event_log_23_schema",
@@ -978,7 +3135,7 @@
     {
       "name": "event_log_23_prev_chain",
       "passed": true,
-      "detail": "9bcb1c09d5bc9514"
+      "detail": "405fcc41771070ff"
     },
     {
       "name": "event_log_24_schema",
@@ -988,7 +3145,7 @@
     {
       "name": "event_log_24_prev_chain",
       "passed": true,
-      "detail": "1127a3a803d3b08b"
+      "detail": "bb96d9c037223edd"
     },
     {
       "name": "event_log_25_schema",
@@ -998,7 +3155,7 @@
     {
       "name": "event_log_25_prev_chain",
       "passed": true,
-      "detail": "e2c06d762f5f699d"
+      "detail": "042df146863197c8"
     },
     {
       "name": "event_log_26_schema",
@@ -1008,7 +3165,7 @@
     {
       "name": "event_log_26_prev_chain",
       "passed": true,
-      "detail": "cd855c966f5e2207"
+      "detail": "0289fef18c1c9782"
     },
     {
       "name": "event_log_27_schema",
@@ -1018,7 +3175,7 @@
     {
       "name": "event_log_27_prev_chain",
       "passed": true,
-      "detail": "f8fa66264334beb2"
+      "detail": "4a46b9c834147b6e"
     },
     {
       "name": "event_log_28_schema",
@@ -1028,7 +3185,7 @@
     {
       "name": "event_log_28_prev_chain",
       "passed": true,
-      "detail": "17e4c4e474a6a360"
+      "detail": "d91009f02bdbaf8a"
     },
     {
       "name": "event_log_29_schema",
@@ -1038,7 +3195,7 @@
     {
       "name": "event_log_29_prev_chain",
       "passed": true,
-      "detail": "2603716c1eea5c4d"
+      "detail": "ec212cfd44a629c1"
     },
     {
       "name": "event_log_30_schema",
@@ -1048,7 +3205,7 @@
     {
       "name": "event_log_30_prev_chain",
       "passed": true,
-      "detail": "8b23f95566c2858c"
+      "detail": "009ca451d2687188"
     },
     {
       "name": "event_log_31_schema",
@@ -1058,7 +3215,7 @@
     {
       "name": "event_log_31_prev_chain",
       "passed": true,
-      "detail": "445b5a31b817f3b2"
+      "detail": "bb0319a80905a113"
     },
     {
       "name": "event_log_32_schema",
@@ -1068,7 +3225,7 @@
     {
       "name": "event_log_32_prev_chain",
       "passed": true,
-      "detail": "744fb4b1a8fb7107"
+      "detail": "b12fe0c84d867893"
     },
     {
       "name": "event_log_33_schema",
@@ -1078,7 +3235,7 @@
     {
       "name": "event_log_33_prev_chain",
       "passed": true,
-      "detail": "6a69cffe173b1c2a"
+      "detail": "c1adcd05927bfa2a"
     },
     {
       "name": "event_log_34_schema",
@@ -1088,7 +3245,7 @@
     {
       "name": "event_log_34_prev_chain",
       "passed": true,
-      "detail": "9c6a20e9a4e58f4a"
+      "detail": "73908bc4015fed2b"
     },
     {
       "name": "event_log_35_schema",
@@ -1098,7 +3255,7 @@
     {
       "name": "event_log_35_prev_chain",
       "passed": true,
-      "detail": "b67bd41c2b95492f"
+      "detail": "f10db3bcb872b2e8"
     },
     {
       "name": "event_log_36_schema",
@@ -1108,7 +3265,7 @@
     {
       "name": "event_log_36_prev_chain",
       "passed": true,
-      "detail": "c8ff1d137710da57"
+      "detail": "7da3396193048c37"
     },
     {
       "name": "event_log_37_schema",
@@ -1118,7 +3275,7 @@
     {
       "name": "event_log_37_prev_chain",
       "passed": true,
-      "detail": "a12cfd82cc572ca4"
+      "detail": "05880af43fb0e9a4"
     },
     {
       "name": "event_log_38_schema",
@@ -1128,7 +3285,7 @@
     {
       "name": "event_log_38_prev_chain",
       "passed": true,
-      "detail": "353be99480e7048a"
+      "detail": "9b4218ebf5a2eb72"
     },
     {
       "name": "event_log_39_schema",
@@ -1138,7 +3295,7 @@
     {
       "name": "event_log_39_prev_chain",
       "passed": true,
-      "detail": "b038db59cffd55dd"
+      "detail": "d665de0f2740962a"
     },
     {
       "name": "event_log_40_schema",
@@ -1148,7 +3305,7 @@
     {
       "name": "event_log_40_prev_chain",
       "passed": true,
-      "detail": "f99655ae4185b80f"
+      "detail": "56f2e2e350d67472"
     },
     {
       "name": "event_log_41_schema",
@@ -1158,7 +3315,7 @@
     {
       "name": "event_log_41_prev_chain",
       "passed": true,
-      "detail": "0b418921437f34f0"
+      "detail": "58a42a5db241bfce"
     },
     {
       "name": "event_log_42_schema",
@@ -1168,7 +3325,7 @@
     {
       "name": "event_log_42_prev_chain",
       "passed": true,
-      "detail": "1e0355216b12aafb"
+      "detail": "a9766ec74e946d0a"
     },
     {
       "name": "event_log_43_schema",
@@ -1178,7 +3335,7 @@
     {
       "name": "event_log_43_prev_chain",
       "passed": true,
-      "detail": "f4643c52670b28c3"
+      "detail": "4429742394f08ac1"
     },
     {
       "name": "event_log_44_schema",
@@ -1188,7 +3345,7 @@
     {
       "name": "event_log_44_prev_chain",
       "passed": true,
-      "detail": "ae8f6c9590ed19f9"
+      "detail": "ff95206ed8d28c8a"
     },
     {
       "name": "event_log_45_schema",
@@ -1198,7 +3355,7 @@
     {
       "name": "event_log_45_prev_chain",
       "passed": true,
-      "detail": "ee66448ca6791a22"
+      "detail": "696901911aa6328c"
     },
     {
       "name": "event_log_46_schema",
@@ -1208,7 +3365,7 @@
     {
       "name": "event_log_46_prev_chain",
       "passed": true,
-      "detail": "4078e288299f77dd"
+      "detail": "30a81da2bd554d41"
     },
     {
       "name": "event_log_47_schema",
@@ -1218,7 +3375,7 @@
     {
       "name": "event_log_47_prev_chain",
       "passed": true,
-      "detail": "cc5808f5422da54d"
+      "detail": "d66187c35dd990be"
     },
     {
       "name": "event_log_48_schema",
@@ -1228,7 +3385,7 @@
     {
       "name": "event_log_48_prev_chain",
       "passed": true,
-      "detail": "f07221b4709489cb"
+      "detail": "cc3acb60236aeceb"
     },
     {
       "name": "event_log_49_schema",
@@ -1238,7 +3395,7 @@
     {
       "name": "event_log_49_prev_chain",
       "passed": true,
-      "detail": "437b903c03ae6306"
+      "detail": "6017eaafcad01a09"
     },
     {
       "name": "event_log_50_schema",
@@ -1248,7 +3405,7 @@
     {
       "name": "event_log_50_prev_chain",
       "passed": true,
-      "detail": "2ece525052c89ade"
+      "detail": "06e7d258b297421b"
     },
     {
       "name": "event_log_51_schema",
@@ -1258,7 +3415,7 @@
     {
       "name": "event_log_51_prev_chain",
       "passed": true,
-      "detail": "119161eeb7c16309"
+      "detail": "bafe839f23939b9e"
     },
     {
       "name": "event_log_52_schema",
@@ -1268,7 +3425,7 @@
     {
       "name": "event_log_52_prev_chain",
       "passed": true,
-      "detail": "705cac6ea50a1f67"
+      "detail": "a4f61a5c168569fc"
     },
     {
       "name": "event_log_53_schema",
@@ -1278,7 +3435,7 @@
     {
       "name": "event_log_53_prev_chain",
       "passed": true,
-      "detail": "55d2b7a3e8e2ca3c"
+      "detail": "df1e9c9be5996fff"
     },
     {
       "name": "event_log_54_schema",
@@ -1288,7 +3445,7 @@
     {
       "name": "event_log_54_prev_chain",
       "passed": true,
-      "detail": "3956b43eb1c597b6"
+      "detail": "13106af490b09da4"
     },
     {
       "name": "event_log_55_schema",
@@ -1298,7 +3455,7 @@
     {
       "name": "event_log_55_prev_chain",
       "passed": true,
-      "detail": "82133520c0e05ea5"
+      "detail": "94891cba78caaad4"
     },
     {
       "name": "event_log_56_schema",
@@ -1308,7 +3465,7 @@
     {
       "name": "event_log_56_prev_chain",
       "passed": true,
-      "detail": "7c62d4daaeb0115f"
+      "detail": "e12f221a9c7c8bce"
     },
     {
       "name": "event_log_57_schema",
@@ -1318,7 +3475,7 @@
     {
       "name": "event_log_57_prev_chain",
       "passed": true,
-      "detail": "87562c69cc2b318e"
+      "detail": "f20dde5c0aa3c400"
     },
     {
       "name": "event_log_58_schema",
@@ -1328,7 +3485,7 @@
     {
       "name": "event_log_58_prev_chain",
       "passed": true,
-      "detail": "f326d281f44fcd33"
+      "detail": "9a38d57bbc4ac122"
     },
     {
       "name": "event_log_59_schema",
@@ -1338,7 +3495,7 @@
     {
       "name": "event_log_59_prev_chain",
       "passed": true,
-      "detail": "93bd0f467b996d46"
+      "detail": "1880e6e931d1c96b"
     },
     {
       "name": "event_log_60_schema",
@@ -1348,7 +3505,7 @@
     {
       "name": "event_log_60_prev_chain",
       "passed": true,
-      "detail": "03b1ae55e306058c"
+      "detail": "48978577d010fe8a"
     },
     {
       "name": "wrapper_schema",
@@ -1378,17 +3535,17 @@
     {
       "name": "wrapper_tail_hash_matches",
       "passed": true,
-      "detail": "9bae854f215f3b8c"
+      "detail": "c006ff82881b6534"
     },
     {
       "name": "wrapper_output_sha_present",
       "passed": true,
-      "detail": "00127bccdcaaaf4d7ca9f67812a8769e0d5ba80d5bd8480cc00788688cd68b94"
+      "detail": "4346477639813832d94fcd6b35f2f868d7e76647b12c218833bcc57e8b9ed123"
     },
     {
       "name": "wrapper_output_sha_matches",
       "passed": true,
-      "detail": "00127bccdcaaaf4d7ca9f67812a8769e0d5ba80d5bd8480cc00788688cd68b94"
+      "detail": "4346477639813832d94fcd6b35f2f868d7e76647b12c218833bcc57e8b9ed123"
     },
     {
       "name": "a0_blind_generate_no_outcome_predictor_",

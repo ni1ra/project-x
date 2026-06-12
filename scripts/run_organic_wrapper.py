@@ -13,7 +13,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import time
@@ -186,13 +185,11 @@ def compare_prior(current: dict[str, Any], prior_path: str | None) -> dict[str, 
     }
 
 
-def write_manifest(manifest: dict[str, Any], default_path: Path, manifest_out: Path | None) -> None:
-    default_path.parent.mkdir(parents=True, exist_ok=True)
+def write_manifest(manifest: dict[str, Any], manifest_paths: list[Path]) -> None:
     payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
-    default_path.write_text(payload, encoding="utf-8")
-    if manifest_out and manifest_out != default_path:
-        manifest_out.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(default_path, manifest_out)
+    for manifest_path in manifest_paths:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(payload, encoding="utf-8")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -239,15 +236,28 @@ def main(argv: list[str]) -> int:
     wrapper_denial = False
     wrapper_denial_reason = ""
     preflight_denial_reasons: list[str] = []
+    rejected_default_manifest_path: str | None = None
     rejected_manifest_out_path: str | None = None
     rejected_output_artifact_path: str | None = None
     rejected_event_log_path: str | None = None
     valid_manifest_out = manifest_out
+    manifest_write_paths: list[Path] = []
 
     if manifest_out and not validate_inside_roots(manifest_out, allowed_roots):
         preflight_denial_reasons.append(f"manifest-out resolves outside allowed write roots: {manifest_out}")
         rejected_manifest_out_path = str(manifest_out)
         valid_manifest_out = None
+
+    if not manifest_out and not validate_inside_roots(default_manifest, allowed_roots):
+        preflight_denial_reasons.append(
+            f"default manifest resolves outside allowed write roots: {default_manifest}"
+        )
+        rejected_default_manifest_path = str(default_manifest)
+
+    if validate_inside_roots(default_manifest, allowed_roots):
+        manifest_write_paths.append(default_manifest)
+    if valid_manifest_out and valid_manifest_out not in manifest_write_paths:
+        manifest_write_paths.append(valid_manifest_out)
 
     output_artifact_path = str(realpath(output_artifact_arg)) if output_artifact_arg else None
     if output_artifact_arg and not validate_inside_roots(realpath(output_artifact_arg), allowed_roots):
@@ -339,6 +349,7 @@ def main(argv: list[str]) -> int:
         "allowed_write_roots": [str(root) for root in allowed_roots],
         "default_manifest_path": str(default_manifest),
         "manifest_out_path": str(manifest_out) if manifest_out else None,
+        "rejected_default_manifest_path": rejected_default_manifest_path,
         "rejected_manifest_out_path": rejected_manifest_out_path,
         "rejected_output_artifact_path": rejected_output_artifact_path,
         "rejected_event_log_path": rejected_event_log_path,
@@ -364,8 +375,17 @@ def main(argv: list[str]) -> int:
             "a sandbox, not secure, and not a broader safety solution."
         ),
     }
-    write_manifest(manifest, default_manifest, valid_manifest_out)
-    print(json.dumps({"manifest": str(default_manifest), "wrapper_denial": wrapper_denial}, sort_keys=True))
+    if manifest_write_paths:
+        write_manifest(manifest, manifest_write_paths)
+    print(
+        json.dumps(
+            {
+                "manifest": str(manifest_write_paths[0]) if manifest_write_paths else None,
+                "wrapper_denial": wrapper_denial,
+            },
+            sort_keys=True,
+        )
+    )
     return 1 if wrapper_denial else int(exit_code or 0)
 
 

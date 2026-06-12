@@ -25,7 +25,7 @@ cd "$ROOT"
 #     manifest is actually being read
 #   - PXNN v2 reload-hash match + same-process generation match
 #   - the canonical full-training artifact (cycle16_recurrent_text_train.json)
-#     still exists on disk and parses
+#     still exists on disk, parses, and matches the pinned sha256 baseline
 #
 # Emits run/artifacts/organic-v0/cycle16_recurrent_train_verification.json
 # under schema project_x.cycle16_recurrent_train_verification.v0.
@@ -69,6 +69,7 @@ from pathlib import Path
 smoke_path = Path(sys.argv[1])
 verify_path = Path(sys.argv[2])
 ROOT = Path.cwd()
+EXPECTED_CANONICAL_SHA256 = "44a0091966beea3f09c6dae6481f9ed0bbb63525d5f6e04e8578bd4376d9fa6e"
 
 checks: list[dict] = []
 
@@ -94,6 +95,11 @@ check(
     "smoke_corpus_manifest_path",
     smoke.get("corpus_manifest_path") == "experience/organic-v0/corpus_manifest_v0.jsonl",
     smoke.get("corpus_manifest_path", ""),
+)
+check(
+    "smoke_cycle_intake_id_recorded",
+    smoke.get("cycle_intake_id") == "cycle16-recurrent-train-rail-smoke",
+    str(smoke.get("cycle_intake_id")),
 )
 check(
     "smoke_corpus_manifests_extra_recorded",
@@ -154,7 +160,18 @@ check(
     canonical.is_file(),
     str(canonical),
 )
+canonical_sha256 = sha256_file(canonical)
+check(
+    "canonical_artifact_sha256_pinned",
+    canonical_sha256 == EXPECTED_CANONICAL_SHA256,
+    canonical_sha256,
+)
 canonical_data = json.loads(canonical.read_text())
+check(
+    "canonical_artifact_cycle_intake_id",
+    canonical_data.get("cycle_intake_id") == "cycle16-recurrent-text",
+    str(canonical_data.get("cycle_intake_id")),
+)
 check(
     "canonical_artifact_has_corpus_manifests_extra",
     canonical_data.get("corpus_manifests_extra")
@@ -219,7 +236,8 @@ result = {
     ),
     "smoke_train_artifact_path": str(smoke_path),
     "canonical_artifact_path": "run/artifacts/organic-v0/cycle16_recurrent_text_train.json",
-    "canonical_artifact_sha256": sha256_file(canonical),
+    "canonical_artifact_sha256": canonical_sha256,
+    "expected_canonical_artifact_sha256": EXPECTED_CANONICAL_SHA256,
     "checks": checks,
     "total_checks": len(checks),
     "all_required_checks_passed": all(item["passed"] for item in checks),

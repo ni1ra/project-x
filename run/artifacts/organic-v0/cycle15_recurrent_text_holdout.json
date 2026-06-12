@@ -1,0 +1,9 @@
+{
+  "holdout_beats_unigram": true,
+  "holdout_nll": 2.24776522,
+  "holdout_shards": 54,
+  "honest_interpretation": "Holdout loss is a diagnostic against seed/probe overfitting. It is not a sample-quality gate by itself.",
+  "schema": "project_x.cycle15_recurrent_text_holdout.v0",
+  "source_artifact_path": "run/artifacts/organic-v0/cycle15_recurrent_text_train.json",
+  "unigram_holdout_nll": 2.99608265
+}

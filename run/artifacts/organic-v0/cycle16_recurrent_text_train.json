@@ -1,6 +1,7 @@
 {
   "schema": "project_x.cycle15_recurrent_text_quality.v0",
   "run_id": "cycle16-recurrent-text",
+  "cycle_intake_id": "cycle16-recurrent-text",
   "timestamp": "2026-05-15T08:46:48Z",
   "phase": "neural-recurrent-text",
   "hypothesis": "A deterministic native GRU-style recurrent character head should lower held-out NLL by carrying trainable state across full shards instead of using only a fixed local window.",

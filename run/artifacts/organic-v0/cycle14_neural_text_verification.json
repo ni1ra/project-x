@@ -1,0 +1,406 @@
+{
+  "acceptance_gates": {
+    "gate1_native_neural_head": true,
+    "gate2_train_probe_split": true,
+    "gate3_persist_reload": true,
+    "gate4_probe_loss_beats_unigram": true,
+    "gate5_raw_quote_outputs": true,
+    "gate6_mechanical_text_quality": true,
+    "gate7_negative_space": true
+  },
+  "all_acceptance_gates_passed": true,
+  "all_required_checks_passed": true,
+  "artifact_paths": {
+    "probe": "run/artifacts/organic-v0/cycle14_neural_text_probe.json",
+    "quote": "run/artifacts/organic-v0/cycle14_neural_quote_outputs.json",
+    "state": "run/state/organic-v0/snapshots/raphael-local-0001/cycle14-neural-text-head.pxnn",
+    "train": "run/artifacts/organic-v0/cycle14_neural_text_train.json",
+    "transcript": "run/artifacts/organic-v0/cycle14_neural_text_transcript.md",
+    "wrapper": "run/artifacts/organic-v0/cycle14_neural_text_wrapper_manifest.json"
+  },
+  "checks": [
+    {
+      "detail": "project_x.cycle14_neural_text_quality.v0",
+      "name": "artifact_schema",
+      "passed": true
+    },
+    {
+      "detail": "{'context': 16, 'hidden': 64, 'vocab': 96, 'scenario_seed': 7004, 'epochs': 8, 'learning_rate': 0.025, 'temperature': 0.85, 'max_output_chars': 160, 'min_output_chars': 32, 'max_train_shards': 0}",
+      "name": "scenario_seed_recorded",
+      "passed": true
+    },
+    {
+      "detail": "project_x.run_manifest.v0",
+      "name": "wrapper_schema",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "wrapper_no_denial",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "wrapper_exit_zero",
+      "passed": true
+    },
+    {
+      "detail": "bcbf0dcfb2b11a114c3af6e0e527ca38a207c828b39ad9732e15a6f6526f9e65",
+      "name": "wrapper_output_sha",
+      "passed": true
+    },
+    {
+      "detail": "{'train_shards': 319, 'probe_shards': 39, 'train_chars': 20882, 'probe_chars': 2550, 'train_targets': 21201}",
+      "name": "train_uses_all_accepted_train_shards",
+      "passed": true
+    },
+    {
+      "detail": "{'train_shards': 319, 'probe_shards': 39, 'train_chars': 20882, 'probe_chars': 2550, 'train_targets': 21201}",
+      "name": "probe_uses_all_accepted_probe_shards",
+      "passed": true
+    },
+    {
+      "detail": "{'train_shards': 319, 'probe_shards': 39, 'train_chars': 20882, 'probe_chars': 2550, 'train_targets': 21201}",
+      "name": "no_holdout_training_field",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "reload_hash_match",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "reload_generations_match",
+      "passed": true
+    },
+    {
+      "detail": "run/state/organic-v0/snapshots/raphael-local-0001/cycle14-neural-text-head.pxnn",
+      "name": "state_path_under_run_state",
+      "passed": true
+    },
+    {
+      "detail": "[2.61088753, 2.26325353, 2.12147543, 2.02012262, 1.93849393, 1.86688391, 1.8013341, 1.74037677]",
+      "name": "train_loss_decreases",
+      "passed": true
+    },
+    {
+      "detail": "{'epoch_train_nll': [2.61088753, 2.26325353, 2.12147543, 2.02012262, 1.93849393, 1.86688391, 1.8013341, 1.74037677], 'final_train_nll': 1.67267234, 'probe_nll': 2.55547228, 'unigram_probe_nll': 2.98239746, 'probe_nll_improvement_over_unigram_pct': 14.31483179}",
+      "name": "probe_beats_unigram",
+      "passed": true
+    },
+    {
+      "detail": "14.31483179",
+      "name": "probe_improvement_threshold",
+      "passed": true
+    },
+    {
+      "detail": "{'prompt_count': 12, 'nonempty_count': 12, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 10, 'printable_output_count': 12, 'repeat_penalty_count': 0}",
+      "name": "quote_prompt_count",
+      "passed": true
+    },
+    {
+      "detail": "{'prompt_count': 12, 'nonempty_count': 12, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 10, 'printable_output_count': 12, 'repeat_penalty_count': 0}",
+      "name": "quote_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "{'prompt_count': 12, 'nonempty_count': 12, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 10, 'printable_output_count': 12, 'repeat_penalty_count': 0}",
+      "name": "quote_no_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "{'prompt_count': 12, 'nonempty_count': 12, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 10, 'printable_output_count': 12, 'repeat_penalty_count': 0}",
+      "name": "quote_repetition_loop_count",
+      "passed": true
+    },
+    {
+      "detail": "{'prompt_count': 12, 'nonempty_count': 12, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 10, 'printable_output_count': 12, 'repeat_penalty_count': 0}",
+      "name": "quote_printable",
+      "passed": true
+    },
+    {
+      "detail": "{'prompt_count': 12, 'nonempty_count': 12, 'repetition_loop_count': 0, 'prompt_echo_count': 0, 'ended_with_end_count': 10, 'printable_output_count': 12, 'repeat_penalty_count': 0}",
+      "name": "quote_end_count",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_001_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_001_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_001_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_001_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_002_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_002_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_002_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_002_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_003_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_003_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_003_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_003_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_004_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_004_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_004_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_004_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_005_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_005_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_005_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_005_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_006_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_006_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_006_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_006_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_007_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_007_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_007_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_007_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_008_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_008_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_008_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_008_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_009_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_009_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_009_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_009_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_010_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_010_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_010_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_010_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_011_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_011_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_011_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_011_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_012_nonempty",
+      "passed": true
+    },
+    {
+      "detail": "0",
+      "name": "c11p_012_not_prompt_echo",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_012_steps_present",
+      "passed": true
+    },
+    {
+      "detail": "",
+      "name": "c11p_012_no_loop",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "negative_space_complete",
+      "passed": true
+    },
+    {
+      "detail": "[]",
+      "name": "no_oracle_or_quality_fields",
+      "passed": true
+    }
+  ],
+  "cycle14_title": "Cycle 14: Native Neural Text Head v0",
+  "honest_interpretation": "Cycle 14 adds a native locally trained neural text head and verifies held-out loss plus raw output mechanics. The outputs are more text-like than Cycle 13 prompt echoes, but they remain nonsense continuations and do not prove understanding or answer quality.",
+  "metrics": {
+    "final_train_nll": 1.67267234,
+    "probe_nll": 2.55547228,
+    "probe_nll_improvement_over_unigram_pct": 14.31483179,
+    "probe_shards": 39,
+    "quote_ended_with_end_count": 10,
+    "quote_nonempty_count": 12,
+    "quote_prompt_echo_count": 0,
+    "quote_repetition_loop_count": 0,
+    "train_shards": 319,
+    "unigram_probe_nll": 2.98239746
+  },
+  "negative_space": {
+    "not_alignment_or_safety_claim": true,
+    "not_chat_solved_claim": true,
+    "not_hosted_model_call": true,
+    "not_philosophy_claim": true,
+    "not_pretrained_model": true,
+    "not_rag_or_retrieval_answer": true,
+    "not_response_polish": true,
+    "not_semantic_parser": true,
+    "not_subjective_quality_score": true,
+    "not_template_generation": true,
+    "not_understanding_claim": true
+  },
+  "schema": "project_x.cycle14_neural_text_verification.v0"
+}
