@@ -38,7 +38,7 @@ trap 'rm -rf "$SMOKE_DIR"' EXIT
 
 make -s build/organic_v0
 
-timeout 150s scripts/verify_cycle16_text_scaling.sh > "$SMOKE_DIR/text_scaling.out" 2>&1
+timeout 150s bash scripts/verify_cycle16_text_scaling.sh > "$SMOKE_DIR/text_scaling.out" 2>&1
 
 timeout 150s build/organic_v0 \
   --phase neural-recurrent-text \
