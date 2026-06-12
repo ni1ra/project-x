@@ -17,16 +17,16 @@ Status: every tracked source/test/script/non-docs artifact owns a row here, one-
 
 | Item | State |
 |---|---|
-| Current branch | `codex/project-x-phase5-cycle2` until PR #18 merge; expected active branch is `main` after merge |
+| Current branch | `main` after PR #18 merge; next implementation branch TBD |
 | Remote | `origin https://github.com/ni1ra/project-x.git` |
-| Upstream | PR #18 from `origin/codex/project-x-phase5-cycle2` to `main`; next implementation branch TBD after merge |
-| Open PRs at cycle open | PR #18 contains completed Cycle 2; Cycle 3 opens after its green hosted gate |
+| Upstream | `origin/main`; next implementation branch TBD for Cycle 3 |
+| Open PRs at cycle open | none; PR #18 merged before Cycle 3 active implementation |
 | GitHub Actions | `.github/workflows/ci.yml`; required quick check runs on PRs to `main` and pushes to `main`; checkout uses `actions/checkout@v6` for current Node runtime compatibility |
 | Merge policy for Project X | PR-based; lain set yes-by-default on 2026-06-12, so merge ready Project X PRs to `main` after green GitHub Actions, required local gates, identity checks, audit/review, and fixing audit findings. Do not pause to ask `merge to main?` for this repo unless a future instruction narrows this rule |
 | Identity gate | commits/pushes must run as `andreashoug <andreashoug@gmail.com>` with GitHub active account `ni1ra` |
 | Last full local gate | 2026-06-12: `make test` + Cycle 9/10/11/12/13/14/15/16 verifier set passed in WSL |
 | CI gate note | CI intentionally runs only fresh-runner-safe quick gates. Full Cycle 9-16 historical carry-forward remains local/manual until local-only fixtures and ignored corpus/runtime caches are made runner-safe |
-| Last GitHub Actions gate | 2026-06-12: PR #18 check `quick native/runtime checks` passed on run `27444373529`, job `81125798008`; PR #17 final main push run `27443470633` passed at merge commit `ee166d487e7a4f39a47f07a6885eeeaf80e643cd` |
+| Last GitHub Actions gate | 2026-06-12: PR #18 final main push run `27444495030`, job `81126188935`, passed at merge commit `f7a25b06f5a6f6c68432ea3022543e0a03ff746f`; PR #18 pre-merge check also passed on run `27444461130`, job `81126076092` |
 
 ## Rule
 
