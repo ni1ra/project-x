@@ -21,12 +21,12 @@ Status: every tracked source/test/script/non-docs artifact owns a row here, one-
 | Remote | `origin https://github.com/ni1ra/project-x.git` |
 | Upstream | PR #15 branch tracks `origin/codex/project-x-gh-actions`; Cycle 3 branch TBD |
 | Open PRs at cycle open | PR #15 (`codex/project-x-gh-actions` -> `main`) green before final docs commit |
-| GitHub Actions | `.github/workflows/ci.yml`; required quick check runs on PRs to `main` and pushes to `main` |
+| GitHub Actions | `.github/workflows/ci.yml`; required quick check runs on PRs to `main` and pushes to `main`; checkout uses `actions/checkout@v6` for current Node runtime compatibility |
 | Merge policy this session | lain authorized PR creation, merge to `main`, and production/testable proof once gates are green |
 | Identity gate | commits/pushes must run as `andreashoug <andreashoug@gmail.com>` with GitHub active account `ni1ra` |
 | Last full local gate | 2026-06-12: `make test` + Cycle 9/10/11/12/13/14/15/16 verifier set passed in WSL |
 | CI gate note | CI intentionally runs only fresh-runner-safe quick gates. Full Cycle 9-16 historical carry-forward remains local/manual until local-only fixtures and ignored corpus/runtime caches are made runner-safe |
-| Last GitHub Actions gate | 2026-06-12: PR #15 check `quick native/runtime checks` passed on run `27434410781`, job `81092580693` |
+| Last GitHub Actions gate | 2026-06-12: PR #15 check `quick native/runtime checks` passed on run `27434519241`, job `81092958310`; main push run `27434563140`, job `81093109015`, also passed |
 
 ## Rule
 
@@ -45,7 +45,7 @@ Every commit owns its delta. File added → row added in the same commit. File d
 
 | Path | Justification |
 |---|---|
-| `.github/workflows/ci.yml` | GitHub Actions quick gate for PRs to `main` and pushes to `main`: validates docs control surfaces, builds/runs native smoke with portable CI `CXXFLAGS`, and runs wrapper policy py_compile/regression tests without relying on local ignored state |
+| `.github/workflows/ci.yml` | GitHub Actions quick gate for PRs to `main` and pushes to `main`: uses `actions/checkout@v6`, validates docs control surfaces, builds/runs native smoke with portable CI `CXXFLAGS`, and runs wrapper policy py_compile/regression tests without relying on local ignored state |
 
 ### native/ — brain core (C++20)
 
