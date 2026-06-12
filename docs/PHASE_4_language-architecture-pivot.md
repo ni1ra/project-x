@@ -1,7 +1,7 @@
 # Phase 4 - Language Architecture Pivot
 
 Date opened: 2026-06-12
-Branch: `phase-v3-safety-boundary`
+Branch: `codex/project-x-gh-actions`
 Status: active
 
 ## Goal
@@ -16,18 +16,25 @@ Cycle 16's strict claim is the baseline: the char-level recurrent substrate impr
   - [x] Create one active phase doc at docs root.
   - [x] Create one active cycle doc at docs root.
   - [x] Fold forward Cycle 16 evidence and Cycle 17 pivot options from `docs/DO_THIS_NEXT.md`.
+  - [x] Archive Cycle 1 after PR #14 merge.
   - [ ] Archive or demote legacy live-plan surfaces once the active phase/cycle are merged.
 - [ ] 1.2 Make branch/PR state explicit.
   - [x] Record branch state in `docs/REPO_CONTROL.md`.
-  - [ ] Push `phase-v3-safety-boundary` to `origin`.
-  - [ ] Open PR to `main`.
-  - [ ] Keep PR reviewable with cycle-scoped commits and evidence.
+  - [x] Push `phase-v3-safety-boundary` to `origin`.
+  - [x] Open PR #14 to `main`.
+  - [x] Keep PR reviewable with cycle-scoped commits and evidence.
 - [ ] 1.3 Establish merge gates.
   - [x] Run `make test`.
   - [x] Run Cycle 16 recurrent train carry-forward rail after hardening.
   - [x] Run Cycle 10 wrapper verifier after wrapper hardening.
   - [x] Run full required carry-forward rail set before merge.
   - [x] Record final gate evidence in the cycle doc before closing.
+- [ ] 1.4 Establish GitHub auto-checks.
+  - [x] Add a GitHub Actions workflow for PRs to `main` and pushes to `main`.
+  - [x] Include a portable native smoke gate with CI-safe `CXXFLAGS`.
+  - [x] Include wrapper policy regression and py_compile gates.
+  - [x] Include docs control-surface validation.
+  - [x] Confirm the GitHub PR check runs and passes.
 
 ## Workstream 2: Evidence-Rail Hardening
 
@@ -61,18 +68,22 @@ Cycle 16's strict claim is the baseline: the char-level recurrent substrate impr
   - [x] Confirm hardened Cycle 10 and Cycle 16 carry-forward rails run under the local target environment.
   - [ ] Record runtime assumptions and non-prod nature in `REPO_CONTROL`.
 - [ ] 4.2 Release proof.
-  - [ ] Push branch and open PR.
-  - [ ] Verify PR checks or document absence of GitHub Actions.
-  - [ ] Merge to `main` after green gates per lain's authorization for this repo/session.
-  - [ ] Confirm `main` contains the merged commits.
+  - [x] Push Phase 3 safety-boundary branch and open PR #14.
+  - [x] Merge PR #14 to `main` after green local gates per lain's authorization for this repo/session.
+  - [x] Confirm `main` contains the PR #14 merge commit.
+  - [x] Push CI branch and open PR #15.
+  - [x] Verify GitHub Actions auto-checks pass on PR #15.
+  - [ ] Merge CI PR to `main` and confirm `main` contains the workflow.
 
 ## Tail: Audit, Bug Search, Fixes, Closure
 
-- [ ] Audit current diff for unintended file churn, secrets, and stale artifacts.
+- [x] Audit current diff for unintended file churn, secrets, and stale artifacts.
 - [ ] Run bug search over touched scripts/native code.
 - [ ] Fix any audit findings before merge.
-- [ ] Close Cycle 1 with evidence and archive it under `docs/past_work/phase_4_language-architecture-pivot/`.
-- [ ] Open Cycle 2 for the selected architecture implementation.
+- [x] Close Cycle 1 with evidence and archive it under `docs/past_work/phase_4_language-architecture-pivot/`.
+- [x] Open Cycle 2 for GitHub Actions auto-checks.
+- [x] Close Cycle 2 after GitHub checks are green and archive it under `docs/past_work/phase_4_language-architecture-pivot/`.
+- [x] Open Cycle 3 for architecture path selection.
 
 ## Candidate Architecture Paths
 
