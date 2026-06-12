@@ -2,12 +2,14 @@
 
 Date opened: 2026-06-12
 Phase: `docs/PHASE_4_language-architecture-pivot.md`
-Branch: `main` after PR #15 merge; next implementation branch TBD
-Status: active
+Branch: opened from `main` after PR #15 merge; archived from `codex/project-x-phase5-plan` after PR #16 reached `main`
+Status: archived, superseded by lain's 2026-06-12 new-phase planning instruction
 
 ## Objective
 
 Choose the first post-Cycle-16 language substrate implementation path and prepare a narrow implementation slice. This cycle starts after GitHub auto-checks are on `main`, so future work has a real hosted gate instead of folklore with a YAML-shaped hole.
+
+Supersession note: Cycle 3 did not finish a Phase 4 path-selection closeout. Lain requested a new Phase 5 instead, so the path comparison and first material implementation contract move into `docs/PHASE_5_subword-to-concept-language-bridge.md` and `docs/CYCLE_1_subword-bridge-contracts.md`.
 
 ## Scope
 
@@ -35,7 +37,7 @@ Out of scope until the path is selected:
 - [ ] CI hygiene precondition
   - [x] Confirm Cycle 2 workflow exists on `main` and runs on push.
   - [x] Upgrade `actions/checkout` from v4 to v6 after the first main run warned about Node 20 deprecation.
-  - [ ] Confirm the Node 24 checkout follow-up PR and main-push checks pass.
+  - [x] Confirm the Node 24 checkout follow-up PR and main-push checks pass.
 - [ ] Decision setup
   - [ ] Re-read Phase 4 candidate paths A/B/C.
   - [ ] Compare expected learning signal, implementation cost, and evidence quality.
@@ -61,6 +63,9 @@ Required before implementation starts:
 
 - 2026-06-12: Cycle 2 added and proved GitHub Actions quick checks on PR #15 before this cycle opened.
 - 2026-06-12: PR #15 merged to `main`; push workflow run `27434563140` passed in 26s and exposed a Node 20 deprecation warning from `actions/checkout@v4`. GitHub API reported latest `actions/checkout` release `v6.0.3`, so the follow-up uses the `v6` major tag.
+- 2026-06-12: PR #16 (`codex/project-x-ci-node24`) merged to `main` at `ab6ca30acb31b172af69400458df352c41368d09`.
+- 2026-06-12: Final `main` CI run `27434705825`, job `81093591777`, passed with `actions/checkout@v6`.
+- 2026-06-12: Cycle archived as superseded, not completed; unchecked decision and implementation-plan boxes are carried into Phase 5.
 
 ## Open Risks
 

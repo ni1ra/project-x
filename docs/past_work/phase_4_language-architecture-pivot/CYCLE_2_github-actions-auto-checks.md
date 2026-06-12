@@ -53,8 +53,8 @@ Out of scope for this cycle:
   - [x] Push `codex/project-x-gh-actions`.
   - [x] Open PR #15 to `main`.
   - [x] Wait for GitHub auto-checks to pass.
-  - [ ] Merge PR #15 to `main` per lain's session authorization.
-  - [ ] Delete/close the feature branch and confirm `main` contains the workflow.
+  - [x] Merge PR #15 to `main` per lain's session authorization.
+  - [x] Confirm `main` contains the workflow.
 
 ## Verification Gates
 
@@ -82,8 +82,9 @@ Required before merge:
 - 2026-06-12: Staged diff review found only workflow/docs changes; token-pattern scan found no secret material.
 - 2026-06-12: PR #15 opened at `https://github.com/ni1ra/project-x/pull/15`.
 - 2026-06-12: GitHub Actions check `quick native/runtime checks` passed on run `27434410781`, job `81092580693`, duration 24s.
+- 2026-06-12: PR #15 merged to `main`; push workflow run `27434563140`, job `81093109015`, passed. The next checkout-runtime warning was handled by PR #16.
 
 ## Open Risks
 
 - Full historical carry-forward rails remain local/manual because they rely on ignored corpus/runtime state and old `/tmp` fixtures.
-- Merge and remote branch deletion are performed after this final docs commit is re-checked by GitHub Actions.
+- Remote branch cleanup is tracked outside this archived cycle if still needed.
