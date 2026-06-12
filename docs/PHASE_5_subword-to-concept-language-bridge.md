@@ -57,25 +57,25 @@ Decision: Path A goes first. It is the smallest experiment that can falsify "cha
 - [ ] 1.3 Make Cycle 2 implementation-ready before substrate coding.
   - [x] Name exact likely files, artifact names, verifier commands, local rails, and GitHub Actions gates.
   - [x] Define what must be proven before anyone claims language progress.
-  - [ ] Land the planning PR with green GitHub Actions.
+  - [x] Land the planning PR with green GitHub Actions.
 
 ## Workstream 2: Deterministic Subword Vocabulary And Corpus Manifest
 
-- [ ] 2.1 Build the tokenizer prep rail.
-  - [ ] Add `scripts/prepare_phase5_cycle2_bpe.sh`.
-  - [ ] Add `scripts/verify_phase5_cycle2_bpe.sh`.
-  - [ ] Reuse accepted Cycle 12/Cycle 16 corpus manifests without rewriting them.
-  - [ ] Write deterministic BPE merge/vocab artifacts with stable hashes.
-- [ ] 2.2 Produce tracked token artifacts.
-  - [ ] Add `experience/organic-v0/phase5_bpe_config_v0.json` (`project_x.phase5_bpe_config.v0`).
-  - [ ] Add `experience/organic-v0/phase5_bpe_vocab_v0.json` (`project_x.phase5_bpe_vocab.v0`).
-  - [ ] Add `experience/organic-v0/phase5_token_manifest_v0.jsonl` (`project_x.phase5_token_manifest_row.v0`).
-  - [ ] Add `run/artifacts/organic-v0/phase5_cycle2_bpe_prepare.json` (`project_x.phase5_cycle2_bpe_prepare.v0`).
-  - [ ] Add `run/artifacts/organic-v0/phase5_cycle2_bpe_verification.json` (`project_x.phase5_cycle2_bpe_verification.v0`).
-- [ ] 2.3 Acceptance gates.
-  - [ ] `scripts/verify_phase5_cycle2_bpe.sh` passes locally.
-  - [ ] Token manifest rows preserve source IDs, split buckets, shard hashes, token counts, and vocab/config hashes.
-  - [ ] Negative-space block confirms tokenizer prep is not a language capability claim.
+- [x] 2.1 Build the tokenizer prep rail.
+  - [x] Add `scripts/prepare_phase5_cycle2_bpe.sh`.
+  - [x] Add `scripts/verify_phase5_cycle2_bpe.sh`.
+  - [x] Reuse accepted Cycle 12/Cycle 16 corpus manifests without rewriting them.
+  - [x] Write deterministic BPE merge/vocab artifacts with stable hashes.
+- [x] 2.2 Produce tracked token artifacts.
+  - [x] Add `experience/organic-v0/phase5_bpe_config_v0.json` (`project_x.phase5_bpe_config.v0`).
+  - [x] Add `experience/organic-v0/phase5_bpe_vocab_v0.json` (`project_x.phase5_bpe_vocab.v0`).
+  - [x] Add `experience/organic-v0/phase5_token_manifest_v0.jsonl` (`project_x.phase5_token_manifest_row.v0`).
+  - [x] Add `run/artifacts/organic-v0/phase5_cycle2_bpe_prepare.json` (`project_x.phase5_cycle2_bpe_prepare.v0`).
+  - [x] Add `run/artifacts/organic-v0/phase5_cycle2_bpe_verification.json` (`project_x.phase5_cycle2_bpe_verification.v0`).
+- [x] 2.3 Acceptance gates.
+  - [x] `scripts/verify_phase5_cycle2_bpe.sh` passes locally.
+  - [x] Token manifest rows preserve source IDs, split buckets, shard hashes, token counts, and vocab/config hashes.
+  - [x] Negative-space block confirms tokenizer prep is not a language capability claim.
 
 ## Workstream 3: Subword Recurrent Train/Eval/Generation Path
 
