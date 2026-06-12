@@ -9,7 +9,7 @@ Status: every tracked source/test/script/non-docs artifact owns a row here, one-
 |---|---|---|
 | Manifesto | `docs/MANIFESTO.md` | long-term non-negotiables |
 | Active phase | `docs/PHASE_4_language-architecture-pivot.md` | opens the post-v3 language architecture pivot |
-| Active cycle | `docs/CYCLE_2_github-actions-auto-checks.md` | GitHub Actions auto-checks for PR/main flow |
+| Active cycle | `docs/CYCLE_3_architecture-path-selection.md` | choose the first post-Cycle-16 language substrate implementation path |
 | Legacy plan | `docs/A_TO_Z_PLAN.md` | historical v2/v3 plan and changelog; fold forward, then demote |
 | Pickup note | `docs/DO_THIS_NEXT.md` | Cycle 16 handoff; fold forward, then demote |
 
@@ -17,15 +17,16 @@ Status: every tracked source/test/script/non-docs artifact owns a row here, one-
 
 | Item | State |
 |---|---|
-| Current branch | `codex/project-x-gh-actions` |
+| Current branch | `main` after PR #15 merge; next implementation branch TBD |
 | Remote | `origin https://github.com/ni1ra/project-x.git` |
-| Upstream | none at cycle open |
-| Open PRs at cycle open | none |
+| Upstream | PR #15 branch tracks `origin/codex/project-x-gh-actions`; Cycle 3 branch TBD |
+| Open PRs at cycle open | PR #15 (`codex/project-x-gh-actions` -> `main`) green before final docs commit |
 | GitHub Actions | `.github/workflows/ci.yml`; required quick check runs on PRs to `main` and pushes to `main` |
 | Merge policy this session | lain authorized PR creation, merge to `main`, and production/testable proof once gates are green |
 | Identity gate | commits/pushes must run as `andreashoug <andreashoug@gmail.com>` with GitHub active account `ni1ra` |
 | Last full local gate | 2026-06-12: `make test` + Cycle 9/10/11/12/13/14/15/16 verifier set passed in WSL |
 | CI gate note | CI intentionally runs only fresh-runner-safe quick gates. Full Cycle 9-16 historical carry-forward remains local/manual until local-only fixtures and ignored corpus/runtime caches are made runner-safe |
+| Last GitHub Actions gate | 2026-06-12: PR #15 check `quick native/runtime checks` passed on run `27434410781`, job `81092580693` |
 
 ## Rule
 

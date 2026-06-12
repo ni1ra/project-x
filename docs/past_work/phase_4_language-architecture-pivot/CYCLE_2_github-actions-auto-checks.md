@@ -3,7 +3,7 @@
 Date opened: 2026-06-12
 Phase: `docs/PHASE_4_language-architecture-pivot.md`
 Branch: `codex/project-x-gh-actions`
-Status: active
+Status: archived after GitHub PR check proof
 
 ## Objective
 
@@ -30,7 +30,7 @@ Out of scope for this cycle:
 - [ ] Docs-os rollover
   - [x] Archive Cycle 1 under `docs/past_work/phase_4_language-architecture-pivot/`.
   - [x] Open this active Cycle 2 for GitHub auto-checks.
-  - [ ] Update phase and repo-control state after the PR/checks are proven.
+  - [x] Update phase and repo-control state after the PR/checks are proven.
 - [ ] GitHub Actions workflow
   - [x] Add `.github/workflows/ci.yml`.
   - [x] Run on `pull_request` to `main`.
@@ -41,19 +41,19 @@ Out of scope for this cycle:
   - [x] Validate docs control surfaces: manifesto, repo control, exactly one active phase, exactly one active cycle.
   - [x] Build and run `make clean test`.
   - [x] Run wrapper policy py_compile and regression tests.
-  - [ ] Confirm the GitHub PR check appears and passes.
+  - [x] Confirm the GitHub PR check appears and passes.
 - [ ] Local verification
   - [x] Run `make clean test` with CI `CXXFLAGS`.
   - [x] Run wrapper policy py_compile and regression tests.
   - [x] Run the docs control-surface check locally.
   - [x] Run diff whitespace check excluding generated run artifacts.
-  - [ ] Review diff for secrets and unintended runtime artifacts.
+  - [x] Review diff for secrets and unintended runtime artifacts.
 - [ ] PR and merge
-  - [ ] Commit as `andreashoug <andreashoug@gmail.com>`.
-  - [ ] Push `codex/project-x-gh-actions`.
-  - [ ] Open PR to `main`.
-  - [ ] Wait for GitHub auto-checks to pass.
-  - [ ] Merge PR to `main` per lain's session authorization.
+  - [x] Commit as `andreashoug <andreashoug@gmail.com>`.
+  - [x] Push `codex/project-x-gh-actions`.
+  - [x] Open PR #15 to `main`.
+  - [x] Wait for GitHub auto-checks to pass.
+  - [ ] Merge PR #15 to `main` per lain's session authorization.
   - [ ] Delete/close the feature branch and confirm `main` contains the workflow.
 
 ## Verification Gates
@@ -79,8 +79,11 @@ Required before merge:
 - 2026-06-12: `python3 -m py_compile scripts/run_organic_wrapper.py scripts/test_run_organic_wrapper_policy.py` and `python3 scripts/test_run_organic_wrapper_policy.py` passed locally.
 - 2026-06-12: Local docs control-surface check passed: `docs/MANIFESTO.md`, `docs/REPO_CONTROL.md`, exactly one active `PHASE_*.md`, and exactly one active `CYCLE_*.md`.
 - 2026-06-12: `git diff --check -- . ':(exclude)run/artifacts/**'` passed.
+- 2026-06-12: Staged diff review found only workflow/docs changes; token-pattern scan found no secret material.
+- 2026-06-12: PR #15 opened at `https://github.com/ni1ra/project-x/pull/15`.
+- 2026-06-12: GitHub Actions check `quick native/runtime checks` passed on run `27434410781`, job `81092580693`, duration 24s.
 
 ## Open Risks
 
 - Full historical carry-forward rails remain local/manual because they rely on ignored corpus/runtime state and old `/tmp` fixtures.
-- First PR check run proves the workflow registration path; until that run is green, local evidence is necessary but not sufficient.
+- Merge and remote branch deletion are performed after this final docs commit is re-checked by GitHub Actions.
